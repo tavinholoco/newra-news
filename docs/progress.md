@@ -51,7 +51,7 @@
 
 ## Fase 2 — Backend Core (pendente)
 
-> Referência: PRD seção 17 — "Fase 2 — Backend e Pipeline (Semana 3-5)"
+> Referência: PRD seção 17 — "Fase 2 — Backend Core (Semana 3-4)"
 
 ### Checklist do PRD
 
@@ -87,37 +87,56 @@ src/
 
 ---
 
-## Fase 3 — Frontend (pendente)
+## Fase 3 — Frontend Core (pendente)
 
-> Referência: PRD seção 17 — "Fase 3 — Frontend (Semana 6-8)"
+> Referência: PRD seção 17 — "Fase 3 — Frontend Core (Semana 5-6)"
 
 ### Checklist do PRD
 
-- [ ] Implementar TanStack Query hooks em `lib/queries.ts`
+- [ ] Implementar layout global (header, footer, navbar)
 - [ ] Página `/` — Home com feed de notícias (ISR)
-- [ ] Página `/news` — Listagem com filtros (ISR + CSR)
+- [ ] Página `/news` — Listagem de notícias (ISR + CSR para filtros)
 - [ ] Página `/news/[id]` — Notícia individual (ISR)
 - [ ] Página `/article` — Histórico de artigos (ISR)
 - [ ] Página `/article/[date]` — Artigo do dia (ISR)
-- [ ] Página `/about` — Sobre o projeto (SSG)
-- [ ] SEO: `generateMetadata()` em todas as páginas dinâmicas
-- [ ] Open Graph tags para compartilhamento social
-- [ ] Sitemap auto-gerado
-- [ ] `QueryClientProvider` no root layout
+- [ ] Implementar busca e filtros por categoria
+- [ ] Página `/about` e página 404 (SSG)
+- [ ] Configurar TanStack Query — `QueryClientProvider` + hooks em `lib/queries.ts`
+- [ ] SEO: `generateMetadata()`, Open Graph tags, sitemap auto-gerado
+- [ ] Responsividade mobile-first
 
 ---
 
-## Fase 4 — Deploy e Produção (pendente)
+## Fase 4 — Integração e Deploy (pendente)
 
-> Referência: PRD seção 17 — "Fase 4 — Deploy e Produção (Semana 9-10)"
+> Referência: PRD seção 17 — "Fase 4 — Integração e Deploy (Semana 7-8)"
 
 ### Checklist do PRD
 
-- [ ] Configurar banco Neon (PostgreSQL free tier)
-- [ ] Deploy backend no Render
-- [ ] Deploy frontend no Vercel
-- [ ] Configurar variáveis de ambiente em produção
-- [ ] Configurar cron job no Vercel (trigger diário do pipeline)
-- [ ] Configurar UptimeRobot (keep-alive Render)
+- [ ] Configurar Vercel Cron Job (`vercel.json`)
+- [ ] Implementar API Route de trigger no Next.js (`/api/cron/daily-news`)
+- [ ] Deploy do frontend na Vercel
+- [ ] Deploy do backend no Render
+- [ ] Criar instância PostgreSQL no Neon
+- [ ] Configurar UptimeRobot para keep-alive
+- [ ] Configurar variáveis de ambiente em todos os serviços
 - [ ] Rodar migrations em produção
-- [ ] Testes de fumaça (smoke tests) em produção
+- [ ] Testar pipeline completo em produção
+- [ ] Configurar domínio customizado (opcional)
+- [ ] Documentação final (README, docs/)
+
+---
+
+## Fase 5 — Polish e Portfólio (pendente)
+
+> Referência: PRD seção 17 — "Fase 5 — Polish e Portfólio (Semana 9-10)"
+
+### Checklist do PRD
+
+- [ ] Refinar UI/UX e animações
+- [ ] Gerar diagramas Mermaid (arquitetura, ER, sequência, fluxo)
+- [ ] Completar documentação do README com screenshots
+- [ ] Code review geral e refatorações
+- [ ] Otimização de performance (Lighthouse score)
+- [ ] Adicionar loading states e error boundaries
+- [ ] Preparar apresentação do projeto para portfólio
