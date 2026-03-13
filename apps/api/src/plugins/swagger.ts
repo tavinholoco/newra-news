@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { env } from '../config/env';
 
 export const swaggerPlugin = fp(async function swaggerPlugin(app: FastifyInstance) {
   await app.register(swagger, {
@@ -11,7 +12,7 @@ export const swaggerPlugin = fp(async function swaggerPlugin(app: FastifyInstanc
         description: 'API do portal de notícias Newra News',
         version: '1.0.0',
       },
-      servers: [{ url: 'http://localhost:3001' }],
+      servers: [{ url: `http://${env.HOST}:${env.PORT}` }],
     },
   });
 
