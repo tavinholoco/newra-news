@@ -1,0 +1,20 @@
+{
+  "name": "newranews",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "db:migrate": "turbo db:migrate",
+    "db:generate": "turbo db:generate",
+    "db:studio": "pnpm --filter @newranews/database db:studio",
+    "db:seed": "turbo db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "prettier": "^3.4.2"
+  }
+}

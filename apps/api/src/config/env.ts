@@ -1,0 +1,22 @@
+import { z } from 'zod';
+import 'dotenv/config';
+
+const envSchema = z.object({
+  PORT: z.coerce.number().default(3001),
+  HOST: z.string().default('0.0.0.0'),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  DATABASE_URL: z.string().url(),
+  NEWSAPI_KEY: z.string().min(1),
+  GEMINI_API_KEY: z.string().min(1),
+  GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
+  GROQ_API_KEY: z.string().min(1),
+  GROQ_MODEL: z.string().default('llama-3.1-8b-instant'),
+  JOB_SECRET: z.string().min(1),
+  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  CRON_SCHEDULE: z.string().default('0 8 * * *'),
+  CRON_TIMEZONE: z.string().default('America/Sao_Paulo'),
+});
+
+export const env = envSchema.parse(process.env);
+
+export type Env = z.infer<typeof envSchema>;

@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model News {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  content     String?
+  source      String
+  sourceUrl   String
+  imageUrl    String?
+  category    Category
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([publishedAt])
+  @@index([createdAt])
+}
+
+model Article {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  summary   String
+  date      DateTime @unique
+  newsCount Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+}
+
+model PipelineLog {
+  id          String         @id @default(uuid())
+  status      PipelineStatus
+  newsCount   Int            @default(0)
+  articleId   String?
+  error       String?
+  startedAt   DateTime       @default(now())
+  completedAt DateTime?
+}
+
+model DailyMetric {
+  id               String   @id @default(uuid())
+  date             DateTime @unique
+  newsCollected    Int      @default(0)
+  newsByCategory   Json     @default("{}")
+  articleGenerated Boolean  @default(false)
+  pipelineDuration Int?
+  aiProvider       String?
+  aiTokensUsed     Int?
+  pipelineErrors   Int      @default(0)
+  newsApiCount     Int      @default(0)
+  rssCount         Int      @default(0)
+  cleanupCount     Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([date])
+}
+
+enum Category {
+  TECHNOLOGY
+  POLITICS
+  ECONOMY
+  SPORTS
+  SCIENCE
+  ENTERTAINMENT
+  WORLD
+  HEALTH
+}
+
+enum PipelineStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
