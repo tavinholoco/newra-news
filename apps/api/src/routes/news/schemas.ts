@@ -95,13 +95,7 @@ export const getNewsByIdResponseJsonSchema = {
   required: ['data'],
 } as const;
 
-export const errorResponseJsonSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' },
-  },
-  required: ['error'],
-} as const;
+export { errorResponseJsonSchema } from '../../utils/schemas';
 
 export const listNewsResponseJsonSchema = {
   type: 'object',
