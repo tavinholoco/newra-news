@@ -3,6 +3,7 @@ import { getNewsById } from '../../services/news.service';
 import {
   newsParamsJsonSchema,
   getNewsByIdResponseJsonSchema,
+  errorResponseJsonSchema,
   type NewsParams,
   type GetNewsByIdResponse,
 } from './schemas';
@@ -14,7 +15,7 @@ export async function newsDetailRoutes(app: FastifyInstance) {
     {
       schema: {
         params: newsParamsJsonSchema,
-        response: { 200: getNewsByIdResponseJsonSchema },
+        response: { 200: getNewsByIdResponseJsonSchema, 404: errorResponseJsonSchema },
       },
     },
     async (request) => {

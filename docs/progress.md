@@ -49,7 +49,7 @@
 
 ---
 
-## Fase 2 — Backend Core (pendente)
+## Fase 2 — Backend Core (em andamento)
 
 > Referência: PRD seção 17 — "Fase 2 — Backend Core (Semana 3-4)"
 
@@ -58,7 +58,7 @@
 - [x] Configurar plugins Fastify: cors, helmet, rate-limit, swagger
 - [x] Implementar `GET /api/health`
 - [x] Implementar `GET /api/news` (listagem paginada + filtro por categoria)
-- [ ] Implementar `GET /api/news/:id`
+- [x] Implementar `GET /api/news/:id`
 - [ ] Implementar `GET /api/articles`
 - [ ] Implementar `GET /api/articles/latest`
 - [ ] Implementar `GET /api/articles/:date`
