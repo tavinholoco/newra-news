@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 4/16 itens concluídos
-- **Último marco:** `GET /api/news/:id` implementado com validação UUID e 404
-- **Próximos passos:** Implementar `GET /api/articles`
+- **Fase:** Fase 2 (Backend Core) em andamento — 7/16 itens concluídos
+- **Último marco:** `GET /api/articles`, `/latest`, `/:date` implementados com testes
+- **Próximos passos:** Implementar `POST /api/jobs/daily-pipeline`
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

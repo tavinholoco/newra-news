@@ -59,9 +59,9 @@
 - [x] Implementar `GET /api/health`
 - [x] Implementar `GET /api/news` (listagem paginada + filtro por categoria)
 - [x] Implementar `GET /api/news/:id`
-- [ ] Implementar `GET /api/articles`
-- [ ] Implementar `GET /api/articles/latest`
-- [ ] Implementar `GET /api/articles/:date`
+- [x] Implementar `GET /api/articles`
+- [x] Implementar `GET /api/articles/latest`
+- [x] Implementar `GET /api/articles/:date`
 - [ ] Implementar `POST /api/jobs/daily-pipeline` (Bearer token auth)
 - [ ] Implementar provider NewsAPI (`src/providers/news/newsapi.provider.ts`)
 - [ ] Implementar provider RSS (`src/providers/news/rss.provider.ts`)
@@ -82,7 +82,7 @@ src/
 │   ├── news/        # NewsAPI, RSS
 │   └── ai/          # Gemini, Groq
 ├── plugins/         # Registro de plugins Fastify
-└── utils/errors.ts  # Erros customizados
+└── utils/          # errors.ts (erros customizados), schemas.ts (schemas JSON compartilhados)
 ```
 
 ---
