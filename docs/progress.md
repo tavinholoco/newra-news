@@ -56,7 +56,7 @@
 ### Checklist do PRD
 
 - [x] Configurar plugins Fastify: cors, helmet, rate-limit, swagger
-- [ ] Implementar `GET /api/health`
+- [x] Implementar `GET /api/health`
 - [ ] Implementar `GET /api/news` (listagem paginada + filtro por categoria)
 - [ ] Implementar `GET /api/news/:id`
 - [ ] Implementar `GET /api/articles`

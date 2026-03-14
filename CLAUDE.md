@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 1/16 itens concluídos
-- **Último marco:** Plugins Fastify configurados (cors, helmet, rate-limit, swagger)
-- **Próximos passos:** Implementar `GET /api/health`
+- **Fase:** Fase 2 (Backend Core) em andamento — 2/16 itens concluídos
+- **Último marco:** `GET /api/health` implementado com schema Zod + Swagger
+- **Próximos passos:** Implementar `GET /api/news` (listagem paginada)
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
