@@ -45,3 +45,7 @@ export async function listNews(filters: ListNewsFilters, pagination: ListNewsPag
 
   return { data, total };
 }
+
+export async function getNewsById(id: string) {
+  return prisma.news.findUnique({ where: { id } });
+}

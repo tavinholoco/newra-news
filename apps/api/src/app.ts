@@ -6,6 +6,8 @@ import { rateLimitPlugin } from './plugins/rate-limit';
 import { swaggerPlugin } from './plugins/swagger';
 import { healthRoutes } from './routes/health';
 import { newsRoutes } from './routes/news';
+import { newsDetailRoutes } from './routes/news/[id]';
+import { AppError } from './utils/errors';
 
 export async function buildApp() {
   const app = Fastify({
@@ -19,9 +21,17 @@ export async function buildApp() {
   await app.register(corsPlugin);
   await app.register(helmetPlugin);
 
+  app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof AppError) {
+      return reply.status(error.statusCode).send({ error: error.message });
+    }
+    return reply.status(error.statusCode ?? 500).send({ error: error.message });
+  });
+
   await app.register(healthRoutes, { prefix: '/api/health' });
 
   await app.register(newsRoutes, { prefix: '/api/news' });
+  await app.register(newsDetailRoutes, { prefix: '/api/news' });
 
   // TODO: Register routes
   // await app.register(articlesRoutes, { prefix: '/api/articles' });

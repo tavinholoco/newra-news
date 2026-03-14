@@ -48,6 +48,8 @@ export const listNewsResponseSchema = z.object({
 
 export type ListNewsQuery = z.infer<typeof listNewsQuerySchema>;
 export type ListNewsResponse = z.infer<typeof listNewsResponseSchema>;
+export type NewsParams = z.infer<typeof newsParamsSchema>;
+export type GetNewsByIdResponse = { data: z.infer<typeof newsItemSchema> };
 
 export const listNewsQueryJsonSchema = {
   type: 'object',
@@ -60,7 +62,7 @@ export const listNewsQueryJsonSchema = {
   },
 } as const;
 
-const newsItemJsonSchema = {
+export const newsItemJsonSchema = {
   type: 'object',
   properties: {
     id: { type: 'string', format: 'uuid' },
@@ -75,6 +77,30 @@ const newsItemJsonSchema = {
     createdAt: { type: 'string', format: 'date-time' },
   },
   required: ['id', 'title', 'description', 'content', 'source', 'sourceUrl', 'imageUrl', 'category', 'publishedAt', 'createdAt'],
+} as const;
+
+export const newsParamsJsonSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+  },
+  required: ['id'],
+} as const;
+
+export const getNewsByIdResponseJsonSchema = {
+  type: 'object',
+  properties: {
+    data: newsItemJsonSchema,
+  },
+  required: ['data'],
+} as const;
+
+export const errorResponseJsonSchema = {
+  type: 'object',
+  properties: {
+    error: { type: 'string' },
+  },
+  required: ['error'],
 } as const;
 
 export const listNewsResponseJsonSchema = {
