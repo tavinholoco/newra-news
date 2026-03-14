@@ -5,6 +5,7 @@ import { helmetPlugin } from './plugins/helmet';
 import { rateLimitPlugin } from './plugins/rate-limit';
 import { swaggerPlugin } from './plugins/swagger';
 import { healthRoutes } from './routes/health';
+import { newsRoutes } from './routes/news';
 
 export async function buildApp() {
   const app = Fastify({
@@ -20,8 +21,9 @@ export async function buildApp() {
 
   await app.register(healthRoutes, { prefix: '/api/health' });
 
+  await app.register(newsRoutes, { prefix: '/api/news' });
+
   // TODO: Register routes
-  // await app.register(newsRoutes, { prefix: '/api/news' });
   // await app.register(articlesRoutes, { prefix: '/api/articles' });
   // await app.register(jobsRoutes, { prefix: '/api/jobs' });
 

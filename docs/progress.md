@@ -57,7 +57,7 @@
 
 - [x] Configurar plugins Fastify: cors, helmet, rate-limit, swagger
 - [x] Implementar `GET /api/health`
-- [ ] Implementar `GET /api/news` (listagem paginada + filtro por categoria)
+- [x] Implementar `GET /api/news` (listagem paginada + filtro por categoria)
 - [ ] Implementar `GET /api/news/:id`
 - [ ] Implementar `GET /api/articles`
 - [ ] Implementar `GET /api/articles/latest`
