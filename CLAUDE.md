@@ -44,9 +44,10 @@
 - Diagramas: docs/diagrams/
 
 ## Status Atual
-- **Fase:** Fase 1 concluída → Fase 2 (Backend Core) pendente
-- **Último marco:** shadcn/ui instalado, Fase 1 100% completa (commit a8cd95e)
-- **Próximos passos:** Implementar rotas backend (health, news, articles, jobs/pipeline)
+
+- **Fase:** Fase 2 (Backend Core) em andamento — 2/16 itens concluídos
+- **Último marco:** `GET /api/health` implementado com schema Zod + Swagger
+- **Próximos passos:** Implementar `GET /api/news` (listagem paginada)
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

@@ -7,7 +7,7 @@
 
 ## Fase Atual
 
-**Fase 2 — Backend Core** (pendente — iniciar após leitura deste arquivo)
+**Fase 2 — Backend Core** (em andamento)
 
 ---
 
@@ -55,8 +55,8 @@
 
 ### Checklist do PRD
 
-- [ ] Configurar plugins Fastify: cors, helmet, rate-limit, swagger
-- [ ] Implementar `GET /api/health`
+- [x] Configurar plugins Fastify: cors, helmet, rate-limit, swagger
+- [x] Implementar `GET /api/health`
 - [ ] Implementar `GET /api/news` (listagem paginada + filtro por categoria)
 - [ ] Implementar `GET /api/news/:id`
 - [ ] Implementar `GET /api/articles`
