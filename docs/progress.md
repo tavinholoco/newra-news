@@ -7,7 +7,7 @@
 
 ## Fase Atual
 
-**Fase 2 — Backend Core** (em andamento)
+**Fase 2 — Backend Core** ✅ Concluída em 2026-03-16
 
 ---
 
@@ -49,7 +49,7 @@
 
 ---
 
-## Fase 2 — Backend Core (em andamento)
+## Fase 2 — Backend Core ✅ Concluída em 2026-03-16
 
 > Referência: PRD seção 17 — "Fase 2 — Backend Core (Semana 3-4)"
 
@@ -70,7 +70,7 @@
 - [x] Implementar pipeline service completo (9 estágios)
 - [x] Configurar cron job com `@fastify/schedule` (trigger diário)
 - [x] Escrever testes para todos os services e rotas
-- [ ] Validar todas as rotas com Zod schemas
+- [x] Validar todas as rotas com Zod schemas
 
 ### Arquitetura de referência (apps/api/CLAUDE.md)
 
@@ -82,7 +82,7 @@ src/
 │   ├── news/        # NewsAPI, RSS
 │   └── ai/          # Gemini, Groq
 ├── plugins/         # Registro de plugins Fastify
-└── utils/          # errors.ts (erros customizados), schemas.ts (schemas JSON compartilhados)
+└── utils/          # errors.ts (erros customizados), schemas.ts (schemas Zod compartilhados)
 ```
 
 ---

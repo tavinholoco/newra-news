@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 15/16 itens concluídos
-- **Último marco:** Testes escritos para todos os services (article.service, news.service) — 119 testes passando em 15 suites
-- **Próximos passos:** Validar todas as rotas com Zod schemas
+- **Fase:** Fase 2 (Backend Core) ✅ Concluída — 16/16 itens
+- **Último marco:** Validação Zod nativa em todas as rotas via fastify-type-provider-zod — 119 testes passando em 15 suites
+- **Próximos passos:** Fase 3 — Frontend Core
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

@@ -1,24 +1,18 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { env } from '../../config/env';
 import { triggerPipeline } from '../../services/pipeline.service';
 import { UnauthorizedError } from '../../utils/errors';
-import {
-  jobTriggerHeadersJsonSchema,
-  jobTriggerResponseJsonSchema,
-  errorResponseJsonSchema,
-  type JobTriggerHeaders,
-  type JobTriggerResponse,
-} from './schemas';
+import { jobTriggerResponseSchema, errorResponseSchema } from './schemas';
 
 export async function jobsRoutes(app: FastifyInstance) {
-  app.post<{ Headers: JobTriggerHeaders; Reply: JobTriggerResponse }>(
+  app.withTypeProvider<ZodTypeProvider>().post(
     '/daily-pipeline',
     {
       schema: {
-        headers: jobTriggerHeadersJsonSchema,
         response: {
-          200: jobTriggerResponseJsonSchema,
-          401: errorResponseJsonSchema,
+          200: jobTriggerResponseSchema,
+          401: errorResponseSchema,
         },
       },
     },
@@ -32,7 +26,7 @@ export async function jobsRoutes(app: FastifyInstance) {
         throw new UnauthorizedError('Invalid or missing token');
       }
       const pipelineId = await triggerPipeline();
-      return { status: 'started', pipelineId };
+      return { status: 'started' as const, pipelineId };
     },
   );
 }

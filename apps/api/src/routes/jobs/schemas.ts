@@ -13,20 +13,4 @@ export const jobTriggerResponseSchema = z.object({
 
 export type JobTriggerResponse = z.infer<typeof jobTriggerResponseSchema>;
 
-export const jobTriggerHeadersJsonSchema = {
-  type: 'object',
-  properties: {
-    authorization: { type: 'string', description: 'Bearer <JOB_SECRET>' },
-  },
-} as const;
-
-export const jobTriggerResponseJsonSchema = {
-  type: 'object',
-  properties: {
-    status: { type: 'string', enum: ['started'] },
-    pipelineId: { type: 'string', format: 'uuid' },
-  },
-  required: ['status', 'pipelineId'],
-} as const;
-
-export { errorResponseJsonSchema } from '../../utils/schemas';
+export { errorResponseSchema } from '../../utils/schemas';

@@ -1,21 +1,16 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getArticleByDate } from '../../services/article.service';
-import {
-  articleDateParamsJsonSchema,
-  getArticleResponseJsonSchema,
-  errorResponseJsonSchema,
-  type ArticleDateParams,
-  type GetArticleResponse,
-} from './schemas';
+import { articleDateParamsSchema, getArticleResponseSchema, errorResponseSchema } from './schemas';
 import { NotFoundError } from '../../utils/errors';
 
 export async function articleDateRoutes(app: FastifyInstance) {
-  app.get<{ Params: ArticleDateParams; Reply: GetArticleResponse }>(
+  app.withTypeProvider<ZodTypeProvider>().get(
     '/:date',
     {
       schema: {
-        params: articleDateParamsJsonSchema,
-        response: { 200: getArticleResponseJsonSchema, 404: errorResponseJsonSchema },
+        params: articleDateParamsSchema,
+        response: { 200: getArticleResponseSchema, 404: errorResponseSchema },
       },
     },
     async (request) => {

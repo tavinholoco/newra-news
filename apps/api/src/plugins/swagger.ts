@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import { env } from '../config/env';
 
 export const swaggerPlugin = fp(async function swaggerPlugin(app: FastifyInstance) {
@@ -14,6 +15,7 @@ export const swaggerPlugin = fp(async function swaggerPlugin(app: FastifyInstanc
       },
       servers: [{ url: `http://${env.HOST}:${env.PORT}` }],
     },
+    transform: jsonSchemaTransform,
   });
 
   await app.register(swaggerUi, {

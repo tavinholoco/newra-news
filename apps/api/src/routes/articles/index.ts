@@ -1,23 +1,23 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { listArticles, getLatestArticle } from '../../services/article.service';
 import {
-  listArticlesQueryJsonSchema,
-  listArticlesResponseJsonSchema,
-  getArticleResponseJsonSchema,
-  errorResponseJsonSchema,
-  type ListArticlesQuery,
-  type ListArticlesResponse,
-  type GetArticleResponse,
+  listArticlesQuerySchema,
+  listArticlesResponseSchema,
+  getArticleResponseSchema,
+  errorResponseSchema,
 } from './schemas';
 import { NotFoundError } from '../../utils/errors';
 
 export async function articlesRoutes(app: FastifyInstance) {
-  app.get<{ Querystring: ListArticlesQuery; Reply: ListArticlesResponse }>(
+  const typed = app.withTypeProvider<ZodTypeProvider>();
+
+  typed.get(
     '/',
     {
       schema: {
-        querystring: listArticlesQueryJsonSchema,
-        response: { 200: listArticlesResponseJsonSchema },
+        querystring: listArticlesQuerySchema,
+        response: { 200: listArticlesResponseSchema },
       },
     },
     async (request) => {
@@ -41,11 +41,11 @@ export async function articlesRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get<{ Reply: GetArticleResponse }>(
+  typed.get(
     '/latest',
     {
       schema: {
-        response: { 200: getArticleResponseJsonSchema, 404: errorResponseJsonSchema },
+        response: { 200: getArticleResponseSchema, 404: errorResponseSchema },
       },
     },
     async () => {

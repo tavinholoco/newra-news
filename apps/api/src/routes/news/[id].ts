@@ -1,21 +1,16 @@
 import type { FastifyInstance } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getNewsById } from '../../services/news.service';
-import {
-  newsParamsJsonSchema,
-  getNewsByIdResponseJsonSchema,
-  errorResponseJsonSchema,
-  type NewsParams,
-  type GetNewsByIdResponse,
-} from './schemas';
+import { newsParamsSchema, getNewsByIdResponseSchema, errorResponseSchema } from './schemas';
 import { NotFoundError } from '../../utils/errors';
 
 export async function newsDetailRoutes(app: FastifyInstance) {
-  app.get<{ Params: NewsParams; Reply: GetNewsByIdResponse }>(
+  app.withTypeProvider<ZodTypeProvider>().get(
     '/:id',
     {
       schema: {
-        params: newsParamsJsonSchema,
-        response: { 200: getNewsByIdResponseJsonSchema, 404: errorResponseJsonSchema },
+        params: newsParamsSchema,
+        response: { 200: getNewsByIdResponseSchema, 404: errorResponseSchema },
       },
     },
     async (request) => {
