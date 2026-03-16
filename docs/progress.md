@@ -64,7 +64,7 @@
 - [x] Implementar `GET /api/articles/:date`
 - [x] Implementar `POST /api/jobs/daily-pipeline` (Bearer token auth)
 - [x] Implementar provider NewsAPI (`src/providers/newsapi.provider.ts`)
-- [ ] Implementar provider RSS (`src/providers/news/rss.provider.ts`)
+- [x] Implementar provider RSS (`src/providers/rss.provider.ts`)
 - [ ] Implementar provider Gemini AI (`src/providers/ai/gemini.provider.ts`)
 - [ ] Implementar provider Groq AI fallback (`src/providers/ai/groq.provider.ts`)
 - [ ] Implementar pipeline service completo (9 estágios)

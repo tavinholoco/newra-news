@@ -21,6 +21,7 @@
     "dotenv": "^16.4.0",
     "fastify": "^4.28.0",
     "fastify-plugin": "^5.1.0",
+    "rss-parser": "^3.13.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
