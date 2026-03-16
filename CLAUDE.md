@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 8/16 itens concluídos
-- **Último marco:** `POST /api/jobs/daily-pipeline` com Bearer token auth implementado com testes
-- **Próximos passos:** Implementar providers (NewsAPI, RSS, Gemini, Groq)
+- **Fase:** Fase 2 (Backend Core) em andamento — 9/16 itens concluídos
+- **Último marco:** Provider NewsAPI implementado com mapeamento de categorias e testes unitários
+- **Próximos passos:** Implementar providers RSS, Gemini AI, Groq AI
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
