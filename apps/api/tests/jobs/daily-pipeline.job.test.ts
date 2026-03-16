@@ -30,7 +30,7 @@ vi.mock('@fastify/schedule', () => ({
 }));
 
 vi.mock('toad-scheduler', () => ({
-  AsyncTask: vi.fn().mockImplementation((name: string, handler: () => Promise<void>, errorHandler: (err: Error) => void) => ({
+  AsyncTask: vi.fn().mockImplementation((name: string, handler: () => Promise<void>, errorHandler: (err: unknown) => void) => ({
     name,
     handler,
     errorHandler,
@@ -139,6 +139,17 @@ describe('registerDailyPipelineJob', () => {
 
     expect(app.log.info).toHaveBeenCalledWith(
       expect.stringContaining('0 8 * * *'),
+    );
+  });
+
+  it('should throw a clear error when CronJob constructor throws', async () => {
+    vi.mocked(CronJob).mockImplementationOnce(() => {
+      throw new Error('invalid cron expression');
+    });
+
+    const app = makeMockApp();
+    await expect(registerDailyPipelineJob(app)).rejects.toThrow(
+      'Invalid cron configuration',
     );
   });
 });

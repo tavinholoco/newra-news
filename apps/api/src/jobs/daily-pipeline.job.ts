@@ -18,16 +18,23 @@ export async function registerDailyPipelineJob(app: FastifyInstance): Promise<vo
     async () => {
       await runDailyPipelineTask(app.log);
     },
-    (err: Error) => {
-      app.log.error(`[cron] task failed: ${err.message}`);
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      app.log.error(`[cron] task failed: ${message}`);
     },
   );
 
-  const job = new CronJob(
-    { cronExpression: env.CRON_SCHEDULE, timezone: env.CRON_TIMEZONE },
-    task,
-    { preventOverrun: true },
-  );
+  let job: CronJob;
+  try {
+    job = new CronJob(
+      { cronExpression: env.CRON_SCHEDULE, timezone: env.CRON_TIMEZONE },
+      task,
+      { preventOverrun: true },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Invalid cron configuration (CRON_SCHEDULE="${env.CRON_SCHEDULE}", CRON_TIMEZONE="${env.CRON_TIMEZONE}"): ${message}`);
+  }
 
   app.scheduler.addCronJob(job);
   app.log.info(`[cron] registered, schedule: ${env.CRON_SCHEDULE} tz: ${env.CRON_TIMEZONE}`);
