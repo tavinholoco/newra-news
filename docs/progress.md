@@ -62,7 +62,7 @@
 - [x] Implementar `GET /api/articles`
 - [x] Implementar `GET /api/articles/latest`
 - [x] Implementar `GET /api/articles/:date`
-- [ ] Implementar `POST /api/jobs/daily-pipeline` (Bearer token auth)
+- [x] Implementar `POST /api/jobs/daily-pipeline` (Bearer token auth)
 - [ ] Implementar provider NewsAPI (`src/providers/news/newsapi.provider.ts`)
 - [ ] Implementar provider RSS (`src/providers/news/rss.provider.ts`)
 - [ ] Implementar provider Gemini AI (`src/providers/ai/gemini.provider.ts`)
