@@ -66,7 +66,7 @@
 - [x] Implementar provider NewsAPI (`src/providers/newsapi.provider.ts`)
 - [x] Implementar provider RSS (`src/providers/rss.provider.ts`)
 - [x] Implementar provider Gemini AI (`src/providers/gemini.provider.ts`)
-- [ ] Implementar provider Groq AI fallback (`src/providers/ai/groq.provider.ts`)
+- [x] Implementar provider Groq AI fallback (`src/providers/groq.provider.ts`)
 - [ ] Implementar pipeline service completo (9 estágios)
 - [ ] Configurar cron job com `@fastify/schedule` (trigger diário)
 - [ ] Escrever testes para todos os services e rotas

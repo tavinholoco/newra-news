@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 11/16 itens concluídos
-- **Último marco:** Provider Gemini AI implementado com parsing de markdown e testes unitários
-- **Próximos passos:** Implementar provider Groq AI fallback
+- **Fase:** Fase 2 (Backend Core) em andamento — 12/16 itens concluídos
+- **Último marco:** Provider Groq AI fallback implementado com ai.service.ts (Gemini→Groq) e testes unitários
+- **Próximos passos:** Implementar pipeline service completo (9 estágios)
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
