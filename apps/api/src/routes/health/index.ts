@@ -1,18 +1,19 @@
 import type { FastifyInstance } from 'fastify';
-import { healthResponseJsonSchema, type HealthResponse } from './schemas';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { healthResponseSchema } from './schemas';
 
 export async function healthRoutes(app: FastifyInstance) {
-  app.get<{ Reply: HealthResponse }>(
+  app.withTypeProvider<ZodTypeProvider>().get(
     '/',
     {
       schema: {
         response: {
-          200: healthResponseJsonSchema,
+          200: healthResponseSchema,
         },
       },
     },
     async () => ({
-      status: 'ok',
+      status: 'ok' as const,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     }),

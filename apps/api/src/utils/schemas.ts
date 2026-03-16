@@ -1,7 +1,5 @@
-export const errorResponseJsonSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' },
-  },
-  required: ['error'],
-} as const;
+import { z } from 'zod';
+
+export const errorResponseSchema = z.object({
+  error: z.string(),
+});

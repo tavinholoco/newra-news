@@ -1,4 +1,8 @@
 import Fastify from 'fastify';
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from 'fastify-type-provider-zod';
 import { env } from './config/env';
 import { corsPlugin } from './plugins/cors';
 import { helmetPlugin } from './plugins/helmet';
@@ -16,6 +20,9 @@ export async function buildApp() {
   const app = Fastify({
     logger: env.NODE_ENV !== 'test',
   });
+
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
 
   // Rate-limit primeiro: usa onRoute hook que precisa estar ativo antes das rotas serem registradas
   await app.register(rateLimitPlugin);
