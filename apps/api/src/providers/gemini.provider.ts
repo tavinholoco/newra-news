@@ -58,7 +58,7 @@ function parseMarkdownResponse(markdown: string): GeneratedArticle {
   let contentLines: string[];
 
   if (h1Index !== -1) {
-    title = lines[h1Index].replace(/^#\s+/, '').trim();
+    title = (lines[h1Index] ?? '').replace(/^#\s+/, '').trim();
     contentLines = lines.filter((_, i) => i !== h1Index);
   } else {
     const firstNonEmptyIndex = lines.findIndex((l) => l.trim() !== '');
