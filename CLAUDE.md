@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 10/16 itens concluídos
-- **Último marco:** Provider RSS implementado com resiliência multi-fonte e testes unitários
-- **Próximos passos:** Implementar providers Gemini AI, Groq AI
+- **Fase:** Fase 2 (Backend Core) em andamento — 11/16 itens concluídos
+- **Último marco:** Provider Gemini AI implementado com parsing de markdown e testes unitários
+- **Próximos passos:** Implementar provider Groq AI fallback
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

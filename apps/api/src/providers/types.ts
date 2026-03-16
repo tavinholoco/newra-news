@@ -10,3 +10,9 @@ export interface RawNewsItem {
   category: Category;
   publishedAt: Date;
 }
+
+export interface GeneratedArticle {
+  title: string;
+  summary: string;
+  content: string;
+}
