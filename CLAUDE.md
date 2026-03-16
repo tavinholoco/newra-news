@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 14/16 itens concluídos
-- **Último marco:** Cron job configurado com @fastify/schedule (trigger diário automático às 8h BRT)
-- **Próximos passos:** Escrever testes para todos os services e rotas; validar Zod schemas
+- **Fase:** Fase 2 (Backend Core) em andamento — 15/16 itens concluídos
+- **Último marco:** Testes escritos para todos os services (article.service, news.service) — 119 testes passando em 15 suites
+- **Próximos passos:** Validar todas as rotas com Zod schemas
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
