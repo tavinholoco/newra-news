@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) em andamento — 13/16 itens concluídos
-- **Último marco:** Pipeline service completo implementado (9 estágios: coleta, deduplicação, persistência, geração IA, cleanup, métricas)
-- **Próximos passos:** Configurar cron job com `@fastify/schedule` (trigger diário)
+- **Fase:** Fase 2 (Backend Core) em andamento — 14/16 itens concluídos
+- **Último marco:** Cron job configurado com @fastify/schedule (trigger diário automático às 8h BRT)
+- **Próximos passos:** Escrever testes para todos os services e rotas; validar Zod schemas
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

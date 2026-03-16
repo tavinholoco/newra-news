@@ -68,7 +68,7 @@
 - [x] Implementar provider Gemini AI (`src/providers/gemini.provider.ts`)
 - [x] Implementar provider Groq AI fallback (`src/providers/groq.provider.ts`)
 - [x] Implementar pipeline service completo (9 estágios)
-- [ ] Configurar cron job com `@fastify/schedule` (trigger diário)
+- [x] Configurar cron job com `@fastify/schedule` (trigger diário)
 - [ ] Escrever testes para todos os services e rotas
 - [ ] Validar todas as rotas com Zod schemas
 
