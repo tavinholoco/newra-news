@@ -1,6 +1,6 @@
 import { Category } from '@newranews/database';
-import { fetchFromNewsApi } from '../providers/newsapi.provider';
-import { fetchFromRss } from '../providers/rss.provider';
+import { fetchFromNewsApi } from '../providers/news/newsapi.provider';
+import { fetchFromRss } from '../providers/news/rss.provider';
 import type { RawNewsItem } from '../providers/types';
 
 const ALL_CATEGORIES = Object.values(Category) as Category[];

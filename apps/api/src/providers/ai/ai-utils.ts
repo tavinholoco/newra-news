@@ -1,4 +1,4 @@
-import type { RawNewsItem, GeneratedArticle } from './types';
+import type { RawNewsItem, GeneratedArticle } from '../types';
 
 export function formatNewsItems(newsItems: RawNewsItem[]): string {
   return newsItems

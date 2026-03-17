@@ -1,7 +1,7 @@
-import { env } from '../config/env';
-import { ARTICLE_SYSTEM_PROMPT, ARTICLE_USER_PROMPT } from '../config/ai-prompts';
+import { env } from '../../config/env';
+import { ARTICLE_SYSTEM_PROMPT, ARTICLE_USER_PROMPT } from '../../config/ai-prompts';
 import { formatNewsItems, parseMarkdownResponse } from './ai-utils';
-import type { RawNewsItem, GeneratedArticle } from './types';
+import type { RawNewsItem, GeneratedArticle } from '../types';
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 

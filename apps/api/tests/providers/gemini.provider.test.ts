@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { generateArticleWithGemini } from '../../src/providers/gemini.provider';
+import { generateArticleWithGemini } from '../../src/providers/ai/gemini.provider';
 
 vi.mock('../../src/config/env', () => ({
   env: {

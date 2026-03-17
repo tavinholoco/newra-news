@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { generateArticleWithGroq } from '../../src/providers/groq.provider';
+import { generateArticleWithGroq } from '../../src/providers/ai/groq.provider';
 
 vi.mock('../../src/config/env', () => ({
   env: {
