@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchAll } from '../../src/services/news-fetcher.service';
 
-vi.mock('../../src/providers/newsapi.provider');
-vi.mock('../../src/providers/rss.provider');
+vi.mock('../../src/providers/news/newsapi.provider');
+vi.mock('../../src/providers/news/rss.provider');
 
-import { fetchFromNewsApi } from '../../src/providers/newsapi.provider';
-import { fetchFromRss } from '../../src/providers/rss.provider';
+import { fetchFromNewsApi } from '../../src/providers/news/newsapi.provider';
+import { fetchFromRss } from '../../src/providers/news/rss.provider';
 
 const mockNewsApiItems = [
   {

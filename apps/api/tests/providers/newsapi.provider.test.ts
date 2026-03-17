@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { fetchFromNewsApi } from '../../src/providers/newsapi.provider';
+import { fetchFromNewsApi } from '../../src/providers/news/newsapi.provider';
 
 vi.mock('../../src/config/env', () => ({
   env: { NEWSAPI_KEY: 'test-key' },

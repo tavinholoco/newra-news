@@ -1,5 +1,5 @@
-import { generateArticleWithGemini } from '../providers/gemini.provider';
-import { generateArticleWithGroq } from '../providers/groq.provider';
+import { generateArticleWithGemini } from '../providers/ai/gemini.provider';
+import { generateArticleWithGroq } from '../providers/ai/groq.provider';
 import type { RawNewsItem, GeneratedArticle } from '../providers/types';
 
 export interface GenerateArticleResult {

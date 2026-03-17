@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
 import { generateArticle } from '../../src/services/ai.service';
 
-vi.mock('../../src/providers/gemini.provider');
-vi.mock('../../src/providers/groq.provider');
+vi.mock('../../src/providers/ai/gemini.provider');
+vi.mock('../../src/providers/ai/groq.provider');
 
-import { generateArticleWithGemini } from '../../src/providers/gemini.provider';
-import { generateArticleWithGroq } from '../../src/providers/groq.provider';
+import { generateArticleWithGemini } from '../../src/providers/ai/gemini.provider';
+import { generateArticleWithGroq } from '../../src/providers/ai/groq.provider';
 
 const mockGeneratedArticle = {
   title: 'Artigo Gerado',

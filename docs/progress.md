@@ -72,6 +72,17 @@
 - [x] Escrever testes para todos os services e rotas
 - [x] Validar todas as rotas com Zod schemas
 
+### Refatorações pós-fase 2 ✅ Concluídas em 2026-03-17
+
+- [x] Cleanup de artigos >90 dias adicionado ao Stage 8 do pipeline (PRD 3.4)
+- [x] Rate limit restritivo na rota `/api/jobs/daily-pipeline` (20 req/min vs 100 global)
+- [x] Implementar `GET /api/jobs/:pipelineId` — status de execução do pipeline
+- [x] Implementar `GET /api/metrics/weekly`, `/monthly`, `/dashboard` — 3 endpoints de métricas
+- [x] Providers reestruturados em `providers/news/` (NewsAPI, RSS) e `providers/ai/` (Gemini, Groq, ai-utils)
+- [x] `packages/database/prisma/seed.ts` — seed com dados realistas para todas as categorias
+- [x] `docs/architecture.md` e `docs/api.md` preenchidos com documentação real
+- [x] Testes atualizados: 131 testes em 16 suites
+
 ### Arquitetura de referência (apps/api/CLAUDE.md)
 
 ```

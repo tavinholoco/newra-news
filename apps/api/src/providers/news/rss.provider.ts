@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import { Category } from '@newranews/database';
-import type { RawNewsItem } from './types';
-import { rssSources, type RssSource } from '../config/rss-sources';
+import type { RawNewsItem } from '../types';
+import { rssSources, type RssSource } from '../../config/rss-sources';
 
 const parser = new Parser();
 

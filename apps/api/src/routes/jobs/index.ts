@@ -9,6 +9,7 @@ export async function jobsRoutes(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().post(
     '/daily-pipeline',
     {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
       schema: {
         response: {
           200: jobTriggerResponseSchema,

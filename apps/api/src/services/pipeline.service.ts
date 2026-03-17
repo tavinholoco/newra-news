@@ -131,13 +131,17 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const [deletedNews, deletedLogs] = await Promise.all([
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      const [deletedNews, deletedLogs, deletedArticles] = await Promise.all([
         prisma.news.deleteMany({ where: { createdAt: { lt: thirtyDaysAgo } } }),
         prisma.pipelineLog.deleteMany({
           where: { startedAt: { lt: thirtyDaysAgo }, id: { not: pipelineLogId } },
         }),
+        prisma.article.deleteMany({ where: { createdAt: { lt: ninetyDaysAgo } } }),
       ]);
-      metrics.cleanupCount = deletedNews.count + deletedLogs.count;
+      metrics.cleanupCount = deletedNews.count + deletedLogs.count + deletedArticles.count;
     } catch (cleanupErr) {
       console.warn('[pipeline] cleanup failed (non-critical):', cleanupErr);
       metrics.pipelineErrors += 1;

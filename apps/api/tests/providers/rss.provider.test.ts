@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { fetchFromRss } from '../../src/providers/rss.provider';
+import { fetchFromRss } from '../../src/providers/news/rss.provider';
 import type { RssSource } from '../../src/config/rss-sources';
 
 const { mockParseURL } = vi.hoisted(() => ({ mockParseURL: vi.fn() }));

@@ -1,6 +1,6 @@
 import { Category } from '@newranews/database';
-import { env } from '../config/env';
-import type { RawNewsItem } from './types';
+import { env } from '../../config/env';
+import type { RawNewsItem } from '../types';
 
 const REMOVED_SENTINEL = '[Removed]';
 
