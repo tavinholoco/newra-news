@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Calendar, ExternalLink } from 'lucide-react';
 
-const categoryLabels: Record<Category, string> = {
+const CATEGORY_LABELS: Record<Category, string> = {
   TECHNOLOGY: 'Tecnologia',
   POLITICS: 'Política',
   ECONOMY: 'Economia',
@@ -55,7 +55,7 @@ export function NewsCard({ news }: NewsCardProps) {
           )}
           <div className='absolute left-3 top-3'>
             <Badge className='bg-brand-600 text-white hover:bg-brand-600'>
-              {categoryLabels[news.category]}
+              {CATEGORY_LABELS[news.category]}
             </Badge>
           </div>
         </div>

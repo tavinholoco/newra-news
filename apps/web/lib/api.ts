@@ -1,6 +1,7 @@
 import type {
   News,
   Article,
+  Category,
   PaginatedResponse,
   ApiResponse,
 } from '@newranews/types';
@@ -26,7 +27,7 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 export async function getNews(
   page = 1,
   limit = 12,
-  category?: string,
+  category?: Category,
   search?: string,
 ): Promise<PaginatedResponse<News>> {
   const params = new URLSearchParams({
