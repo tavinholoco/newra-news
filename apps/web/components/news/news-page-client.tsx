@@ -19,6 +19,7 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
   const [data, setData] = useState(initialData.data);
   const [meta, setMeta] = useState(initialData.meta);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function fetchNews(params: {
     category: Category | null;
@@ -26,6 +27,7 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
     page: number;
   }) {
     setIsLoading(true);
+    setError(null);
     try {
       const result = await getNews(
         params.page,
@@ -35,6 +37,8 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
       );
       setData(result.data);
       setMeta(result.meta);
+    } catch {
+      setError('Não foi possível carregar as notícias. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -62,6 +66,11 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
     <div className='flex flex-col gap-6'>
       <NewsSearch value={search} onChange={handleSearchChange} />
       <NewsFilters selected={category} onChange={handleCategoryChange} />
+      {error && (
+        <p className='rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
+          {error}
+        </p>
+      )}
       <NewsGrid news={data} isLoading={isLoading} />
       {meta.totalPages > 1 && (
         <div className='flex items-center justify-center gap-4'>

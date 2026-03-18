@@ -31,6 +31,7 @@ export function NewsSearch({ value, onChange }: NewsSearchProps) {
       />
       {local && (
         <button
+          type='button'
           onClick={() => {
             setLocal('');
             onChangeRef.current('');

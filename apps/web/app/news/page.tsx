@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { News } from '@newranews/types';
 import { getNews } from '@/lib/api';
 import { NewsPageClient } from '@/components/news/news-page-client';
 
@@ -10,7 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default async function NewsPage() {
-  const initialData = await getNews(1, 20);
+  const initialData = await getNews(1, 20).catch(() => ({
+    data: [] as News[],
+    meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+  }));
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
