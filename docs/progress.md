@@ -120,7 +120,7 @@ src/
 
 - [x] Implementar layout global (header, footer, navbar)
 - [x] Página `/` — Home com feed de notícias (ISR)
-- [ ] Página `/news` — Listagem de notícias (ISR + CSR para filtros)
+- [x] Página `/news` — Listagem de notícias (ISR + CSR para filtros)
 - [ ] Página `/news/[id]` — Notícia individual (ISR)
 - [ ] Página `/article` — Histórico de artigos (ISR)
 - [ ] Página `/article/[date]` — Artigo do dia (ISR)
