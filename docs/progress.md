@@ -98,14 +98,28 @@ src/
 
 ---
 
-## Fase 3 — Frontend Core (pendente)
+## Fase 3 — Frontend Core (em andamento)
 
 > Referência: PRD seção 17 — "Fase 3 — Frontend Core (Semana 5-6)"
 
+### Commits desta fase
+
+| Commit | Descrição |
+|--------|-----------|
+| `d84001a` | feat(web): implement global layout with header, navbar, and footer |
+| `bb591c5` | feat(web): implement home page with news feed and daily article hero (#30) |
+| `a5b727d` | fix(web): upgrade to Tailwind CSS v4 and fix missing styles |
+
+### Decisões técnicas desta fase
+
+- **Tailwind CSS v4** — upgrade de v3 para v4 (CSS-first config, `@theme inline`, `@import "tailwindcss"`) para compatibilidade com shadcn v4 base-nova style e suporte a opacity modifiers com CSS variables hex
+- **ISR com revalidate: 3600** — home page revalida server-side a cada hora
+- **Fontes:** Bricolage Grotesque (`--font-display`) para headings, Inter (`--font-sans`) para body via next/font/google
+
 ### Checklist do PRD
 
-- [ ] Implementar layout global (header, footer, navbar)
-- [ ] Página `/` — Home com feed de notícias (ISR)
+- [x] Implementar layout global (header, footer, navbar)
+- [x] Página `/` — Home com feed de notícias (ISR)
 - [ ] Página `/news` — Listagem de notícias (ISR + CSR para filtros)
 - [ ] Página `/news/[id]` — Notícia individual (ISR)
 - [ ] Página `/article` — Histórico de artigos (ISR)
