@@ -2,9 +2,11 @@ export const revalidate = 3600;
 
 export default function ArticleHistoryPage() {
   return (
-    <main className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold">Histórico de Artigos</h1>
+    <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
+      <h1 className='font-display text-3xl font-bold text-foreground'>
+        Histórico de Artigos
+      </h1>
       {/* TODO: ArticleCard list */}
-    </main>
+    </div>
   );
 }

@@ -6,10 +6,12 @@ export default function ArticlePage({
   params: { date: string };
 }) {
   return (
-    <main className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold">Artigo do Dia</h1>
-      <p className="text-gray-500">Data: {params.date}</p>
+    <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
+      <h1 className='font-display text-3xl font-bold text-foreground'>
+        Artigo do Dia
+      </h1>
+      <p className='text-muted-foreground'>Data: {params.date}</p>
       {/* TODO: ArticleView component */}
-    </main>
+    </div>
   );
 }

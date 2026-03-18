@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+
 export default function Error({
   error,
   reset,
@@ -8,15 +10,12 @@ export default function Error({
   reset: () => void;
 }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-      <h1 className="text-2xl font-bold">Algo deu errado</h1>
-      <p className="text-gray-500">{error.message}</p>
-      <button
-        onClick={reset}
-        className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-      >
-        Tentar novamente
-      </button>
+    <div className='mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-4 py-32 sm:px-6 lg:px-8'>
+      <h1 className='font-display text-2xl font-bold text-foreground'>
+        Algo deu errado
+      </h1>
+      <p className='text-muted-foreground'>{error.message}</p>
+      <Button onClick={reset}>Tentar novamente</Button>
     </div>
   );
 }

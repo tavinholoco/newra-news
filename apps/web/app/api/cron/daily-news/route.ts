@@ -6,8 +6,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const jobUrl = process.env.BACKEND_JOB_URL;
+  if (!jobUrl) {
+    return NextResponse.json(
+      { success: false, error: 'BACKEND_JOB_URL not configured' },
+      { status: 500 },
+    );
+  }
+
   try {
-    const response = await fetch(process.env.BACKEND_JOB_URL!, {
+    const response = await fetch(jobUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
