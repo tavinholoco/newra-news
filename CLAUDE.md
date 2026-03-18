@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 2 (Backend Core) ✅ Concluída — 16/16 itens
-- **Último marco:** Validação Zod nativa em todas as rotas via fastify-type-provider-zod — 119 testes passando em 15 suites
-- **Próximos passos:** Fase 3 — Frontend Core
+- **Fase:** Fase 3 (Frontend Core) — em andamento — 2/11 itens
+- **Último marco:** Home page com feed de notícias (ISR) + upgrade para Tailwind CSS v4
+- **Próximos passos:** Página `/news` (listagem com filtros), `/news/[id]`, `/article`, `/article/[date]`
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
