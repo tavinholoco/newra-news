@@ -38,7 +38,7 @@ export function NewsDetail({ news }: NewsDetailProps) {
             className='object-cover'
           />
         ) : (
-          <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
+          <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
             <span className='font-display text-6xl font-bold text-white/80'>N</span>
           </div>
         )}
@@ -79,7 +79,7 @@ export function NewsDetail({ news }: NewsDetailProps) {
 
       {/* Content */}
       {news.content ? (
-        <div className='prose prose-neutral max-w-none text-foreground'>
+        <div className='text-foreground'>
           {news.content.split('\n').map((paragraph, index) =>
             paragraph.trim() ? (
               <p key={index} className='mb-4 leading-relaxed'>

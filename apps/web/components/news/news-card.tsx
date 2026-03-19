@@ -31,7 +31,7 @@ export function NewsCard({ news }: NewsCardProps) {
               className='object-cover transition-transform duration-300 group-hover:scale-105'
             />
           ) : (
-            <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
+            <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
               <span className='font-display text-2xl font-bold text-white/80'>N</span>
             </div>
           )}
