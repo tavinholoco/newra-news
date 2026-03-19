@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 3 (Frontend Core) — em andamento — 2/11 itens
-- **Último marco:** Home page com feed de notícias (ISR) + upgrade para Tailwind CSS v4
-- **Próximos passos:** Página `/news` (listagem com filtros), `/news/[id]`, `/article`, `/article/[date]`
+- **Fase:** Fase 3 (Frontend Core) — em andamento — 5/11 itens
+- **Último marco:** Página `/news/[id]` com ISR, `generateMetadata()` e 404 page
+- **Próximos passos:** `/article`, `/article/[date]`, `/about`
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

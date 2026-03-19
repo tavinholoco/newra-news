@@ -109,22 +109,27 @@ src/
 | `d84001a` | feat(web): implement global layout with header, navbar, and footer |
 | `bb591c5` | feat(web): implement home page with news feed and daily article hero (#30) |
 | `a5b727d` | fix(web): upgrade to Tailwind CSS v4 and fix missing styles |
+| `8f8f393` | feat(web): implement /news page with ISR, filters, search, and pagination (#31) |
+| `ccf6b5d` | fix(web): fix CI build failure and address code review issues in /news page |
+| `1d4632c` | fix(api): improve error message when .env file is missing |
 
 ### Decisões técnicas desta fase
 
 - **Tailwind CSS v4** — upgrade de v3 para v4 (CSS-first config, `@theme inline`, `@import "tailwindcss"`) para compatibilidade com shadcn v4 base-nova style e suporte a opacity modifiers com CSS variables hex
 - **ISR com revalidate: 3600** — home page revalida server-side a cada hora
 - **Fontes:** Bricolage Grotesque (`--font-display`) para headings, Inter (`--font-sans`) para body via next/font/google
+- **`lib/format.ts`** — `CATEGORY_LABELS` e `formatDate()` extraídos para uso compartilhado entre `news-card.tsx` e `news-detail.tsx`
+- **`generateMetadata()`** — introduzido em `/news/[id]`; título dinâmico + Open Graph tags por notícia
 
 ### Checklist do PRD
 
 - [x] Implementar layout global (header, footer, navbar)
 - [x] Página `/` — Home com feed de notícias (ISR)
 - [x] Página `/news` — Listagem de notícias (ISR + CSR para filtros)
-- [ ] Página `/news/[id]` — Notícia individual (ISR)
+- [x] Página `/news/[id]` — Notícia individual (ISR)
 - [ ] Página `/article` — Histórico de artigos (ISR)
 - [ ] Página `/article/[date]` — Artigo do dia (ISR)
-- [ ] Implementar busca e filtros por categoria
+- [x] Implementar busca e filtros por categoria
 - [ ] Página `/about` e página 404 (SSG)
 - [ ] Configurar TanStack Query — `QueryClientProvider` + hooks em `lib/queries.ts`
 - [ ] SEO: `generateMetadata()`, Open Graph tags, sitemap auto-gerado

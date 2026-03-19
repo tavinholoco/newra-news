@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import type { News, Category } from '@newranews/types';
+import type { News } from '@newranews/types';
 import {
   Card,
   CardHeader,
@@ -10,25 +10,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, ExternalLink } from 'lucide-react';
-
-const CATEGORY_LABELS: Record<Category, string> = {
-  TECHNOLOGY: 'Tecnologia',
-  POLITICS: 'Política',
-  ECONOMY: 'Economia',
-  SPORTS: 'Esportes',
-  SCIENCE: 'Ciência',
-  ENTERTAINMENT: 'Entretenimento',
-  WORLD: 'Mundo',
-  HEALTH: 'Saúde',
-};
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
+import { CATEGORY_LABELS, formatDate } from '@/lib/format';
 
 interface NewsCardProps {
   news: News;
