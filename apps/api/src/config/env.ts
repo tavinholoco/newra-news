@@ -17,6 +17,28 @@ const envSchema = z.object({
   CRON_TIMEZONE: z.string().default('America/Sao_Paulo'),
 });
 
-export const env = envSchema.parse(process.env);
+const result = envSchema.safeParse(process.env);
+
+if (!result.success) {
+  const missing = result.error.issues.map(
+    (i) => `  - ${i.path.join('.')}: ${i.message}`,
+  );
+  console.error(
+    [
+      '',
+      '╔══════════════════════════════════════════════════╗',
+      '║  Missing or invalid environment variables:       ║',
+      '╚══════════════════════════════════════════════════╝',
+      '',
+      ...missing,
+      '',
+      'Copy apps/api/.env.example → apps/api/.env and fill in the values.',
+      '',
+    ].join('\n'),
+  );
+  process.exit(1);
+}
+
+export const env = result.data;
 
 export type Env = z.infer<typeof envSchema>;
