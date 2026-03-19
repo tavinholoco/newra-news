@@ -112,6 +112,7 @@ src/
 | `8f8f393` | feat(web): implement /news page with ISR, filters, search, and pagination (#31) |
 | `ccf6b5d` | fix(web): fix CI build failure and address code review issues in /news page |
 | `1d4632c` | fix(api): improve error message when .env file is missing |
+| `c59a752` | feat(web): implement /news/[id] individual news page with ISR (#32) |
 
 ### Decisões técnicas desta fase
 
