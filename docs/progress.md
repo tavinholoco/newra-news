@@ -114,7 +114,7 @@ src/
 | `1d4632c` | fix(api): improve error message when .env file is missing |
 | `c59a752` | feat(web): implement /news/[id] individual news page with ISR (#32) |
 | `7301248` | fix(web): remove dead prose classes and add aria labels to news placeholders |
-| `TBD` | feat(web): implement /article and /article/[date] pages with ISR (#33, #34) |
+| `5c859ee` | feat(web): implement /article and /article/[date] pages with ISR (#33, #34) |
 
 ### Decisões técnicas desta fase
 
