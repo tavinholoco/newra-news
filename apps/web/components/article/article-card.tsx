@@ -1,19 +1,7 @@
 import Link from 'next/link';
 import type { Article } from '@newranews/types';
 import { Newspaper, Calendar, ArrowRight } from 'lucide-react';
-
-function formatArticleDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-function toDateSlug(dateString: string): string {
-  return new Date(dateString).toISOString().slice(0, 10);
-}
+import { formatArticleDate, toDateSlug } from '@/lib/format';
 
 interface ArticleCardProps {
   article: Article;

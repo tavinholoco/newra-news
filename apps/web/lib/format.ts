@@ -18,3 +18,16 @@ export function formatDate(dateString: string): string {
     year: 'numeric',
   });
 }
+
+export function formatArticleDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+export function toDateSlug(dateString: string): string {
+  return new Date(dateString).toISOString().slice(0, 10);
+}
