@@ -115,6 +115,7 @@ src/
 | `c59a752` | feat(web): implement /news/[id] individual news page with ISR (#32) |
 | `7301248` | fix(web): remove dead prose classes and add aria labels to news placeholders |
 | `5c859ee` | feat(web): implement /article and /article/[date] pages with ISR (#33, #34) |
+| `f4d6258` | feat(web): implement /about page and enhance global 404 (#36) |
 
 ### Decisões técnicas desta fase
 
@@ -124,6 +125,8 @@ src/
 - **`lib/format.ts`** — `CATEGORY_LABELS`, `formatDate()`, `formatArticleDate()` e `toDateSlug()` extraídos para uso compartilhado entre componentes de news e article
 - **`generateMetadata()`** — introduzido em `/news/[id]` e `/article/[date]`; título dinâmico + Open Graph tags
 - **`ArticleHistoryCard`** — card compacto para grid de artigos (distinto do hero `ArticleCard` da home)
+- **`/about` SSG** — página estática sem data fetching; evitou uso de Badge/Card (shadcn base-ui hooks) em favor de elementos nativos compatíveis com server components SSG
+- **404 global** — melhorado com ícone `SearchX`, hierarquia visual e descrição, alinhado ao padrão de `/news/[id]/not-found.tsx`
 
 ### Checklist do PRD
 
@@ -134,7 +137,7 @@ src/
 - [x] Página `/article` — Histórico de artigos (ISR)
 - [x] Página `/article/[date]` — Artigo do dia (ISR)
 - [x] Implementar busca e filtros por categoria
-- [ ] Página `/about` e página 404 (SSG)
+- [x] Página `/about` e página 404 (SSG)
 - [ ] Configurar TanStack Query — `QueryClientProvider` + hooks em `lib/queries.ts`
 - [ ] SEO: `generateMetadata()`, Open Graph tags, sitemap auto-gerado
 - [ ] Responsividade mobile-first
