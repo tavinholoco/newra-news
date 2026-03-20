@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 3 (Frontend Core) — em andamento — 5/11 itens
-- **Último marco:** Página `/news/[id]` com ISR, `generateMetadata()` e 404 page
-- **Próximos passos:** `/article`, `/article/[date]`, `/about`
+- **Fase:** Fase 3 (Frontend Core) — em andamento — 7/11 itens
+- **Último marco:** Páginas `/article` e `/article/[date]` com ISR, paginação e `generateMetadata()`
+- **Próximos passos:** `/about`, TanStack Query, SEO completo, responsividade mobile-first
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
