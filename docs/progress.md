@@ -115,7 +115,7 @@ src/
 | `c59a752` | feat(web): implement /news/[id] individual news page with ISR (#32) |
 | `7301248` | fix(web): remove dead prose classes and add aria labels to news placeholders |
 | `5c859ee` | feat(web): implement /article and /article/[date] pages with ISR (#33, #34) |
-| `TBD` | feat(web): implement /about page and enhance global 404 (#36) |
+| `f4d6258` | feat(web): implement /about page and enhance global 404 (#36) |
 
 ### Decisões técnicas desta fase
 
