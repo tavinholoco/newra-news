@@ -170,7 +170,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 
 | Commit | Descrição |
 |--------|-----------|
-| `(pending)` | feat(web): harden Vercel cron route and adjust schedule to BRT timezone |
+| `601c1f6` | feat(web): harden Vercel cron route and adjust schedule to BRT timezone |
 
 ### Checklist do PRD
 
