@@ -121,7 +121,7 @@ src/
 | `58be12b` | feat(web): implement SEO — metadata, Open Graph, sitemap, robots (#38) |
 | `ae2c7e3` | feat(web): mobile-first responsiveness improvements (#39) |
 | `9e0c2b3` | fix(web): mobile menu covering header on small viewports |
-| `(pending)` | fix(web): replace undefined brand-700 hover color and sanitize error output |
+| `c9b7bda` | fix(web): replace undefined brand-700 hover color and sanitize error output |
 
 ### Auditoria final pré-Fase 4 ✅
 
