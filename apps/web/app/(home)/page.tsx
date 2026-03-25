@@ -4,19 +4,19 @@ import { ArrowRight } from 'lucide-react';
 import { getNews, getLatestArticle } from '@/lib/api';
 import { ArticleCard } from '@/components/article/article-card';
 import { NewsGrid } from '@/components/news/news-grid';
-import { SITE_DESCRIPTION } from '@/lib/seo';
+import { SITE_NAME, SITE_DESCRIPTION } from '@/lib/seo';
 
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Home',
+  title: { absolute: SITE_NAME },
   description: SITE_DESCRIPTION,
   openGraph: {
-    title: 'Newra News',
+    title: SITE_NAME,
     description: SITE_DESCRIPTION,
   },
   twitter: {
-    title: 'Newra News',
+    title: SITE_NAME,
     description: SITE_DESCRIPTION,
   },
 };

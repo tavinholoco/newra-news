@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title: article.title,
       description: article.summary,
+      images: ['/opengraph-image.png'],
     },
   };
 }
