@@ -6,8 +6,16 @@ import { ArticlePageClient } from '@/components/article/article-page-client';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Histórico de Artigos — Newra News',
+  title: 'Histórico de Artigos',
   description: 'Todos os artigos diários gerados por IA sobre as principais notícias.',
+  openGraph: {
+    title: 'Histórico de Artigos',
+    description: 'Todos os artigos diários gerados por IA sobre as principais notícias.',
+  },
+  twitter: {
+    title: 'Histórico de Artigos',
+    description: 'Todos os artigos diários gerados por IA sobre as principais notícias.',
+  },
 };
 
 export default async function ArticleHistoryPage() {

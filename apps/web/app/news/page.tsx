@@ -6,8 +6,16 @@ import { NewsPageClient } from '@/components/news/news-page-client';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Notícias - Newra News',
+  title: 'Notícias',
   description: 'Todas as notícias do mundo em um só lugar.',
+  openGraph: {
+    title: 'Notícias',
+    description: 'Todas as notícias do mundo em um só lugar.',
+  },
+  twitter: {
+    title: 'Notícias',
+    description: 'Todas as notícias do mundo em um só lugar.',
+  },
 };
 
 export default async function NewsPage() {
