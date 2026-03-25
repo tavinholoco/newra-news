@@ -79,7 +79,7 @@ export function NewsDetail({ news }: NewsDetailProps) {
 
       {/* Content */}
       {news.content ? (
-        <div className='text-foreground'>
+        <div className='break-words text-foreground'>
           {news.content.split('\n').map((paragraph, index) =>
             paragraph.trim() ? (
               <p key={index} className='mb-4 leading-relaxed'>

@@ -46,7 +46,7 @@ export function ArticleDetail({ article }: ArticleDetailProps) {
       </p>
 
       {/* Content */}
-      <div className='text-foreground'>
+      <div className='break-words text-foreground'>
         {article.content.split('\n').map((paragraph, index) =>
           paragraph.trim() ? (
             <p key={index} className='mb-4 leading-relaxed'>

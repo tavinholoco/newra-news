@@ -27,7 +27,7 @@ export default async function NewsPage() {
   return (
     <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
       <div className='mb-8'>
-        <h1 className='font-display text-3xl font-bold text-foreground'>
+        <h1 className='font-display text-2xl font-bold text-foreground sm:text-3xl'>
           Notícias
         </h1>
         <p className='mt-2 text-muted-foreground'>

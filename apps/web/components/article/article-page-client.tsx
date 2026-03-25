@@ -41,6 +41,7 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
         <div className='flex items-center justify-center gap-4'>
           <Button
             variant='outline'
+            size='lg'
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1 || isFetching}
           >
@@ -51,6 +52,7 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
           </span>
           <Button
             variant='outline'
+            size='lg'
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= meta.totalPages || isFetching}
           >
