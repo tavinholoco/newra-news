@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 3 (Frontend Core) — em andamento — 8/11 itens
-- **Último marco:** Página `/about` (SSG) e 404 global melhorada
-- **Próximos passos:** TanStack Query, SEO completo, responsividade mobile-first
+- **Fase:** Fase 3 (Frontend Core) — em andamento — 9/11 itens
+- **Último marco:** TanStack Query configurado com hooks e client components refatorados
+- **Próximos passos:** SEO completo (sitemap), responsividade mobile-first
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

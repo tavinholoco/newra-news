@@ -116,6 +116,7 @@ src/
 | `7301248` | fix(web): remove dead prose classes and add aria labels to news placeholders |
 | `5c859ee` | feat(web): implement /article and /article/[date] pages with ISR (#33, #34) |
 | `f4d6258` | feat(web): implement /about page and enhance global 404 (#36) |
+| `36765fa` | feat(web): configure TanStack Query with hooks and refactor client components (#37) |
 
 ### Decisões técnicas desta fase
 
@@ -127,6 +128,7 @@ src/
 - **`ArticleHistoryCard`** — card compacto para grid de artigos (distinto do hero `ArticleCard` da home)
 - **`/about` SSG** — página estática sem data fetching; evitou uso de Badge/Card (shadcn base-ui hooks) em favor de elementos nativos compatíveis com server components SSG
 - **404 global** — melhorado com ícone `SearchX`, hierarquia visual e descrição, alinhado ao padrão de `/news/[id]/not-found.tsx`
+- **TanStack Query v5** — `QueryClientProvider` em `app/providers.tsx`, hooks em `lib/queries.ts` com query key factories hierárquicas; `staleTime: 5min`, `gcTime: 10min`, `refetchOnWindowFocus: false`; `keepPreviousData` para paginação sem flash; client components refatorados de 5-7 useState + fetch manual para `useQuery` hooks
 
 ### Checklist do PRD
 
@@ -138,7 +140,7 @@ src/
 - [x] Página `/article/[date]` — Artigo do dia (ISR)
 - [x] Implementar busca e filtros por categoria
 - [x] Página `/about` e página 404 (SSG)
-- [ ] Configurar TanStack Query — `QueryClientProvider` + hooks em `lib/queries.ts`
+- [x] Configurar TanStack Query — `QueryClientProvider` + hooks em `lib/queries.ts`
 - [ ] SEO: `generateMetadata()`, Open Graph tags, sitemap auto-gerado
 - [ ] Responsividade mobile-first
 
