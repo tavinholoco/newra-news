@@ -120,7 +120,17 @@ src/
 | `3ebf0fb` | fix: resolve inconsistencies from recent commits code review |
 | `58be12b` | feat(web): implement SEO — metadata, Open Graph, sitemap, robots (#38) |
 | `ae2c7e3` | feat(web): mobile-first responsiveness improvements (#39) |
-| (pending) | fix(web): mobile menu covering header on small viewports |
+| `9e0c2b3` | fix(web): mobile menu covering header on small viewports |
+| `(pending)` | fix(web): replace undefined brand-700 hover color and sanitize error output |
+
+### Auditoria final pré-Fase 4 ✅
+
+Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
+
+- **Checklist PRD:** 11/11 itens verificados e completos
+- **Integração frontend ↔ backend:** 5/5 endpoints compatíveis, tipos compartilhados via `@newranews/types`
+- **Bugs corrigidos:** `hover:text-brand-700` (cor inexistente no tema) → `hover:text-brand-900` em 4 arquivos; `error.tsx` sanitizado para não expor `error.message` em produção
+- **Build:** lint 0 erros, build limpo (10 rotas)
 
 ### Decisões técnicas desta fase
 

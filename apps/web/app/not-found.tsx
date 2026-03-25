@@ -16,7 +16,7 @@ export default function NotFound() {
       </p>
       <Link
         href='/'
-        className='flex items-center gap-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-700'
+        className='flex items-center gap-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-900'
       >
         <ArrowLeft className='h-4 w-4' />
         Voltar para a Home

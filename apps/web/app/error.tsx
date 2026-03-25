@@ -3,7 +3,6 @@
 import { Button } from '@/components/ui/button';
 
 export default function Error({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -14,7 +13,9 @@ export default function Error({
       <h1 className='font-display text-2xl font-bold text-foreground'>
         Algo deu errado
       </h1>
-      <p className='text-muted-foreground'>{error.message}</p>
+      <p className='text-muted-foreground'>
+        Ocorreu um erro inesperado. Por favor, tente novamente.
+      </p>
       <Button onClick={reset}>Tentar novamente</Button>
     </div>
   );
