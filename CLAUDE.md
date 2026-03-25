@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 3 (Frontend Core) ✅ Concluída — 11/11 itens + auditoria final
-- **Último marco:** Auditoria pré-Fase 4 — brand-700 fix, error sanitization, integração frontend↔backend verificada
-- **Próximos passos:** Fase 4 — Integração e Deploy (Vercel Cron, deploy Vercel/Render, Neon DB, env vars)
+- **Fase:** Fase 4 (Integração e Deploy) — em andamento (2/11 itens)
+- **Último marco:** Vercel Cron Job configurado — `vercel.json` (schedule 8 AM BRT), API route `/api/cron/daily-news` hardened (dynamic, maxDuration, response.ok check)
+- **Próximos passos:** Deploy frontend Vercel, backend Render, Neon DB, env vars produção
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

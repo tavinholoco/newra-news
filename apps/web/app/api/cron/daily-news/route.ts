@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -22,6 +25,14 @@ export async function GET(request: Request) {
         Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}`,
       },
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return NextResponse.json(
+        { success: false, error: `Backend returned ${response.status}`, detail: errorText },
+        { status: 502 },
+      );
+    }
 
     const data = await response.json();
     return NextResponse.json({ success: true, data });

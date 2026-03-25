@@ -162,14 +162,20 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 
 ---
 
-## Fase 4 — Integração e Deploy (pendente)
+## Fase 4 — Integração e Deploy (em andamento)
 
 > Referência: PRD seção 17 — "Fase 4 — Integração e Deploy (Semana 7-8)"
 
+### Commits desta fase
+
+| Commit | Descrição |
+|--------|-----------|
+| `(pending)` | feat(web): harden Vercel cron route and adjust schedule to BRT timezone |
+
 ### Checklist do PRD
 
-- [ ] Configurar Vercel Cron Job (`vercel.json`)
-- [ ] Implementar API Route de trigger no Next.js (`/api/cron/daily-news`)
+- [x] Configurar Vercel Cron Job (`vercel.json`)
+- [x] Implementar API Route de trigger no Next.js (`/api/cron/daily-news`)
 - [ ] Deploy do frontend na Vercel
 - [ ] Deploy do backend no Render
 - [ ] Criar instância PostgreSQL no Neon
