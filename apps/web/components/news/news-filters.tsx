@@ -2,17 +2,7 @@
 
 import type { Category } from '@newranews/types';
 import { cn } from '@/lib/utils';
-
-const CATEGORY_LABELS: Record<Category, string> = {
-  TECHNOLOGY: 'Tecnologia',
-  POLITICS: 'Política',
-  ECONOMY: 'Economia',
-  SPORTS: 'Esportes',
-  SCIENCE: 'Ciência',
-  ENTERTAINMENT: 'Entretenimento',
-  WORLD: 'Mundo',
-  HEALTH: 'Saúde',
-};
+import { CATEGORY_LABELS } from '@/lib/format';
 
 interface NewsFiltersProps {
   selected: Category | null;
