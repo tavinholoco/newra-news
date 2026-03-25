@@ -98,7 +98,7 @@ src/
 
 ---
 
-## Fase 3 — Frontend Core (em andamento)
+## Fase 3 — Frontend Core ✅ Concluída em 2026-03-25
 
 > Referência: PRD seção 17 — "Fase 3 — Frontend Core (Semana 5-6)"
 
@@ -118,7 +118,8 @@ src/
 | `f4d6258` | feat(web): implement /about page and enhance global 404 (#36) |
 | `36765fa` | feat(web): configure TanStack Query with hooks and refactor client components (#37) |
 | `3ebf0fb` | fix: resolve inconsistencies from recent commits code review |
-| (pending) | feat(web): implement SEO — metadata, Open Graph, sitemap, robots (#38) |
+| `58be12b` | feat(web): implement SEO — metadata, Open Graph, sitemap, robots (#38) |
+| (pending) | feat(web): mobile-first responsiveness improvements (#39) |
 
 ### Decisões técnicas desta fase
 
@@ -132,6 +133,7 @@ src/
 - **404 global** — melhorado com ícone `SearchX`, hierarquia visual e descrição, alinhado ao padrão de `/news/[id]/not-found.tsx`
 - **TanStack Query v5** — `QueryClientProvider` em `app/providers.tsx`, hooks em `lib/queries.ts` com query key factories hierárquicas; `staleTime: 5min`, `gcTime: 10min`, `refetchOnWindowFocus: false`; `keepPreviousData` para paginação sem flash; client components refatorados de 5-7 useState + fetch manual para `useQuery` hooks
 - **SEO completo** — `lib/seo.ts` com constantes centrais (`SITE_URL`, `SITE_NAME`, `SITE_DESCRIPTION`); `metadataBase` + `title.template` no root layout; `generateMetadata()` + OG + Twitter tags em todas as páginas; `opengraph-image.tsx` com `ImageResponse` (edge runtime, 1200×630); `sitemap.ts` (ISR 1h, rotas estáticas + news + artigos, graceful fallback se API indisponível); `robots.ts`; `NEXT_PUBLIC_SITE_URL` env var
+- **Responsividade mobile-first** — touch targets: `Input` `h-8→h-9`, botões de paginação `size='lg'`, botão X de busca com `p-1` + `aria-label`; tipografia: `text-2xl sm:text-3xl` nos h1 de listagem; `break-words` em divs de conteúdo de notícia/artigo para evitar overflow horizontal com URLs longas
 
 ### Checklist do PRD
 
@@ -145,7 +147,7 @@ src/
 - [x] Página `/about` e página 404 (SSG)
 - [x] Configurar TanStack Query — `QueryClientProvider` + hooks em `lib/queries.ts`
 - [x] SEO: `generateMetadata()`, Open Graph tags, sitemap auto-gerado
-- [ ] Responsividade mobile-first
+- [x] Responsividade mobile-first
 
 ---
 

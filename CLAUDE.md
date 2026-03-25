@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 3 (Frontend Core) — em andamento — 10/11 itens
-- **Último marco:** SEO completo — metadata, Open Graph, Twitter Cards, sitemap auto-gerado, robots.txt, OG image (ImageResponse)
-- **Próximos passos:** Responsividade mobile-first
+- **Fase:** Fase 3 (Frontend Core) ✅ Concluída — 11/11 itens
+- **Último marco:** Responsividade mobile-first — touch targets, tipografia escalável, break-words em conteúdo
+- **Próximos passos:** Fase 4 — Integração e Deploy (Vercel Cron, deploy Vercel/Render, env vars)
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
