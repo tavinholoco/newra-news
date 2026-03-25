@@ -119,7 +119,8 @@ src/
 | `36765fa` | feat(web): configure TanStack Query with hooks and refactor client components (#37) |
 | `3ebf0fb` | fix: resolve inconsistencies from recent commits code review |
 | `58be12b` | feat(web): implement SEO — metadata, Open Graph, sitemap, robots (#38) |
-| (pending) | feat(web): mobile-first responsiveness improvements (#39) |
+| `ae2c7e3` | feat(web): mobile-first responsiveness improvements (#39) |
+| (pending) | fix(web): mobile menu covering header on small viewports |
 
 ### Decisões técnicas desta fase
 
