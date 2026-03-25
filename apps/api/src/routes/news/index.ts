@@ -21,6 +21,7 @@ export async function newsRoutes(app: FastifyInstance) {
           ...item,
           publishedAt: item.publishedAt.toISOString(),
           createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
         })),
         meta: {
           total,

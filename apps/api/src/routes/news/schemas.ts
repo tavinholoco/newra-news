@@ -34,6 +34,7 @@ export const newsItemSchema = z.object({
   category: z.enum(CATEGORIES),
   publishedAt: z.string().datetime(),
   createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 export const listNewsResponseSchema = z.object({

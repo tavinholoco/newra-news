@@ -11,14 +11,21 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const article = await getArticleByDate(params.date).catch(() => null);
-  if (!article) return { title: 'Artigo não encontrado — Newra News' };
+  if (!article) return { title: 'Artigo não encontrado' };
 
   return {
-    title: `${article.title} — Newra News`,
+    title: article.title,
     description: article.summary,
     openGraph: {
       title: article.title,
       description: article.summary,
+      images: [{ url: '/opengraph-image.png', width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: article.title,
+      description: article.summary,
+      images: ['/opengraph-image.png'],
     },
   };
 }

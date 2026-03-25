@@ -1,10 +1,25 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { getNews, getLatestArticle } from '@/lib/api';
 import { ArticleCard } from '@/components/article/article-card';
 import { NewsGrid } from '@/components/news/news-grid';
+import { SITE_NAME, SITE_DESCRIPTION } from '@/lib/seo';
 
 export const revalidate = 3600;
+
+export const metadata: Metadata = {
+  title: { absolute: SITE_NAME },
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+};
 
 export default async function HomePage() {
   const [newsResponse, latestArticle] = await Promise.all([

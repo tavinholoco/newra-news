@@ -8,11 +8,16 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Sobre — Newra News',
+  title: 'Sobre',
   description:
     'Conheça o Newra News, portal de notícias com artigo diário gerado por IA.',
   openGraph: {
-    title: 'Sobre — Newra News',
+    title: 'Sobre',
+    description:
+      'Conheça o Newra News, portal de notícias com artigo diário gerado por IA.',
+  },
+  twitter: {
+    title: 'Sobre',
     description:
       'Conheça o Newra News, portal de notícias com artigo diário gerado por IA.',
   },

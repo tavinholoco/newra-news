@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Providers } from './providers';
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from '@/lib/seo';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const bricolage = Bricolage_Grotesque({
@@ -13,8 +14,20 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: 'Newra News',
-  description: 'Portal de notícias com artigo diário gerado por IA',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    locale: 'pt_BR',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
 };
 
 export default function RootLayout({

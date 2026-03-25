@@ -14,6 +14,4 @@ export interface PaginatedResponse<T> {
 
 export interface ApiError {
   error: string;
-  statusCode: number;
-  message: string;
 }

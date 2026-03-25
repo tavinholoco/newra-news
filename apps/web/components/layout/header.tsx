@@ -1,13 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Navbar } from './navbar';
-
-const navLinks = [
-  { href: '/', label: 'Home' },
-  { href: '/news', label: 'Notícias' },
-  { href: '/article', label: 'Artigos' },
-  { href: '/about', label: 'Sobre' },
-] as const;
+import { NAV_LINKS } from '@/lib/constants';
 
 export function Header() {
   return (
@@ -27,7 +21,7 @@ export function Header() {
           </span>
         </Link>
 
-        <Navbar links={navLinks} />
+        <Navbar links={NAV_LINKS} />
       </div>
     </header>
   );
