@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 4 (Integração e Deploy) — em andamento (4/11 itens)
-- **Último marco:** Backend preparado para Render deploy — `@newranews/database` compila para JS, Dockerfile corrigido, `render.yaml` Blueprint, turbo dev dependency chain fix
-- **Próximos passos:** Criar instância Neon DB, configurar env vars produção, rodar migrations, testar pipeline
+- **Fase:** Fase 4 (Integração e Deploy) — em andamento (7/11 itens)
+- **Último marco:** Backend rodando no Render + PostgreSQL Neon — deploy OK, migrations aplicadas, endpoints respondendo, env vars configuradas
+- **Próximos passos:** Configurar UptimeRobot keep-alive, testar pipeline completo em produção, documentação final
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

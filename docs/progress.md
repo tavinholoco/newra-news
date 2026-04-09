@@ -173,6 +173,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 | `601c1f6` | feat(web): harden Vercel cron route and adjust schedule to BRT timezone |
 | `3992903` | feat(web): prepare monorepo for Vercel deployment |
 | `bcf997b` | feat(api): prepare backend for Render deployment |
+| `287eef5` | fix(api): resolve Prisma type resolution in pnpm monorepo |
 
 ### Checklist do PRD
 
@@ -180,10 +181,10 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 - [x] Implementar API Route de trigger no Next.js (`/api/cron/daily-news`)
 - [x] Deploy do frontend na Vercel
 - [x] Deploy do backend no Render
-- [ ] Criar instância PostgreSQL no Neon
+- [x] Criar instância PostgreSQL no Neon
 - [ ] Configurar UptimeRobot para keep-alive
-- [ ] Configurar variáveis de ambiente em todos os serviços
-- [ ] Rodar migrations em produção
+- [x] Configurar variáveis de ambiente em todos os serviços
+- [x] Rodar migrations em produção
 - [ ] Testar pipeline completo em produção
 - [ ] Configurar domínio customizado (opcional)
 - [ ] Documentação final (README, docs/)
