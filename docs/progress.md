@@ -171,12 +171,13 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 | Commit | Descrição |
 |--------|-----------|
 | `601c1f6` | feat(web): harden Vercel cron route and adjust schedule to BRT timezone |
+| `3992903` | feat(web): prepare monorepo for Vercel deployment |
 
 ### Checklist do PRD
 
 - [x] Configurar Vercel Cron Job (`vercel.json`)
 - [x] Implementar API Route de trigger no Next.js (`/api/cron/daily-news`)
-- [ ] Deploy do frontend na Vercel
+- [x] Deploy do frontend na Vercel
 - [ ] Deploy do backend no Render
 - [ ] Criar instância PostgreSQL no Neon
 - [ ] Configurar UptimeRobot para keep-alive
