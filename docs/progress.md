@@ -171,6 +171,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 | Commit | Descrição |
 |--------|-----------|
 | `601c1f6` | feat(web): harden Vercel cron route and adjust schedule to BRT timezone |
+| `3992903` | feat(web): prepare monorepo for Vercel deployment |
 
 ### Checklist do PRD
 
