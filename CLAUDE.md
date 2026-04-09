@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 4 (Integração e Deploy) — em andamento (3/11 itens)
-- **Último marco:** Frontend preparado para Vercel deploy — `@newranews/types` build script, `next.config.js` otimizado, `.env.example` criado, CI branch fix (`develop` → `dev`)
-- **Próximos passos:** Deploy backend Render, Neon DB, env vars produção, configurar Vercel dashboard
+- **Fase:** Fase 4 (Integração e Deploy) — em andamento (4/11 itens)
+- **Último marco:** Backend preparado para Render deploy — `@newranews/database` compila para JS, Dockerfile corrigido, `render.yaml` Blueprint, turbo dev dependency chain fix
+- **Próximos passos:** Criar instância Neon DB, configurar env vars produção, rodar migrations, testar pipeline
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

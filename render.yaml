@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: newra-news-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: pnpm install --frozen-lockfile && pnpm turbo build --filter=@newranews/api
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: DATABASE_URL
+        sync: false
+      - key: NEWSAPI_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.1-8b-instant
+      - key: JOB_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: CRON_SCHEDULE
+        value: "0 8 * * *"
+      - key: CRON_TIMEZONE
+        value: America/Sao_Paulo
