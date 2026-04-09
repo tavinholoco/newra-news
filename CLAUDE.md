@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 4 (Integração e Deploy) — em andamento (2/11 itens)
-- **Último marco:** Vercel Cron Job configurado — `vercel.json` (schedule 8 AM BRT), API route `/api/cron/daily-news` hardened (dynamic, maxDuration, response.ok check)
-- **Próximos passos:** Deploy frontend Vercel, backend Render, Neon DB, env vars produção
+- **Fase:** Fase 4 (Integração e Deploy) — em andamento (3/11 itens)
+- **Último marco:** Frontend preparado para Vercel deploy — `@newranews/types` build script, `next.config.js` otimizado, `.env.example` criado, CI branch fix (`develop` → `dev`)
+- **Próximos passos:** Deploy backend Render, Neon DB, env vars produção, configurar Vercel dashboard
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

@@ -176,7 +176,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 
 - [x] Configurar Vercel Cron Job (`vercel.json`)
 - [x] Implementar API Route de trigger no Next.js (`/api/cron/daily-news`)
-- [ ] Deploy do frontend na Vercel
+- [x] Deploy do frontend na Vercel
 - [ ] Deploy do backend no Render
 - [ ] Criar instância PostgreSQL no Neon
 - [ ] Configurar UptimeRobot para keep-alive

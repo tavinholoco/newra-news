@@ -9,6 +9,10 @@ const nextConfig = {
       },
     ],
   },
+  eslint: {
+    // ESLint runs as a separate Turbo task in CI — skip during next build
+    ignoreDuringBuilds: true,
+  },
 };
 
 module.exports = nextConfig;
