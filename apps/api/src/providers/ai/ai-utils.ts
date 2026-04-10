@@ -1,6 +1,7 @@
 import type { RawNewsItem, GeneratedArticle } from '../types';
 
-const MAX_CONTENT_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 300;
+const MAX_CONTENT_LENGTH = 400;
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
@@ -14,10 +15,11 @@ function truncate(text: string, max: number): string {
 export function formatNewsItems(newsItems: RawNewsItem[]): string {
   return newsItems
     .map((item, index) => {
+      const cleanDescription = truncate(stripHtml(item.description), MAX_DESCRIPTION_LENGTH);
       const cleanContent = item.content
         ? truncate(stripHtml(item.content), MAX_CONTENT_LENGTH)
         : 'N/A';
-      return `${index + 1}. TÍTULO: ${item.title}\nFONTE: ${item.source}\nCATEGORIA: ${item.category}\nDATA: ${item.publishedAt.toISOString()}\nDESCRIÇÃO: ${item.description}\nCONTEÚDO: ${cleanContent}`;
+      return `${index + 1}. TÍTULO: ${item.title}\nFONTE: ${item.source}\nCATEGORIA: ${item.category}\nDATA: ${item.publishedAt.toISOString()}\nDESCRIÇÃO: ${cleanDescription}\nCONTEÚDO: ${cleanContent}`;
     })
     .join('\n\n');
 }
