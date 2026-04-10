@@ -4,12 +4,12 @@ const MAX_DESCRIPTION_LENGTH = 300;
 const MAX_CONTENT_LENGTH = 400;
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
-  return text.slice(0, max) + '…';
+  return text.slice(0, max - 1) + '…';
 }
 
 export function formatNewsItems(newsItems: RawNewsItem[]): string {

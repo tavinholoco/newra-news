@@ -97,6 +97,10 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
     // Stage 5: Select top items for AI generation
     const selected = selectTopItems(deduplicated);
 
+    if (selected.length === 0) {
+      throw new Error('No news items available for article generation');
+    }
+
     // Stage 6: Generate article via AI (Gemini → Groq fallback)
     const { article, provider } = await generateArticle(selected);
     metrics.aiProvider = provider;

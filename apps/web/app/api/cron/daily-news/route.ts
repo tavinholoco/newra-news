@@ -21,7 +21,6 @@ export async function GET(request: Request) {
     const response = await fetch(jobUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}`,
       },
     });
