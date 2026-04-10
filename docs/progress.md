@@ -182,7 +182,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 - [x] Deploy do frontend na Vercel
 - [x] Deploy do backend no Render
 - [x] Criar instância PostgreSQL no Neon
-- [ ] Configurar UptimeRobot para keep-alive
+- [x] Configurar UptimeRobot para keep-alive
 - [x] Configurar variáveis de ambiente em todos os serviços
 - [x] Rodar migrations em produção
 - [ ] Testar pipeline completo em produção
