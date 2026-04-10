@@ -8,7 +8,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   NEWSAPI_KEY: z.string().min(1),
   GEMINI_API_KEY: z.string().min(1),
-  GEMINI_MODEL: z.string().default('gemini-1.5-flash'),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   GROQ_API_KEY: z.string().min(1),
   GROQ_MODEL: z.string().default('llama-3.1-8b-instant'),
   JOB_SECRET: z.string().min(1),

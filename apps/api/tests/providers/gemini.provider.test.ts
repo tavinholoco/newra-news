@@ -5,7 +5,7 @@ import { generateArticleWithGemini } from '../../src/providers/ai/gemini.provide
 vi.mock('../../src/config/env', () => ({
   env: {
     GEMINI_API_KEY: 'test-api-key',
-    GEMINI_MODEL: 'gemini-1.5-flash',
+    GEMINI_MODEL: 'gemini-2.5-flash',
   },
 }));
 
@@ -78,15 +78,19 @@ describe('generateArticleWithGemini', () => {
     expect(result.content).toContain('## Seção Principal');
   });
 
-  it('should call Gemini endpoint with correct URL containing model and API key', async () => {
+  it('should call Gemini endpoint with correct URL and auth header', async () => {
     const mockFetch = makeFetchMock();
     vi.stubGlobal('fetch', mockFetch);
 
     await generateArticleWithGemini(mockNewsItems);
 
     const calledUrl = mockFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('gemini-1.5-flash');
-    expect(calledUrl).toContain('key=test-api-key');
+    expect(calledUrl).toContain('gemini-2.5-flash');
+    expect(calledUrl).not.toContain('key=');
+
+    const calledOptions = mockFetch.mock.calls[0][1] as RequestInit;
+    const headers = calledOptions.headers as Record<string, string>;
+    expect(headers['x-goog-api-key']).toBe('test-api-key');
   });
 
   it('should include news item titles in the request body', async () => {
@@ -100,15 +104,21 @@ describe('generateArticleWithGemini', () => {
     expect(userText).toContain('Notícia de Teste');
   });
 
-  it('should throw when response is not ok', async () => {
+  it('should throw with detailed error body when response is not ok', async () => {
+    const errorJson = JSON.stringify({ error: { message: 'Model not found' } });
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' }),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: vi.fn().mockResolvedValue(errorJson),
+      }),
     );
 
     await expect(generateArticleWithGemini(mockNewsItems)).rejects.toThrow(
-      'Gemini API error: 500 Internal Server Error',
+      'Gemini API error 404:',
     );
+    await expect(generateArticleWithGemini(mockNewsItems)).rejects.toThrow('Model not found');
   });
 
   it('should throw when candidates list is empty', async () => {
@@ -123,5 +133,15 @@ describe('generateArticleWithGemini', () => {
     await expect(generateArticleWithGemini(mockNewsItems)).rejects.toThrow(
       'Gemini returned empty response',
     );
+  });
+
+  it('should pass AbortSignal to fetch for timeout support', async () => {
+    const mockFetch = makeFetchMock();
+    vi.stubGlobal('fetch', mockFetch);
+
+    await generateArticleWithGemini(mockNewsItems);
+
+    const calledOptions = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(calledOptions.signal).toBeInstanceOf(AbortSignal);
   });
 });
