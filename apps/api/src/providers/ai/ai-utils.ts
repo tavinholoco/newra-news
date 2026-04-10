@@ -1,11 +1,24 @@
 import type { RawNewsItem, GeneratedArticle } from '../types';
 
+const MAX_CONTENT_LENGTH = 500;
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max) + '…';
+}
+
 export function formatNewsItems(newsItems: RawNewsItem[]): string {
   return newsItems
-    .map(
-      (item, index) =>
-        `${index + 1}. TÍTULO: ${item.title}\nFONTE: ${item.source}\nCATEGORIA: ${item.category}\nDATA: ${item.publishedAt.toISOString()}\nDESCRIÇÃO: ${item.description}\nCONTEÚDO: ${item.content ?? 'N/A'}`,
-    )
+    .map((item, index) => {
+      const cleanContent = item.content
+        ? truncate(stripHtml(item.content), MAX_CONTENT_LENGTH)
+        : 'N/A';
+      return `${index + 1}. TÍTULO: ${item.title}\nFONTE: ${item.source}\nCATEGORIA: ${item.category}\nDATA: ${item.publishedAt.toISOString()}\nDESCRIÇÃO: ${item.description}\nCONTEÚDO: ${cleanContent}`;
+    })
     .join('\n\n');
 }
 
