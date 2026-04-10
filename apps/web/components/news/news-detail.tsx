@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import type { News } from '@newranews/types';
+import { SafeImage } from '@/components/ui/safe-image';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Calendar, ExternalLink, Globe } from 'lucide-react';
 import { CATEGORY_LABELS, formatDate } from '@/lib/format';
@@ -28,20 +28,26 @@ export function NewsDetail({ news }: NewsDetailProps) {
 
       {/* Hero image */}
       <div className='relative mb-8 aspect-[16/9] w-full overflow-hidden rounded-2xl'>
-        {news.imageUrl ? (
-          <Image
-            src={news.imageUrl}
-            alt={news.title}
-            fill
-            priority
-            sizes='(max-width: 896px) 100vw, 896px'
-            className='object-cover'
-          />
-        ) : (
-          <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
-            <span className='font-display text-6xl font-bold text-white/80'>N</span>
-          </div>
-        )}
+        {(() => {
+          const placeholder = (
+            <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
+              <span className='font-display text-6xl font-bold text-white/80'>N</span>
+            </div>
+          );
+          return news.imageUrl ? (
+            <SafeImage
+              src={news.imageUrl}
+              alt={news.title}
+              fill
+              priority
+              sizes='(max-width: 896px) 100vw, 896px'
+              className='object-cover'
+              fallback={placeholder}
+            />
+          ) : (
+            placeholder
+          );
+        })()}
       </div>
 
       {/* Title */}

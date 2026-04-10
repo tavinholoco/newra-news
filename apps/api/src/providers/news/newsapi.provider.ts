@@ -1,5 +1,6 @@
 import { Category } from '@newranews/database';
 import { env } from '../../config/env';
+import { decodeEntities } from '../ai/ai-utils';
 import type { RawNewsItem } from '../types';
 
 const REMOVED_SENTINEL = '[Removed]';
@@ -64,9 +65,14 @@ async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
   return data.articles
     .filter((article) => article.title !== REMOVED_SENTINEL && article.description !== null)
     .map((article) => ({
-      title: article.title,
-      description: article.description as string,
-      content: article.content === REMOVED_SENTINEL ? null : article.content,
+      title: decodeEntities(article.title),
+      description: decodeEntities(article.description as string),
+      content:
+        article.content === REMOVED_SENTINEL
+          ? null
+          : article.content
+            ? decodeEntities(article.content)
+            : null,
       source: article.source.name,
       sourceUrl: article.url,
       imageUrl: article.urlToImage,

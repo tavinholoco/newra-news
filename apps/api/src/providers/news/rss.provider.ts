@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { Category } from '@newranews/database';
+import { decodeEntities } from '../ai/ai-utils';
 import type { RawNewsItem } from '../types';
 import { rssSources, type RssSource } from '../../config/rss-sources';
 
@@ -21,9 +22,9 @@ async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
     .map((item) => {
       const description = (item.contentSnippet || item.content) as string;
       return {
-        title: item.title as string,
-        description,
-        content: item.content ?? null,
+        title: decodeEntities(item.title as string),
+        description: decodeEntities(description),
+        content: item.content ? decodeEntities(item.content) : null,
         source: source.name,
         sourceUrl: item.link ?? source.url,
         imageUrl: item.enclosure?.url ?? null,

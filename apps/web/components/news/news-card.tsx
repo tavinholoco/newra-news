@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import type { News } from '@newranews/types';
+import { SafeImage } from '@/components/ui/safe-image';
 import {
   Card,
   CardHeader,
@@ -22,19 +22,25 @@ export function NewsCard({ news }: NewsCardProps) {
       <Card className='h-full transition-shadow duration-200 group-hover:shadow-md'>
         {/* Image */}
         <div className='relative aspect-[16/9] w-full overflow-hidden rounded-t-xl'>
-          {news.imageUrl ? (
-            <Image
-              src={news.imageUrl}
-              alt={news.title}
-              fill
-              sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
-              className='object-cover transition-transform duration-300 group-hover:scale-105'
-            />
-          ) : (
-            <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
-              <span className='font-display text-2xl font-bold text-white/80'>N</span>
-            </div>
-          )}
+          {(() => {
+            const placeholder = (
+              <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
+                <span className='font-display text-2xl font-bold text-white/80'>N</span>
+              </div>
+            );
+            return news.imageUrl ? (
+              <SafeImage
+                src={news.imageUrl}
+                alt={news.title}
+                fill
+                sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                className='object-cover transition-transform duration-300 group-hover:scale-105'
+                fallback={placeholder}
+              />
+            ) : (
+              placeholder
+            );
+          })()}
           <div className='absolute left-3 top-3'>
             <Badge className='bg-brand-600 text-white hover:bg-brand-600'>
               {CATEGORY_LABELS[news.category]}

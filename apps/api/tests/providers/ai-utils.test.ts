@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Category } from '@newranews/database';
-import { formatNewsItems, parseMarkdownResponse } from '../../src/providers/ai/ai-utils';
+import { formatNewsItems, parseMarkdownResponse, decodeEntities } from '../../src/providers/ai/ai-utils';
 import type { RawNewsItem } from '../../src/providers/types';
 
 function makeNewsItem(overrides: Partial<RawNewsItem> = {}): RawNewsItem {
@@ -61,6 +61,15 @@ describe('stripHtml (via formatNewsItems)', () => {
     });
     const result = formatNewsItems([item]);
     expect(result).toContain('DESCRIÇÃO: ');
+  });
+
+  it('should decode HTML entities after stripping tags', () => {
+    const item = makeNewsItem({
+      description: '<p>Pol\u00EDtica &amp; Economia do pa\u00EDs</p>',
+      content: null,
+    });
+    const result = formatNewsItems([item]);
+    expect(result).toContain('DESCRIÇÃO: Pol\u00EDtica & Economia do pa\u00EDs');
   });
 });
 
@@ -219,5 +228,58 @@ describe('parseMarkdownResponse', () => {
     const result = parseMarkdownResponse(markdown);
 
     expect(result.summary).toBe('Resumo depois de linhas vazias.');
+  });
+});
+
+describe('decodeEntities', () => {
+  it('should decode numeric decimal entities', () => {
+    expect(decodeEntities('caf&#233;')).toBe('caf\u00E9');
+  });
+
+  it('should decode numeric hex entities', () => {
+    expect(decodeEntities('caf&#xe9;')).toBe('caf\u00E9');
+  });
+
+  it('should decode common named entities', () => {
+    expect(decodeEntities('A &amp; B &lt; C &gt; D')).toBe('A & B < C > D');
+  });
+
+  it('should decode Portuguese accented characters', () => {
+    expect(decodeEntities('&eacute; &atilde; &otilde; &ccedil; &acirc; &ecirc;'))
+      .toBe('\u00E9 \u00E3 \u00F5 \u00E7 \u00E2 \u00EA');
+  });
+
+  it('should decode uppercase Portuguese entities', () => {
+    expect(decodeEntities('&Eacute; &Atilde; &Ccedil;'))
+      .toBe('\u00C9 \u00C3 \u00C7');
+  });
+
+  it('should decode quote and typographic entities', () => {
+    expect(decodeEntities('&quot;quoted&quot; &apos;apos&apos;'))
+      .toBe('"quoted" \'apos\'');
+    expect(decodeEntities('&ldquo;smart&rdquo; &mdash; test'))
+      .toBe('\u201Csmart\u201D \u2014 test');
+  });
+
+  it('should preserve unknown named entities', () => {
+    expect(decodeEntities('&unknownentity;')).toBe('&unknownentity;');
+  });
+
+  it('should handle text with no entities', () => {
+    expect(decodeEntities('Texto sem entidades')).toBe('Texto sem entidades');
+  });
+
+  it('should handle empty string', () => {
+    expect(decodeEntities('')).toBe('');
+  });
+
+  it('should handle mixed entity types in one string', () => {
+    expect(decodeEntities('Ol&aacute; &#38; Adi&#xf3;s'))
+      .toBe('Ol\u00E1 & Adi\u00F3s');
+  });
+
+  it('should be idempotent (safe to run twice)', () => {
+    const decoded = decodeEntities('caf&eacute;');
+    expect(decodeEntities(decoded)).toBe('caf\u00E9');
   });
 });
