@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 4 (Integração e Deploy) — em andamento (7/11 itens)
-- **Último marco:** Backend rodando no Render + PostgreSQL Neon — deploy OK, migrations aplicadas, endpoints respondendo, env vars configuradas
-- **Próximos passos:** Configurar UptimeRobot keep-alive, testar pipeline completo em produção, documentação final
+- **Fase:** Fase 4 (Integração e Deploy) — em andamento (8/11 itens)
+- **Último marco:** UptimeRobot configurado para keep-alive do Render, infra de produção completa (Render + Neon + UptimeRobot)
+- **Próximos passos:** Testar pipeline completo em produção, configurar domínio customizado (opcional), documentação final
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.
