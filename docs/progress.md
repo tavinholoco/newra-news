@@ -174,6 +174,8 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 | `3992903` | feat(web): prepare monorepo for Vercel deployment |
 | `bcf997b` | feat(api): prepare backend for Render deployment |
 | `287eef5` | fix(api): resolve Prisma type resolution in pnpm monorepo |
+| `2ce1f2f` | fix(api): truncate and sanitize news content in AI prompt |
+| `cc8c2c5` | fix(api): also truncate description field in AI prompt |
 
 ### Checklist do PRD
 
@@ -185,7 +187,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 - [x] Configurar UptimeRobot para keep-alive
 - [x] Configurar variáveis de ambiente em todos os serviços
 - [x] Rodar migrations em produção
-- [ ] Testar pipeline completo em produção
+- [x] Testar pipeline completo em produção
 - [ ] Configurar domínio customizado (opcional)
 - [ ] Documentação final (README, docs/)
 
