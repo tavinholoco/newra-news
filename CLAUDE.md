@@ -46,8 +46,9 @@
 ## Status Atual
 
 - **Fase:** Fase 4 (Integração e Deploy) — em andamento (9/11 itens)
-- **Último marco:** Pipeline completo testado em produção (coleta 249 notícias + geração de artigo via Groq em 6s)
+- **Último marco:** RSS encoding ISO-8859-1 corrigido, imagens extraídas via media:content/thumbnail
 - **Próximos passos:** Configurar domínio customizado (opcional), documentação final
+- **Testes:** 187 testes em 18 suites (todos passando)
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

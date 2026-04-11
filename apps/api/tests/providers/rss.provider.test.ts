@@ -3,13 +3,16 @@ import { Category } from '@newranews/database';
 import { fetchFromRss } from '../../src/providers/news/rss.provider';
 import type { RssSource } from '../../src/config/rss-sources';
 
-const { mockParseURL } = vi.hoisted(() => ({ mockParseURL: vi.fn() }));
+const { mockParseString } = vi.hoisted(() => ({ mockParseString: vi.fn() }));
 
 vi.mock('rss-parser', () => ({
   default: vi.fn().mockImplementation(() => ({
-    parseURL: mockParseURL,
+    parseString: mockParseString,
   })),
 }));
+
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
 
 const mockItem = {
   title: 'Notícia de Teste',
@@ -31,12 +34,21 @@ const sourceWithoutCategory: RssSource = {
   url: 'https://g1.globo.com/rss/g1/',
 };
 
+function mockFetchResponse(contentType = 'application/xml; charset=UTF-8', body = '') {
+  mockFetch.mockResolvedValue({
+    arrayBuffer: () => Promise.resolve(new TextEncoder().encode(body).buffer),
+    headers: new Headers({ 'content-type': contentType }),
+  });
+}
+
 beforeEach(() => {
-  mockParseURL.mockResolvedValue({ title: 'Test Feed', items: [mockItem] });
+  mockParseString.mockResolvedValue({ title: 'Test Feed', items: [mockItem] });
+  mockFetchResponse();
 });
 
 afterEach(() => {
-  mockParseURL.mockReset();
+  mockParseString.mockReset();
+  mockFetch.mockReset();
 });
 
 describe('fetchFromRss', () => {
@@ -58,7 +70,7 @@ describe('fetchFromRss', () => {
   });
 
   it('should filter out items without a title', async () => {
-    mockParseURL.mockResolvedValue({
+    mockParseString.mockResolvedValue({
       title: 'Test Feed',
       items: [{ ...mockItem, title: undefined }],
     });
@@ -69,7 +81,7 @@ describe('fetchFromRss', () => {
   });
 
   it('should filter out items without contentSnippet and content', async () => {
-    mockParseURL.mockResolvedValue({
+    mockParseString.mockResolvedValue({
       title: 'Test Feed',
       items: [{ ...mockItem, contentSnippet: undefined, content: undefined }],
     });
@@ -88,7 +100,7 @@ describe('fetchFromRss', () => {
 
   it('should use new Date() when pubDate is missing', async () => {
     const before = new Date();
-    mockParseURL.mockResolvedValue({
+    mockParseString.mockResolvedValue({
       title: 'Test Feed',
       items: [{ ...mockItem, pubDate: undefined }],
     });
@@ -102,9 +114,15 @@ describe('fetchFromRss', () => {
   });
 
   it('should not block other sources when one source fails', async () => {
-    mockParseURL
-      .mockRejectedValueOnce(new Error('Network error'))
-      .mockResolvedValueOnce({ title: 'Test Feed', items: [mockItem] });
+    mockFetch
+      .mockResolvedValueOnce({
+        arrayBuffer: () => Promise.reject(new Error('Network error')),
+        headers: new Headers({ 'content-type': 'text/xml' }),
+      })
+      .mockResolvedValueOnce({
+        arrayBuffer: () => Promise.resolve(new TextEncoder().encode('').buffer),
+        headers: new Headers({ 'content-type': 'application/xml; charset=UTF-8' }),
+      });
 
     const result = await fetchFromRss([sourceWithCategory, sourceWithoutCategory]);
 
@@ -119,7 +137,7 @@ describe('fetchFromRss', () => {
   });
 
   it('should fall back to source.url when item.link is missing', async () => {
-    mockParseURL.mockResolvedValue({
+    mockParseString.mockResolvedValue({
       title: 'Test Feed',
       items: [{ ...mockItem, link: undefined }],
     });
@@ -128,9 +146,67 @@ describe('fetchFromRss', () => {
 
     expect(result[0].sourceUrl).toBe('https://techcrunch.com/feed/');
   });
+});
 
-  it('should return null imageUrl when enclosure is missing', async () => {
-    mockParseURL.mockResolvedValue({
+describe('extractImageUrl', () => {
+  it('should use enclosure url when available', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [{ ...mockItem, enclosure: { url: 'https://example.com/enclosure.jpg' } }],
+    });
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    expect(result[0].imageUrl).toBe('https://example.com/enclosure.jpg');
+  });
+
+  it('should use media:content url when enclosure is missing (G1 pattern)', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [{
+        ...mockItem,
+        enclosure: undefined,
+        mediaContent: { $: { url: 'https://s2-g1.glbimg.com/photo.jpg', medium: 'image' } },
+      }],
+    });
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    expect(result[0].imageUrl).toBe('https://s2-g1.glbimg.com/photo.jpg');
+  });
+
+  it('should use media:thumbnail url when enclosure and media:content are missing (BBC pattern)', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [{
+        ...mockItem,
+        enclosure: undefined,
+        mediaThumbnail: { $: { url: 'https://ichef.bbci.co.uk/thumb.jpg', width: '240', height: '135' } },
+      }],
+    });
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    expect(result[0].imageUrl).toBe('https://ichef.bbci.co.uk/thumb.jpg');
+  });
+
+  it('should prefer enclosure over media:content', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [{
+        ...mockItem,
+        enclosure: { url: 'https://example.com/enclosure.jpg' },
+        mediaContent: { $: { url: 'https://example.com/media.jpg' } },
+      }],
+    });
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    expect(result[0].imageUrl).toBe('https://example.com/enclosure.jpg');
+  });
+
+  it('should return null when no image source is available', async () => {
+    mockParseString.mockResolvedValue({
       title: 'Test Feed',
       items: [{ ...mockItem, enclosure: undefined }],
     });
@@ -138,5 +214,50 @@ describe('fetchFromRss', () => {
     const result = await fetchFromRss([sourceWithCategory]);
 
     expect(result[0].imageUrl).toBeNull();
+  });
+});
+
+describe('fetchFeedXml encoding', () => {
+  it('should detect charset from Content-Type header', async () => {
+    mockFetchResponse('text/xml; charset=UTF-8', '<?xml version="1.0"?><rss/>');
+
+    await fetchFromRss([sourceWithCategory]);
+
+    expect(mockFetch).toHaveBeenCalledWith(sourceWithCategory.url);
+    expect(mockParseString).toHaveBeenCalled();
+  });
+
+  it('should detect charset from XML declaration when Content-Type has no charset', async () => {
+    const xmlDecl = '<?xml version="1.0" encoding="ISO-8859-1" ?>';
+    const xmlBytes = new TextEncoder().encode(xmlDecl);
+
+    mockFetch.mockResolvedValue({
+      arrayBuffer: () => Promise.resolve(xmlBytes.buffer),
+      headers: new Headers({ 'content-type': 'text/xml' }),
+    });
+
+    await fetchFromRss([sourceWithCategory]);
+
+    expect(mockParseString).toHaveBeenCalled();
+  });
+
+  it('should default to UTF-8 when no charset info is available', async () => {
+    mockFetch.mockResolvedValue({
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode('<rss/>').buffer),
+      headers: new Headers({ 'content-type': 'text/xml' }),
+    });
+
+    await fetchFromRss([sourceWithCategory]);
+
+    expect(mockParseString).toHaveBeenCalled();
+  });
+
+  it('should give Content-Type charset priority over XML declaration', async () => {
+    const xml = '<?xml version="1.0" encoding="ISO-8859-1" ?><rss/>';
+    mockFetchResponse('text/xml; charset=utf-8', xml);
+
+    await fetchFromRss([sourceWithCategory]);
+
+    expect(mockParseString).toHaveBeenCalled();
   });
 });

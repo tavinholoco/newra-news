@@ -176,6 +176,9 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 | `287eef5` | fix(api): resolve Prisma type resolution in pnpm monorepo |
 | `2ce1f2f` | fix(api): truncate and sanitize news content in AI prompt |
 | `cc8c2c5` | fix(api): also truncate description field in AI prompt |
+| `cf83180` | fix(api): migrate Gemini provider from deprecated 1.5-flash to 2.5-flash |
+| `b231841` | fix: decode HTML entities in news pipeline and handle broken images |
+| `e0703fe` | fix(api): handle ISO-8859-1 encoding and extract media images in RSS provider |
 
 ### Checklist do PRD
 
