@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 4 (Integração e Deploy) — em andamento (9/11 itens)
-- **Último marco:** RSS encoding ISO-8859-1 corrigido, imagens extraídas via media:content/thumbnail
-- **Próximos passos:** Configurar domínio customizado (opcional), documentação final
+- **Fase:** Fase 5 (Polish e Portfólio) — pendente
+- **Último marco:** Fase 4 concluída em 2026-08-14 — pipeline validado em produção (89 artigos em 90 dias, 0 falhas no último mês)
+- **Próximos passos:** Diversificar categorias (NewsAPI expirada), medir Lighthouse, polish UI/UX, documentação final
 - **Testes:** 187 testes em 18 suites (todos passando)
 - **Progresso detalhado:** docs/progress.md
 

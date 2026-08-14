@@ -7,7 +7,9 @@
 
 ## Fase Atual
 
-**Fase 2 — Backend Core** ✅ Concluída em 2026-03-16
+**Fase 5 — Polish e Portfólio** ⏳ Pendente
+
+> Fases 1–4 concluídas. Pipeline validado em produção: 89 artigos em 90 dias (17/mai → 14/ago), 1 gap, 0 falhas no último mês.
 
 ---
 
@@ -162,7 +164,7 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 
 ---
 
-## Fase 4 — Integração e Deploy (em andamento)
+## Fase 4 — Integração e Deploy ✅ Concluída em 2026-08-14
 
 > Referência: PRD seção 17 — "Fase 4 — Integração e Deploy (Semana 7-8)"
 
@@ -191,12 +193,30 @@ Auditoria completa realizada em 2026-03-25 antes de iniciar Fase 4:
 - [x] Configurar variáveis de ambiente em todos os serviços
 - [x] Rodar migrations em produção
 - [x] Testar pipeline completo em produção
-- [ ] Configurar domínio customizado (opcional)
-- [ ] Documentação final (README, docs/)
+
+### Validação em produção (2026-08-14)
+
+Verificado ao vivo contra `https://newra-news-web.vercel.app` e `https://newra-news-api.onrender.com`:
+
+- **Pipeline diário:** 89 artigos gerados em 90 dias (17/05 → 14/08/2026), apenas 1 gap (01/06)
+- **Confiabilidade:** último mês — 31 artigos, 0 dias de falha, taxa de sucesso 100%, IA: Gemini
+- **Volume:** ~250 notícias/dia, ~27s por execução do pipeline
+- **Infra:** backend Render com uptime de ~92 dias; todas as rotas do frontend retornam 200; Swagger em `/api/docs`
+- **CORS:** configurado para o domínio de produção da Vercel
+
+### Problemas conhecidos (pós-validação)
+
+- [ ] **Sitemap com URLs de localhost** — `NEXT_PUBLIC_SITE_URL` ausente na Vercel. Corrigido no código (fallback para `VERCEL_PROJECT_PRODUCTION_URL`); pendente redeploy para valer em produção
+- [ ] **Diversidade de categorias reduzida** — chave da NewsAPI expirada/limitada (free tier dev-only); apenas WORLD (RSS) e TECHNOLOGY (TechCrunch) com conteúdo. Ver Fase 5
+
+### Pendências pós-Fase 4 (não-bloqueantes)
+
+- [ ] Configurar domínio customizado (opcional) — quando houver, definir `NEXT_PUBLIC_SITE_URL`
+- [ ] Documentação final (README, docs/) — movida para a Fase 5
 
 ---
 
-## Fase 5 — Polish e Portfólio (pendente)
+## Fase 5 — Polish e Portfólio ⏳ Pendente
 
 > Referência: PRD seção 17 — "Fase 5 — Polish e Portfólio (Semana 9-10)"
 
