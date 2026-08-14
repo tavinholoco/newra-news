@@ -206,7 +206,8 @@ Verificado ao vivo contra `https://newra-news-web.vercel.app` e `https://newra-n
 
 ### Problemas conhecidos (pós-validação)
 
-- [ ] **Sitemap com URLs de localhost** — `NEXT_PUBLIC_SITE_URL` ausente na Vercel. Corrigido no código (fallback para `VERCEL_PROJECT_PRODUCTION_URL`); pendente redeploy para valer em produção
+- [x] **Sitemap com URLs de localhost** — `NEXT_PUBLIC_SITE_URL` ausente na Vercel. Corrigido no código (fallback para `VERCEL_PROJECT_PRODUCTION_URL`) e validado em produção em 2026-08-14 — commit `ea2fb5f`
+- [x] **Artigos ausentes do sitemap** — `getArticles(1, 90)` estourava o limite de 50 da API e falhava em silêncio. Corrigido com paginação + `toDateSlug()` e validado em produção (89 URLs de artigos, todas respondendo 200) — commit `5994ce7`
 - [ ] **Diversidade de categorias reduzida** — chave da NewsAPI expirada/limitada (free tier dev-only); apenas WORLD (RSS) e TECHNOLOGY (TechCrunch) com conteúdo. Ver Fase 5
 
 ### Pendências pós-Fase 4 (não-bloqueantes)
