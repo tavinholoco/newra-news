@@ -36,6 +36,10 @@ pnpm-debug.log*
 # Testing
 coverage/
 
+# Lighthouse
+lh-report.json
+.lighthouseci/
+
 # Misc
 *.tsbuildinfo
 

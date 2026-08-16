@@ -54,6 +54,10 @@ jobs:
       - run: pnpm turbo test
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/newranews_test
+      - name: Test coverage (threshold >70%)
+        run: pnpm turbo test:coverage
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/newranews_test
 
   build:
     name: Build
