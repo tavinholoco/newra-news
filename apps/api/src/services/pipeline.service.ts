@@ -68,7 +68,7 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
   const today = startOfDay(new Date());
 
   const metrics = {
-    newsApiCount: 0,
+    newsDataCount: 0,
     rssCount: 0,
     newsCollected: 0,
     newsByCategory: {} as Record<string, number>,
@@ -79,9 +79,9 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
   };
 
   try {
-    // Stage 1: Collect news (NewsAPI + RSS)
-    const { newsApiItems, rssItems, allItems } = await fetchAll();
-    metrics.newsApiCount = newsApiItems.length;
+    // Stage 1: Collect news (NewsData.io + RSS)
+    const { newsDataItems, rssItems, allItems } = await fetchAll();
+    metrics.newsDataCount = newsDataItems.length;
     metrics.rssCount = rssItems.length;
 
     // Stage 2: Normalization already handled by providers (RawNewsItem format)
@@ -160,7 +160,7 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
           date: today,
           newsCollected: metrics.newsCollected,
           newsByCategory: metrics.newsByCategory,
-          newsApiCount: metrics.newsApiCount,
+          newsApiCount: metrics.newsDataCount, // coluna historica; hoje mede NewsData.io
           rssCount: metrics.rssCount,
           articleGenerated: metrics.articleGenerated,
           aiProvider: metrics.aiProvider,
@@ -171,7 +171,7 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
         update: {
           newsCollected: metrics.newsCollected,
           newsByCategory: metrics.newsByCategory,
-          newsApiCount: metrics.newsApiCount,
+          newsApiCount: metrics.newsDataCount, // coluna historica; hoje mede NewsData.io
           rssCount: metrics.rssCount,
           articleGenerated: metrics.articleGenerated,
           aiProvider: metrics.aiProvider,

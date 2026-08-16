@@ -10,7 +10,7 @@
 ## Padrões de Código
 - Cada rota em seu próprio arquivo com schema Zod adjacente
 - Services são classes ou funções puras (sem dependência de Fastify)
-- Providers organizados em `providers/news/` (NewsAPI, RSS) e `providers/ai/` (Gemini, Groq, ai-utils)
+- Providers organizados em `providers/news/` (NewsData.io, RSS) e `providers/ai/` (Gemini, Groq, ai-utils)
 - Erros customizados em src/utils/errors.ts
 - Logger via Fastify built-in (pino)
 - Plugins registrados em src/plugins/
@@ -39,7 +39,7 @@ Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias
 providers/
 ├── types.ts          # RawNewsItem, GeneratedArticle
 ├── news/
-│   ├── newsapi.provider.ts
+│   ├── newsdata.provider.ts
 │   └── rss.provider.ts
 └── ai/
     ├── gemini.provider.ts
@@ -49,6 +49,6 @@ providers/
 
 ## Testes
 - Vitest com fastify.inject() para testes de rota
-- Mocks para providers externos (NewsAPI, Gemini, Groq)
+- Mocks para providers externos (NewsData, Gemini, Groq)
 - Helper em tests/helpers/test-server.ts
 - Cobertura: routes, services, providers, plugins, jobs

@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchAll } from '../../src/services/news-fetcher.service';
 
-vi.mock('../../src/providers/news/newsapi.provider');
+vi.mock('../../src/providers/news/newsdata.provider');
 vi.mock('../../src/providers/news/rss.provider');
 
-import { fetchFromNewsApi } from '../../src/providers/news/newsapi.provider';
+import { fetchFromNewsData } from '../../src/providers/news/newsdata.provider';
 import { fetchFromRss } from '../../src/providers/news/rss.provider';
 
-const mockNewsApiItems = [
+const mockNewsDataItems = [
   {
-    title: 'NewsAPI Article',
+    title: 'NewsData Article',
     description: 'Descrição',
     content: null,
     source: 'G1',
@@ -39,46 +39,46 @@ beforeEach(() => {
 
 describe('NewsFetcherService', () => {
   it('should combine items from both sources', async () => {
-    vi.mocked(fetchFromNewsApi).mockResolvedValue(mockNewsApiItems);
+    vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
     vi.mocked(fetchFromRss).mockResolvedValue(mockRssItems);
 
     const result = await fetchAll();
 
-    expect(result.newsApiItems).toEqual(mockNewsApiItems);
+    expect(result.newsDataItems).toEqual(mockNewsDataItems);
     expect(result.rssItems).toEqual(mockRssItems);
     expect(result.allItems).toHaveLength(2);
-    expect(result.allItems).toEqual([...mockNewsApiItems, ...mockRssItems]);
+    expect(result.allItems).toEqual([...mockNewsDataItems, ...mockRssItems]);
   });
 
-  it('should return empty newsApiItems when NewsAPI fails', async () => {
-    vi.mocked(fetchFromNewsApi).mockRejectedValue(new Error('NewsAPI down'));
+  it('should return empty newsDataItems when NewsData fails', async () => {
+    vi.mocked(fetchFromNewsData).mockRejectedValue(new Error('NewsData down'));
     vi.mocked(fetchFromRss).mockResolvedValue(mockRssItems);
 
     const result = await fetchAll();
 
-    expect(result.newsApiItems).toEqual([]);
+    expect(result.newsDataItems).toEqual([]);
     expect(result.rssItems).toEqual(mockRssItems);
     expect(result.allItems).toEqual(mockRssItems);
   });
 
   it('should return empty rssItems when RSS fails', async () => {
-    vi.mocked(fetchFromNewsApi).mockResolvedValue(mockNewsApiItems);
+    vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
     vi.mocked(fetchFromRss).mockRejectedValue(new Error('RSS down'));
 
     const result = await fetchAll();
 
-    expect(result.newsApiItems).toEqual(mockNewsApiItems);
+    expect(result.newsDataItems).toEqual(mockNewsDataItems);
     expect(result.rssItems).toEqual([]);
-    expect(result.allItems).toEqual(mockNewsApiItems);
+    expect(result.allItems).toEqual(mockNewsDataItems);
   });
 
   it('should return empty allItems when both sources fail', async () => {
-    vi.mocked(fetchFromNewsApi).mockRejectedValue(new Error('NewsAPI down'));
+    vi.mocked(fetchFromNewsData).mockRejectedValue(new Error('NewsData down'));
     vi.mocked(fetchFromRss).mockRejectedValue(new Error('RSS down'));
 
     const result = await fetchAll();
 
-    expect(result.newsApiItems).toEqual([]);
+    expect(result.newsDataItems).toEqual([]);
     expect(result.rssItems).toEqual([]);
     expect(result.allItems).toEqual([]);
   });

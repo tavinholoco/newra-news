@@ -6,7 +6,8 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string().url(),
-  NEWSAPI_KEY: z.string().min(1),
+  // Provider principal de noticias (NewsData.io) — opcional ate ser configurado
+  // no ambiente (Render). Sem ela, o pipeline roda apenas com RSS.
   NEWSDATA_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),

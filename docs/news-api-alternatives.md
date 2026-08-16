@@ -55,13 +55,13 @@ baixos demais para uso diário).
 
 ---
 
-## 4. Migração (quando decidir)
+## 4. Migração ✅ Concluída (2026-08-14)
 
-1. Criar chave gratuita em newsdata.io
-2. Adicionar `NEWSDATA_API_KEY` no `.env.example` e no Render
-3. Implementar `newsdata.provider.ts` + testes (padrão do `newsapi.provider.ts`)
-4. Adicionar ao `fetchAll()` do `news-fetcher.service.ts` como fonte adicional
-5. Validar em produção via métricas (`newsApiCount`/`rssCount` no DailyMetric)
+1. ✅ Chave gratuita criada em newsdata.io e adicionada ao `.env` local (gitignorado)
+2. ✅ `NEWSDATA_API_KEY` adicionada ao `.env.example`, `render.yaml` e schema do env (opcional)
+3. ✅ `newsdata.provider.ts` implementado + testes (`tests/providers/newsdata.provider.test.ts`)
+4. ✅ `fetchAll()` do `news-fetcher.service.ts` usa NewsData.io no lugar da NewsAPI
+5. ⏳ Pendente: adicionar `NEWSDATA_API_KEY` nas env vars do Render e validar em produção via métricas (`newsApiCount`/`rssCount` no DailyMetric)
 
 ---
 
@@ -70,7 +70,7 @@ baixos demais para uso diário).
 Para nunca mais depender de investigação manual (como a deste documento):
 
 - **Endpoint:** `GET /api/health/providers` (protegido com `JOB_SECRET`)
-- **Resposta:** `{ newsapi: "invalid" | "ok", gemini: "ok", groq: "ok", newsdata?: "ok" }`
+- **Resposta:** `{ newsdata: "ok", gemini: "ok", groq: "ok" }`
 - **Implementação:** testar cada chave com uma requisição leve
   (ex.: `GET /v2/top-headlines?pageSize=1`, `GET /v1beta/models`,
   `GET /openai/v1/models`) e reportar status sem expor as chaves

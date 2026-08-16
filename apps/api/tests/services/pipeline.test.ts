@@ -35,9 +35,9 @@ import { fetchAll } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 
 const mockFetchResult = {
-  newsApiItems: [
+  newsDataItems: [
     {
-      title: 'NewsAPI Article',
+      title: 'NewsData Article',
       description: 'Description',
       content: null,
       source: 'G1',
@@ -61,7 +61,7 @@ const mockFetchResult = {
   ],
   allItems: [
     {
-      title: 'NewsAPI Article',
+      title: 'NewsData Article',
       description: 'Description',
       content: null,
       source: 'G1',

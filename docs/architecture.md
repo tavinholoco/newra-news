@@ -7,7 +7,7 @@ O Newra News segue uma arquitetura cliente-servidor desacoplada:
 ```
 [Usuário] → [Frontend Vercel (Next.js)] → [Backend Render (Fastify)] → [PostgreSQL Neon]
                                               ↕                ↕
-                                          [NewsAPI]    [Gemini / Groq]
+                                          [NewsData.io] [Gemini / Groq]
                                           [RSS Feeds]
 ```
 
@@ -39,13 +39,13 @@ src/
 │   ├── article.service.ts  # Lógica de listagem/busca de artigos
 │   ├── pipeline.service.ts # Orquestra o pipeline diário completo (9 etapas)
 │   ├── ai.service.ts       # Abstração de IA: Gemini → Groq fallback
-│   ├── news-fetcher.service.ts  # Busca NewsAPI + RSS em paralelo
+│   ├── news-fetcher.service.ts  # Busca NewsData.io + RSS em paralelo
 │   └── metrics.service.ts  # Agregações sobre DailyMetric
 ├── providers/
 │   ├── types.ts            # Interfaces compartilhadas (RawNewsItem, GeneratedArticle)
 │   ├── news/
-│   │   ├── newsapi.provider.ts  # Client da NewsAPI
-│   │   └── rss.provider.ts     # Parser de RSS Feeds
+│   │   ├── newsdata.provider.ts  # Client da NewsData.io
+│   │   └── rss.provider.ts      # Parser de RSS Feeds
 │   └── ai/
 │       ├── gemini.provider.ts   # Client da Gemini API
 │       ├── groq.provider.ts     # Client da Groq API
@@ -73,7 +73,7 @@ HTTP Request
 
 Disparado por `POST /api/jobs/daily-pipeline` (Bearer token) ou pelo cron job interno:
 
-1. **Coleta** — NewsAPI + RSS em paralelo (`Promise.allSettled`)
+1. **Coleta** — NewsData.io + RSS em paralelo (`Promise.allSettled`)
 2. **Normalização** — Providers padronizam para `RawNewsItem`
 3. **Deduplicação** — Por `sourceUrl`
 4. **Persistência** — `news.createMany()` no PostgreSQL
