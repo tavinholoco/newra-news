@@ -43,4 +43,14 @@ describe('ThemeToggle', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false);
     expect(window.localStorage.getItem('theme')).toBe('light');
   });
+
+  it('should reflect an existing dark class after mount (avoids hydration mismatch)', () => {
+    document.documentElement.classList.add('dark');
+    render(<ThemeToggle />);
+
+    expect(
+      screen.getByRole('button', { name: 'Ativar modo claro' }),
+    ).toBeInTheDocument();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
 });
