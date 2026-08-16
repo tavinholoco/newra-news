@@ -46,9 +46,9 @@
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) — pendente
-- **Último marco (2026-08-16):** NewsAPI substituída pela NewsData.io — provider implementado com 9 testes, Gitleaks no CI, `NEWSDATA_API_KEY` opcional no schema (produção roda RSS-only até configurar)
-- **Próximos passos:** Validar NewsData em produção, endpoint `GET /api/health/providers`, classificador de categorias RSS, Lighthouse >90
-- **Testes:** 187 testes em 18 suites (todos passando)
+- **Último marco (2026-08-16):** Item 5 (Medição) concluído — cobertura do backend 94% com threshold >70 no CI (`turbo test:coverage`), Lighthouse real contra produção: Performance 96, Accessibility 96, Best Practices 96, SEO 100, com `.lighthouserc.json` + workflow semanal que falha abaixo de 90
+- **Próximos passos:** Merge dev → main + deploy do provider NewsData (itens 1–2 do plano), item 6 (Documentação Fase 5: setup.md, diagramas Mermaid, README final)
+- **Testes:** 229 testes em 21 suites (todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 

@@ -10,7 +10,7 @@
 **Fase 5 — Polish e Portfólio** ⏳ Pendente
 
 > Fases 1–4 concluídas. Pipeline validado em produção: 89 artigos em 90 dias (17/mai → 14/ago), 1 gap, 0 falhas no último mês.
-> NewsAPI substituída pela NewsData.io (2026-08-16) — pendente deploy na main.
+> NewsAPI substituída pela NewsData.io — código já publicado na main (commits `4055422`/`9d33f83`/`b90b749`, 2026-08-15) e deployado no Render; pendente apenas adicionar `NEWSDATA_API_KEY` nas env vars e validar em produção.
 
 ---
 
@@ -20,29 +20,29 @@
 
 ### 1. Publicar o provider NewsData.io (URGENTE — destrava produção)
 
-- [ ] Merge dev → main e deploy no Render (código antigo da main ainda exige `NEWSAPI_KEY`, que foi removida)
-- [ ] Confirmar boot com `NEWSDATA_API_KEY` nas env vars do Render
+- [x] Merge dev → main — concluído: `4055422` (provider NewsData), `9d33f83` (drop NEWSAPI_KEY) e `b90b749` (docs) já estão em `origin/main` (2026-08-15); Render com deploy automático a partir de main
+- [ ] Confirmar deploy no Render e boot com `NEWSDATA_API_KEY` nas env vars — chave ainda não setada (produção: `newsApiTotal: 0`, categorias só WORLD/TECHNOLOGY)
 
 ### 2. Validar NewsData em produção (comparar com RSS)
 
 - [ ] Verificar o dashboard de métricas após a próxima execução do pipeline: `newsApiCount` vs `rssCount` e `newsByCategory` (esperado: 8 categorias preenchidas, não só WORLD/TECHNOLOGY)
 - [ ] Conferir qualidade das notícias da NewsData (pt-BR, sem duplicatas, imagens ok)
 
-### 3. Endpoint de diagnóstico de chaves
+### 3. Endpoint de diagnóstico de chaves ✅
 
-- [ ] `GET /api/health/providers` (protegido com `JOB_SECRET`) testando ao vivo NewsData, Gemini e Groq — resposta `{ newsdata: "ok"|"invalid", gemini: "...", groq: "..." }`
-- [ ] Testes Vitest + documentação em `docs/api.md`
+- [x] `GET /api/health/providers` (protegido com `JOB_SECRET`) testando ao vivo NewsData, Gemini e Groq — resposta `{ newsdata: "ok"|"invalid", gemini: "...", groq: "..." }`
+- [x] Testes Vitest (26 novos: service + rota) + documentação em `docs/api.md`
 
-### 4. Classificador de categorias RSS
+### 4. Classificador de categorias RSS ✅
 
-- [ ] Classificação por palavras-chave (título/descrição → Category) para feeds sem categoria (hoje 4 de 5 caem em WORLD)
-- [ ] Expandir `rss-sources.ts` com feeds especializados (economia, esportes, ciência, saúde)
-- [ ] Testes do classificador
+- [x] Classificação por palavras-chave (título/descrição → Category) para feeds sem categoria (hoje 4 de 5 caem em WORLD) — `services/category-classifier.service.ts`, peso 2 no título / 1 na descrição, sem acentos, fallback WORLD
+- [x] Expandir `rss-sources.ts` com feeds especializados (economia: InfoMoney, Valor; esportes: ESPN Brasil, Trivela; ciência: Olhar Digital, Superinteressante; saúde: Veja Saúde, Drauzio Varella — URLs verificadas como RSS válido)
+- [x] Testes do classificador (14 unit) + integração no provider RSS (16 testes novos no total)
 
-### 5. Medição (critérios de sucesso do PRD §18)
+### 5. Medição (critérios de sucesso do PRD §18) ✅
 
-- [ ] Cobertura de testes do backend >70% (config v8 existe; medir e definir threshold no CI)
-- [ ] Lighthouse >90 (Performance, A11y, Best Practices, SEO)
+- [x] Cobertura de testes do backend >70% — medido 2026-08-16: 94,33% linhas / 91,91% statements / 94,73% funções / 94,33% branches; threshold 70 em `apps/api/vitest.config.ts` + passo `test:coverage` no CI (`ci.yml`, `turbo test:coverage`)
+- [x] Lighthouse >90 — auditado contra produção 2026-08-16 (mobile, via Lighthouse real): **Performance 96 · Accessibility 96 · Best Practices 96 · SEO 100**; `.lighthouserc.json` + workflow `lighthouse.yml` (semanal + manual) falham se qualquer categoria < 90
 
 ### 6. Documentação (Fase 5)
 
@@ -61,6 +61,22 @@
 - [ ] Dashboard de métricas no frontend (a API `/api/metrics/*` já existe pronta)
 - [ ] Newsletter com o artigo diário
 - [ ] Autenticação/favoritos, i18n, painel admin
+
+### 9. Dashboard de logs e erros do pipeline (dev-only) — Observabilidade
+
+> Contexto: hoje, diagnosticar falhas da pipeline exige caçar `console.warn/error`
+> não estruturados no painel do Render ou consultar endpoints isolados
+> (`/api/jobs/:pipelineId`, `/api/health/providers`). Este item centraliza logs e erros
+> num painel privado do dev.
+> **Não conflita com o item 8:** lá é um dashboard **público de métricas de negócio** no
+> frontend (portfólio); aqui é **observabilidade** (logs e erros da pipeline) no backend,
+> protegida por `JOB_SECRET` e sem exposição ao público.
+
+- [ ] Modelo `PipelineEvent` no Prisma: registra cada evento da pipeline (pipelineLogId, Stage 1–9, nível info/warn/error, mensagem, contexto JSON, createdAt) — substitui os `console.warn/error` soltos
+- [ ] Enriquecer `PipelineLog`: etapa da falha (Stage N) + erro estruturado (mensagem, provider, status HTTP) — hoje `error` é uma string única
+- [ ] Endpoints protegidos com `JOB_SECRET` (prefixo `/api/dev`): `GET /api/dev/logs` (últimos runs + erros recentes, filtros status/intervalo) e `GET /api/dev/logs/:pipelineId` (detalhe completo com eventos por etapa)
+- [ ] Página HTML servida pela API em `/dev/dashboard` (protegida + rate limit): histórico de runs (status, duração, contagens, erro), erros recentes e status dos providers (reusa `GET /api/health/providers` do item 3)
+- [ ] Testes Vitest + documentação em `docs/api.md`
 
 ---
 
@@ -263,7 +279,7 @@ Verificado ao vivo contra `https://newra-news-web.vercel.app` e `https://newra-n
 
 ### Recomendações pendentes
 
-- [ ] **Endpoint de diagnóstico de providers** — `GET /api/health/providers` (protegido) testando ao vivo NewsAPI/Gemini/Groq, para nunca mais depender de investigação manual. Detalhes: `docs/news-api-alternatives.md` §5
+- [x] **Endpoint de diagnóstico de providers** — `GET /api/health/providers` (protegido) testando ao vivo NewsData/Gemini/Groq, para nunca mais depender de investigação manual. Detalhes: `docs/news-api-alternatives.md` §5
 
 ### Pendências pós-Fase 4 (não-bloqueantes)
 
