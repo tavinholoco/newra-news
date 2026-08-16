@@ -19,18 +19,22 @@ interface LocalizedLink {
 
 export function Navbar({ links }: NavbarProps) {
   const pathname = usePathname();
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const t = useTranslations('nav');
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Link de Favoritos aparece apenas para usuários autenticados
-  const visibleLinks: LocalizedLink[] =
-    status === 'authenticated'
-      ? [...links, { href: '/favorites', key: 'favorites' }].map((link) => ({
-          href: link.href,
-          label: t(link.key),
-        }))
-      : links.map((link) => ({ href: link.href, label: t(link.key) }));
+  // Favoritos para autenticados; Admin apenas para role ADMIN
+  const extraLinks: Array<{ href: string; key: string }> = [];
+  if (status === 'authenticated') {
+    extraLinks.push({ href: '/favorites', key: 'favorites' });
+    if (session?.user?.role === 'ADMIN') {
+      extraLinks.push({ href: '/admin', key: 'admin' });
+    }
+  }
+  const visibleLinks: LocalizedLink[] = [...links, ...extraLinks].map((link) => ({
+    href: link.href,
+    label: t(link.key),
+  }));
 
   useEffect(() => {
     setMobileOpen(false);

@@ -9,6 +9,7 @@
     "metrics": "Métricas",
     "about": "Sobre",
     "favorites": "Favoritos",
+    "admin": "Admin",
     "openMenu": "Abrir menu",
     "closeMenu": "Fechar menu"
   },
@@ -126,11 +127,37 @@
     "emptyTitle": "Você ainda não favoritou nenhuma notícia.",
     "emptyHint": "Toque no coração em uma notícia para salvá-la aqui."
   },
+  "admin": {
+    "title": "Painel Admin",
+    "restrictedTitle": "Acesso restrito",
+    "restrictedDesc": "Esta área é exclusiva para administradores.",
+    "backHome": "Voltar para a Home",
+    "runPipeline": "Executar pipeline",
+    "runPipelineHint": "Dispara agora a coleta de notícias e a geração do artigo do dia.",
+    "runPipelineButton": "Executar agora",
+    "running": "Executando...",
+    "runSuccess": "Pipeline disparado com sucesso.",
+    "runError": "Não foi possível disparar o pipeline. Tente novamente.",
+    "newsListTitle": "Últimas notícias",
+    "delete": "Deletar",
+    "deleteError": "Não foi possível remover a notícia. Tente novamente.",
+    "loadError": "Não foi possível carregar as notícias.",
+    "empty": "Nenhuma notícia no momento.",
+    "totalNews": "{count, plural, one {# notícia} other {# notícias}} no total"
+  },
   "auth": {
     "signIn": "Entrar",
     "signOut": "Sair",
     "loading": "Carregando sessão",
     "guest": "Usuário"
+  },
+  "signin": {
+    "title": "Entrar",
+    "hint": "Acesse sua conta para favoritar notícias e usar o painel admin.",
+    "google": "Continuar com Google",
+    "github": "Continuar com GitHub",
+    "backHome": "Voltar para a Home",
+    "error": "Não foi possível entrar. O serviço de autenticação não está configurado ou a tentativa foi cancelada. Tente novamente."
   },
   "theme": {
     "enableDark": "Ativar modo escuro",
@@ -197,6 +224,12 @@
     },
     "favorites": {
       "title": "Favoritos"
+    },
+    "admin": {
+      "title": "Admin"
+    },
+    "signin": {
+      "title": "Entrar"
     },
     "newsletterUnsubscribe": {
       "title": "Cancelar inscrição",

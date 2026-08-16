@@ -10,6 +10,8 @@ import {
   getFavorites,
   addFavorite,
   removeFavorite,
+  runDailyPipeline,
+  deleteNewsAdmin,
 } from '@/lib/api';
 
 const mockNews = {
@@ -182,5 +184,50 @@ describe('favorites client API', () => {
     expect(url).toBe('/api/favorites/uuid-1');
     expect(init.method).toBe('DELETE');
     expect(result).toEqual({ removed: true });
+  });
+});
+
+describe('admin client API', () => {
+  it('should POST to the run-pipeline proxy', async () => {
+    mockFetchJson({
+      success: true,
+      data: { pipelineId: 'pipe-1' },
+      revalidated: true,
+    });
+
+    const result = await runDailyPipeline();
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/admin/run-pipeline');
+    expect(init.method).toBe('POST');
+    expect(result).toEqual({
+      success: true,
+      data: { pipelineId: 'pipe-1' },
+      revalidated: true,
+    });
+  });
+
+  it('should DELETE a news item through the admin proxy', async () => {
+    mockFetchJson({ data: { deleted: true, id: 'uuid-1' } });
+
+    const result = await deleteNewsAdmin('uuid-1');
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/admin/news/uuid-1');
+    expect(init.method).toBe('DELETE');
+    expect(result).toEqual({ deleted: true, id: 'uuid-1' });
+  });
+
+  it('should throw when the run-pipeline request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+      }),
+    );
+
+    await expect(runDailyPipeline()).rejects.toThrow('403');
   });
 });

@@ -8,6 +8,8 @@ import type {
   Subscriber,
   FavoriteWithNews,
   AddedFavorite,
+  RunPipelineResult,
+  DeleteNewsResult,
 } from '@newranews/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -139,5 +141,31 @@ export async function removeFavorite(
     `/api/favorites/${newsId}`,
     { method: 'DELETE' },
   );
+  return res.data;
+}
+
+// ── Admin (painel dev) ─────────────────────────────────────────────────
+// Rotas proxy do Next que validam sessão + role ADMIN server-side.
+
+/** Dispara o pipeline manualmente (admin). Retorna o corpo da rota do cron. */
+export async function runDailyPipeline(): Promise<RunPipelineResult> {
+  const response = await fetch('/api/admin/run-pipeline', { method: 'POST' });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<RunPipelineResult>;
+}
+
+/** Remove uma notícia (admin). */
+export async function deleteNewsAdmin(id: string): Promise<DeleteNewsResult> {
+  const response = await fetch(`/api/admin/news/${id}`, { method: 'DELETE' });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText}`);
+  }
+
+  const res = (await response.json()) as ApiResponse<DeleteNewsResult>;
   return res.data;
 }

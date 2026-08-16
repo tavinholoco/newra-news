@@ -12,6 +12,7 @@ export interface AuthJwtPayload {
   email: string;
   name?: string | null;
   image?: string | null;
+  role?: 'USER' | 'ADMIN';
   purpose?: 'auth-upsert';
 }
 

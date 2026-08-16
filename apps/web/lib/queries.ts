@@ -6,6 +6,8 @@ import type {
   PaginatedResponse,
   DashboardMetrics,
   FavoriteWithNews,
+  RunPipelineResult,
+  DeleteNewsResult,
 } from '@newranews/types';
 import {
   getNews,
@@ -17,6 +19,8 @@ import {
   getFavorites,
   addFavorite,
   removeFavorite,
+  runDailyPipeline,
+  deleteNewsAdmin,
 } from '@/lib/api';
 
 // ── Query Key Factories ──────────────────────────────────────────────
@@ -59,6 +63,11 @@ export const metricsKeys = {
 export const favoritesKeys = {
   all: ['favorites'] as const,
   list: () => [...favoritesKeys.all, 'list'] as const,
+};
+
+export const adminKeys = {
+  all: ['admin'] as const,
+  newsList: () => [...adminKeys.all, 'news-list'] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -147,6 +156,28 @@ export function useIsFavorite(newsId: string, enabled = true) {
  * `news` (opcional) permite inserir a notícia completa na lista otimista,
  * deixando o heart preenchido imediatamente ao favoritar.
  */
+// ── Admin Hooks ───────────────────────────────────────────────────────────
+
+/** Dispara o pipeline manualmente (admin). */
+export function useRunPipeline() {
+  return useMutation<RunPipelineResult, Error>({
+    mutationFn: () => runDailyPipeline(),
+  });
+}
+
+/** Remove uma notícia (admin) e invalida a lista de notícias do painel. */
+export function useDeleteNews() {
+  const queryClient = useQueryClient();
+
+  return useMutation<DeleteNewsResult, Error, string>({
+    mutationFn: (id: string) => deleteNewsAdmin(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.newsList() });
+      queryClient.invalidateQueries({ queryKey: newsKeys.lists() });
+    },
+  });
+}
+
 export function useToggleFavorite(newsId: string, news?: News) {
   const queryClient = useQueryClient();
 

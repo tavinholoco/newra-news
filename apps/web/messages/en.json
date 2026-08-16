@@ -9,6 +9,7 @@
     "metrics": "Metrics",
     "about": "About",
     "favorites": "Favorites",
+    "admin": "Admin",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
   },
@@ -126,11 +127,37 @@
     "emptyTitle": "You haven't favorited any news yet.",
     "emptyHint": "Tap the heart on a news item to save it here."
   },
+  "admin": {
+    "title": "Admin Panel",
+    "restrictedTitle": "Restricted access",
+    "restrictedDesc": "This area is for administrators only.",
+    "backHome": "Back to Home",
+    "runPipeline": "Run pipeline",
+    "runPipelineHint": "Trigger news collection and today's article generation now.",
+    "runPipelineButton": "Run now",
+    "running": "Running...",
+    "runSuccess": "Pipeline triggered successfully.",
+    "runError": "Couldn't trigger the pipeline. Please try again.",
+    "newsListTitle": "Latest news",
+    "delete": "Delete",
+    "deleteError": "Couldn't remove the news item. Please try again.",
+    "loadError": "Couldn't load the news.",
+    "empty": "No news at the moment.",
+    "totalNews": "{count, plural, one {# news item} other {# news items}} in total"
+  },
   "auth": {
     "signIn": "Sign in",
     "signOut": "Sign out",
     "loading": "Loading session",
     "guest": "User"
+  },
+  "signin": {
+    "title": "Sign in",
+    "hint": "Sign in to favorite news and access the admin panel.",
+    "google": "Continue with Google",
+    "github": "Continue with GitHub",
+    "backHome": "Back to Home",
+    "error": "Sign-in failed. The authentication service is not configured or the attempt was cancelled. Please try again."
   },
   "theme": {
     "enableDark": "Enable dark mode",
@@ -197,6 +224,12 @@
     },
     "favorites": {
       "title": "Favorites"
+    },
+    "admin": {
+      "title": "Admin"
+    },
+    "signin": {
+      "title": "Sign in"
     },
     "newsletterUnsubscribe": {
       "title": "Cancel subscription",
