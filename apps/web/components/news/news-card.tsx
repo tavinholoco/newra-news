@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, ExternalLink } from 'lucide-react';
+import { FavoriteButton } from '@/components/news/favorite-button';
 import { CATEGORY_LABELS, formatDate } from '@/lib/format';
 
 interface NewsCardProps {
@@ -18,8 +19,9 @@ interface NewsCardProps {
 
 export function NewsCard({ news }: NewsCardProps) {
   return (
-    <Link href={`/news/${news.id}`} className='group block'>
-      <Card className='h-full transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md'>
+    <div className='group relative h-full transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md'>
+      <Link href={`/news/${news.id}`} className='block h-full'>
+        <Card className='h-full'>
         {/* Image */}
         <div className='relative aspect-[16/9] w-full overflow-hidden rounded-t-xl'>
           {(() => {
@@ -67,7 +69,14 @@ export function NewsCard({ news }: NewsCardProps) {
           </span>
           <ExternalLink className='ml-auto h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
         </CardFooter>
-      </Card>
-    </Link>
+        </Card>
+      </Link>
+      <FavoriteButton
+        newsId={news.id}
+        news={news}
+        overlay
+        className='absolute right-3 top-3 z-10'
+      />
+    </div>
   );
 }

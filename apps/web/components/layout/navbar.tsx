@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,7 +18,14 @@ interface NavbarProps {
 
 export function Navbar({ links }: NavbarProps) {
   const pathname = usePathname();
+  const { status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Link de Favoritos aparece apenas para usuários autenticados
+  const visibleLinks =
+    status === 'authenticated'
+      ? [...links, { href: '/favorites', label: 'Favoritos' }]
+      : links;
 
   useEffect(() => {
     setMobileOpen(false);
@@ -43,7 +51,7 @@ export function Navbar({ links }: NavbarProps) {
     <>
       {/* Desktop nav */}
       <nav className='hidden items-center gap-1 md:flex'>
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -83,7 +91,7 @@ export function Navbar({ links }: NavbarProps) {
       {mobileOpen && (
         <div className='fixed inset-x-0 top-16 z-50 border-b border-border bg-background shadow-lg md:hidden'>
           <nav className='mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4'>
-            {links.map((link) => (
+            {visibleLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

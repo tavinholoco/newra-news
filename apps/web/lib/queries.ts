@@ -1,10 +1,11 @@
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import type {
   Category,
   News,
   Article,
   PaginatedResponse,
   DashboardMetrics,
+  FavoriteWithNews,
 } from '@newranews/types';
 import {
   getNews,
@@ -13,6 +14,9 @@ import {
   getArticleByDate,
   getLatestArticle,
   getDashboardMetrics,
+  getFavorites,
+  addFavorite,
+  removeFavorite,
 } from '@/lib/api';
 
 // ── Query Key Factories ──────────────────────────────────────────────
@@ -50,6 +54,11 @@ export const articleKeys = {
 export const metricsKeys = {
   all: ['metrics'] as const,
   dashboard: () => [...metricsKeys.all, 'dashboard'] as const,
+};
+
+export const favoritesKeys = {
+  all: ['favorites'] as const,
+  list: () => [...favoritesKeys.all, 'list'] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -112,5 +121,88 @@ export function useDashboardMetrics(initialData?: DashboardMetrics) {
     queryKey: metricsKeys.dashboard(),
     queryFn: () => getDashboardMetrics(),
     initialData,
+  });
+}
+
+// ── Favorites Hooks ───────────────────────────────────────────────────
+
+const FAVORITES_LIMIT = 100;
+
+export function useFavorites(enabled = true) {
+  return useQuery({
+    queryKey: favoritesKeys.list(),
+    queryFn: () => getFavorites(1, FAVORITES_LIMIT),
+    enabled,
+  });
+}
+
+/** True se `newsId` está entre os favoritos do usuário. */
+export function useIsFavorite(newsId: string, enabled = true) {
+  const { data } = useFavorites(enabled);
+  return data?.data.some((favorite) => favorite.newsId === newsId) ?? false;
+}
+
+/**
+ * Toggle otimista: adiciona ou remove o favorito e invalida a lista.
+ * `news` (opcional) permite inserir a notícia completa na lista otimista,
+ * deixando o heart preenchido imediatamente ao favoritar.
+ */
+export function useToggleFavorite(newsId: string, news?: News) {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    unknown,
+    Error,
+    boolean,
+    { previous?: PaginatedResponse<FavoriteWithNews> }
+  >({
+    mutationFn: (favorited: boolean) =>
+      favorited ? removeFavorite(newsId) : addFavorite(newsId),
+    onMutate: async (favorited) => {
+      await queryClient.cancelQueries({ queryKey: favoritesKeys.list() });
+      const previous = queryClient.getQueryData<PaginatedResponse<FavoriteWithNews>>(
+        favoritesKeys.list(),
+      );
+
+      queryClient.setQueryData<PaginatedResponse<FavoriteWithNews>>(
+        favoritesKeys.list(),
+        (old) => {
+          if (!old) return old;
+          if (favorited) {
+            return {
+              ...old,
+              data: old.data.filter((item) => item.newsId !== newsId),
+              meta: { ...old.meta, total: Math.max(0, old.meta.total - 1) },
+            };
+          }
+          if (news) {
+            return {
+              ...old,
+              data: [
+                {
+                  id: 'pending',
+                  newsId,
+                  createdAt: new Date().toISOString(),
+                  news,
+                },
+                ...old.data,
+              ],
+              meta: { ...old.meta, total: old.meta.total + 1 },
+            };
+          }
+          return old;
+        },
+      );
+
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(favoritesKeys.list(), context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: favoritesKeys.list() });
+    },
   });
 }

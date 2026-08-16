@@ -10,6 +10,17 @@ vi.mock('next/image', () => ({
   ),
 }));
 
+// FavoriteButton renderizado pelo card (useSession + hooks de favoritos)
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({ data: null, status: 'unauthenticated' }),
+  signIn: vi.fn(),
+}));
+
+vi.mock('@/lib/queries', () => ({
+  useIsFavorite: () => false,
+  useToggleFavorite: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
 const mockNews: News = {
   id: 'aaaaaaaa-0000-0000-0000-000000000001',
   title: 'Notícia de Teste do Card',

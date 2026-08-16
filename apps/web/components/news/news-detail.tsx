@@ -3,6 +3,7 @@ import type { News } from '@newranews/types';
 import { SafeImage } from '@/components/ui/safe-image';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Calendar, ExternalLink, Globe } from 'lucide-react';
+import { FavoriteButton } from '@/components/news/favorite-button';
 import { CATEGORY_LABELS, formatDate } from '@/lib/format';
 
 interface NewsDetailProps {
@@ -51,9 +52,12 @@ export function NewsDetail({ news }: NewsDetailProps) {
       </div>
 
       {/* Title */}
-      <h1 className='font-display mb-4 text-3xl font-bold leading-tight text-foreground sm:text-4xl'>
-        {news.title}
-      </h1>
+      <div className='mb-4 flex items-start justify-between gap-4'>
+        <h1 className='font-display text-3xl font-bold leading-tight text-foreground sm:text-4xl'>
+          {news.title}
+        </h1>
+        <FavoriteButton newsId={news.id} news={news} className='mt-2 shrink-0' />
+      </div>
 
       {/* Meta */}
       <div className='mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground'>

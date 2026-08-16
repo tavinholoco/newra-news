@@ -6,6 +6,8 @@ import type {
   ApiResponse,
   DashboardMetrics,
   Subscriber,
+  FavoriteWithNews,
+  AddedFavorite,
 } from '@newranews/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -89,6 +91,53 @@ export async function unsubscribeFromNewsletter(
   const params = new URLSearchParams({ token });
   const res = await fetchApi<ApiResponse<{ unsubscribed: boolean }>>(
     `/newsletter/unsubscribe?${params.toString()}`,
+  );
+  return res.data;
+}
+
+// ── Favoritos ──────────────────────────────────────────────────────────
+// Chamadas de mesmo-origem para as rotas proxy do Next (app/api/favorites),
+// que leem a sessão do next-auth e assinam o JWT server-side.
+
+async function fetchWebApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(endpoint, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export async function getFavorites(
+  page = 1,
+  limit = 100,
+): Promise<PaginatedResponse<FavoriteWithNews>> {
+  return fetchWebApi<PaginatedResponse<FavoriteWithNews>>(
+    `/api/favorites?page=${page}&limit=${limit}`,
+  );
+}
+
+export async function addFavorite(newsId: string): Promise<AddedFavorite> {
+  const res = await fetchWebApi<ApiResponse<AddedFavorite>>('/api/favorites', {
+    method: 'POST',
+    body: JSON.stringify({ newsId }),
+  });
+  return res.data;
+}
+
+export async function removeFavorite(
+  newsId: string,
+): Promise<{ removed: boolean }> {
+  const res = await fetchWebApi<ApiResponse<{ removed: boolean }>>(
+    `/api/favorites/${newsId}`,
+    { method: 'DELETE' },
   );
   return res.data;
 }

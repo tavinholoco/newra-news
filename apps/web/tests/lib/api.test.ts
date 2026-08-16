@@ -7,6 +7,9 @@ import {
   getDashboardMetrics,
   subscribeToNewsletter,
   unsubscribeFromNewsletter,
+  getFavorites,
+  addFavorite,
+  removeFavorite,
 } from '@/lib/api';
 
 const mockNews = {
@@ -135,5 +138,49 @@ describe('unsubscribeFromNewsletter', () => {
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
     expect(url).toContain('/newsletter/unsubscribe?token=token-uuid');
     expect(result).toEqual({ unsubscribed: true });
+  });
+});
+
+describe('favorites client API', () => {
+  const favoriteWithNews = {
+    id: 'fav-uuid',
+    newsId: 'uuid-1',
+    createdAt: '2024-01-02T08:00:00.000Z',
+    news: mockNews,
+  };
+
+  it('should fetch favorites from the same-origin proxy', async () => {
+    mockFetchJson({ data: [favoriteWithNews], meta: { total: 1 } });
+
+    const result = await getFavorites();
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toBe('/api/favorites?page=1&limit=100');
+    expect(result.data[0]?.news.title).toBe('Notícia de Teste');
+  });
+
+  it('should POST the newsId to add a favorite', async () => {
+    mockFetchJson({
+      data: { id: 'fav-uuid', userId: 'user-1', newsId: 'uuid-1', createdAt: '2024-01-02T08:00:00.000Z' },
+    });
+
+    const result = await addFavorite('uuid-1');
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/favorites');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ newsId: 'uuid-1' });
+    expect(result.newsId).toBe('uuid-1');
+  });
+
+  it('should DELETE the newsId to remove a favorite', async () => {
+    mockFetchJson({ data: { removed: true } });
+
+    const result = await removeFavorite('uuid-1');
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/favorites/uuid-1');
+    expect(init.method).toBe('DELETE');
+    expect(result).toEqual({ removed: true });
   });
 });
