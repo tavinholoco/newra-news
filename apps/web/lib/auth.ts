@@ -19,8 +19,11 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
+  // Página customizada de sign-in (app/[locale]/signin) com os botões
+  // Google/GitHub localizados. Sem isso, signIn() sem provider cai num loop
+  // na home (dead-end) e a página padrão do next-auth não é localizada.
   pages: {
-    signIn: '/',
+    signIn: '/signin',
   },
   callbacks: {
     async jwt({ token, user, account }) {

@@ -5,6 +5,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FavoritesList } from '@/components/favorites/favorites-list';
 
+// Página protegida (lê a sessão por request) — não pode ser prerenderizada
+// como SSG: o redirect() seria "assado" no HTML estático e todos seriam
+// redirecionados para o sign-in, mesmo logados (bug visto em dev com cache HIT).
+export const dynamic = 'force-dynamic';
+
 interface Props {
   params: { locale: string };
 }
@@ -34,8 +39,9 @@ export default async function FavoritesPage({ params }: Props) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    // callbackUrl localizado para voltar à página correta após o sign-in
-    redirect(`/api/auth/signin?callbackUrl=/${locale}/favorites`);
+    // Página de sign-in própria (app/[locale]/signin) — o middleware do
+    // next-intl adiciona o prefixo de locale e preserva o callbackUrl.
+    redirect(`/signin?callbackUrl=/${locale}/favorites`);
   }
 
   return (
