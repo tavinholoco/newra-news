@@ -5,6 +5,7 @@ import type {
   PaginatedResponse,
   ApiResponse,
   DashboardMetrics,
+  Subscriber,
 } from '@newranews/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -71,5 +72,23 @@ export async function getArticleByDate(date: string): Promise<Article> {
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const res = await fetchApi<ApiResponse<DashboardMetrics>>('/metrics/dashboard');
+  return res.data;
+}
+
+export async function subscribeToNewsletter(email: string): Promise<Subscriber> {
+  const res = await fetchApi<ApiResponse<Subscriber>>('/newsletter/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+  return res.data;
+}
+
+export async function unsubscribeFromNewsletter(
+  token: string,
+): Promise<{ unsubscribed: boolean }> {
+  const params = new URLSearchParams({ token });
+  const res = await fetchApi<ApiResponse<{ unsubscribed: boolean }>>(
+    `/newsletter/unsubscribe?${params.toString()}`,
+  );
   return res.data;
 }

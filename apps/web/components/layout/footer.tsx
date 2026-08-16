@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { NAV_LINKS } from '@/lib/constants';
+import { SubscribeForm } from '@/components/newsletter/subscribe-form';
 
 export function Footer() {
   return (
     <footer className='bg-brand-900 text-white'>
       <div className='mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8'>
-        <div className='grid grid-cols-1 gap-8 md:grid-cols-3'>
+        <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4'>
           {/* Brand */}
           <div className='space-y-4'>
             <Link href='/' className='flex items-center gap-2.5'>
@@ -56,6 +57,20 @@ export function Footer() {
               <li>Artigos gerados por IA</li>
               <li>Atualizado diariamente</li>
             </ul>
+          </div>
+
+          {/* Newsletter */}
+          <div>
+            <h3 className='font-display text-sm font-semibold uppercase tracking-wider text-white/50'>
+              Newsletter
+            </h3>
+            <p className='mt-4 text-sm leading-relaxed text-white/70'>
+              Receba o artigo do dia no seu e-mail, direto das principais
+              notícias.
+            </p>
+            <div className='mt-4'>
+              <SubscribeForm />
+            </div>
           </div>
         </div>
 

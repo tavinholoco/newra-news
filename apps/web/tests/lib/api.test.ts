@@ -5,6 +5,8 @@ import {
   getNewsById,
   getLatestArticle,
   getDashboardMetrics,
+  subscribeToNewsletter,
+  unsubscribeFromNewsletter,
 } from '@/lib/api';
 
 const mockNews = {
@@ -100,5 +102,38 @@ describe('getDashboardMetrics', () => {
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
     expect(url).toContain('/metrics/dashboard');
     expect(result).toEqual(mockDashboard);
+  });
+});
+
+describe('subscribeToNewsletter', () => {
+  it('should POST the email to the subscribe endpoint', async () => {
+    const mockSubscriber = {
+      id: 'uuid-1',
+      email: 'assinante@test.com',
+      status: 'ACTIVE',
+      createdAt: '2024-01-01T08:00:00.000Z',
+      updatedAt: '2024-01-01T08:00:00.000Z',
+    };
+    mockFetchJson({ data: mockSubscriber });
+
+    const result = await subscribeToNewsletter('Assinante@Test.com');
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/newsletter/subscribe');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ email: 'Assinante@Test.com' });
+    expect(result).toEqual(mockSubscriber);
+  });
+});
+
+describe('unsubscribeFromNewsletter', () => {
+  it('should request the unsubscribe endpoint with the token', async () => {
+    mockFetchJson({ data: { unsubscribed: true } });
+
+    const result = await unsubscribeFromNewsletter('token-uuid');
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toContain('/newsletter/unsubscribe?token=token-uuid');
+    expect(result).toEqual({ unsubscribed: true });
   });
 });
