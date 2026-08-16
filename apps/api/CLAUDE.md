@@ -27,6 +27,9 @@
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
 - GET /api/metrics/dashboard — resumo: hoje + última semana + último mês
+- GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
+- GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
+- GET /dev/dashboard — página HTML dev-only (JOB_SECRET via header ou `?secret=`): runs, erros e status dos providers
 
 ## Pipeline Diário (9 etapas)
 Coleta → Normalização → Deduplicação → Persistência →

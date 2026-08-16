@@ -37,7 +37,7 @@
 
 ## Stack de Testes
 - Backend: Vitest + fastify.inject()
-- Sem framework de teste no frontend por enquanto (futuro)
+- Frontend: Vitest + React Testing Library (jsdom)
 
 ## Referência
 - PRD completo: docs/PRD-NewraNews_V1_1.md
@@ -46,9 +46,9 @@
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) concluída em 2026-08-15 — checklist do PRD fechado
-- **Último marco (2026-08-15):** Item 8 (Pós-MVP) iniciado — dashboard de métricas no frontend em `/dashboard` (ISR + TanStack Query, resumo do dia, últimos 7/30 dias, categorias e uso de IA), com skeletons, error boundary e 11 testes novos; tipos de métricas compartilhados em `packages/types`
-- **Próximos passos:** Item 8 — newsletter com o artigo diário; depois autenticação/favoritos e item 9 (dashboard de logs dev-only)
-- **Testes:** 247 testes em 25 suites (todos passando)
+- **Último marco (2026-08-16):** Item 9 (observabilidade dev-only) concluído — modelo `PipelineEvent` + `PipelineLog` enriquecido (`errorStage`/`errorDetail`), endpoints `/api/dev/logs` (+`:pipelineId`) e página HTML `/dev/dashboard`, todos protegidos por `JOB_SECRET`; pipeline registra eventos por etapa (INFO/WARN/ERROR) substituindo os `console.warn/error` soltos. **P3 (painel admin) concluído** — `DELETE /api/news/:id` (JWT + role ADMIN) e página `/admin` com "Executar pipeline" (reusa o cron via proxy com sessão+role server-side) e remoção de notícias
+- **Próximos passos:** Item 8 — deploy da newsletter (envs `RESEND_API_KEY`/`SITE_URL`/`NEWSLETTER_FROM` no Render + domínio verificado no Resend)
+- **Testes:** 419 testes em 48 suites (330 API em 31 suites + 89 web em 17 suites — todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 

@@ -66,6 +66,23 @@ Retorna uma notícia específica por UUID.
 { "error": "News not found" }
 ```
 
+### DELETE /api/news/:id (admin)
+
+Remove uma notícia. Exige `Authorization: Bearer <jwt>` com `role: ADMIN` no
+payload (o JWT é assinado pelo frontend com o role vindo da sessão, que segue
+`ADMIN_EMAILS`). Usada pelo painel `/admin` do frontend via rota proxy
+(`/api/admin/news/:id`).
+
+**Resposta 200:**
+```json
+{ "data": { "deleted": true, "id": "uuid" } }
+```
+
+**Resposta 401:** token ausente ou inválido.  
+**Resposta 403:** token válido mas role ≠ `ADMIN`.  
+**Resposta 404:** `{ "error": "News not found" }` — notícia inexistente.  
+**Resposta 400:** `id` não é UUID válido.
+
 ---
 
 ## Artigos
@@ -388,6 +405,96 @@ Remove uma notícia dos favoritos do usuário.
 **Resposta 404:** `{ "error": "Favorite not found" }` — favorito não existia.
 
 **Resposta 401 (todas):** token ausente ou inválido.
+
+---
+
+## Observabilidade (dev-only)
+
+> Painel de logs e erros do pipeline, **apenas para o dev** — todas as rotas
+> exigem `Authorization: Bearer <JOB_SECRET>` (ou `?secret=` na página HTML) e
+> têm rate limit próprio. Não são expostas ao público.
+
+### GET /api/dev/logs
+
+Últimos runs do pipeline + erros recentes, com filtros opcionais.
+
+**Auth:** `Authorization: Bearer <JOB_SECRET>`  
+**Rate limit:** 60 req/min  
+**Query Params:**
+
+| Param | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `status` | `RUNNING \| SUCCESS \| FAILED` | — | Filtro por status |
+| `since` | number (dias) | — | Apenas runs iniciados nos últimos N dias (1–90) |
+| `limit` | number | 30 | Máx. de runs retornados (1–100) |
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "runs": [
+      {
+        "id": "uuid",
+        "status": "SUCCESS",
+        "newsCount": 42,
+        "articleId": "uuid | null",
+        "error": "string | null",
+        "errorStage": 6,
+        "errorDetail": { "message": "Gemini API error 500: boom", "provider": "gemini", "statusCode": 500 },
+        "startedAt": "ISO string",
+        "completedAt": "ISO string | null",
+        "durationSeconds": 90,
+        "eventCount": 5
+      }
+    ],
+    "recentErrors": [ ...runs com status FAILED ]
+  },
+  "meta": { "total": 31 }
+}
+```
+
+### GET /api/dev/logs/:pipelineId
+
+Detalhe completo de um run: log resumido + **eventos por etapa** (Stage 1–9,
+nível INFO/WARN/ERROR, mensagem e contexto JSON).
+
+**Auth:** `Authorization: Bearer <JOB_SECRET>`  
+**Rate limit:** 60 req/min
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "log": { ...resumo igual ao de /api/dev/logs },
+    "events": [
+      {
+        "id": "uuid",
+        "stage": 6,
+        "level": "ERROR",
+        "message": "Gemini API error 500: boom",
+        "context": { "provider": "gemini", "statusCode": 500 },
+        "createdAt": "ISO string"
+      }
+    ]
+  }
+}
+```
+
+**Resposta 404:** `{ "error": "Pipeline not found" }`  
+**Resposta 400:** `pipelineId` não é UUID válido.
+
+### GET /dev/dashboard
+
+Página HTML auto-contida servida pela API (auto-refresh a cada 30s): histórico
+de runs (status, duração, contagens, etapa da falha, erro), erros recentes e
+status dos providers (mesma checagem do `GET /api/health/providers`).
+
+**Auth:** `Authorization: Bearer <JOB_SECRET>` **ou** `?secret=<JOB_SECRET>`
+(para abrir direto no browser).  
+**Rate limit:** 60 req/min
+
+**Resposta 200:** `Content-Type: text/html`  
+**Resposta 401:** secret ausente ou inválido.
 
 ---
 

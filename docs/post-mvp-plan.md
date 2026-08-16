@@ -185,8 +185,8 @@ enum UserRole {
 - [x] **P2.1** — next-intl 3.26 + middleware de locale + `messages/pt-BR.json` e `messages/en.json` (inicialmente cookie; **migrado p/ prefixo `/pt-BR` `/en`** — ver 7)
 - [x] **P2.2** — extração de strings de UI (navbar, footer, newsletter, botões, headings, metadata, not-found, error.tsx, dashboard, favoritos) + datas/contagens localizadas (`formatDate`/`formatArticleDate`/`formatCount` recebem locale) + seletor de idioma no header + teste de paridade de chaves + render pt/en
 - [x] **P2.3** — migração para rotas com prefixo (`/pt-BR`, `/en`): `i18n/routing.ts` + `i18n/navigation.ts` (Link/usePathname/useRouter com prefixo), `setRequestLocale` + `generateStaticParams`, páginas movidas para `app/[locale]/`, root layout pass-through, sitemap/hreflang por idioma, LocaleSwitcher com `router.replace(pathname, {locale})` — **ISR restaurado** (`● SSG` + `revalidate: 3600` por idioma), 65 testes verdes, validado em dev e produção
-- [ ] **P3** (opcional) — `/admin` (trigger pipeline + delete news) + `DELETE /api/news/:id`
-- [ ] **Docs** — `docs/api.md`, `docs/setup.md`, `docs/presentation.md`; marcar no `docs/progress.md`
+- [x] **P3** (opcional, 2026-08-16) — `/admin` (trigger pipeline + delete news) + `DELETE /api/news/:id` (JWT + role ADMIN)
+- [x] **Docs** — `docs/api.md` (DELETE /api/news/:id) e `docs/progress.md`; `docs/setup.md`/`docs/presentation.md` não precisaram de mudança (fluxo de dev/deploy inalterado)
 
 ---
 
@@ -210,4 +210,11 @@ enum UserRole {
 > `<html>` e quebram a hidratação — "Only one element on document allowed");
 > eles vivem em `app/[locale]/`, e o `not-found.tsx` raiz renderiza `<html>`
 > próprio.
-> Próximo: **P3** (admin, opcional — após o Item 9) ou o **Item 9** (observabilidade).
+> **P3 concluído (2026-08-16)** — painel admin após o Item 9: `DELETE /api/news/:id`
+> na API (authPlugin + `role === 'ADMIN'` no JWT, 401/403/404), página
+> `/pt-BR/admin` `/en/admin` protegida (redirect p/ sign-in deslogado, tela de
+> acesso restrito para não-admin, noindex), `AdminPanel` com "Executar pipeline"
+> (reusa a rota `/api/cron/daily-news` via `/api/admin/run-pipeline`, session +
+> role check server-side) e lista das últimas 20 notícias com botão de remoção
+> (proxy `/api/admin/news/:id` assina JWT com role), link "Admin" no navbar só
+> para ADMIN. 17 testes web novos + 8 testes API novos; validado em dev.
