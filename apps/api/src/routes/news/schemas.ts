@@ -51,6 +51,13 @@ export const getNewsByIdResponseSchema = z.object({
   data: newsItemSchema,
 });
 
+export const deleteNewsResponseSchema = z.object({
+  data: z.object({
+    deleted: z.boolean(),
+    id: z.string().uuid(),
+  }),
+});
+
 export type ListNewsQuery = z.infer<typeof listNewsQuerySchema>;
 export type ListNewsResponse = z.infer<typeof listNewsResponseSchema>;
 export type NewsParams = z.infer<typeof newsParamsSchema>;

@@ -11,6 +11,7 @@ import { swaggerPlugin } from './plugins/swagger';
 import { healthRoutes } from './routes/health';
 import { newsRoutes } from './routes/news';
 import { newsDetailRoutes } from './routes/news/[id]';
+import { newsAdminRoutes } from './routes/news/admin';
 import { articlesRoutes } from './routes/articles';
 import { articleDateRoutes } from './routes/articles/[date]';
 import { jobsRoutes } from './routes/jobs';
@@ -49,6 +50,7 @@ export async function buildApp() {
 
   await app.register(newsRoutes, { prefix: '/api/news' });
   await app.register(newsDetailRoutes, { prefix: '/api/news' });
+  await app.register(newsAdminRoutes, { prefix: '/api/news' });
 
   await app.register(articlesRoutes, { prefix: '/api/articles' });
   await app.register(articleDateRoutes, { prefix: '/api/articles' });

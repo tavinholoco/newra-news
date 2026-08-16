@@ -49,3 +49,13 @@ export async function listNews(filters: ListNewsFilters, pagination: ListNewsPag
 export async function getNewsById(id: string) {
   return prisma.news.findUnique({ where: { id } });
 }
+
+/**
+ * Remove uma notícia (admin). Retorna false se o id não existir — sem lançar,
+ * para a rota traduzir em 404. Favoritos sem FK não são removidos (padrão do
+ * schema); ficam órfãos e são ignorados na listagem via join.
+ */
+export async function deleteNews(id: string): Promise<boolean> {
+  const { count } = await prisma.news.deleteMany({ where: { id } });
+  return count > 0;
+}
