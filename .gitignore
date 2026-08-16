@@ -43,5 +43,8 @@ lh-report.json
 # Misc
 *.tsbuildinfo
 
+# Local tooling
+.freebuff/
+
 # Internal docs (not for public repo)
 docs/PRD-NewraNews_V1.1.md
