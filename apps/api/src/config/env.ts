@@ -17,6 +17,10 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   CRON_SCHEDULE: z.string().default('0 8 * * *'),
   CRON_TIMEZONE: z.string().default('America/Sao_Paulo'),
+  // Newsletter — opcional; sem RESEND_API_KEY o envio é pulado (graceful)
+  RESEND_API_KEY: z.string().optional(),
+  SITE_URL: z.string().url().default('http://localhost:3000'),
+  NEWSLETTER_FROM: z.string().default('Newra News <news@newranews.com>'),
 });
 
 const result = envSchema.safeParse(process.env);
