@@ -281,6 +281,65 @@ Diagnóstico de chaves dos providers (NewsData.io, Gemini e Groq). Faz uma requi
 
 ---
 
+## Newsletter
+
+### POST /api/newsletter/subscribe
+
+Inscreve um e-mail na newsletter do artigo diário. Idempotente: se o e-mail já está ativo, retorna o assinante existente; se estava cancelado, **reativa**.
+
+**Body:** `{ "email": "assinante@example.com" }`
+
+**Rate limit:** 5 req/min (além do limite global).
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "email": "assinante@example.com",
+    "status": "ACTIVE",
+    "createdAt": "ISO string",
+    "updatedAt": "ISO string"
+  }
+}
+```
+
+**Resposta 400:** e-mail inválido ou body ausente.
+
+### GET /api/newsletter/unsubscribe
+
+Cancela a assinatura via token (link presente no rodapé de cada e-mail). Não requer autenticação — o token UUID é o segredo.
+
+**Query:** `?token=<uuid>`
+
+**Resposta 200:**
+```json
+{ "data": { "unsubscribed": true } }
+```
+
+`unsubscribed: false` quando o token é desconhecido ou a assinatura já está cancelada.
+
+**Resposta 400:** token ausente.
+
+### POST /api/newsletter/send
+
+Dispara manualmente o envio da newsletter do dia (idempotente — um envio por dia via `NewsletterLog`). O pipeline já chama isso internamente após gerar o artigo; este endpoint serve para reprocessamento manual após falha.
+
+**Auth:** `Authorization: Bearer <JOB_SECRET>`
+
+**Rate limit:** 10 req/min.
+
+**Resposta 200:**
+```json
+{ "data": { "total": 12, "sent": 11, "failed": 1 } }
+```
+
+> Sem `RESEND_API_KEY` o envio é pulado (contado como `failed`) — o pipeline não quebra.
+
+**Resposta 401:** token ausente ou inválido.
+
+---
+
 ## Erros
 
 Todos os erros seguem o formato:

@@ -61,8 +61,9 @@
 
 ### 8. Pós-MVP (depois do core polido)
 
-- [ ] Dashboard de métricas no frontend (a API `/api/metrics/*` já existe pronta)
-- [ ] Newsletter com o artigo diário
+- [x] **Dashboard de métricas no frontend** (a API `/api/metrics/*` já existe pronta) — página `/dashboard` (ISR 1h) com resumo do dia (notícias, artigo, IA, duração, erros), últimos 7 dias (média/dia, artigos, taxa de sucesso, duração média), distribuição por categoria e uso de IA (barras com cores do tema) e últimos 30 dias; client com TanStack Query + skeletons (`loading.tsx`/`DashboardSkeleton`) e error boundary (`error.tsx`); link "Métricas" na navbar; tipos compartilhados em `packages/types/src/metrics.ts`; helpers de formatação em `lib/format.ts`; **11 testes novos no web** (format, api client, DashboardClient)
+  - **Validado localmente (2026-08-15):** API + web no ar, `/dashboard` renderizando com dados reais; encontrado e corrigido um **bug pré-existente de hidratação** no `ThemeToggle` (Item 7): o estado inicial lia a classe `.dark` no cliente, divergindo do HTML do servidor em dark mode (erro de hydration em todas as páginas). Fix: estado inicial neutro + sincronização idempotente no mount + persistência apenas no clique; teste de regressão adicionado (26 testes web)
+- [ ] Newsletter com o artigo diário — **implementada até o frontend** (plano em `docs/newsletter-plan.md`, passos 1–5): modelos `Subscriber` + `NewsletterLog` + enum no Prisma; provider Resend; service `newsletter.service`; rotas subscribe/unsubscribe/send; **estágio 7.5 no pipeline** (não-crítico, idempotente via `NewsletterLog.date`); **frontend**: form de inscrição no footer (`SubscribeForm` com validação e estados) + página `/newsletter/unsubscribe` (cancelado/inválido, noindex); **36 testes novos** (provider + service + rotas + pipeline + web) e fluxo completo validado localmente (inscrever → unsubscribe → reativar). **Falta:** deploy (envs `RESEND_API_KEY`/`SITE_URL`/`NEWSLETTER_FROM` no Render + domínio verificado no Resend)
 - [ ] Autenticação/favoritos, i18n, painel admin
 
 ### 9. Dashboard de logs e erros do pipeline (dev-only) — Observabilidade
