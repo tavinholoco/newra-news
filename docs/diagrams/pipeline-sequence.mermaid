@@ -1,2 +1,30 @@
-%% TODO: Pipeline sequence diagram
-%% See PRD section 3.2
+%% Diagrama de Sequência do Pipeline Diário — Newra News (PRD §3.2)
+sequenceDiagram
+    autonumber
+    actor VC as Vercel Cron
+    participant NX as Next.js (API Route)
+    participant API as Fastify API
+    participant ND as NewsData.io
+    participant RSS as RSS Feeds
+    participant IA as Gemini / Groq
+    participant DB as PostgreSQL
+
+    VC->>NX: GET /api/cron/daily-news (CRON_SECRET)
+    NX->>API: POST /api/jobs/daily-pipeline (Bearer JOB_SECRET)
+    API->>API: idempotência — já rodou hoje?<br/>(SUCCESS/RUNNING → retorna log existente)
+    API-->>NX: { status: "started", pipelineId } (assíncrono)
+
+    par Coleta paralela
+        API->>ND: fetch 8 categorias (size=10, country=br, language=pt)
+        API->>RSS: fetch 13 feeds
+    end
+    ND-->>API: RawNewsItem[]
+    RSS-->>API: RawNewsItem[] (categoria por keyword classifier)
+    API->>API: deduplicação por sourceUrl
+    API->>DB: news.createMany()
+    API->>IA: top 15 itens → prompt estruturado (truncado)
+    IA-->>API: artigo em Markdown
+    API->>DB: article.upsert (1 artigo por data)
+    API->>DB: cleanup — news >30d, logs >30d, artigos >90d
+    API->>DB: dailyMetric.upsert (newsByCategory, contagens, IA usada)
+    API-->>NX: status final gravado no PipelineLog

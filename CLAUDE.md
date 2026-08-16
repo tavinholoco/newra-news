@@ -46,8 +46,8 @@
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) — pendente
-- **Último marco (2026-08-16):** Itens 1–5 concluídos — NewsData.io ativo em produção (3 chaves ok, 8 categorias, 491 notícias/dia, artigo via Gemini), medição com cobertura 94% no CI e Lighthouse 96/96/96/100, endpoint `/api/health/providers` vivo; itens 3–5 e o fix `0bbe811` commitados e publicados na main
-- **Próximos passos:** Item 6 (Documentação Fase 5: setup.md, diagramas Mermaid, README final), depois item 7 (Polish UI/UX: dark mode, animações, testes frontend)
+- **Último marco (2026-08-16):** Item 6 (Documentação Fase 5) concluído — `docs/setup.md` completo, 4 diagramas Mermaid (arquitetura, ER, sequência, fluxo) e README final com screenshots reais do site
+- **Próximos passos:** Item 7 (Polish UI/UX: dark mode, animações, testes no frontend), depois item 8 (Pós-MVP)
 - **Testes:** 233 testes em 21 suites (todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md

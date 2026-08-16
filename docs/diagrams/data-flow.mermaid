@@ -1,2 +1,22 @@
-%% TODO: Data flow diagram
-%% See PRD section 3.2
+%% Fluxo de Dados Diário — Pipeline de Notícias (PRD §3.2)
+flowchart LR
+    subgraph Coleta["Fonte de dados"]
+        ND["NewsData.io"]
+        RSS["RSS Feeds"]
+    end
+
+    S1["1 · Coleta<br/>(NewsData + RSS em paralelo)"]
+    S2["2 · Normalização<br/>(→ RawNewsItem)"]
+    S3["3 · Deduplicação<br/>(por sourceUrl)"]
+    S4["4 · Persistência<br/>(news.createMany)"]
+    S5["5 · Seleção<br/>(top 15 por data)"]
+    S6["6 · Geração IA<br/>(Gemini → Groq fallback)"]
+    S7["7 · Persistência do artigo<br/>(article.upsert por data)"]
+    S8["8 · Cleanup<br/>(news >30d · logs >30d · artigos >90d)"]
+    S9["9 · Métricas<br/>(dailyMetric.upsert)"]
+
+    ND --> S1
+    RSS --> S1
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9
+
+    S5 -.->|"artigo gerado<br/>alimenta o site"| S9

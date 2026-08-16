@@ -46,11 +46,11 @@
 - [x] Cobertura de testes do backend >70% — medido 2026-08-16: 94,33% linhas / 91,91% statements / 94,73% funções / 94,33% branches; threshold 70 em `apps/api/vitest.config.ts` + passo `test:coverage` no CI (`ci.yml`, `turbo test:coverage`)
 - [x] Lighthouse >90 — auditado contra produção 2026-08-16 (mobile, via Lighthouse real): **Performance 96 · Accessibility 96 · Best Practices 96 · SEO 100**; `.lighthouserc.json` + workflow `lighthouse.yml` (semanal + manual) falham se qualquer categoria < 90
 
-### 6. Documentação (Fase 5)
+### 6. Documentação (Fase 5) ✅
 
-- [ ] `docs/setup.md` (stub `TODO`)
-- [ ] Diagramas Mermaid (4 stubs `%% TODO` em `docs/diagrams/`)
-- [ ] README final com screenshots
+- [x] `docs/setup.md` — guia completo: pré-requisitos, 3 arquivos de env (com tabelas), Docker/Postgres, dev, testes, trigger manual do pipeline, troubleshooting e deploy
+- [x] Diagramas Mermaid — 4 criados em `docs/diagrams/` (system-architecture, er-diagram, pipeline-sequence, data-flow) alinhados ao PRD §§3.1–3.3 e à implementação real (dedup por sourceUrl, NewsData.io, classificador)
+- [x] README final — features, screenshots reais (docs/screenshots/: home, news, article), stack, quick start, scripts, pipeline, docs e URLs de produção
 
 ### 7. Polish UI/UX (Fase 5)
 
@@ -297,9 +297,9 @@ Verificado ao vivo contra `https://newra-news-web.vercel.app` e `https://newra-n
 ### Checklist do PRD
 
 - [ ] Refinar UI/UX e animações
-- [ ] Gerar diagramas Mermaid (arquitetura, ER, sequência, fluxo)
-- [ ] Completar documentação do README com screenshots
+- [x] Gerar diagramas Mermaid (arquitetura, ER, sequência, fluxo)
+- [x] Completar documentação do README com screenshots
 - [ ] Code review geral e refatorações
-- [ ] Otimização de performance (Lighthouse score)
+- [x] Otimização de performance (Lighthouse score — 96/96/96/100, ver item 5)
 - [ ] Adicionar loading states e error boundaries
 - [ ] Preparar apresentação do projeto para portfólio

@@ -1,2 +1,44 @@
-%% TODO: System architecture diagram
-%% See PRD section 3.1
+%% Diagrama de Arquitetura do Sistema — Newra News (PRD §3.1)
+flowchart TB
+    U["👤 Usuário<br/>(navegador)"] --> W
+
+    subgraph Frontend["FRONTEND — Vercel"]
+        W["Next.js 14 (App Router)<br/>Tailwind CSS + shadcn/ui"]
+        H["Home (ISR)"]
+        N["Notícias (ISR + CSR)"]
+        A["Artigo do dia (ISR)"]
+        S["Histórico de artigos (ISR)"]
+        CR["API Route<br/>/api/cron/daily-news"]
+        W --- H
+        W --- N
+        W --- A
+        W --- S
+    end
+
+    subgraph Backend["BACKEND — Render"]
+        API["Fastify + TypeScript + Prisma<br/>Rate-limit · CORS · Helmet · Swagger"]
+        PL["Pipeline diário<br/>(9 etapas)"]
+        JOBS["Cron interno<br/>@fastify/schedule (fallback)"]
+        API --> PL
+        JOBS --> PL
+    end
+
+    subgraph Data["DADOS E SERVIÇOS EXTERNOS"]
+        DB[("PostgreSQL — Neon")]
+        ND["NewsData.io<br/>(provider principal)"]
+        RSS["RSS Feeds<br/>(13 fontes)"]
+        GEM["Gemini API<br/>(IA principal)"]
+        GROQ["Groq API<br/>(IA fallback)"]
+    end
+
+    UP["UptimeRobot<br/>(keep-alive)"] -->|"GET /api/health"| API
+
+    V["Vercel Cron<br/>(1x/dia 08:00 BRT)"] -->|"GET /api/cron/daily-news"| CR
+    CR -->|"POST /api/jobs/daily-pipeline<br/>Bearer JOB_SECRET"| API
+
+    W -->|"HTTP REST (JSON)"| API
+    PL -->|"fetch paralelo<br/>Promise.allSettled"| ND
+    PL -->|"fetch"| RSS
+    PL -->|"gera artigo<br/>prompt estruturado"| GEM
+    GEM -.->|"fallback automático"| GROQ
+    PL <-->|"Prisma ORM"| DB

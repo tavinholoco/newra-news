@@ -1,2 +1,76 @@
-%% TODO: Entity-Relationship diagram
-%% See PRD section 3.3
+%% Diagrama Entidade-Relacionamento — Newra News (PRD §3.3)
+%% Nota: as tabelas são desacopladas por design (sem FKs); as linhas abaixo
+%% representam apenas referências lógicas.
+erDiagram
+    NEWS {
+        string id PK "uuid"
+        string title
+        string description
+        string content "opcional"
+        string source
+        string sourceUrl "chave de deduplicação"
+        string imageUrl "opcional"
+        string category "enum Category"
+        datetime publishedAt
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    ARTICLE {
+        string id PK "uuid"
+        string title
+        text content "Markdown gerado por IA"
+        string summary
+        datetime date UK "1 artigo por dia"
+        int newsCount
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    PIPELINE_LOG {
+        string id PK "uuid"
+        string status "enum PipelineStatus"
+        int newsCount
+        string articleId "opcional"
+        string error "opcional"
+        datetime startedAt
+        datetime completedAt "opcional"
+    }
+
+    DAILY_METRIC {
+        string id PK "uuid"
+        datetime date UK "1 registro por dia"
+        int newsCollected
+        json newsByCategory
+        boolean articleGenerated
+        string aiProvider "gemini | groq"
+        int pipelineDuration "ms"
+        int pipelineErrors
+        int newsApiCount "hoje: NewsData.io"
+        int rssCount
+        int cleanupCount
+        datetime createdAt
+    }
+
+    %% Referências lógicas (não são FKs no schema)
+    ARTICLE ||--o| DAILY_METRIC : "1 artigo/dia ↔ 1 métrica/dia"
+    PIPELINE_LOG }o--o| ARTICLE : "articleId (lógica)"
+
+    %% Enums
+    CATEGORY {
+        string TECHNOLOGY
+        string POLITICS
+        string ECONOMY
+        string SPORTS
+        string SCIENCE
+        string ENTERTAINMENT
+        string WORLD
+        string HEALTH
+    }
+    PIPELINE_STATUS {
+        string RUNNING
+        string SUCCESS
+        string FAILED
+    }
+    NEWS }o--o| CATEGORY : "category (lógica)"
+    PIPELINE_LOG }o--o| PIPELINE_STATUS : "status (lógica)"
