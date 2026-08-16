@@ -4,6 +4,7 @@ import type {
   News,
   Article,
   PaginatedResponse,
+  DashboardMetrics,
 } from '@newranews/types';
 import {
   getNews,
@@ -11,6 +12,7 @@ import {
   getArticles,
   getArticleByDate,
   getLatestArticle,
+  getDashboardMetrics,
 } from '@/lib/api';
 
 // ── Query Key Factories ──────────────────────────────────────────────
@@ -43,6 +45,11 @@ export const articleKeys = {
   details: () => [...articleKeys.all, 'detail'] as const,
   detail: (date: string) => [...articleKeys.details(), date] as const,
   latest: () => [...articleKeys.all, 'latest'] as const,
+};
+
+export const metricsKeys = {
+  all: ['metrics'] as const,
+  dashboard: () => [...metricsKeys.all, 'dashboard'] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -95,5 +102,15 @@ export function useLatestArticle(initialData?: Article | null) {
     queryKey: articleKeys.latest(),
     queryFn: () => getLatestArticle(),
     initialData: initialData ?? undefined,
+  });
+}
+
+// ── Metrics Hooks ───────────────────────────────────────────────────────
+
+export function useDashboardMetrics(initialData?: DashboardMetrics) {
+  return useQuery({
+    queryKey: metricsKeys.dashboard(),
+    queryFn: () => getDashboardMetrics(),
+    initialData,
   });
 }

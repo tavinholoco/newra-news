@@ -4,6 +4,7 @@ import type {
   Category,
   PaginatedResponse,
   ApiResponse,
+  DashboardMetrics,
 } from '@newranews/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -65,5 +66,10 @@ export async function getArticles(
 
 export async function getArticleByDate(date: string): Promise<Article> {
   const res = await fetchApi<ApiResponse<Article>>(`/articles/${date}`);
+  return res.data;
+}
+
+export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+  const res = await fetchApi<ApiResponse<DashboardMetrics>>('/metrics/dashboard');
   return res.data;
 }

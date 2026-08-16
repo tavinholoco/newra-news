@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Category } from '@newranews/types';
-import { getNews, getNewsById, getLatestArticle } from '@/lib/api';
+import {
+  getNews,
+  getNewsById,
+  getLatestArticle,
+  getDashboardMetrics,
+} from '@/lib/api';
 
 const mockNews = {
   id: 'uuid-1',
@@ -64,5 +69,36 @@ describe('getLatestArticle', () => {
   it('should return null when the API fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
     await expect(getLatestArticle()).resolves.toBeNull();
+  });
+});
+
+describe('getDashboardMetrics', () => {
+  it('should request the dashboard metrics endpoint and return the data', async () => {
+    const mockDashboard = {
+      today: null,
+      lastWeek: {
+        period: { start: '2026-08-09T00:00:00.000Z', end: '2026-08-15T23:59:59.999Z' },
+        totalDays: 7,
+        avgNewsPerDay: 490,
+        totalArticlesGenerated: 7,
+        pipelineSuccessRate: 1,
+        avgPipelineDuration: 26.5,
+        newsByCategory: { WORLD: 3484 },
+        aiProviderUsage: { gemini: 7 },
+      },
+      lastMonth: {
+        totalNewsCollected: 14800,
+        totalArticlesGenerated: 30,
+        avgNewsPerDay: 493,
+        failureDays: 0,
+      },
+    };
+    mockFetchJson({ data: mockDashboard });
+
+    const result = await getDashboardMetrics();
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toContain('/metrics/dashboard');
+    expect(result).toEqual(mockDashboard);
   });
 });

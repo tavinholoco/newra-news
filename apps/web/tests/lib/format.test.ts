@@ -4,6 +4,10 @@ import {
   formatDate,
   formatArticleDate,
   toDateSlug,
+  formatPercent,
+  formatPipelineDuration,
+  formatCount,
+  formatProviderName,
 } from '@/lib/format';
 
 describe('CATEGORY_LABELS', () => {
@@ -41,5 +45,45 @@ describe('formatArticleDate', () => {
 describe('toDateSlug', () => {
   it('should return YYYY-MM-DD from an ISO date', () => {
     expect(toDateSlug('2024-01-01T12:00:00.000Z')).toBe('2024-01-01');
+  });
+});
+
+describe('formatPercent', () => {
+  it('should convert a 0-1 rate to a rounded percentage', () => {
+    expect(formatPercent(1)).toBe('100%');
+    expect(formatPercent(0.956)).toBe('96%');
+    expect(formatPercent(0)).toBe('0%');
+  });
+});
+
+describe('formatPipelineDuration', () => {
+  it('should format seconds as a compact duration', () => {
+    expect(formatPipelineDuration(27)).toBe('27s');
+    expect(formatPipelineDuration(65)).toBe('1m 05s');
+    expect(formatPipelineDuration(120)).toBe('2m 00s');
+  });
+
+  it('should render a dash for missing durations', () => {
+    expect(formatPipelineDuration(null)).toBe('—');
+    expect(formatPipelineDuration(undefined)).toBe('—');
+  });
+});
+
+describe('formatCount', () => {
+  it('should use pt-BR thousand separators', () => {
+    expect(formatCount(3484)).toBe('3.484');
+    expect(formatCount(0)).toBe('0');
+  });
+});
+
+describe('formatProviderName', () => {
+  it('should capitalize the provider name', () => {
+    expect(formatProviderName('gemini')).toBe('Gemini');
+    expect(formatProviderName('groq')).toBe('Groq');
+  });
+
+  it('should render a dash for missing providers', () => {
+    expect(formatProviderName(null)).toBe('—');
+    expect(formatProviderName(undefined)).toBe('—');
   });
 });
