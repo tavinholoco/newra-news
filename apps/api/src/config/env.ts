@@ -21,6 +21,10 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   SITE_URL: z.string().url().default('http://localhost:3000'),
   NEWSLETTER_FROM: z.string().default('Newra News <news@newranews.com>'),
+  // Auth — JWT compartilhado com o frontend (web assina, API valida)
+  AUTH_JWT_SECRET: z.string().optional(),
+  // E-mails que nascem com role ADMIN (lista separada por vírgula)
+  ADMIN_EMAILS: z.string().default(''),
 });
 
 const result = envSchema.safeParse(process.env);

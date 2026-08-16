@@ -48,6 +48,17 @@ model PipelineLog {
   completedAt DateTime?
 }
 
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
 model Subscriber {
   id        String           @id @default(uuid())
   email     String           @unique
@@ -110,4 +121,9 @@ enum PipelineStatus {
 enum SubscriberStatus {
   ACTIVE
   UNSUBSCRIBED
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
