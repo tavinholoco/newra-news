@@ -1,6 +1,7 @@
 import { prisma } from '@newranews/database';
 import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
+import { sendDailyNewsletter } from './newsletter.service';
 import type { RawNewsItem } from '../providers/types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -129,6 +130,24 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       where: { id: pipelineLogId },
       data: { newsCount: deduplicated.length, articleId: savedArticle.id },
     });
+
+    // Stage 7.5: Send daily newsletter (non-critical — failure does not abort
+    // the pipeline). Idempotente via NewsletterLog.date unique: se o pipeline
+    // rodar de novo no mesmo dia, o envio é pulado. Falhas individuais de
+    // e-mail são contadas pelo service (sent/failed) e não lançam erro;
+    // sem RESEND_API_KEY o provider lança por e-mail e tudo vira failed.
+    // Não incrementa pipelineErrors de propósito: a newsletter é opcional e
+    // sua indisponibilidade não deve marcar o dia como falha do pipeline.
+    try {
+      const newsletter = await sendDailyNewsletter();
+      if (newsletter.total > 0) {
+        console.warn(
+          `[pipeline] newsletter: ${newsletter.sent}/${newsletter.total} sent (${newsletter.failed} failed)`,
+        );
+      }
+    } catch (newsletterErr) {
+      console.warn('[pipeline] newsletter failed (non-critical):', newsletterErr);
+    }
 
     // Stage 8: Cleanup old data (non-critical — failure does not abort pipeline)
     try {

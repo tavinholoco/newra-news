@@ -29,10 +29,14 @@ vi.mock('@newranews/database', async (importOriginal) => {
 
 vi.mock('../../src/services/news-fetcher.service');
 vi.mock('../../src/services/ai.service');
+vi.mock('../../src/services/newsletter.service', () => ({
+  sendDailyNewsletter: vi.fn(),
+}));
 
 import { prisma } from '@newranews/database';
 import { fetchAll } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
+import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 
 const mockFetchResult = {
   newsDataItems: [
@@ -109,6 +113,11 @@ beforeEach(() => {
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
   vi.mocked(fetchAll).mockResolvedValue(mockFetchResult);
   vi.mocked(generateArticle).mockResolvedValue(mockGeneratedArticle);
+  vi.mocked(sendDailyNewsletter).mockResolvedValue({
+    total: 0,
+    sent: 0,
+    failed: 0,
+  });
 });
 
 describe('PipelineService', () => {
@@ -174,5 +183,45 @@ describe('PipelineService', () => {
     expect(createData?.articleGenerated).toBe(true);
     expect(createData?.aiProvider).toBe('gemini');
     expect(typeof createData?.newsCollected).toBe('number');
+  });
+
+  it('should send the daily newsletter after persisting the article', async () => {
+    vi.mocked(sendDailyNewsletter).mockResolvedValue({
+      total: 3,
+      sent: 3,
+      failed: 0,
+    });
+
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(prisma.article.upsert).toHaveBeenCalled();
+    expect(sendDailyNewsletter).toHaveBeenCalledTimes(1);
+
+    const successUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+      (call) => (call[0] as { data: { status?: string } }).data?.status === 'SUCCESS',
+    );
+    expect(successUpdate).toBeDefined();
+  });
+
+  it('should not abort the pipeline when the newsletter fails', async () => {
+    vi.mocked(sendDailyNewsletter).mockRejectedValue(
+      new Error('Newsletter service down'),
+    );
+
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(sendDailyNewsletter).toHaveBeenCalledTimes(1);
+    expect(prisma.dailyMetric.upsert).toHaveBeenCalled();
+
+    const successUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+      (call) => (call[0] as { data: { status?: string } }).data?.status === 'SUCCESS',
+    );
+    expect(successUpdate).toBeDefined();
   });
 });
