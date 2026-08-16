@@ -14,7 +14,7 @@ vi.mock('../../src/config/env', () => ({
     PORT: 3001,
     HOST: '0.0.0.0',
     DATABASE_URL: 'postgresql://test',
-    NEWSAPI_KEY: 'test-key',
+    NEWSDATA_API_KEY: 'test-key',
     GEMINI_API_KEY: 'test-key',
     GEMINI_MODEL: 'gemini-1.5-flash',
     GROQ_API_KEY: 'test-key',
