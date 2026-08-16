@@ -46,9 +46,9 @@
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) — pendente
-- **Último marco (2026-08-16):** Item 6 (Documentação Fase 5) concluído — `docs/setup.md` completo, 4 diagramas Mermaid (arquitetura, ER, sequência, fluxo) e README final com screenshots reais do site
-- **Próximos passos:** Item 7 (Polish UI/UX: dark mode, animações, testes no frontend), depois item 8 (Pós-MVP)
-- **Testes:** 233 testes em 21 suites (todos passando)
+- **Último marco (2026-08-16):** Item 7 (Polish UI/UX) concluído — dark mode completo (toggle + anti-FOUC + brand colors tema-aware), animações/micro-interações (fade-in-up com reduced-motion, hover lift nos cards) e primeira bateria de testes no frontend (14 testes Vitest+RTL); Lighthouse do build local: 94/96/96/100
+- **Próximos passos:** Item 8 (Pós-MVP: dashboard de métricas no frontend, newsletter, autenticação), depois item 9 (dashboard de logs dev-only)
+- **Testes:** 247 testes em 25 suites (todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 

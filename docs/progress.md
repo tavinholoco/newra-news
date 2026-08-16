@@ -52,11 +52,11 @@
 - [x] Diagramas Mermaid — 4 criados em `docs/diagrams/` (system-architecture, er-diagram, pipeline-sequence, data-flow) alinhados ao PRD §§3.1–3.3 e à implementação real (dedup por sourceUrl, NewsData.io, classificador)
 - [x] README final — features, screenshots reais (docs/screenshots/: home, news, article), stack, quick start, scripts, pipeline, docs e URLs de produção
 
-### 7. Polish UI/UX (Fase 5)
+### 7. Polish UI/UX (Fase 5) ✅
 
-- [ ] Dark mode
-- [ ] Animações e micro-interações
-- [ ] Testes no frontend (hoje zero)
+- [x] Dark mode — base CSS já existia (variáveis `.dark` + `@custom-variant`); adicionado mecanismo completo: script anti-FOUC (`theme-init`), toggle no header (`theme-toggle`, Sun/Moon, persiste em localStorage com fallback para preferência do sistema), brand colors tema-aware (variaveis `--brand-*`) e correção de `bg-white`/`hover:text-brand-900` (invisivel no dark) em header/navbar/paginas
+- [x] Animações e micro-interações — fade-in-up no hero do artigo (com `motion-reduce:animate-none`), hover lift + sombra nos cards de noticia (imagem ja tinha scale no hover)
+- [x] Testes no frontend (eram zero) — Vitest + React Testing Library + jsdom: 14 testes (format, api client, NewsCard, ThemeToggle) em 4 suites; `pnpm test` via turbo cobre api + web; corrigido também lint do web (faltava `eslint-plugin-import` declarado)
 
 ### 8. Pós-MVP (depois do core polido)
 
