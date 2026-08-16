@@ -174,7 +174,7 @@ mockável nos testes — mesmo padrão de `providers/ai/` e `providers/news/`.
 - [x] **3. Rotas** subscribe/unsubscribe/send + schemas Zod + testes de rota (10) — validadas localmente via curl
 - [x] **4. Pipeline**: estágio 7.5 no `pipeline.service.ts` (chama `sendDailyNewsletter` após persistir o artigo, antes do cleanup; try/catch não-crítico; log `[pipeline] newsletter: sent/total`; **não** incrementa `pipelineErrors` — newsletter é opcional e não deve marcar o dia como falha) + 2 testes de integração no `pipeline.test.ts`
 - [x] **5. Frontend**: `SubscribeForm` no footer (client component com validação, estados sucesso/erro/loading e `aria-invalid`/roles) + página `/newsletter/unsubscribe` (server component com metadata noindex, estados cancelado/inválido) + 6 testes (api client + form)
-- [ ] **6. Deploy**: env vars no Render (RESEND_API_KEY, SITE_URL, NEWSLETTER_FROM) + domínio verificado no Resend; validação em produção
+- [ ] **6. Deploy**: env vars no Render (RESEND_API_KEY, SITE_URL, NEWSLETTER_FROM) + domínio verificado no Resend; validação em produção — **checklist pronto** em `docs/deploy-newsletter.md` (domínio no Resend, envs no Render, roteiro de teste em produção); `render.yaml` atualizado com as 3 env vars
 - [ ] **7. Docs**: setup.md, presentation.md; marcar item no progress.md
 
 ---
