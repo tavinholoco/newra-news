@@ -340,6 +340,57 @@ Dispara manualmente o envio da newsletter do dia (idempotente — um envio por d
 
 ---
 
+## Favoritos
+
+> Requer autenticação: `Authorization: Bearer <jwt>` — JWT assinado pelo frontend com o `AUTH_JWT_SECRET` compartilhado (ver plano de auth). O `sub` do token identifica o usuário.
+
+### GET /api/favorites
+
+Lista as notícias favoritas do usuário (mais recentes primeiro) com a notícia embutida.
+
+**Query Params:** `page` (default: 1), `limit` (default: 20, máx: 100)
+
+**Resposta 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid (do favorito)",
+      "newsId": "uuid",
+      "createdAt": "ISO string",
+      "news": { ...news }
+    }
+  ],
+  "meta": { "total": 3, "page": 1, "limit": 20, "totalPages": 1 }
+}
+```
+
+### POST /api/favorites
+
+Adiciona uma notícia aos favoritos. **Idempotente**: favoritar de novo retorna o mesmo favorito (200).
+
+**Body:** `{ "newsId": "uuid" }`
+
+**Resposta 200:**
+```json
+{
+  "data": { "id": "uuid", "userId": "uuid", "newsId": "uuid", "createdAt": "ISO string" }
+}
+```
+
+**Resposta 404:** `{ "error": "News not found" }` — notícia inexistente.
+
+### DELETE /api/favorites/:newsId
+
+Remove uma notícia dos favoritos do usuário.
+
+**Resposta 200:** `{ "data": { "removed": true } }`  
+**Resposta 404:** `{ "error": "Favorite not found" }` — favorito não existia.
+
+**Resposta 401 (todas):** token ausente ou inválido.
+
+---
+
 ## Erros
 
 Todos os erros seguem o formato:
