@@ -252,6 +252,33 @@ Healthcheck do servidor (usado pelo UptimeRobot).
 { "status": "ok", "timestamp": "ISO string", "uptime": 3600.5 }
 ```
 
+### GET /api/health/providers
+
+Diagnóstico de chaves dos providers (NewsData.io, Gemini e Groq). Faz uma requisição leve ao vivo contra cada API e reporta apenas o status — as chaves nunca são expostas na resposta.
+
+**Auth:** `Authorization: Bearer <JOB_SECRET>`
+
+**Rate limit:** 10 req/min (além do limite global de 100 req/min).
+
+**Resposta 200:**
+```json
+{
+  "newsdata": "ok",
+  "gemini": "ok",
+  "groq": "ok"
+}
+```
+
+**Status possíveis por provider:**
+
+| Status | Significado |
+|--------|------------|
+| `ok` | Chave válida, API respondendo |
+| `invalid` | Chave inválida, erro HTTP ou timeout |
+| `not_configured` | Chave não configurada no ambiente (ex.: `NEWSDATA_API_KEY` ausente) |
+
+**Resposta 401:** token ausente ou inválido.
+
 ---
 
 ## Erros

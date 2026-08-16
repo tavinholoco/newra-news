@@ -7,3 +7,13 @@ export const healthResponseSchema = z.object({
 });
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
+
+export const providerStatusSchema = z.enum(['ok', 'invalid', 'not_configured']);
+
+export const providersHealthResponseSchema = z.object({
+  newsdata: providerStatusSchema,
+  gemini: providerStatusSchema,
+  groq: providerStatusSchema,
+});
+
+export type ProvidersHealthResponse = z.infer<typeof providersHealthResponseSchema>;
