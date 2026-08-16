@@ -7,10 +7,11 @@
 
 ## Fase Atual
 
-**Fase 5 — Polish e Portfólio** ⏳ Pendente
+**Fase 5 — Polish e Portfólio** ✅ Concluída em 2026-08-15
 
 > Fases 1–4 concluídas. Pipeline validado em produção: 89 artigos em 90 dias (17/mai → 14/ago), 1 gap, 0 falhas no último mês.
 > NewsAPI substituída pela NewsData.io — provider ativo em produção desde 2026-08-16: 3 chaves ok (NewsData/Gemini/Groq), 8 categorias preenchidas, 491 notícias/dia.
+> Checklist completo da Fase 5 fechado: UI/UX (item 7), code review geral, loading states + error boundaries e apresentação de portfólio (`docs/presentation.md`); typecheck adicionado ao CI.
 
 ---
 
@@ -290,16 +291,20 @@ Verificado ao vivo contra `https://newra-news-web.vercel.app` e `https://newra-n
 
 ---
 
-## Fase 5 — Polish e Portfólio ⏳ Pendente
+## Fase 5 — Polish e Portfólio ✅ Concluída em 2026-08-15
 
 > Referência: PRD seção 17 — "Fase 5 — Polish e Portfólio (Semana 9-10)"
 
 ### Checklist do PRD
 
-- [ ] Refinar UI/UX e animações
+- [x] Refinar UI/UX e animações — item 7: dark mode completo, animações/micro-interações e primeiros testes do frontend (14)
 - [x] Gerar diagramas Mermaid (arquitetura, ER, sequência, fluxo)
 - [x] Completar documentação do README com screenshots
-- [ ] Code review geral e refatorações
+- [x] Code review geral e refatorações — sem TODO/any/@ts-ignore; logs auditados; removido código morto (`utils/logger.ts`); corrigido erro de tipo latente em teste do web (CI não pegava porque `next lint`/`next build` não typecheckam `tests/`)
 - [x] Otimização de performance (Lighthouse score — 96/96/96/100, ver item 5)
-- [ ] Adicionar loading states e error boundaries
-- [ ] Preparar apresentação do projeto para portfólio
+- [x] Adicionar loading states e error boundaries — `loading.tsx` + `error.tsx` em `/news` e `/article` (cobrem também `/news/[id]` e `/article/[date]`), `loading.tsx` e `not-found.tsx` em `/article/[date]`
+- [x] Preparar apresentação do projeto para portfólio — `docs/presentation.md` (pitch, arquitetura, números de produção, roteiro de walkthrough e perguntas prováveis)
+
+### Melhoria de qualidade nesta fase
+
+- [x] **Typecheck no CI** — scripts `typecheck` (tsc --noEmit) em web, api (com `tsconfig.tests.json` cobrindo `tests/`) e types; passo `pnpm turbo typecheck` no job de lint do `ci.yml`; task no `turbo.json`. Impede que erros de tipo fora do graph de build passem despercebidos (o erro do teste do web voltaria a ocorrer sem isso)

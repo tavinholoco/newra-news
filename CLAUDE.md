@@ -45,9 +45,9 @@
 
 ## Status Atual
 
-- **Fase:** Fase 5 (Polish e Portfólio) — pendente
-- **Último marco (2026-08-16):** Item 7 (Polish UI/UX) concluído — dark mode completo (toggle + anti-FOUC + brand colors tema-aware), animações/micro-interações (fade-in-up com reduced-motion, hover lift nos cards) e primeira bateria de testes no frontend (14 testes Vitest+RTL); Lighthouse do build local: 94/96/96/100
-- **Próximos passos:** Item 8 (Pós-MVP: dashboard de métricas no frontend, newsletter, autenticação), depois item 9 (dashboard de logs dev-only)
+- **Fase:** Fase 5 (Polish e Portfólio) concluída em 2026-08-15 — checklist do PRD fechado
+- **Último marco (2026-08-15):** Fase 5 completa — Item 7 (UI/UX: dark mode + animações + 14 testes frontend), loading states e error boundaries em todas as rotas com dados, code review geral (removido código morto, corrigido erro de tipo latente em teste), apresentação de portfólio em `docs/presentation.md`, e typecheck adicionado ao CI (web + api + types)
+- **Próximos passos:** Item 8 (Pós-MVP: dashboard de métricas no frontend — API `/api/metrics/*` pronta; depois newsletter, autenticação), depois item 9 (dashboard de logs dev-only)
 - **Testes:** 247 testes em 25 suites (todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md

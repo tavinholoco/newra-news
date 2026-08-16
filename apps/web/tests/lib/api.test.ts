@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { Category } from '@newranews/types';
 import { getNews, getNewsById, getLatestArticle } from '@/lib/api';
 
 const mockNews = {
@@ -40,7 +41,7 @@ describe('getNews', () => {
 
   it('should include category and search params when provided', async () => {
     mockFetchJson({ data: [mockNews], meta: { total: 1 } });
-    await getNews(2, 20, 'SPORTS', 'futebol');
+    await getNews(2, 20, Category.SPORTS, 'futebol');
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
     expect(url).toContain('/news?page=2&limit=20');

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lighthouse:audit": "lighthouse https://newra-news-web.vercel.app/ --only-categories=performance,accessibility,best-practices,seo --output=json --output-path=lh-report.json --quiet"
   },
