@@ -10,7 +10,7 @@
 **Fase 5 — Polish e Portfólio** ⏳ Pendente
 
 > Fases 1–4 concluídas. Pipeline validado em produção: 89 artigos em 90 dias (17/mai → 14/ago), 1 gap, 0 falhas no último mês.
-> NewsAPI substituída pela NewsData.io — código já publicado na main (commits `4055422`/`9d33f83`/`b90b749`, 2026-08-15) e deployado no Render; pendente apenas adicionar `NEWSDATA_API_KEY` nas env vars e validar em produção.
+> NewsAPI substituída pela NewsData.io — provider ativo em produção desde 2026-08-16: 3 chaves ok (NewsData/Gemini/Groq), 8 categorias preenchidas, 491 notícias/dia.
 
 ---
 
@@ -18,15 +18,17 @@
 
 > Checklist vivo do que falta. Marcar `[x]` ao concluir (referenciar commit).
 
-### 1. Publicar o provider NewsData.io (URGENTE — destrava produção)
+### 1. Publicar o provider NewsData.io ✅
 
-- [x] Merge dev → main — concluído: `4055422` (provider NewsData), `9d33f83` (drop NEWSAPI_KEY) e `b90b749` (docs) já estão em `origin/main` (2026-08-15); Render com deploy automático a partir de main
-- [ ] Confirmar deploy no Render e boot com `NEWSDATA_API_KEY` nas env vars — chave ainda não setada (produção: `newsApiTotal: 0`, categorias só WORLD/TECHNOLOGY)
+- [x] Merge dev → main + deploy no Render — main em `0bbe811` (2026-08-16), deploy automático confirmado (endpoint novo `/api/health/providers` respondendo)
+- [x] Confirmar boot com `NEWSDATA_API_KEY` — validado: `GET /api/health/providers` → `{ newsdata: "ok", gemini: "ok", groq: "ok" }`
 
-### 2. Validar NewsData em produção (comparar com RSS)
+> Correção incluída neste item: provider NewsData agora trata `source_name` ausente (fallback para `source_id`/`Unknown source`) e remove o placeholder `ONLY AVAILABLE IN PAID PLANS` do tier free — commit `0bbe811`. Sem isso o `prisma.news.createMany` falhava (`Argument source is missing`) e o pipeline abortava.
 
-- [ ] Verificar o dashboard de métricas após a próxima execução do pipeline: `newsApiCount` vs `rssCount` e `newsByCategory` (esperado: 8 categorias preenchidas, não só WORLD/TECHNOLOGY)
-- [ ] Conferir qualidade das notícias da NewsData (pt-BR, sem duplicatas, imagens ok)
+### 2. Validar NewsData em produção (comparar com RSS) ✅
+
+- [x] Dashboard após execução (2026-08-16, pipeline `06fbe642`): 491 notícias, artigo gerado (Gemini), 26,5s, 0 erros; mensal: `newsApiCount` 67 vs `rssCount` 4321 e `newsByCategory` com **as 8 categorias preenchidas** (WORLD 3484, TECHNOLOGY 345, ECONOMY 128, HEALTH 98, SCIENCE 61, SPORTS 57, POLITICS 40, ENTERTAINMENT 17)
+- [x] Qualidade: pt-BR, sem duplicatas (dedup por URL no pipeline), imagens presentes. Observação: o tier free da NewsData tem ruído de bucket (alguns artigos chegam em categoria não-condizente, ex.: notícia de eleição no bucket technology) — aceitável para portfólio; possível refino futuro no pipeline
 
 ### 3. Endpoint de diagnóstico de chaves ✅
 

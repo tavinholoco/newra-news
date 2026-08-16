@@ -46,9 +46,9 @@
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) — pendente
-- **Último marco (2026-08-16):** Item 5 (Medição) concluído — cobertura do backend 94% com threshold >70 no CI (`turbo test:coverage`), Lighthouse real contra produção: Performance 96, Accessibility 96, Best Practices 96, SEO 100, com `.lighthouserc.json` + workflow semanal que falha abaixo de 90
-- **Próximos passos:** Merge dev → main + deploy do provider NewsData (itens 1–2 do plano), item 6 (Documentação Fase 5: setup.md, diagramas Mermaid, README final)
-- **Testes:** 229 testes em 21 suites (todos passando)
+- **Último marco (2026-08-16):** Itens 1–5 concluídos — NewsData.io ativo em produção (3 chaves ok, 8 categorias, 491 notícias/dia, artigo via Gemini), medição com cobertura 94% no CI e Lighthouse 96/96/96/100, endpoint `/api/health/providers` vivo; itens 3–5 e o fix `0bbe811` commitados e publicados na main
+- **Próximos passos:** Item 6 (Documentação Fase 5: setup.md, diagramas Mermaid, README final), depois item 7 (Polish UI/UX: dark mode, animações, testes frontend)
+- **Testes:** 233 testes em 21 suites (todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 
