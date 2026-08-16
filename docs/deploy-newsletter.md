@@ -126,14 +126,14 @@ curl -X POST -H "Authorization: Bearer $JOB_SECRET" \
 
 ## 4. Verificações pós-deploy
 
-- [ ] Domínio **Verified** no Resend
-- [ ] `RESEND_API_KEY`, `SITE_URL`, `NEWSLETTER_FROM` no Render (redeploy ok)
-- [ ] `POST /api/newsletter/send` → `sent ≥ 1`
-- [ ] E-mail recebido com links corretos (artigo + unsubscribe)
-- [ ] Unsubscribe + reativação funcionando
-- [ ] Pipeline do dia com `SUCCESS` e linha `newsletter:` nos logs
-- [ ] `docs/setup.md` e `docs/presentation.md` atualizados (passo 7 do plano)
-- [ ] Marcar a newsletter como concluída no `docs/progress.md`
+- [ ] Domínio **Verified** no Resend (em modo de teste: `onboarding@resend.dev`)
+- [x] `RESEND_API_KEY`, `SITE_URL`, `NEWSLETTER_FROM` no Render (redeploy ok — validado 2026-08-16)
+- [x] `POST /api/newsletter/send` → `sent ≥ 1` — `{total:1, sent:1, failed:0}` em 2026-08-16
+- [x] E-mail recebido com links corretos (artigo + unsubscribe) — confirmado pelo dono em 2026-08-16
+- [x] Unsubscribe + reativação funcionando — validado em produção 2026-08-16 (página "Inscrição cancelada" → `UNSUBSCRIBED` → subscribe reativa o mesmo registro → `ACTIVE`; token inválido → "Link inválido ou já utilizado"; token real volta a funcionar após reativação)
+- [ ] Pipeline do dia com `SUCCESS` e linha `newsletter:` nos logs (próximo run: 8h BRT)
+- [x] `docs/setup.md` e `docs/presentation.md` atualizados (passo 7 do plano)
+- [x] Nota de deploy validado adicionada no `docs/progress.md` (item 8)
 
 ---
 
