@@ -6,6 +6,9 @@ import type { RawNewsItem } from '../types';
 const API_URL = 'https://newsdata.io/api/1/news';
 const PAGE_SIZE = 10; // max size on the free tier
 
+// No tier gratuito, o conteudo completo vem com este placeholder.
+const PAID_CONTENT_PLACEHOLDER = /ONLY AVAILABLE IN PAID PLANS/i;
+
 // NewsData.io category names (https://newsdata.io/documentation)
 const CATEGORY_MAP: Record<Category, string> = {
   TECHNOLOGY: 'technology',
@@ -82,8 +85,13 @@ async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
     .map((article): RawNewsItem => ({
       title: decodeEntities(article.title),
       description: decodeEntities(article.description),
-      content: article.content ? decodeEntities(article.content) : null,
-      source: article.source_name,
+      content:
+        article.content && !PAID_CONTENT_PLACEHOLDER.test(article.content)
+          ? decodeEntities(article.content)
+          : null,
+      // source_name pode vir ausente na API; nunca deixar source indefinido
+      // (Prisma rejeita createMany com campo ausente).
+      source: article.source_name || article.source_id || 'Unknown source',
       sourceUrl: article.link,
       imageUrl: article.image_url,
       category,

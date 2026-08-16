@@ -129,4 +129,57 @@ describe('fetchFromNewsData', () => {
       'NewsData error: 429 Too Many Requests',
     );
   });
+
+  it('should fall back to source_id when source_name is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetchMock({ status: 'success', results: [{ ...mockArticle, source_name: undefined }] }),
+    );
+
+    const result = await fetchFromNewsData([Category.TECHNOLOGY]);
+
+    expect(result[0].source).toBe('g1');
+  });
+
+  it('should fall back to a generic label when both source fields are missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetchMock({
+        status: 'success',
+        results: [{ ...mockArticle, source_name: undefined, source_id: undefined }],
+      }),
+    );
+
+    const result = await fetchFromNewsData([Category.TECHNOLOGY]);
+
+    expect(result[0].source).toBe('Unknown source');
+  });
+
+  it('should null out content when it is the paid plan placeholder', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetchMock({
+        status: 'success',
+        results: [{ ...mockArticle, content: 'ONLY AVAILABLE IN PAID PLANS' }],
+      }),
+    );
+
+    const result = await fetchFromNewsData([Category.TECHNOLOGY]);
+
+    expect(result[0].content).toBeNull();
+  });
+
+  it('should keep real content that is not the paid placeholder', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetchMock({
+        status: 'success',
+        results: [{ ...mockArticle, content: 'Conteúdo real da notícia' }],
+      }),
+    );
+
+    const result = await fetchFromNewsData([Category.TECHNOLOGY]);
+
+    expect(result[0].content).toBe('Conteúdo real da notícia');
+  });
 });
