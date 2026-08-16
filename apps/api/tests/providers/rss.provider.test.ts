@@ -63,10 +63,38 @@ describe('fetchFromRss', () => {
     expect(result[0].category).toBe(Category.TECHNOLOGY);
   });
 
-  it('should use Category.WORLD when source has no category', async () => {
+  it('should fall back to Category.WORLD when source has no category and no keyword matches', async () => {
     const result = await fetchFromRss([sourceWithoutCategory]);
 
     expect(result[0].category).toBe(Category.WORLD);
+  });
+
+  it('should classify items by keywords when source has no category', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [{
+        ...mockItem,
+        title: 'Futebol: time vence clássico e assume a liderança',
+      }],
+    });
+
+    const result = await fetchFromRss([sourceWithoutCategory]);
+
+    expect(result[0].category).toBe(Category.SPORTS);
+  });
+
+  it('should keep the source category and not classify by keywords', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [{
+        ...mockItem,
+        title: 'Gol no fim: veja como foi a partida de futebol',
+      }],
+    });
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    expect(result[0].category).toBe(Category.TECHNOLOGY);
   });
 
   it('should filter out items without a title', async () => {

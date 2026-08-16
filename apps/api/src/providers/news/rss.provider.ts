@@ -1,5 +1,5 @@
 import Parser from 'rss-parser';
-import { Category } from '@newranews/database';
+import { classifyCategory } from '../../services/category-classifier.service';
 import { decodeEntities } from '../ai/ai-utils';
 import type { RawNewsItem } from '../types';
 import { rssSources, type RssSource } from '../../config/rss-sources';
@@ -67,7 +67,7 @@ async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
         source: source.name,
         sourceUrl: item.link ?? source.url,
         imageUrl: extractImageUrl(item),
-        category: source.category ?? Category.WORLD,
+        category: source.category ?? classifyCategory(item.title as string, description),
         publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
       };
     });

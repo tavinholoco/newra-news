@@ -40,7 +40,8 @@ src/
 │   ├── pipeline.service.ts # Orquestra o pipeline diário completo (9 etapas)
 │   ├── ai.service.ts       # Abstração de IA: Gemini → Groq fallback
 │   ├── news-fetcher.service.ts  # Busca NewsData.io + RSS em paralelo
-│   └── metrics.service.ts  # Agregações sobre DailyMetric
+│   ├── metrics.service.ts  # Agregações sobre DailyMetric
+│   └── category-classifier.service.ts  # Classifica notícias RSS por palavras-chave (título/descrição → Category)
 ├── providers/
 │   ├── types.ts            # Interfaces compartilhadas (RawNewsItem, GeneratedArticle)
 │   ├── news/
