@@ -1,31 +1,36 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
 import { Menu, X } from 'lucide-react';
+import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
-
-interface NavLink {
-  readonly href: string;
-  readonly label: string;
-}
+import type { NavLink } from '@/lib/constants';
 
 interface NavbarProps {
   links: readonly NavLink[];
 }
 
+interface LocalizedLink {
+  href: string;
+  label: string;
+}
+
 export function Navbar({ links }: NavbarProps) {
   const pathname = usePathname();
   const { status } = useSession();
+  const t = useTranslations('nav');
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Link de Favoritos aparece apenas para usuários autenticados
-  const visibleLinks =
+  const visibleLinks: LocalizedLink[] =
     status === 'authenticated'
-      ? [...links, { href: '/favorites', label: 'Favoritos' }]
-      : links;
+      ? [...links, { href: '/favorites', key: 'favorites' }].map((link) => ({
+          href: link.href,
+          label: t(link.key),
+        }))
+      : links.map((link) => ({ href: link.href, label: t(link.key) }));
 
   useEffect(() => {
     setMobileOpen(false);
@@ -72,7 +77,7 @@ export function Navbar({ links }: NavbarProps) {
         type='button'
         onClick={() => setMobileOpen(!mobileOpen)}
         className='inline-flex items-center justify-center rounded-lg p-2 text-foreground/70 transition-colors hover:text-brand-600 md:hidden'
-        aria-label={mobileOpen ? 'Fechar menu' : 'Abrir menu'}
+        aria-label={mobileOpen ? t('closeMenu') : t('openMenu')}
         aria-expanded={mobileOpen}
       >
         {mobileOpen ? <X className='h-5 w-5' /> : <Menu className='h-5 w-5' />}

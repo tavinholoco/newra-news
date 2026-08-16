@@ -1,8 +1,8 @@
 'use client';
 
-import type { Category } from '@newranews/types';
+import { useTranslations } from 'next-intl';
+import { Category } from '@newranews/types';
 import { cn } from '@/lib/utils';
-import { CATEGORY_LABELS } from '@/lib/format';
 
 interface NewsFiltersProps {
   selected: Category | null;
@@ -10,6 +10,9 @@ interface NewsFiltersProps {
 }
 
 export function NewsFilters({ selected, onChange }: NewsFiltersProps) {
+  const t = useTranslations('categories');
+  const tCommon = useTranslations('common');
+
   return (
     <div className='flex flex-wrap gap-2'>
       <button
@@ -21,24 +24,22 @@ export function NewsFilters({ selected, onChange }: NewsFiltersProps) {
             : 'bg-muted text-muted-foreground hover:bg-muted/80',
         )}
       >
-        Todas
+        {tCommon('all')}
       </button>
-      {(Object.entries(CATEGORY_LABELS) as [Category, string][]).map(
-        ([key, label]) => (
-          <button
-            key={key}
-            onClick={() => onChange(key)}
-            className={cn(
-              'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
-              selected === key
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80',
-            )}
-          >
-            {label}
-          </button>
-        ),
-      )}
+      {Object.values(Category).map((key) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          className={cn(
+            'rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+            selected === key
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80',
+          )}
+        >
+          {t(key)}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,15 +1,17 @@
 'use client';
 
 import { signIn, signOut, useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
 import { LogIn, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function AuthButton() {
   const { data: session, status } = useSession();
+  const t = useTranslations('auth');
 
   if (status === 'loading') {
     return (
-      <Button variant='ghost' size='sm' disabled aria-label='Carregando sessão'>
+      <Button variant='ghost' size='sm' disabled aria-label={t('loading')}>
         <span className='h-4 w-4 animate-pulse rounded-full bg-muted' />
       </Button>
     );
@@ -21,15 +23,16 @@ export function AuthButton() {
         variant='ghost'
         size='sm'
         onClick={() => void signIn()}
-        aria-label='Entrar'
+        aria-label={t('signIn')}
       >
         <LogIn className='h-4 w-4' />
-        <span className='hidden sm:inline'>Entrar</span>
+        <span className='hidden sm:inline'>{t('signIn')}</span>
       </Button>
     );
   }
 
-  const name = session.user.name?.split(' ')[0] ?? session.user.email ?? 'Usuário';
+  const name =
+    session.user.name?.split(' ')[0] ?? session.user.email ?? t('guest');
 
   return (
     <div className='flex items-center gap-1'>
@@ -43,7 +46,7 @@ export function AuthButton() {
         variant='ghost'
         size='sm'
         onClick={() => void signOut()}
-        aria-label='Sair'
+        aria-label={t('signOut')}
       >
         <LogOut className='h-4 w-4' />
       </Button>

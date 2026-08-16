@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Article, PaginatedResponse } from '@newranews/types';
 import { useArticleList } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,8 @@ interface ArticlePageClientProps {
 }
 
 export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
+  const t = useTranslations('article');
+  const tCommon = useTranslations('common');
   const [page, setPage] = useState(1);
 
   const { data, isFetching, isError } = useArticleList(
@@ -30,7 +33,7 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
     <div className='flex flex-col gap-6'>
       {isError && (
         <p className='rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
-          Não foi possível carregar os artigos. Tente novamente.
+          {t('loadError')}
         </p>
       )}
       <ArticleGrid
@@ -45,10 +48,10 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1 || isFetching}
           >
-            Anterior
+            {tCommon('previous')}
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Página {page} de {meta.totalPages}
+            {tCommon('pageXOfY', { page, total: meta.totalPages })}
           </span>
           <Button
             variant='outline'
@@ -56,7 +59,7 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= meta.totalPages || isFetching}
           >
-            Próxima
+            {tCommon('next')}
           </Button>
         </div>
       )}

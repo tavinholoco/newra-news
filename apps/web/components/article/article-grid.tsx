@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import type { Article } from '@newranews/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArticleHistoryCard } from './article-history-card';
@@ -8,6 +11,8 @@ interface ArticleGridProps {
 }
 
 export function ArticleGrid({ articles, isLoading = false }: ArticleGridProps) {
+  const t = useTranslations('article');
+
   if (isLoading) {
     return (
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
@@ -28,10 +33,10 @@ export function ArticleGrid({ articles, isLoading = false }: ArticleGridProps) {
     return (
       <div className='flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-6 py-16 text-center'>
         <p className='font-display text-lg font-semibold text-foreground'>
-          Nenhum artigo encontrado
+          {t('emptyTitle')}
         </p>
         <p className='mt-1 text-sm text-muted-foreground'>
-          Os artigos diários aparecerão aqui quando disponíveis.
+          {t('emptyDesc')}
         </p>
       </div>
     );

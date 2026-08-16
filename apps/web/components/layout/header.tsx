@@ -1,7 +1,8 @@
-import Link from 'next/link';
 import Image from 'next/image';
+import { Link } from '@/i18n/navigation';
 import { Navbar } from './navbar';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { LocaleSwitcher } from '@/components/layout/locale-switcher';
 import { AuthButton } from '@/components/auth/auth-button';
 import { NAV_LINKS } from '@/lib/constants';
 
@@ -24,6 +25,7 @@ export function Header() {
         </Link>
 
         <div className='flex items-center gap-1'>
+          <LocaleSwitcher />
           <ThemeToggle />
           <AuthButton />
           <Navbar links={NAV_LINKS} />

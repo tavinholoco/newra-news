@@ -1,16 +1,22 @@
-import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation';
 import type { News } from '@newranews/types';
 import { SafeImage } from '@/components/ui/safe-image';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Calendar, ExternalLink, Globe } from 'lucide-react';
 import { FavoriteButton } from '@/components/news/favorite-button';
-import { CATEGORY_LABELS, formatDate } from '@/lib/format';
+import { toDateFormatLocale } from '@/lib/i18n';
+import { formatDate } from '@/lib/format';
 
 interface NewsDetailProps {
   news: News;
 }
 
-export function NewsDetail({ news }: NewsDetailProps) {
+export async function NewsDetail({ news }: NewsDetailProps) {
+  const t = await getTranslations('news');
+  const tCategories = await getTranslations('categories');
+  const locale = await getLocale();
+
   return (
     <article>
       {/* Back link + category */}
@@ -20,10 +26,10 @@ export function NewsDetail({ news }: NewsDetailProps) {
           className='flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground'
         >
           <ArrowLeft className='h-4 w-4' />
-          Voltar para Notícias
+          {t('backTo')}
         </Link>
         <Badge className='bg-brand-600 text-white hover:bg-brand-600'>
-          {CATEGORY_LABELS[news.category]}
+          {tCategories(news.category)}
         </Badge>
       </div>
 
@@ -67,7 +73,7 @@ export function NewsDetail({ news }: NewsDetailProps) {
         </span>
         <span className='flex items-center gap-1.5'>
           <Calendar className='h-4 w-4' />
-          {formatDate(news.publishedAt)}
+          {formatDate(news.publishedAt, toDateFormatLocale(locale))}
         </span>
         <a
           href={news.sourceUrl}
@@ -75,7 +81,7 @@ export function NewsDetail({ news }: NewsDetailProps) {
           rel='noopener noreferrer'
           className='ml-auto flex items-center gap-1 transition-colors hover:text-brand-600'
         >
-          Fonte original
+          {t('originalSource')}
           <ExternalLink className='h-3.5 w-3.5' />
         </a>
       </div>
@@ -100,14 +106,14 @@ export function NewsDetail({ news }: NewsDetailProps) {
         </div>
       ) : (
         <div className='rounded-xl border border-dashed border-border bg-muted/30 px-6 py-8 text-center text-muted-foreground'>
-          <p className='mb-3 text-sm'>Conteúdo completo disponível na fonte original.</p>
+          <p className='mb-3 text-sm'>{t('fullContentHint')}</p>
           <a
             href={news.sourceUrl}
             target='_blank'
             rel='noopener noreferrer'
             className='inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
           >
-            Leia na fonte
+            {t('readAtSource')}
             <ExternalLink className='h-3.5 w-3.5' />
           </a>
         </div>

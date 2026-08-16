@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Category, News, PaginatedResponse } from '@newranews/types';
 import { useNewsList } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,8 @@ interface NewsPageClientProps {
 }
 
 export function NewsPageClient({ initialData }: NewsPageClientProps) {
+  const t = useTranslations('news');
+  const tCommon = useTranslations('common');
   const [category, setCategory] = useState<Category | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -51,7 +54,7 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
       <NewsFilters selected={category} onChange={handleCategoryChange} />
       {isError && (
         <p className='rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
-          Não foi possível carregar as notícias. Tente novamente.
+          {t('loadError')}
         </p>
       )}
       <NewsGrid news={news} isLoading={isFetching && news.length === 0} />
@@ -63,10 +66,10 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1 || isFetching}
           >
-            Anterior
+            {tCommon('previous')}
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Página {page} de {meta.totalPages}
+            {tCommon('pageXOfY', { page, total: meta.totalPages })}
           </span>
           <Button
             variant='outline'
@@ -74,7 +77,7 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= meta.totalPages || isFetching}
           >
-            Próxima
+            {tCommon('next')}
           </Button>
         </div>
       )}

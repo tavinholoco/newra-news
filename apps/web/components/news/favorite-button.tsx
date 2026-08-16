@@ -1,6 +1,7 @@
 'use client';
 
 import { signIn, useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
 import { Heart } from 'lucide-react';
 import type { News } from '@newranews/types';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ interface FavoriteButtonProps {
 
 export function FavoriteButton({ newsId, news, overlay, className }: FavoriteButtonProps) {
   const { status } = useSession();
+  const t = useTranslations('favorites');
   const isFavorited = useIsFavorite(newsId, status === 'authenticated');
   const toggle = useToggleFavorite(newsId, news);
 
@@ -33,9 +35,7 @@ export function FavoriteButton({ newsId, news, overlay, className }: FavoriteBut
       onClick={handleClick}
       disabled={toggle.isPending}
       aria-pressed={isFavorited}
-      aria-label={
-        isFavorited ? 'Remover dos favoritos' : 'Salvar nos favoritos'
-      }
+      aria-label={isFavorited ? t('remove') : t('add')}
       className={cn(
         'inline-flex items-center justify-center rounded-full p-2 transition-all',
         overlay

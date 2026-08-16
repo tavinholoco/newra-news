@@ -1,51 +1,10 @@
-import type { Metadata } from 'next';
-import { Inter, Bricolage_Grotesque } from 'next/font/google';
-import '@/styles/globals.css';
-import { cn } from '@/lib/utils';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { ThemeInit } from '@/components/theme/theme-init';
-import { Providers } from './providers';
-import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from '@/lib/seo';
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-const bricolage = Bricolage_Grotesque({
-  subsets: ['latin'],
-  variable: '--font-display',
-});
-
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: {
-    default: SITE_NAME,
-    template: `%s | ${SITE_NAME}`,
-  },
-  description: SITE_DESCRIPTION,
-  openGraph: {
-    type: 'website',
-    siteName: SITE_NAME,
-    locale: 'pt_BR',
-  },
-  twitter: {
-    card: 'summary_large_image',
-  },
-};
-
+// Layout raiz obrigatório pelo App Router — apenas repassa os children.
+// O <html>/<body>, providers e header/footer vivem em app/[locale]/layout.tsx,
+// que conhece o locale (necessário para lang, metadata e NextIntlClientProvider).
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <html lang='pt-BR' suppressHydrationWarning className={cn(inter.variable, bricolage.variable)}>
-      <body className={cn('font-sans antialiased', inter.className)}>
-        <ThemeInit />
-        <Providers>
-          <Header />
-          <main className='min-h-[calc(100vh-4rem)]'>{children}</main>
-          <Footer />
-        </Providers>
-      </body>
-    </html>
-  );
+  return children;
 }

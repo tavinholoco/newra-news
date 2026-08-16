@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FavoriteButton } from '@/components/news/favorite-button';
+import { renderWithIntl } from '@/tests/utils';
 
 const signInMock = vi.fn();
 const useSessionMock = vi.fn();
@@ -38,7 +39,7 @@ describe('FavoriteButton', () => {
     useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
     useIsFavoriteMock.mockReturnValue(false);
     const user = userEvent.setup();
-    render(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
 
     await user.click(
       screen.getByRole('button', { name: 'Salvar nos favoritos' }),
@@ -52,7 +53,7 @@ describe('FavoriteButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    render(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
 
     const button = screen.getByRole('button', { name: 'Salvar nos favoritos' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
@@ -66,7 +67,7 @@ describe('FavoriteButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    render(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
 
     const button = screen.getByRole('button', { name: 'Remover dos favoritos' });
     expect(button).toHaveAttribute('aria-pressed', 'true');
@@ -81,7 +82,7 @@ describe('FavoriteButton', () => {
       mutate: vi.fn(),
       isPending: true,
     });
-    render(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
 
     expect(
       screen.getByRole('button', { name: 'Salvar nos favoritos' }),

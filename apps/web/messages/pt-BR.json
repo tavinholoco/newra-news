@@ -1,0 +1,206 @@
+{
+  "site": {
+    "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar."
+  },
+  "nav": {
+    "home": "Home",
+    "news": "Notícias",
+    "articles": "Artigos",
+    "metrics": "Métricas",
+    "about": "Sobre",
+    "favorites": "Favoritos",
+    "openMenu": "Abrir menu",
+    "closeMenu": "Fechar menu"
+  },
+  "locale": {
+    "label": "Selecionar idioma",
+    "pt": "Português",
+    "en": "Inglês"
+  },
+  "categories": {
+    "TECHNOLOGY": "Tecnologia",
+    "POLITICS": "Política",
+    "ECONOMY": "Economia",
+    "SPORTS": "Esportes",
+    "SCIENCE": "Ciência",
+    "ENTERTAINMENT": "Entretenimento",
+    "WORLD": "Mundo",
+    "HEALTH": "Saúde"
+  },
+  "common": {
+    "loading": "Carregando...",
+    "retry": "Tentar novamente",
+    "previous": "Anterior",
+    "next": "Próxima",
+    "pageXOfY": "Página {page} de {total}",
+    "all": "Todas",
+    "searchPlaceholder": "Buscar notícias...",
+    "clearSearch": "Limpar busca",
+    "backToHome": "Voltar para a Home",
+    "sourcesConsulted": "{count, plural, one {# fonte consultada} other {# fontes consultadas}}",
+    "sources": "{count, plural, one {# fonte} other {# fontes}}"
+  },
+  "home": {
+    "latestNews": "Últimas Notícias",
+    "viewAll": "Ver todas",
+    "dailyArticle": "Artigo do Dia"
+  },
+  "news": {
+    "title": "Notícias",
+    "pageDescription": "Fique por dentro das últimas notícias do mundo.",
+    "backTo": "Voltar para Notícias",
+    "emptyTitle": "Nenhuma notícia encontrada",
+    "emptyDesc": "Tente ajustar os filtros ou o termo de busca.",
+    "loadError": "Não foi possível carregar as notícias. Tente novamente.",
+    "notFoundTitle": "Notícia não encontrada",
+    "notFoundDesc": "Esta notícia não existe ou foi removida.",
+    "viewAll": "Ver todas as notícias",
+    "originalSource": "Fonte original",
+    "fullContentHint": "Conteúdo completo disponível na fonte original.",
+    "readAtSource": "Leia na fonte"
+  },
+  "article": {
+    "title": "Histórico de Artigos",
+    "pageDescription": "Todos os artigos diários gerados por IA sobre as principais notícias.",
+    "backTo": "Voltar para Artigos",
+    "emptyTitle": "Nenhum artigo encontrado",
+    "emptyDesc": "Os artigos diários aparecerão aqui quando disponíveis.",
+    "loadError": "Não foi possível carregar os artigos. Tente novamente.",
+    "notFoundTitle": "Artigo não encontrado",
+    "notFoundDesc": "Este artigo não existe ou ainda não foi publicado.",
+    "viewAll": "Ver todos os artigos",
+    "readFull": "Ler artigo completo"
+  },
+  "about": {
+    "heroTitle": "Sobre o Newra News",
+    "heroDesc": "O Newra News é um portal de notícias inteligente que agrega as principais notícias do mundo e gera automaticamente um artigo diário com o resumo dos acontecimentos mais relevantes — tudo com ajuda de inteligência artificial.",
+    "whatIsTitle": "O que é o Newra News?",
+    "whatIsDesc": "Consumidores de notícias enfrentam sobrecarga informacional. São dezenas de portais, centenas de manchetes e pouco tempo para absorver tudo. O Newra News resolve isso ao oferecer duas experiências: um feed de notícias atualizado diariamente para quem quer navegar, e um artigo-resumo do dia para quem quer entender o cenário geral em poucos minutos.",
+    "howItWorks": "Como funciona?",
+    "steps": {
+      "collectionTitle": "Coleta de Notícias",
+      "collectionDesc": "Múltiplas fontes são consultadas diariamente para reunir as notícias mais relevantes do dia.",
+      "aiTitle": "Análise por IA",
+      "aiDesc": "Inteligência artificial analisa, cruza e sintetiza as informações coletadas em um artigo coeso.",
+      "dailyTitle": "Artigo Diário",
+      "dailyDesc": "Um artigo-resumo é publicado automaticamente, permitindo que você entenda o dia em poucos minutos."
+    },
+    "stackTitle": "Stack Tecnológica",
+    "stackDesc": "Construído com tecnologias modernas focadas em performance, tipagem e experiência de desenvolvimento.",
+    "openSourceTitle": "Projeto Open Source",
+    "openSourceDesc": "O código-fonte do Newra News está disponível no GitHub.",
+    "viewOnGithub": "Ver no GitHub"
+  },
+  "dashboard": {
+    "title": "Dashboard de Métricas",
+    "pageDescription": "Desempenho do pipeline diário de notícias e dos artigos gerados por IA.",
+    "today": "Hoje",
+    "newsCollected": "Notícias coletadas",
+    "dailyArticle": "Artigo do dia",
+    "generated": "Gerado",
+    "pending": "Pendente",
+    "publishedHint": "Publicado na home e no histórico",
+    "runsAt": "O pipeline roda diariamente às 8h (BRT)",
+    "aiUsed": "IA utilizada",
+    "pipelineDuration": "Duração do pipeline",
+    "pipelineErrors": "Erros no pipeline",
+    "notRunYet": "O pipeline ainda não rodou hoje. Acompanhe após a execução diária (8h, horário de Brasília).",
+    "last7Days": "Últimos 7 dias",
+    "avgNewsPerDay": "Média de notícias/dia",
+    "articlesGenerated": "Artigos gerados",
+    "daysWithData": "{count, plural, one {# dia com dados} other {# dias com dados}}",
+    "successRate": "Taxa de sucesso",
+    "avgDuration": "Duração média",
+    "newsByCategory": "Notícias por categoria (7 dias)",
+    "aiUsage": "IA utilizada (7 dias)",
+    "last30Days": "Últimos 30 dias",
+    "failureDays": "Dias com falha",
+    "loadError": "Não foi possível carregar as métricas. Tente novamente.",
+    "noData": "Sem dados no período."
+  },
+  "favorites": {
+    "title": "Favoritos",
+    "add": "Salvar nos favoritos",
+    "remove": "Remover dos favoritos",
+    "loadError": "Não foi possível carregar seus favoritos.",
+    "emptyTitle": "Você ainda não favoritou nenhuma notícia.",
+    "emptyHint": "Toque no coração em uma notícia para salvá-la aqui."
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signOut": "Sair",
+    "loading": "Carregando sessão",
+    "guest": "Usuário"
+  },
+  "theme": {
+    "enableDark": "Ativar modo escuro",
+    "enableLight": "Ativar modo claro",
+    "dark": "Modo escuro",
+    "light": "Modo claro"
+  },
+  "newsletter": {
+    "subscribe": "Assinar",
+    "emailPlaceholder": "seu@email.com",
+    "emailLabel": "Seu e-mail",
+    "invalidEmail": "Informe um e-mail válido.",
+    "success": "Você receberá o artigo do dia no seu e-mail!",
+    "error": "Não foi possível assinar agora. Tente novamente.",
+    "footerTitle": "Newsletter",
+    "footerDesc": "Receba o artigo do dia no seu e-mail, direto das principais notícias.",
+    "unsubscribedTitle": "Inscrição cancelada",
+    "unsubscribedDesc": "Você não receberá mais o artigo diário no seu e-mail. Se mudar de ideia, basta assinar novamente pelo rodapé do site.",
+    "invalidTitle": "Link inválido ou já utilizado",
+    "invalidDesc": "Não foi possível cancelar a inscrição com este link. Verifique o e-mail recebido ou tente novamente."
+  },
+  "footer": {
+    "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar.",
+    "navigation": "Navegação",
+    "aboutTitle": "Sobre o Projeto",
+    "items": {
+      "stack": "Next.js + Fastify",
+      "aiGenerated": "Artigos gerados por IA",
+      "updatedDaily": "Atualizado diariamente"
+    },
+    "rights": "Todos os direitos reservados.",
+    "poweredBy": "Powered by AI"
+  },
+  "notFound": {
+    "title": "Página não encontrada",
+    "description": "O endereço que você acessou não existe ou foi movido."
+  },
+  "errors": {
+    "genericTitle": "Algo deu errado",
+    "genericDesc": "Ocorreu um erro inesperado. Por favor, tente novamente.",
+    "newsTitle": "Não foi possível carregar as notícias",
+    "newsDesc": "Ocorreu um erro ao buscar as notícias. Por favor, tente novamente.",
+    "articlesTitle": "Não foi possível carregar os artigos",
+    "articlesDesc": "Ocorreu um erro ao buscar os artigos. Por favor, tente novamente.",
+    "dashboardTitle": "Não foi possível carregar as métricas",
+    "dashboardDesc": "Ocorreu um erro ao buscar os dados do pipeline. Por favor, tente novamente."
+  },
+  "metadata": {
+    "news": {
+      "title": "Notícias",
+      "description": "Todas as notícias do mundo em um só lugar."
+    },
+    "articles": {
+      "title": "Histórico de Artigos",
+      "description": "Todos os artigos diários gerados por IA sobre as principais notícias."
+    },
+    "about": {
+      "title": "Sobre",
+      "description": "Conheça o Newra News, portal de notícias com artigo diário gerado por IA."
+    },
+    "dashboard": {
+      "title": "Métricas",
+      "description": "Acompanhe o desempenho do pipeline de notícias e dos artigos gerados por IA."
+    },
+    "favorites": {
+      "title": "Favoritos"
+    },
+    "newsletterUnsubscribe": {
+      "title": "Cancelar inscrição",
+      "description": "Cancele sua assinatura da newsletter do Newra News."
+    }
+  }
+}

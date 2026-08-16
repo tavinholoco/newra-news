@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DashboardMetrics } from '@newranews/types';
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
+import { renderWithIntl } from '@/tests/utils';
 
 const mockMetrics: DashboardMetrics = {
   today: {
@@ -47,7 +48,7 @@ function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
   );
 }

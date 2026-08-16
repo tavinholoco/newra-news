@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthButton } from '@/components/auth/auth-button';
+import { renderWithIntl } from '@/tests/utils';
 
 const signInMock = vi.fn();
 const signOutMock = vi.fn();
@@ -21,7 +22,7 @@ describe('AuthButton', () => {
 
   it('should show the sign-in button when unauthenticated', () => {
     useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
-    render(<AuthButton />);
+    renderWithIntl(<AuthButton />);
 
     expect(screen.getByRole('button', { name: /entrar/i })).toBeInTheDocument();
   });
@@ -29,7 +30,7 @@ describe('AuthButton', () => {
   it('should call signIn when clicked', async () => {
     useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
     const user = userEvent.setup();
-    render(<AuthButton />);
+    renderWithIntl(<AuthButton />);
 
     await user.click(screen.getByRole('button', { name: /entrar/i }));
 
@@ -48,7 +49,7 @@ describe('AuthButton', () => {
       },
       status: 'authenticated',
     });
-    render(<AuthButton />);
+    renderWithIntl(<AuthButton />);
 
     expect(screen.getByText('Maria')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sair/i })).toBeInTheDocument();
@@ -62,7 +63,7 @@ describe('AuthButton', () => {
       status: 'authenticated',
     });
     const user = userEvent.setup();
-    render(<AuthButton />);
+    renderWithIntl(<AuthButton />);
 
     await user.click(screen.getByRole('button', { name: /sair/i }));
 

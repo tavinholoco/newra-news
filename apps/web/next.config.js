@@ -1,3 +1,5 @@
+const createNextIntlPlugin = require('next-intl/plugin');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@newranews/types'],
@@ -15,4 +17,6 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+const withNextIntl = createNextIntlPlugin();
+
+module.exports = withNextIntl(nextConfig);

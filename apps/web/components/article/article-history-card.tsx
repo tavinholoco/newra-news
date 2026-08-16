@@ -1,4 +1,7 @@
-import Link from 'next/link';
+'use client';
+
+import { useLocale, useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 import type { Article } from '@newranews/types';
 import {
   Card,
@@ -8,6 +11,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Calendar, Newspaper } from 'lucide-react';
+import { toDateFormatLocale } from '@/lib/i18n';
 import { formatArticleDate, toDateSlug } from '@/lib/format';
 
 interface ArticleHistoryCardProps {
@@ -15,6 +19,9 @@ interface ArticleHistoryCardProps {
 }
 
 export function ArticleHistoryCard({ article }: ArticleHistoryCardProps) {
+  const t = useTranslations('common');
+  const locale = useLocale();
+
   return (
     <Link href={`/article/${toDateSlug(article.date)}`} className='group block'>
       <Card className='h-full border-l-4 border-l-brand-600 transition-shadow duration-200 group-hover:shadow-md'>
@@ -30,11 +37,11 @@ export function ArticleHistoryCard({ article }: ArticleHistoryCardProps) {
         <CardFooter className='mt-auto gap-3 text-xs text-muted-foreground'>
           <span className='flex items-center gap-1'>
             <Calendar className='h-3 w-3' />
-            {formatArticleDate(article.date)}
+            {formatArticleDate(article.date, toDateFormatLocale(locale))}
           </span>
           <span className='flex items-center gap-1'>
             <Newspaper className='h-3 w-3' />
-            {article.newsCount} fontes
+            {t('sources', { count: article.newsCount })}
           </span>
         </CardFooter>
       </Card>

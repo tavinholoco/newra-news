@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SubscribeForm } from '@/components/newsletter/subscribe-form';
+import { renderWithIntl } from '@/tests/utils';
 
 function mockFetchOk() {
   vi.stubGlobal(
@@ -27,7 +28,7 @@ afterEach(() => {
 
 describe('SubscribeForm', () => {
   it('should render the email input and submit button', () => {
-    render(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm />);
 
     expect(
       screen.getByRole('textbox', { name: 'Seu e-mail' }),
@@ -40,7 +41,7 @@ describe('SubscribeForm', () => {
   it('should show a validation error for an invalid email without calling the API', async () => {
     vi.stubGlobal('fetch', vi.fn());
     const user = userEvent.setup();
-    render(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm />);
 
     await user.type(
       screen.getByRole('textbox', { name: 'Seu e-mail' }),
@@ -57,7 +58,7 @@ describe('SubscribeForm', () => {
   it('should show a success message and clear the input after subscribing', async () => {
     mockFetchOk();
     const user = userEvent.setup();
-    render(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm />);
 
     const input = screen.getByRole('textbox', { name: 'Seu e-mail' });
     await user.type(input, 'Assinante@Test.com ');
@@ -73,7 +74,7 @@ describe('SubscribeForm', () => {
   it('should show an error message when the API call fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
     const user = userEvent.setup();
-    render(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm />);
 
     await user.type(
       screen.getByRole('textbox', { name: 'Seu e-mail' }),

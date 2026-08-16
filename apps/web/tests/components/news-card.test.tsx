@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import type { News, Category } from '@newranews/types';
 import { NewsCard } from '@/components/news/news-card';
+import { renderWithIntl } from '@/tests/utils';
 
 vi.mock('next/image', () => ({
   default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
@@ -37,24 +38,34 @@ const mockNews: News = {
 
 describe('NewsCard', () => {
   it('should render the news title as a link to the detail page', () => {
-    render(<NewsCard news={mockNews} />);
+    renderWithIntl(<NewsCard news={mockNews} />);
 
     const link = screen.getByRole('link', { name: /Notícia de Teste do Card/ });
     expect(link).toHaveAttribute(
       'href',
-      '/news/aaaaaaaa-0000-0000-0000-000000000001',
+      '/pt-BR/news/aaaaaaaa-0000-0000-0000-000000000001',
+    );
+  });
+
+  it('should localize the detail link with the en locale prefix', () => {
+    renderWithIntl(<NewsCard news={mockNews} />, 'en');
+
+    const link = screen.getByRole('link', { name: /Notícia de Teste do Card/ });
+    expect(link).toHaveAttribute(
+      'href',
+      '/en/news/aaaaaaaa-0000-0000-0000-000000000001',
     );
   });
 
   it('should show the category label and source', () => {
-    render(<NewsCard news={mockNews} />);
+    renderWithIntl(<NewsCard news={mockNews} />);
 
     expect(screen.getByText('Tecnologia')).toBeInTheDocument();
     expect(screen.getByText('G1')).toBeInTheDocument();
   });
 
   it('should render a placeholder image when imageUrl is missing', () => {
-    render(<NewsCard news={mockNews} />);
+    renderWithIntl(<NewsCard news={mockNews} />);
 
     expect(screen.getByRole('img', { name: 'Newra News' })).toBeInTheDocument();
   });

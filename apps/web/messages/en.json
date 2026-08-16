@@ -1,0 +1,206 @@
+{
+  "site": {
+    "description": "An intelligent news portal with daily AI-generated articles, bringing the day's top stories together in one place."
+  },
+  "nav": {
+    "home": "Home",
+    "news": "News",
+    "articles": "Articles",
+    "metrics": "Metrics",
+    "about": "About",
+    "favorites": "Favorites",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "locale": {
+    "label": "Select language",
+    "pt": "Portuguese",
+    "en": "English"
+  },
+  "categories": {
+    "TECHNOLOGY": "Technology",
+    "POLITICS": "Politics",
+    "ECONOMY": "Economy",
+    "SPORTS": "Sports",
+    "SCIENCE": "Science",
+    "ENTERTAINMENT": "Entertainment",
+    "WORLD": "World",
+    "HEALTH": "Health"
+  },
+  "common": {
+    "loading": "Loading...",
+    "retry": "Try again",
+    "previous": "Previous",
+    "next": "Next",
+    "pageXOfY": "Page {page} of {total}",
+    "all": "All",
+    "searchPlaceholder": "Search news...",
+    "clearSearch": "Clear search",
+    "backToHome": "Back to Home",
+    "sourcesConsulted": "{count, plural, one {# source consulted} other {# sources consulted}}",
+    "sources": "{count, plural, one {# source} other {# sources}}"
+  },
+  "home": {
+    "latestNews": "Latest News",
+    "viewAll": "View all",
+    "dailyArticle": "Article of the Day"
+  },
+  "news": {
+    "title": "News",
+    "pageDescription": "Stay up to date with the latest news from around the world.",
+    "backTo": "Back to News",
+    "emptyTitle": "No news found",
+    "emptyDesc": "Try adjusting the filters or the search term.",
+    "loadError": "Couldn't load the news. Please try again.",
+    "notFoundTitle": "News not found",
+    "notFoundDesc": "This news item doesn't exist or has been removed.",
+    "viewAll": "View all news",
+    "originalSource": "Original source",
+    "fullContentHint": "Full content is available on the original source.",
+    "readAtSource": "Read at source"
+  },
+  "article": {
+    "title": "Article Archive",
+    "pageDescription": "All daily AI-generated articles about the top news.",
+    "backTo": "Back to Articles",
+    "emptyTitle": "No articles found",
+    "emptyDesc": "Daily articles will appear here as they become available.",
+    "loadError": "Couldn't load the articles. Please try again.",
+    "notFoundTitle": "Article not found",
+    "notFoundDesc": "This article doesn't exist or hasn't been published yet.",
+    "viewAll": "View all articles",
+    "readFull": "Read full article"
+  },
+  "about": {
+    "heroTitle": "About Newra News",
+    "heroDesc": "Newra News is an intelligent news portal that aggregates the world's top stories and automatically generates a daily article summarizing the most relevant events — all with the help of artificial intelligence.",
+    "whatIsTitle": "What is Newra News?",
+    "whatIsDesc": "News consumers face information overload. Dozens of portals, hundreds of headlines and little time to take it all in. Newra News solves this by offering two experiences: a news feed updated daily for those who want to browse, and a daily summary article for those who want to understand the big picture in a few minutes.",
+    "howItWorks": "How does it work?",
+    "steps": {
+      "collectionTitle": "News Aggregation",
+      "collectionDesc": "Multiple sources are checked daily to bring together the most relevant stories of the day.",
+      "aiTitle": "AI Analysis",
+      "aiDesc": "Artificial intelligence analyzes, cross-references and synthesizes the collected information into a coherent article.",
+      "dailyTitle": "Daily Article",
+      "dailyDesc": "A summary article is published automatically, letting you understand the day in a few minutes."
+    },
+    "stackTitle": "Tech Stack",
+    "stackDesc": "Built with modern technologies focused on performance, type safety and developer experience.",
+    "openSourceTitle": "Open Source Project",
+    "openSourceDesc": "The Newra News source code is available on GitHub.",
+    "viewOnGithub": "View on GitHub"
+  },
+  "dashboard": {
+    "title": "Metrics Dashboard",
+    "pageDescription": "Performance of the daily news pipeline and AI-generated articles.",
+    "today": "Today",
+    "newsCollected": "News collected",
+    "dailyArticle": "Daily article",
+    "generated": "Generated",
+    "pending": "Pending",
+    "publishedHint": "Published on the home page and in the archive",
+    "runsAt": "The pipeline runs daily at 8am (BRT)",
+    "aiUsed": "AI used",
+    "pipelineDuration": "Pipeline duration",
+    "pipelineErrors": "Pipeline errors",
+    "notRunYet": "The pipeline hasn't run today yet. Check back after the daily run (8am, Brasília time).",
+    "last7Days": "Last 7 days",
+    "avgNewsPerDay": "Average news/day",
+    "articlesGenerated": "Articles generated",
+    "daysWithData": "{count, plural, one {# day with data} other {# days with data}}",
+    "successRate": "Success rate",
+    "avgDuration": "Average duration",
+    "newsByCategory": "News by category (7 days)",
+    "aiUsage": "AI usage (7 days)",
+    "last30Days": "Last 30 days",
+    "failureDays": "Failed days",
+    "loadError": "Couldn't load the metrics. Please try again.",
+    "noData": "No data for this period."
+  },
+  "favorites": {
+    "title": "Favorites",
+    "add": "Save to favorites",
+    "remove": "Remove from favorites",
+    "loadError": "Couldn't load your favorites.",
+    "emptyTitle": "You haven't favorited any news yet.",
+    "emptyHint": "Tap the heart on a news item to save it here."
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "loading": "Loading session",
+    "guest": "User"
+  },
+  "theme": {
+    "enableDark": "Enable dark mode",
+    "enableLight": "Enable light mode",
+    "dark": "Dark mode",
+    "light": "Light mode"
+  },
+  "newsletter": {
+    "subscribe": "Subscribe",
+    "emailPlaceholder": "you@email.com",
+    "emailLabel": "Your email",
+    "invalidEmail": "Please enter a valid email address.",
+    "success": "You'll receive the daily article in your inbox!",
+    "error": "Couldn't subscribe right now. Please try again.",
+    "footerTitle": "Newsletter",
+    "footerDesc": "Get the article of the day in your inbox, straight from the top stories.",
+    "unsubscribedTitle": "Subscription cancelled",
+    "unsubscribedDesc": "You won't receive the daily article anymore. If you change your mind, simply subscribe again from the footer of the site.",
+    "invalidTitle": "Invalid or already used link",
+    "invalidDesc": "We couldn't cancel the subscription with this link. Check the email you received or try again."
+  },
+  "footer": {
+    "description": "An intelligent news portal with daily AI-generated articles, bringing the day's top stories together in one place.",
+    "navigation": "Navigation",
+    "aboutTitle": "About the Project",
+    "items": {
+      "stack": "Next.js + Fastify",
+      "aiGenerated": "AI-generated articles",
+      "updatedDaily": "Updated daily"
+    },
+    "rights": "All rights reserved.",
+    "poweredBy": "Powered by AI"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The address you accessed doesn't exist or has been moved."
+  },
+  "errors": {
+    "genericTitle": "Something went wrong",
+    "genericDesc": "An unexpected error occurred. Please try again.",
+    "newsTitle": "Couldn't load the news",
+    "newsDesc": "An error occurred while fetching the news. Please try again.",
+    "articlesTitle": "Couldn't load the articles",
+    "articlesDesc": "An error occurred while fetching the articles. Please try again.",
+    "dashboardTitle": "Couldn't load the metrics",
+    "dashboardDesc": "An error occurred while fetching the pipeline data. Please try again."
+  },
+  "metadata": {
+    "news": {
+      "title": "News",
+      "description": "All the news from around the world in one place."
+    },
+    "articles": {
+      "title": "Article Archive",
+      "description": "All daily AI-generated articles about the top news."
+    },
+    "about": {
+      "title": "About",
+      "description": "Learn about Newra News, the news portal with an AI-generated daily article."
+    },
+    "dashboard": {
+      "title": "Metrics",
+      "description": "Track the performance of the news pipeline and AI-generated articles."
+    },
+    "favorites": {
+      "title": "Favorites"
+    },
+    "newsletterUnsubscribe": {
+      "title": "Cancel subscription",
+      "description": "Cancel your Newra News newsletter subscription."
+    }
+  }
+}

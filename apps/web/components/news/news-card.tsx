@@ -1,4 +1,7 @@
-import Link from 'next/link';
+'use client';
+
+import { useLocale, useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation';
 import type { News } from '@newranews/types';
 import { SafeImage } from '@/components/ui/safe-image';
 import {
@@ -11,13 +14,17 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Calendar, ExternalLink } from 'lucide-react';
 import { FavoriteButton } from '@/components/news/favorite-button';
-import { CATEGORY_LABELS, formatDate } from '@/lib/format';
+import { toDateFormatLocale } from '@/lib/i18n';
+import { formatDate } from '@/lib/format';
 
 interface NewsCardProps {
   news: News;
 }
 
 export function NewsCard({ news }: NewsCardProps) {
+  const t = useTranslations('categories');
+  const locale = useLocale();
+
   return (
     <div className='group relative h-full transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md'>
       <Link href={`/news/${news.id}`} className='block h-full'>
@@ -45,7 +52,7 @@ export function NewsCard({ news }: NewsCardProps) {
           })()}
           <div className='absolute left-3 top-3'>
             <Badge className='bg-brand-600 text-white hover:bg-brand-600'>
-              {CATEGORY_LABELS[news.category]}
+              {t(news.category)}
             </Badge>
           </div>
         </div>
@@ -65,7 +72,7 @@ export function NewsCard({ news }: NewsCardProps) {
           <span className='truncate font-medium'>{news.source}</span>
           <span className='flex items-center gap-1'>
             <Calendar className='h-3 w-3' />
-            {formatDate(news.publishedAt)}
+            {formatDate(news.publishedAt, toDateFormatLocale(locale))}
           </span>
           <ExternalLink className='ml-auto h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
         </CardFooter>

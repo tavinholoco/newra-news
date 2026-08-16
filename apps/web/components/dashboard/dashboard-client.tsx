@@ -1,14 +1,17 @@
 'use client';
 
+import { useMemo } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import type { DashboardMetrics } from '@newranews/types';
+import { Category as CategoryEnum } from '@newranews/types';
 import { useDashboardMetrics } from '@/lib/queries';
 import {
-  CATEGORY_LABELS,
   formatCount,
   formatPercent,
   formatPipelineDuration,
   formatProviderName,
 } from '@/lib/format';
+import { toDateFormatLocale } from '@/lib/i18n';
 import { MetricCard } from './metric-card';
 import { CategoryBars } from './category-bars';
 import { DashboardSkeleton } from './dashboard-skeleton';
@@ -31,14 +34,27 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export function DashboardClient({ initialData }: DashboardClientProps) {
+  const t = useTranslations('dashboard');
+  const tCategories = useTranslations('categories');
+  const locale = useLocale();
   const { data, isFetching, isError } = useDashboardMetrics(
     initialData ?? undefined,
   );
 
+  const categoryLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    for (const key of Object.values(CategoryEnum)) {
+      labels[key] = tCategories(key);
+    }
+    return labels;
+  }, [tCategories]);
+
+  const dateLocale = toDateFormatLocale(locale);
+
   if (isError) {
     return (
       <p className='rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
-        Não foi possível carregar as métricas. Tente novamente.
+        {t('loadError')}
       </p>
     );
   }
@@ -53,62 +69,59 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
     <div className='flex flex-col gap-10'>
       {/* Hoje */}
       <section>
-        <SectionTitle>Hoje</SectionTitle>
+        <SectionTitle>{t('today')}</SectionTitle>
         {today ? (
           <div className='grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5'>
             <MetricCard
-              label='Notícias coletadas'
-              value={formatCount(today.newsCollected)}
+              label={t('newsCollected')}
+              value={formatCount(today.newsCollected, dateLocale)}
             />
             <MetricCard
-              label='Artigo do dia'
-              value={today.articleGenerated ? 'Gerado' : 'Pendente'}
+              label={t('dailyArticle')}
+              value={today.articleGenerated ? t('generated') : t('pending')}
               hint={
-                today.articleGenerated
-                  ? 'Publicado na home e no histórico'
-                  : 'O pipeline roda diariamente às 8h (BRT)'
+                today.articleGenerated ? t('publishedHint') : t('runsAt')
               }
             />
             <MetricCard
-              label='IA utilizada'
+              label={t('aiUsed')}
               value={formatProviderName(today.aiProvider)}
             />
             <MetricCard
-              label='Duração do pipeline'
+              label={t('pipelineDuration')}
               value={formatPipelineDuration(today.pipelineDuration)}
             />
             <MetricCard
-              label='Erros no pipeline'
+              label={t('pipelineErrors')}
               value={today.pipelineErrors}
             />
           </div>
         ) : (
           <p className='text-sm text-muted-foreground'>
-            O pipeline ainda não rodou hoje. Acompanhe após a execução diária
-            (8h, horário de Brasília).
+            {t('notRunYet')}
           </p>
         )}
       </section>
 
       {/* Últimos 7 dias */}
       <section>
-        <SectionTitle>Últimos 7 dias</SectionTitle>
+        <SectionTitle>{t('last7Days')}</SectionTitle>
         <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
           <MetricCard
-            label='Média de notícias/dia'
-            value={formatCount(Math.round(lastWeek.avgNewsPerDay))}
+            label={t('avgNewsPerDay')}
+            value={formatCount(Math.round(lastWeek.avgNewsPerDay), dateLocale)}
           />
           <MetricCard
-            label='Artigos gerados'
+            label={t('articlesGenerated')}
             value={lastWeek.totalArticlesGenerated}
-            hint={`${lastWeek.totalDays} dias com dados`}
+            hint={t('daysWithData', { count: lastWeek.totalDays })}
           />
           <MetricCard
-            label='Taxa de sucesso'
+            label={t('successRate')}
             value={formatPercent(lastWeek.pipelineSuccessRate)}
           />
           <MetricCard
-            label='Duração média'
+            label={t('avgDuration')}
             value={formatPipelineDuration(lastWeek.avgPipelineDuration)}
           />
         </div>
@@ -117,37 +130,37 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
       {/* Distribuição por categoria */}
       {Object.keys(lastWeek.newsByCategory).length > 0 && (
         <section>
-          <SectionTitle>Notícias por categoria (7 dias)</SectionTitle>
-          <CategoryBars data={lastWeek.newsByCategory} labels={CATEGORY_LABELS} />
+          <SectionTitle>{t('newsByCategory')}</SectionTitle>
+          <CategoryBars data={lastWeek.newsByCategory} labels={categoryLabels} />
         </section>
       )}
 
       {/* Uso de IA */}
       {Object.keys(lastWeek.aiProviderUsage).length > 0 && (
         <section>
-          <SectionTitle>IA utilizada (7 dias)</SectionTitle>
+          <SectionTitle>{t('aiUsage')}</SectionTitle>
           <CategoryBars data={lastWeek.aiProviderUsage} labels={PROVIDER_LABELS} />
         </section>
       )}
 
       {/* Últimos 30 dias */}
       <section>
-        <SectionTitle>Últimos 30 dias</SectionTitle>
+        <SectionTitle>{t('last30Days')}</SectionTitle>
         <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
           <MetricCard
-            label='Notícias coletadas'
-            value={formatCount(lastMonth.totalNewsCollected)}
+            label={t('newsCollected')}
+            value={formatCount(lastMonth.totalNewsCollected, dateLocale)}
           />
           <MetricCard
-            label='Artigos gerados'
+            label={t('articlesGenerated')}
             value={lastMonth.totalArticlesGenerated}
           />
           <MetricCard
-            label='Média de notícias/dia'
-            value={formatCount(Math.round(lastMonth.avgNewsPerDay))}
+            label={t('avgNewsPerDay')}
+            value={formatCount(Math.round(lastMonth.avgNewsPerDay), dateLocale)}
           />
           <MetricCard
-            label='Dias com falha'
+            label={t('failureDays')}
             value={lastMonth.failureDays}
           />
         </div>

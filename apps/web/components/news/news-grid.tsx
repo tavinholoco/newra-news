@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import type { News } from '@newranews/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NewsCard } from './news-card';
@@ -8,6 +11,8 @@ interface NewsGridProps {
 }
 
 export function NewsGrid({ news, isLoading = false }: NewsGridProps) {
+  const t = useTranslations('news');
+
   if (isLoading) {
     return (
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
@@ -28,10 +33,10 @@ export function NewsGrid({ news, isLoading = false }: NewsGridProps) {
     return (
       <div className='flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-6 py-16 text-center'>
         <p className='font-display text-lg font-semibold text-foreground'>
-          Nenhuma notícia encontrada
+          {t('emptyTitle')}
         </p>
         <p className='mt-1 text-sm text-muted-foreground'>
-          Tente ajustar os filtros ou o termo de busca.
+          {t('emptyDesc')}
         </p>
       </div>
     );

@@ -1,5 +1,7 @@
 import type { Category } from '@newranews/types';
 
+// Rótulos padrão pt-BR (fallback). Os componentes localizados usam as chaves
+// `categories.*` de messages/{locale}.json — ver lib/i18n.ts.
 export const CATEGORY_LABELS: Record<Category, string> = {
   TECHNOLOGY: 'Tecnologia',
   POLITICS: 'Política',
@@ -11,16 +13,16 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   HEALTH: 'Saúde',
 };
 
-export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('pt-BR', {
+export function formatDate(dateString: string, locale = 'pt-BR'): string {
+  return new Date(dateString).toLocaleDateString(locale, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
 }
 
-export function formatArticleDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('pt-BR', {
+export function formatArticleDate(dateString: string, locale = 'pt-BR'): string {
+  return new Date(dateString).toLocaleDateString(locale, {
     weekday: 'long',
     day: '2-digit',
     month: 'long',
@@ -46,9 +48,9 @@ export function formatPipelineDuration(seconds: number | null | undefined): stri
   return `${minutes}m ${rest}s`;
 }
 
-/** Número com separador pt-BR (ex.: 3484 → "3.484"). */
-export function formatCount(value: number): string {
-  return value.toLocaleString('pt-BR');
+/** Número com separador do locale (ex.: 3484 → "3.484" em pt-BR, "3,484" em en-US). */
+export function formatCount(value: number, locale = 'pt-BR'): string {
+  return value.toLocaleString(locale);
 }
 
 /** 'gemini' → 'Gemini' (primeira letra maiúscula, resto intacto). */

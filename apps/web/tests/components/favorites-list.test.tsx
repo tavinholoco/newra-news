@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FavoritesList } from '@/components/favorites/favorites-list';
+import { renderWithIntl } from '@/tests/utils';
 
 const useFavoritesMock = vi.fn();
 
@@ -45,7 +46,7 @@ beforeEach(() => {
 describe('FavoritesList', () => {
   it('should show skeletons while loading without data', () => {
     useFavoritesMock.mockReturnValue({ data: undefined, isLoading: true, isError: false });
-    render(<FavoritesList />);
+    renderWithIntl(<FavoritesList />);
 
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
   });
@@ -59,7 +60,7 @@ describe('FavoritesList', () => {
       refetch,
     });
     const user = userEvent.setup();
-    render(<FavoritesList />);
+    renderWithIntl(<FavoritesList />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Não foi possível carregar seus favoritos.',
@@ -74,7 +75,7 @@ describe('FavoritesList', () => {
       isLoading: false,
       isError: false,
     });
-    render(<FavoritesList />);
+    renderWithIntl(<FavoritesList />);
 
     expect(screen.getByText(/ainda não favoritou nenhuma notícia/i)).toBeInTheDocument();
   });
@@ -88,7 +89,7 @@ describe('FavoritesList', () => {
       isLoading: false,
       isError: false,
     });
-    render(<FavoritesList />);
+    renderWithIntl(<FavoritesList />);
 
     expect(screen.getByText('Notícia Favorita')).toBeInTheDocument();
   });

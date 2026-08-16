@@ -1,3 +1,8 @@
+'use client';
+
+import { useLocale, useTranslations } from 'next-intl';
+import { toDateFormatLocale } from '@/lib/i18n';
+
 const BAR_COLORS = [
   'bg-chart-1',
   'bg-chart-2',
@@ -12,12 +17,14 @@ interface CategoryBarsProps {
 }
 
 export function CategoryBars({ data, labels }: CategoryBarsProps) {
+  const t = useTranslations('dashboard');
+  const locale = useLocale();
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
 
   if (entries.length === 0) {
     return (
       <p className='text-sm text-muted-foreground'>
-        Sem dados no período.
+        {t('noData')}
       </p>
     );
   }
@@ -40,7 +47,7 @@ export function CategoryBars({ data, labels }: CategoryBarsProps) {
             />
           </div>
           <span className='w-14 shrink-0 text-right text-sm font-medium tabular-nums text-foreground'>
-            {count.toLocaleString('pt-BR')}
+            {count.toLocaleString(toDateFormatLocale(locale))}
           </span>
         </li>
       ))}

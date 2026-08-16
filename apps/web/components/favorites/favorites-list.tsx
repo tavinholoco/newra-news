@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Heart } from 'lucide-react';
 import { useFavorites } from '@/lib/queries';
 import { NewsCard } from '@/components/news/news-card';
@@ -7,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function FavoritesList() {
+  const t = useTranslations('favorites');
+  const tCommon = useTranslations('common');
   const { data, isLoading, isError, refetch } = useFavorites();
 
   if (isLoading && !data) {
@@ -30,10 +33,10 @@ export function FavoritesList() {
         className='rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center'
       >
         <p className='mb-4 text-muted-foreground'>
-          Não foi possível carregar seus favoritos.
+          {t('loadError')}
         </p>
         <Button variant='outline' onClick={() => void refetch()}>
-          Tentar novamente
+          {tCommon('retry')}
         </Button>
       </div>
     );
@@ -46,10 +49,10 @@ export function FavoritesList() {
       <div className='rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center'>
         <Heart className='mx-auto mb-3 h-8 w-8 text-muted-foreground/50' />
         <p className='text-muted-foreground'>
-          Você ainda não favoritou nenhuma notícia.
+          {t('emptyTitle')}
         </p>
         <p className='mt-1 text-sm text-muted-foreground/70'>
-          Toque no coração em uma notícia para salvá-la aqui.
+          {t('emptyHint')}
         </p>
       </div>
     );
