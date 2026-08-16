@@ -76,6 +76,12 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `BACKEND_JOB_URL` | ⚠️ | URL de trigger do pipeline (só relevante no deploy) |
 | `BACKEND_JOB_SECRET` | ⚠️ | `JOB_SECRET` do backend (só relevante no deploy) |
 
+> ⚠️ **`BACKEND_JOB_SECRET` deve ser exatamente igual ao `JOB_SECRET` do
+> backend** (`apps/api/.env`) — o cron web autentica no endpoint
+> `POST /api/jobs/daily-pipeline` com esse valor. Se divergirem, o cron
+> responde `502` com `Invalid or missing token`. No deploy, configure o
+> mesmo valor nos dois ambientes (Vercel + Render).
+
 > 💡 Se faltar alguma variável obrigatória, o backend exibe um painel no console
 > listando as variáveis ausentes — basta copiar o `.env.example` e preencher.
 

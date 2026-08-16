@@ -10,10 +10,11 @@ de fontes brasileiras e internacionais.
   deduplica, e gera o artigo do dia via **Gemini** (com fallback **Groq**)
 - **8 categorias** — TECHNOLOGY, POLITICS, ECONOMY, SPORTS, SCIENCE,
   ENTERTAINMENT, WORLD e HEALTH, com classificação por palavras-chave nos feeds RSS
-- **Home com feed de notícias** e artigo do dia em destaque (ISR)
+- **Home com feed de notícias** e artigo do dia em destaque
 - **Busca e filtros por categoria** em tempo real (TanStack Query)
 - **Histórico de artigos diários** — navegue por data
-- **SEO completo** — sitemap automático, Open Graph, meta tags dinâmicas
+- **i18n pt-BR/en** — next-intl com rotas `/pt-BR` e `/en` (seletor no header, SSG/ISR por idioma)
+- **SEO completo** — sitemap automático, Open Graph, meta tags dinâmicas localizadas
 - **Mobile-first** com Tailwind CSS + shadcn/ui
 - **Dark mode** com toggle e preferência do sistema
 - **Métricas em produção** — painel `/api/metrics/*` com contagens por provider e categoria

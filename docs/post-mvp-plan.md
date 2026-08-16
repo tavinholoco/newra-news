@@ -121,9 +121,12 @@ enum UserRole {
 ### 3.1 Stack
 
 - **next-intl** — padrão de facto para App Router, compatível com Next 14.
-- **Estratégia de locale**: cookie `locale` + middleware (sem prefixo de URL;
-  default `pt-BR`). Menos invasivo que rotas `/pt` `/en` e suficiente para o
-  caso (site novo, sem SEO multilingue por enquanto).
+- **Estratégia de locale (migrada)**: **rotas com prefixo** `/pt-BR` `/en`
+  (`localePrefix: 'always'`) — implementado em 2026-08-16 para recuperar a
+  renderização estática + ISR por idioma (o cookie sozinho tornava as páginas
+  dinâmicas). Middleware negocia o locale (cookie `NEXT_LOCALE` →
+  accept-language → default `pt-BR`) e redireciona URLs sem prefixo.
+  `setRequestLocale` + `generateStaticParams` habilitam SSG/ISR por idioma.
 
 ### 3.2 Escopo
 
@@ -179,8 +182,9 @@ enum UserRole {
 - [x] **P1.2** — plugin de auth JWT na API + upsert de User no signIn + testes
 - [x] **P1.3** — `Favorite` model + rotas `/api/favorites` + testes
 - [x] **P1.4** — frontend: toggle no card/detalhe, página `/favorites`, navbar + testes
-- [ ] **P2.1** — next-intl + middleware de locale + `messages/` pt-BR/en
-- [ ] **P2.2** — extração de strings de UI + datas localizadas + teste de paridade
+- [x] **P2.1** — next-intl 3.26 + middleware de locale + `messages/pt-BR.json` e `messages/en.json` (inicialmente cookie; **migrado p/ prefixo `/pt-BR` `/en`** — ver 7)
+- [x] **P2.2** — extração de strings de UI (navbar, footer, newsletter, botões, headings, metadata, not-found, error.tsx, dashboard, favoritos) + datas/contagens localizadas (`formatDate`/`formatArticleDate`/`formatCount` recebem locale) + seletor de idioma no header + teste de paridade de chaves + render pt/en
+- [x] **P2.3** — migração para rotas com prefixo (`/pt-BR`, `/en`): `i18n/routing.ts` + `i18n/navigation.ts` (Link/usePathname/useRouter com prefixo), `setRequestLocale` + `generateStaticParams`, páginas movidas para `app/[locale]/`, root layout pass-through, sitemap/hreflang por idioma, LocaleSwitcher com `router.replace(pathname, {locale})` — **ISR restaurado** (`● SSG` + `revalidate: 3600` por idioma), 65 testes verdes, validado em dev e produção
 - [ ] **P3** (opcional) — `/admin` (trigger pipeline + delete news) + `DELETE /api/news/:id`
 - [ ] **Docs** — `docs/api.md`, `docs/setup.md`, `docs/presentation.md`; marcar no `docs/progress.md`
 
@@ -189,8 +193,21 @@ enum UserRole {
 ## 7. Decisões confirmadas (2026-08-16)
 
 - [x] Provedores OAuth: **Google + GitHub**
-- [x] i18n: **cookie sem prefixo** (default `pt-BR`)
+- [x] i18n: ~~cookie sem prefixo~~ → **prefixo de URL `/pt-BR` `/en`** (2026-08-16: recupera SSG/ISR por idioma e dá URLs canônicas + hreflang para SEO multilingue)
 - [x] Painel admin (P3): **depois do Item 9** (fora do escopo imediato)
 
 > **P1 concluído (2026-08-16)** — auth + favoritos completos (backend + frontend).
-> Próximo: **P2** (i18n pt/en, next-intl).
+> **P2 concluído (2026-08-16)** — i18n pt/en com next-intl 3.26: primeiro com
+> cookie (sem prefixo) e **migrado para rotas com prefixo `/pt-BR` `/en`** —
+> `setRequestLocale` + `generateStaticParams` + `i18n/navigation` (Link/usePathname/
+> useRouter com prefixo), páginas sob `app/[locale]/`, sitemap/hreflang por
+> idioma, seletor no header (`router.replace`). **ISR restaurado:** páginas
+> `● SSG` com `revalidate: 3600` por idioma (o cookie sozinho tornava tudo
+> dinâmico). 65 testes web verdes + validado em dev e produção (hidratação,
+> troca PT/EN, redirects, hreflang).
+> **Detalhe de implementação importante:** com root layout pass-through, não
+> pode haver `loading.tsx`/`error.tsx` na raiz (boundaries caem fora do
+> `<html>` e quebram a hidratação — "Only one element on document allowed");
+> eles vivem em `app/[locale]/`, e o `not-found.tsx` raiz renderiza `<html>`
+> próprio.
+> Próximo: **P3** (admin, opcional — após o Item 9) ou o **Item 9** (observabilidade).
