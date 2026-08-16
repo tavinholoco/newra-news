@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -34,7 +35,18 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json();
-    return NextResponse.json({ success: true, data });
+
+    // Pipeline concluído: invalida o cache estático para que o HTML (SSG + ISR)
+    // seja regenerado já na próxima visita, sem esperar o revalidate de 3600s.
+    // Importante: o cache do Next grava as tags com o padrão literal da rota
+    // (ex.: "_N_T_/[locale]/layout") — por isso revalidamos o padrão /[locale],
+    // que cobre todas as páginas dos dois idiomas (/, /news, /article,
+    // /dashboard...). O sitemap também é revalidado para refletir as novas
+    // notícias/artigos imediatamente.
+    revalidatePath('/[locale]', 'layout');
+    revalidatePath('/sitemap.xml');
+
+    return NextResponse.json({ success: true, data, revalidated: true });
   } catch {
     return NextResponse.json(
       { success: false, error: 'Pipeline trigger failed' },
