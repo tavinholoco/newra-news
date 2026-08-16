@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Navbar } from './navbar';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { AuthButton } from '@/components/auth/auth-button';
 import { NAV_LINKS } from '@/lib/constants';
 
 export function Header() {
@@ -24,6 +25,7 @@ export function Header() {
 
         <div className='flex items-center gap-1'>
           <ThemeToggle />
+          <AuthButton />
           <Navbar links={NAV_LINKS} />
         </div>
       </div>
