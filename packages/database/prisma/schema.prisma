@@ -39,13 +39,37 @@ model Article {
 }
 
 model PipelineLog {
-  id          String         @id @default(uuid())
+  id          String          @id @default(uuid())
   status      PipelineStatus
-  newsCount   Int            @default(0)
+  newsCount   Int             @default(0)
   articleId   String?
+  // Erro da falha (legado — string única); os novos campos estruturados são
+  // errorStage/errorDetail (observabilidade, item 9)
   error       String?
-  startedAt   DateTime       @default(now())
+  // Etapa da falha (Stage 1–9, ex.: 7.5 newsletter) — null quando não falhou
+  errorStage  Float?
+  // Erro estruturado: { message, provider?, statusCode? }
+  errorDetail Json?
+  startedAt   DateTime        @default(now())
   completedAt DateTime?
+  events      PipelineEvent[]
+}
+
+model PipelineEvent {
+  id            String              @id @default(uuid())
+  pipelineLogId String
+  stage         Float               // Stage 1–9 (ex.: 7.5 = newsletter)
+  level         PipelineEventLevel
+  message       String
+  context       Json?
+  createdAt     DateTime            @default(now())
+
+  pipelineLog PipelineLog @relation(fields: [pipelineLogId], references: [id], onDelete: Cascade)
+
+  @@index([pipelineLogId, createdAt])
+  @@index([level])
+  @@index([stage])
+  @@index([createdAt])
 }
 
 model User {
@@ -125,6 +149,12 @@ enum PipelineStatus {
   RUNNING
   SUCCESS
   FAILED
+}
+
+enum PipelineEventLevel {
+  INFO
+  WARN
+  ERROR
 }
 
 enum SubscriberStatus {

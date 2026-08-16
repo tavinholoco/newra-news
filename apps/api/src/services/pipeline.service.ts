@@ -2,6 +2,7 @@ import { prisma } from '@newranews/database';
 import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
+import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import type { RawNewsItem } from '../providers/types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -68,6 +69,9 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
   const startedAt = Date.now();
   const today = startOfDay(new Date());
 
+  // Etapa atual — usada para gravar o errorStage quando o pipeline falha
+  let currentStage = 1;
+
   const metrics = {
     newsDataCount: 0,
     rssCount: 0,
@@ -81,32 +85,56 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
 
   try {
     // Stage 1: Collect news (NewsData.io + RSS)
+    currentStage = 1;
     const { newsDataItems, rssItems, allItems } = await fetchAll();
     metrics.newsDataCount = newsDataItems.length;
     metrics.rssCount = rssItems.length;
+    await logPipelineEvent(pipelineLogId, 1, 'INFO', 'News collected', {
+      newsDataCount: newsDataItems.length,
+      rssCount: rssItems.length,
+      total: allItems.length,
+    });
 
     // Stage 2: Normalization already handled by providers (RawNewsItem format)
 
     // Stage 3: Deduplicate by sourceUrl
+    currentStage = 3;
     const deduplicated = deduplicateByUrl(allItems);
     metrics.newsCollected = deduplicated.length;
     metrics.newsByCategory = countByCategory(deduplicated);
+    await logPipelineEvent(pipelineLogId, 3, 'INFO', 'News deduplicated', {
+      before: allItems.length,
+      after: deduplicated.length,
+    });
 
     // Stage 4: Persist news items
-    await prisma.news.createMany({ data: deduplicated });
+    currentStage = 4;
+    const persisted = await prisma.news.createMany({ data: deduplicated });
+    await logPipelineEvent(pipelineLogId, 4, 'INFO', 'News persisted', {
+      count: persisted.count,
+    });
 
     // Stage 5: Select top items for AI generation
+    currentStage = 5;
     const selected = selectTopItems(deduplicated);
 
     if (selected.length === 0) {
       throw new Error('No news items available for article generation');
     }
+    await logPipelineEvent(pipelineLogId, 5, 'INFO', 'Top items selected for AI', {
+      count: selected.length,
+    });
 
     // Stage 6: Generate article via AI (Gemini → Groq fallback)
+    currentStage = 6;
     const { article, provider } = await generateArticle(selected);
     metrics.aiProvider = provider;
+    await logPipelineEvent(pipelineLogId, 6, 'INFO', 'Article generated', {
+      provider,
+    });
 
     // Stage 7: Persist article (upsert by date — one article per day)
+    currentStage = 7;
     const savedArticle = await prisma.article.upsert({
       where: { date: today },
       create: {
@@ -124,6 +152,9 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       },
     });
     metrics.articleGenerated = true;
+    await logPipelineEvent(pipelineLogId, 7, 'INFO', 'Article persisted', {
+      articleId: savedArticle.id,
+    });
 
     // Update log with counts before cleanup
     await prisma.pipelineLog.update({
@@ -139,18 +170,22 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
     // Não incrementa pipelineErrors de propósito: a newsletter é opcional e
     // sua indisponibilidade não deve marcar o dia como falha do pipeline.
     try {
+      currentStage = 7.5;
       const newsletter = await sendDailyNewsletter();
-      if (newsletter.total > 0) {
-        console.warn(
-          `[pipeline] newsletter: ${newsletter.sent}/${newsletter.total} sent (${newsletter.failed} failed)`,
-        );
-      }
+      await logPipelineEvent(pipelineLogId, 7.5, 'INFO', 'Daily newsletter sent', {
+        total: newsletter.total,
+        sent: newsletter.sent,
+        failed: newsletter.failed,
+      });
     } catch (newsletterErr) {
-      console.warn('[pipeline] newsletter failed (non-critical):', newsletterErr);
+      await logPipelineEvent(pipelineLogId, 7.5, 'WARN', 'Newsletter failed (non-critical)', {
+        ...extractErrorDetail(newsletterErr),
+      });
     }
 
     // Stage 8: Cleanup old data (non-critical — failure does not abort pipeline)
     try {
+      currentStage = 8;
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -165,13 +200,19 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
         prisma.article.deleteMany({ where: { createdAt: { lt: ninetyDaysAgo } } }),
       ]);
       metrics.cleanupCount = deletedNews.count + deletedLogs.count + deletedArticles.count;
+      await logPipelineEvent(pipelineLogId, 8, 'INFO', 'Cleanup completed', {
+        deleted: metrics.cleanupCount,
+      });
     } catch (cleanupErr) {
-      console.warn('[pipeline] cleanup failed (non-critical):', cleanupErr);
       metrics.pipelineErrors += 1;
+      await logPipelineEvent(pipelineLogId, 8, 'WARN', 'Cleanup failed (non-critical)', {
+        ...extractErrorDetail(cleanupErr),
+      });
     }
 
     // Stage 9: Record daily metrics (non-critical — failure does not abort pipeline)
     try {
+      currentStage = 9;
       const pipelineDuration = Date.now() - startedAt;
       await prisma.dailyMetric.upsert({
         where: { date: today },
@@ -199,23 +240,38 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
           pipelineErrors: metrics.pipelineErrors,
         },
       });
+      await logPipelineEvent(pipelineLogId, 9, 'INFO', 'Daily metrics recorded', {
+        durationMs: pipelineDuration,
+      });
     } catch (metricsErr) {
-      console.warn('[pipeline] metrics recording failed (non-critical):', metricsErr);
+      await logPipelineEvent(pipelineLogId, 9, 'WARN', 'Metrics recording failed (non-critical)', {
+        ...extractErrorDetail(metricsErr),
+      });
     }
 
     // Mark pipeline as successful
+    currentStage = 9;
     await prisma.pipelineLog.update({
       where: { id: pipelineLogId },
       data: { status: 'SUCCESS', completedAt: new Date() },
     });
+    await logPipelineEvent(pipelineLogId, 9, 'INFO', 'Pipeline completed successfully', {
+      durationMs: Date.now() - startedAt,
+    });
   } catch (error) {
+    const detail = extractErrorDetail(error);
     await prisma.pipelineLog.update({
       where: { id: pipelineLogId },
       data: {
         status: 'FAILED',
-        error: error instanceof Error ? error.message : String(error),
+        error: detail.message,
+        errorStage: currentStage,
+        errorDetail: { ...detail },
         completedAt: new Date(),
       },
+    });
+    await logPipelineEvent(pipelineLogId, currentStage, 'ERROR', detail.message, {
+      ...detail,
     });
     throw error;
   }

@@ -19,6 +19,8 @@ import { metricsRoutes } from './routes/metrics';
 import { newsletterRoutes } from './routes/newsletter';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
+import { devLogsRoutes } from './routes/dev/logs';
+import { devDashboardRoutes } from './routes/dev/dashboard';
 import { AppError } from './utils/errors';
 
 export async function buildApp() {
@@ -61,6 +63,10 @@ export async function buildApp() {
   await app.register(authRoutes, { prefix: '/api/auth' });
 
   await app.register(favoritesRoutes, { prefix: '/api/favorites' });
+
+  // Observabilidade (dev-only) — protegida por JOB_SECRET, sem exposição pública
+  await app.register(devLogsRoutes, { prefix: '/api/dev' });
+  await app.register(devDashboardRoutes, { prefix: '/dev' });
 
   return app;
 }

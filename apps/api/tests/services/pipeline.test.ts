@@ -23,6 +23,9 @@ vi.mock('@newranews/database', async (importOriginal) => {
       dailyMetric: {
         upsert: vi.fn(),
       },
+      pipelineEvent: {
+        create: vi.fn(),
+      },
     },
   };
 });
@@ -111,6 +114,7 @@ beforeEach(() => {
   vi.mocked(prisma.article.upsert).mockResolvedValue(mockSavedArticle as never);
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
+  vi.mocked(prisma.pipelineEvent.create).mockResolvedValue({} as never);
   vi.mocked(fetchAll).mockResolvedValue(mockFetchResult);
   vi.mocked(generateArticle).mockResolvedValue(mockGeneratedArticle);
   vi.mocked(sendDailyNewsletter).mockResolvedValue({
@@ -223,5 +227,88 @@ describe('PipelineService', () => {
       (call) => (call[0] as { data: { status?: string } }).data?.status === 'SUCCESS',
     );
     expect(successUpdate).toBeDefined();
+  });
+
+  it('should record INFO pipeline events for each stage on success', async () => {
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const created = vi.mocked(prisma.pipelineEvent.create).mock.calls.map(
+      (call) => (call[0] as { data: { stage: number; level: string; message: string } }).data,
+    );
+    expect(created.length).toBeGreaterThanOrEqual(8);
+    expect(created.every((e) => e.level === 'INFO')).toBe(true);
+    expect(created.map((e) => e.stage)).toEqual(
+      expect.arrayContaining([1, 3, 4, 5, 6, 7, 7.5, 8, 9]),
+    );
+    expect(created).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 1, message: 'News collected' }),
+        expect.objectContaining({ stage: 6, message: 'Article generated' }),
+        expect.objectContaining({ stage: 9, message: 'Pipeline completed successfully' }),
+      ]),
+    );
+  });
+
+  it('should log a WARN event when the newsletter fails (non-critical)', async () => {
+    vi.mocked(sendDailyNewsletter).mockRejectedValue(
+      new Error('Newsletter service down'),
+    );
+
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const warnCall = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) =>
+        (call[0] as { data: { level: string; stage: number } }).data?.level ===
+        'WARN',
+    );
+    expect(warnCall).toBeDefined();
+    const data = warnCall?.[0] as { data: { stage: number; message: string; context: unknown } };
+    expect(data.data.stage).toBe(7.5);
+    expect(data.data.message).toBe('Newsletter failed (non-critical)');
+  });
+
+  it('should record the failing stage and structured error on failure', async () => {
+    vi.mocked(fetchAll).mockRejectedValue(new Error('Gemini API error 500: boom'));
+
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const failedUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+      (call) => (call[0] as { data: { status?: string } }).data?.status === 'FAILED',
+    );
+    expect(failedUpdate).toBeDefined();
+    const failedData = failedUpdate?.[0] as {
+      data: {
+        error: string;
+        errorStage: number;
+        errorDetail: { message: string; provider?: string; statusCode?: number };
+      };
+    };
+    expect(failedData.data.error).toBe('Gemini API error 500: boom');
+    expect(failedData.data.errorStage).toBe(1);
+    expect(failedData.data.errorDetail).toEqual({
+      message: 'Gemini API error 500: boom',
+      provider: 'gemini',
+      statusCode: 500,
+    });
+
+    const errorEvent = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) =>
+        (call[0] as { data: { level: string } }).data?.level === 'ERROR',
+    );
+    expect(errorEvent).toBeDefined();
+    const eventData = errorEvent?.[0] as {
+      data: { stage: number; message: string; context: unknown };
+    };
+    expect(eventData.data.stage).toBe(1);
+    expect(eventData.data.message).toBe('Gemini API error 500: boom');
   });
 });
