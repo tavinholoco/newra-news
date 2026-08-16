@@ -18,6 +18,7 @@ import { jobStatusRoutes } from './routes/jobs/[id]';
 import { metricsRoutes } from './routes/metrics';
 import { newsletterRoutes } from './routes/newsletter';
 import { authRoutes } from './routes/auth';
+import { favoritesRoutes } from './routes/favorites';
 import { AppError } from './utils/errors';
 
 export async function buildApp() {
@@ -58,6 +59,8 @@ export async function buildApp() {
   await app.register(newsletterRoutes, { prefix: '/api/newsletter' });
 
   await app.register(authRoutes, { prefix: '/api/auth' });
+
+  await app.register(favoritesRoutes, { prefix: '/api/favorites' });
 
   return app;
 }
