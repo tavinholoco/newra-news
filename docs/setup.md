@@ -61,10 +61,15 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `GEMINI_MODEL` | ❌ | Modelo Gemini (default `gemini-2.5-flash`) |
 | `GROQ_API_KEY` | ✅ | Chave da Groq (fallback de IA) |
 | `GROQ_MODEL` | ❌ | Modelo Groq (default `llama-3.1-8b-instant`) |
-| `JOB_SECRET` | ✅ | Token Bearer para disparar o pipeline |
+| `JOB_SECRET` | ✅ | Token Bearer para disparar o pipeline (e proteger os endpoints `/api/dev/*` e `/dev/dashboard`) |
 | `CORS_ORIGIN` | ❌ | Origem permitida no CORS (default `http://localhost:3000`) |
 | `CRON_SCHEDULE` | ❌ | Cron interno (default `0 8 * * *`) |
 | `CRON_TIMEZONE` | ❌ | Timezone do cron (default `America/Sao_Paulo`) |
+| `RESEND_API_KEY` | ⚠️ | Chave da Resend p/ a newsletter (opcional — sem ela o envio é pulado no pipeline) |
+| `SITE_URL` | ❌ | URL pública do frontend usada nos links do e-mail (default `http://localhost:3000`) |
+| `NEWSLETTER_FROM` | ❌ | Remetente com domínio verificado no Resend (default `Newra News <news@newranews.com>`) |
+| `AUTH_JWT_SECRET` | ⚠️ | Secret compartilhado com o web (a API valida os JWTs que o frontend assina). **Deve ser idêntico ao `AUTH_JWT_SECRET` do web** |
+| `ADMIN_EMAILS` | ❌ | E-mails com `role: ADMIN` no login (separados por vírgula). Vale no **próximo sign-in** |
 
 ### 3.3 Frontend (`apps/web/.env.local`)
 
@@ -75,12 +80,24 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `CRON_SECRET` | ⚠️ | Token do cron Vercel (só relevante no deploy) |
 | `BACKEND_JOB_URL` | ⚠️ | URL de trigger do pipeline (só relevante no deploy) |
 | `BACKEND_JOB_SECRET` | ⚠️ | `JOB_SECRET` do backend (só relevante no deploy) |
+| `NEXTAUTH_URL` | ⚠️ | URL base do site p/ o next-auth (local: `http://localhost:3000`) |
+| `NEXTAUTH_SECRET` | ✅ | Secret do next-auth (gerar com `openssl rand -base64 32`) |
+| `AUTH_JWT_SECRET` | ✅ | Secret compartilhado com a API (**idêntico ao `AUTH_JWT_SECRET` do backend**) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | ⚠️ | OAuth do Google — clientId vazio desativa o botão (o fluxo não completa) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | ⚠️ | OAuth do GitHub — idem; basta um dos dois providers configurado |
 
 > ⚠️ **`BACKEND_JOB_SECRET` deve ser exatamente igual ao `JOB_SECRET` do
 > backend** (`apps/api/.env`) — o cron web autentica no endpoint
 > `POST /api/jobs/daily-pipeline` com esse valor. Se divergirem, o cron
 > responde `502` com `Invalid or missing token`. No deploy, configure o
 > mesmo valor nos dois ambientes (Vercel + Render).
+
+> 🔑 **OAuth local:** nos OAuth Apps criados no Google/GitHub, a redirect URI
+> de dev é `http://localhost:3000/api/auth/callback/google` (ou
+> `/callback/github`). No Google, enquanto o app estiver em modo *Testing*,
+> adicione seu e-mail em *Usuários de teste* — senão o login falha no Google.
+> Após alterar o `.env.local`, **reinicie o dev server do web** (as envs são
+> lidas no boot).
 
 > 💡 Se faltar alguma variável obrigatória, o backend exibe um painel no console
 > listando as variáveis ausentes — basta copiar o `.env.example` e preencher.
@@ -98,8 +115,9 @@ docker compose up -d
 # Gerar o Prisma Client
 pnpm db:generate
 
-# Criar/rodar as migrations
-pnpm db:migrate
+# Aplicar o schema ao banco. Neste repo as migrations são gitignored
+# (local-only): use `prisma db push` para aplicar direto e regenerar o client.
+pnpm --filter @newranews/database exec prisma db push
 
 # (Opcional) Popular com dados realistas de todas as categorias
 pnpm db:seed
@@ -125,16 +143,18 @@ Isso inicia os dois apps via Turborepo:
 
 | App | URL |
 |-----|-----|
-| Frontend (Next.js) | `http://localhost:3000` |
+| Frontend (Next.js) | `http://localhost:3000` (páginas em `/pt-BR` e `/en`) |
 | Backend (Fastify) | `http://localhost:3001` |
 | Swagger (API docs) | `http://localhost:3001/api/docs` |
+| Painel admin | `http://localhost:3000/pt-BR/admin` (login + role `ADMIN`) |
+| Dashboard de logs (dev) | `http://localhost:3001/dev/dashboard?secret=<JOB_SECRET>` |
 
 ---
 
 ## 6. Testes, lint e build
 
 ```bash
-pnpm test                      # Vitest (backend)
+pnpm test                      # Vitest (API + web, via turbo)
 pnpm --filter @newranews/api test:coverage   # testes + cobertura (threshold 70%)
 pnpm lint                      # ESLint no monorepo
 pnpm build                     # build de produção (todos os apps)
@@ -167,6 +187,23 @@ Diagnóstico rápido das chaves dos providers (NewsData, Gemini, Groq):
 curl http://localhost:3001/api/health/providers -H "Authorization: Bearer <SEU_JOB_SECRET>"
 # → { "newsdata": "ok", "gemini": "ok", "groq": "ok" }
 ```
+
+Observabilidade da pipeline (dev-only, protegida por `JOB_SECRET`):
+
+```bash
+# Últimos runs + erros recentes (filtros: ?status=FAILED&since=2026-08-01&limit=20)
+curl http://localhost:3001/api/dev/logs -H "Authorization: Bearer <SEU_JOB_SECRET>"
+
+# Detalhe de um run com os eventos por etapa
+curl http://localhost:3001/api/dev/logs/<pipelineId> -H "Authorization: Bearer <SEU_JOB_SECRET>"
+
+# Painel HTML no browser
+# http://localhost:3001/dev/dashboard?secret=<SEU_JOB_SECRET>
+```
+
+Auth local (OAuth): logar em `http://localhost:3000/pt-BR/signin` com
+Google/GitHub. O role de admin segue `ADMIN_EMAILS` do backend e é aplicado
+no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 
 ---
 

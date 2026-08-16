@@ -175,7 +175,7 @@ mockável nos testes — mesmo padrão de `providers/ai/` e `providers/news/`.
 - [x] **4. Pipeline**: estágio 7.5 no `pipeline.service.ts` (chama `sendDailyNewsletter` após persistir o artigo, antes do cleanup; try/catch não-crítico; log `[pipeline] newsletter: sent/total`; **não** incrementa `pipelineErrors` — newsletter é opcional e não deve marcar o dia como falha) + 2 testes de integração no `pipeline.test.ts`
 - [x] **5. Frontend**: `SubscribeForm` no footer (client component com validação, estados sucesso/erro/loading e `aria-invalid`/roles) + página `/newsletter/unsubscribe` (server component com metadata noindex, estados cancelado/inválido) + 6 testes (api client + form)
 - [ ] **6. Deploy**: env vars no Render (RESEND_API_KEY, SITE_URL, NEWSLETTER_FROM) + domínio verificado no Resend; validação em produção — **checklist pronto** em `docs/deploy-newsletter.md` (domínio no Resend, envs no Render, roteiro de teste em produção); `render.yaml` atualizado com as 3 env vars
-- [ ] **7. Docs**: setup.md, presentation.md; marcar item no progress.md
+- [x] **7. Docs (2026-08-16)**: setup.md (envs de auth + newsletter + painel dev; fluxo local com `prisma db push`) e presentation.md (números de testes atualizados, auth/i18n/admin no roteiro); item 8 marcado no progress.md — **deploy (passo 6) continua pendente**
 
 ---
 

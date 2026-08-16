@@ -53,7 +53,8 @@ Diagramas Mermaid completos: [`docs/diagrams/`](diagrams/) (arquitetura, ER, seq
 - **IA com fallback automático** — Gemini principal, Groq de reserva; se ambos falham, o pipeline continua só com notícias.
 - **Resiliência de fontes** — NewsData.io + 13 feeds RSS independentes; o sistema funciona mesmo se uma fonte cair.
 - **ISR para performance** — todas as páginas dinâmicas revalidam a cada hora; sitemap e Open Graph automáticos.
-- **Qualidade de código** — 247 testes, cobertura do backend 94%, Lighthouse 96/96/96/100, typecheck no CI, sem `any`.
+- **Qualidade de código** — 422 testes (330 API + 92 web), cobertura do backend 97%, Lighthouse 96/96/96/100, typecheck no CI, sem `any`.
+- **Auth + i18n + admin (pós-MVP)** — OAuth Google/GitHub (next-auth v4 + JWT compartilhado web↔API), favoritos, site bilíngue pt/en (next-intl, rotas `/pt-BR` `/en`), painel admin (trigger do pipeline + remoção de notícia).
 
 ---
 
@@ -63,7 +64,7 @@ Diagramas Mermaid completos: [`docs/diagrams/`](diagrams/) (arquitetura, ER, seq
 - **Volume:** ~491 notícias/dia coletadas; 8/8 categorias preenchidas
 - **Confiabilidade:** backend no Render com ~92 dias de uptime; UptimeRobot mantém o servidor ativo
 - **Qualidade:** Lighthouse mobile — Performance 96 · Accessibility 96 · Best Practices 96 · SEO 100
-- **Testes:** 247 testes em 25 suites; cobertura backend 94,3% linhas (threshold 70% no CI)
+- **Testes:** 422 testes (330 API + 92 web) em 49 suites; cobertura backend 97% linhas (threshold 70% no CI)
 
 ---
 
@@ -85,13 +86,16 @@ Diagramas Mermaid completos: [`docs/diagrams/`](diagrams/) (arquitetura, ER, seq
 1. **Abra a home** (https://newra-news-web.vercel.app) — mostre o artigo do dia em destaque e o feed.
 2. **Mostre a listagem** `/news` — filtros por categoria e busca em tempo real (cliente), paginação.
 3. **Abra um artigo do histórico** — conteúdo gerado por IA, datas navegáveis.
-4. **Explore o código** na ordem: `docs/diagrams/system-architecture.mmd` → `apps/api/src/services/pipeline.service.ts` (os 9 estágios) → providers (`newsdata`, `rss`, `gemini`, `groq`) → `apps/web/app/(home)/page.tsx` (ISR).
+4. **Explore o código** na ordem: `docs/diagrams/system-architecture.mmd` → `apps/api/src/services/pipeline.service.ts` (os 9 estágios + 7.5 da newsletter) → providers (`newsdata`, `rss`, `gemini`, `groq`) → `apps/web/app/[locale]/page.tsx` (ISR) → `apps/web/lib/auth.ts` + `app/[locale]/signin` (OAuth) → `app/[locale]/admin` (painel).
 5. **Fale de qualidade**: `docs/api.md` (Swagger), testes (cobertura 94%), CI (`.github/workflows/ci.yml`), Lighthouse (`.lighthouserc.json`).
 6. **Conte os desafios reais** resolvidos:
    - NewsAPI → NewsData.io: provider novo + fallback para `source_name` ausente e remoção do placeholder de tier pago (o pipeline abortava sem isso)
    - Sitemap com URLs de localhost e artigos faltando → fallback para `VERCEL_PROJECT_PRODUCTION_URL` + paginação
    - Encoding ISO-8859-1 e imagens quebradas nos feeds RSS
    - Dark mode sem FOUC (script anti-flash + `suppressHydrationWarning`)
+   - Páginas protegidas que redirecionavam até usuários logados (SSG com `redirect()` assado no HTML) → `force-dynamic`
+   - Dead-end no sign-in (loop `/?callbackUrl=...`) → página própria `/signin` localizada com botões OAuth
+   - `process.env.X = undefined` vira a string `"undefined"` (truthy) em testes — usar `delete`
 
 ---
 
@@ -100,8 +104,8 @@ Diagramas Mermaid completos: [`docs/diagrams/`](diagrams/) (arquitetura, ER, seq
 - **"Por que Next.js + Fastify e não um framework só?"** — Frontend e backend desacoplados permitem escalar/rebuildar cada um independentemente, e mostram proficiência em REST puro, não só em server actions.
 - **"Como o artigo é gerado?"** — `config/ai-prompts.ts` define o prompt (ajustável sem tocar lógica); o `ai.service` tenta Gemini e cai para Groq; saída validada (tamanho mínimo, seções).
 - **"E se a API de notícias cair?"** — RSS é fonte independente; cada provider reporta falha sem abortar o pipeline (log + segue).
-- **"Como garante qualidade?"** — CI com lint + typecheck + 247 testes + cobertura mínima 70%; Lighthouse semanal com gate <90; endpoint protegido `/api/health/providers` diagnostica as chaves ao vivo.
-- **"Próximos passos?"** — Dashboard público de métricas no frontend (Item 8 do plano), newsletter do artigo diário, observabilidade estruturada do pipeline (Item 9).
+- **"Como garante qualidade?"** — CI com lint + typecheck + 422 testes + cobertura mínima 70%; Lighthouse semanal com gate <90; endpoint protegido `/api/health/providers` diagnostica as chaves ao vivo; painel dev-only `/dev/dashboard` com logs e erros da pipeline.
+- **"Próximos passos?"** — Deploy da newsletter (domínio verificado no Resend + envs no Render) e domínio customizado. O resto do roadmap (métricas, observabilidade, auth, i18n, admin) já está implementado.
 
 ---
 
