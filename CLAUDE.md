@@ -46,9 +46,10 @@
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) — pendente
-- **Último marco:** Fase 4 concluída em 2026-08-14 — pipeline validado em produção (89 artigos em 90 dias, 0 falhas no último mês)
-- **Próximos passos:** Diversificar categorias (NewsAPI expirada), medir Lighthouse, polish UI/UX, documentação final
+- **Último marco (2026-08-16):** NewsAPI substituída pela NewsData.io — provider implementado com 9 testes, Gitleaks no CI, `NEWSDATA_API_KEY` opcional no schema (produção roda RSS-only até configurar)
+- **Próximos passos:** Validar NewsData em produção, endpoint `GET /api/health/providers`, classificador de categorias RSS, Lighthouse >90
 - **Testes:** 187 testes em 18 suites (todos passando)
+- **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 
 > Ao concluir qualquer milestone: (1) marcar `[x]` em docs/progress.md, (2) atualizar este bloco.

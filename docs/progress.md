@@ -10,6 +10,57 @@
 **Fase 5 — Polish e Portfólio** ⏳ Pendente
 
 > Fases 1–4 concluídas. Pipeline validado em produção: 89 artigos em 90 dias (17/mai → 14/ago), 1 gap, 0 falhas no último mês.
+> NewsAPI substituída pela NewsData.io (2026-08-16) — pendente deploy na main.
+
+---
+
+## Plano de Ação — Continuar o Desenvolvimento (atualizado 2026-08-16)
+
+> Checklist vivo do que falta. Marcar `[x]` ao concluir (referenciar commit).
+
+### 1. Publicar o provider NewsData.io (URGENTE — destrava produção)
+
+- [ ] Merge dev → main e deploy no Render (código antigo da main ainda exige `NEWSAPI_KEY`, que foi removida)
+- [ ] Confirmar boot com `NEWSDATA_API_KEY` nas env vars do Render
+
+### 2. Validar NewsData em produção (comparar com RSS)
+
+- [ ] Verificar o dashboard de métricas após a próxima execução do pipeline: `newsApiCount` vs `rssCount` e `newsByCategory` (esperado: 8 categorias preenchidas, não só WORLD/TECHNOLOGY)
+- [ ] Conferir qualidade das notícias da NewsData (pt-BR, sem duplicatas, imagens ok)
+
+### 3. Endpoint de diagnóstico de chaves
+
+- [ ] `GET /api/health/providers` (protegido com `JOB_SECRET`) testando ao vivo NewsData, Gemini e Groq — resposta `{ newsdata: "ok"|"invalid", gemini: "...", groq: "..." }`
+- [ ] Testes Vitest + documentação em `docs/api.md`
+
+### 4. Classificador de categorias RSS
+
+- [ ] Classificação por palavras-chave (título/descrição → Category) para feeds sem categoria (hoje 4 de 5 caem em WORLD)
+- [ ] Expandir `rss-sources.ts` com feeds especializados (economia, esportes, ciência, saúde)
+- [ ] Testes do classificador
+
+### 5. Medição (critérios de sucesso do PRD §18)
+
+- [ ] Cobertura de testes do backend >70% (config v8 existe; medir e definir threshold no CI)
+- [ ] Lighthouse >90 (Performance, A11y, Best Practices, SEO)
+
+### 6. Documentação (Fase 5)
+
+- [ ] `docs/setup.md` (stub `TODO`)
+- [ ] Diagramas Mermaid (4 stubs `%% TODO` em `docs/diagrams/`)
+- [ ] README final com screenshots
+
+### 7. Polish UI/UX (Fase 5)
+
+- [ ] Dark mode
+- [ ] Animações e micro-interações
+- [ ] Testes no frontend (hoje zero)
+
+### 8. Pós-MVP (depois do core polido)
+
+- [ ] Dashboard de métricas no frontend (a API `/api/metrics/*` já existe pronta)
+- [ ] Newsletter com o artigo diário
+- [ ] Autenticação/favoritos, i18n, painel admin
 
 ---
 
