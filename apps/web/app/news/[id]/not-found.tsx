@@ -13,7 +13,7 @@ export default function NewsNotFound() {
       </p>
       <Link
         href='/news'
-        className='flex items-center gap-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-900'
+        className='flex items-center gap-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
       >
         <ArrowLeft className='h-4 w-4' />
         Ver todas as notícias

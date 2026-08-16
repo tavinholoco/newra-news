@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
     "lighthouse:audit": "lighthouse https://newra-news-web.vercel.app/ --only-categories=performance,accessibility,best-practices,seo --output=json --output-path=lh-report.json --quiet"
   },
   "dependencies": {
@@ -28,12 +29,19 @@
     "@newranews/tsconfig": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query-devtools": "^5.91.3",
+    "@testing-library/jest-dom": "^6.4.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
     "eslint": "^8.57.0",
+    "eslint-plugin-import": "^2.32.0",
+    "jsdom": "^25.0.0",
     "lighthouse": "^13.4.1",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }

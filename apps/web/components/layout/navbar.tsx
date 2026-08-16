@@ -81,7 +81,7 @@ export function Navbar({ links }: NavbarProps) {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className='fixed inset-x-0 top-16 z-50 border-b border-border bg-white shadow-lg md:hidden'>
+        <div className='fixed inset-x-0 top-16 z-50 border-b border-border bg-background shadow-lg md:hidden'>
           <nav className='mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4'>
             {links.map((link) => (
               <Link

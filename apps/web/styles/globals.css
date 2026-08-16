@@ -37,11 +37,24 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Brand */
-  --color-brand-900: #632713;
-  --color-brand-600: #ec6426;
-  --color-brand-400: #f8a91f;
-  --color-brand-100: #fde3cf;
+  /* Brand (tema-aware via variáveis em @layer base) */
+  --color-brand-900: var(--brand-900);
+  --color-brand-600: var(--brand-600);
+  --color-brand-400: var(--brand-400);
+  --color-brand-100: var(--brand-100);
+
+  /* Animations */
+  --animate-fade-in-up: fade-in-up 0.6s ease-out both;
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
   /* Fonts */
   --font-sans: var(--font-sans);
@@ -56,6 +69,12 @@
 
 @layer base {
   :root {
+    /* Brand (light) */
+    --brand-900: #632713;
+    --brand-600: #ec6426;
+    --brand-400: #f8a91f;
+    --brand-100: #fde3cf;
+
     --background: #ffffff;
     --foreground: #000000;
     --card: #ffffff;
@@ -91,6 +110,12 @@
   }
 
   .dark {
+    /* Brand (dark) — mais claro para contraste sobre fundo escuro */
+    --brand-900: #632713;
+    --brand-600: #f27e45;
+    --brand-400: #f8a91f;
+    --brand-100: #3a2417;
+
     --background: #1a1a1a;
     --foreground: #fde3cf;
     --card: #262626;

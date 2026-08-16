@@ -19,7 +19,7 @@ interface NewsCardProps {
 export function NewsCard({ news }: NewsCardProps) {
   return (
     <Link href={`/news/${news.id}`} className='group block'>
-      <Card className='h-full transition-shadow duration-200 group-hover:shadow-md'>
+      <Card className='h-full transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md'>
         {/* Image */}
         <div className='relative aspect-[16/9] w-full overflow-hidden rounded-t-xl'>
           {(() => {

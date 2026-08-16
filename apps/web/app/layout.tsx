@@ -4,6 +4,7 @@ import '@/styles/globals.css';
 import { cn } from '@/lib/utils';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { ThemeInit } from '@/components/theme/theme-init';
 import { Providers } from './providers';
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from '@/lib/seo';
 
@@ -36,8 +37,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='pt-BR' className={cn(inter.variable, bricolage.variable)}>
+    <html lang='pt-BR' suppressHydrationWarning className={cn(inter.variable, bricolage.variable)}>
       <body className={cn('font-sans antialiased', inter.className)}>
+        <ThemeInit />
         <Providers>
           <Header />
           <main className='min-h-[calc(100vh-4rem)]'>{children}</main>

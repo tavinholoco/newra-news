@@ -146,7 +146,7 @@ export default function AboutPage() {
           href='https://github.com/tavinholoco/newra-news'
           target='_blank'
           rel='noopener noreferrer'
-          className='inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 transition-colors hover:text-brand-900'
+          className='inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
         >
           Ver no GitHub
           <ExternalLink className='h-3.5 w-3.5' />

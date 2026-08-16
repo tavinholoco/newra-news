@@ -47,7 +47,7 @@ export default async function HomePage() {
           {news.length > 0 && (
             <Link
               href='/news'
-              className='flex items-center gap-1 text-sm font-medium text-brand-600 transition-colors hover:text-brand-900'
+              className='flex items-center gap-1 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
             >
               Ver todas
               <ArrowRight className='h-4 w-4' />

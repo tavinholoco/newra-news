@@ -9,7 +9,7 @@ interface ArticleCardProps {
 
 export function ArticleCard({ article }: ArticleCardProps) {
   return (
-    <section className='rounded-2xl bg-brand-100 p-6 sm:p-8 lg:p-10'>
+    <section className='animate-fade-in-up motion-reduce:animate-none rounded-2xl bg-brand-100 p-6 sm:p-8 lg:p-10'>
       <div className='flex items-center gap-2 text-brand-600'>
         <Newspaper className='h-5 w-5' />
         <span className='font-display text-sm font-semibold uppercase tracking-wider'>
@@ -35,7 +35,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
 
       <Link
         href={`/article/${toDateSlug(article.date)}`}
-        className='mt-6 inline-flex items-center gap-1.5 font-display text-sm font-semibold text-brand-600 transition-colors hover:text-brand-900'
+        className='mt-6 inline-flex items-center gap-1.5 font-display text-sm font-semibold text-brand-600 transition-colors hover:text-brand-400'
       >
         Ler artigo completo
         <ArrowRight className='h-4 w-4' />

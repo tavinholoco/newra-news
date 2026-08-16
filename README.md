@@ -15,6 +15,7 @@ de fontes brasileiras e internacionais.
 - **Histórico de artigos diários** — navegue por data
 - **SEO completo** — sitemap automático, Open Graph, meta tags dinâmicas
 - **Mobile-first** com Tailwind CSS + shadcn/ui
+- **Dark mode** com toggle e preferência do sistema
 - **Métricas em produção** — painel `/api/metrics/*` com contagens por provider e categoria
 
 ## 📸 Screenshots
@@ -61,7 +62,7 @@ pnpm dev              # web → localhost:3000 · api → localhost:3001
 | `pnpm dev` | Sobe web + api em modo desenvolvimento |
 | `pnpm build` | Build de produção (monorepo) |
 | `pnpm lint` | ESLint em todo o monorepo |
-| `pnpm test` | Vitest (backend) |
+| `pnpm test` | Vitest (backend + frontend) |
 | `pnpm --filter @newranews/api test:coverage` | Testes com cobertura (threshold 70%) |
 | `pnpm db:generate` | Gera o Prisma Client |
 | `pnpm db:migrate` | Roda migrations Prisma |
