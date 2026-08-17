@@ -1,7 +1,7 @@
 # Plano — Autenticação, Favoritos, i18n e Painel Admin
 
 > Sub-item 3 do Item 8 (Pós-MVP) do plano de ação (`docs/progress.md`).
-> Status: **planejado** — aguardando implementação.
+> Status: **concluído (2026-08-16)** — P1 (auth + favoritos), P2 (i18n pt/en com prefixo `/pt-BR` `/en`) e P3 (painel admin) implementados, testados e validados em produção.
 > Referência: PRD §2.2 ("Sistema de autenticação para favoritar notícias",
 > "Internacionalização (i18n) — português e inglês", "Painel administrativo").
 
