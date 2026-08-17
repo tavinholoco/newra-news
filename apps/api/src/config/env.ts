@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import 'dotenv/config';
 
-const envSchema = z.object({
+export const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -14,7 +14,14 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().min(1),
   GROQ_MODEL: z.string().default('llama-3.1-8b-instant'),
   JOB_SECRET: z.string().min(1),
-  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  // Barra final quebra o CORS: o browser compara o header `Origin` byte a
+  // byte com `Access-Control-Allow-Origin`, e `https://site.com/` NÃO casa
+  // com `Origin: https://site.com` (bug real em produção 2026-08-16 — painel
+  // admin bloqueado no browser). Normaliza removendo barras finais.
+  CORS_ORIGIN: z
+    .string()
+    .default('http://localhost:3000')
+    .transform((value) => value.replace(/\/+$/, '')),
   CRON_SCHEDULE: z.string().default('0 8 * * *'),
   CRON_TIMEZONE: z.string().default('America/Sao_Paulo'),
   // Newsletter — opcional; sem RESEND_API_KEY o envio é pulado (graceful)
