@@ -1,4 +1,4 @@
-import { prisma } from '@newranews/database';
+import { prisma, Prisma } from '@newranews/database';
 import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
@@ -108,10 +108,17 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
     });
 
     // Stage 4: Persist news items
+    // skipDuplicates: se o pipeline rodar de novo no mesmo dia (ex.: retry manual
+    // após falha do cron), URLs já persistidas não geram linhas duplicadas — a
+    // constraint única em News.sourceUrl garante isso no banco.
     currentStage = 4;
-    const persisted = await prisma.news.createMany({ data: deduplicated });
+    const persisted = await prisma.news.createMany({
+      data: deduplicated,
+      skipDuplicates: true,
+    });
     await logPipelineEvent(pipelineLogId, 4, 'INFO', 'News persisted', {
       count: persisted.count,
+      skipped: deduplicated.length - persisted.count,
     });
 
     // Stage 5: Select top items for AI generation
@@ -260,13 +267,26 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
     });
   } catch (error) {
     const detail = extractErrorDetail(error);
+
+    // Fallback de IA (Gemini → Groq): se o provider primário falhou antes do
+    // fallback (erro carregado por `withPrimaryError` no ai.service), registra
+    // os dois erros — WARN do primário + ERROR final — no PipelineLog.
+    const primaryError = (error as { primaryError?: unknown }).primaryError;
+    if (primaryError !== undefined) {
+      const primaryDetail = extractErrorDetail(primaryError);
+      detail.primaryError = primaryDetail;
+      await logPipelineEvent(pipelineLogId, currentStage, 'WARN', 'Primary provider failed before fallback', {
+        ...primaryDetail,
+      });
+    }
+
     await prisma.pipelineLog.update({
       where: { id: pipelineLogId },
       data: {
         status: 'FAILED',
         error: detail.message,
         errorStage: currentStage,
-        errorDetail: { ...detail },
+        errorDetail: { ...detail } as unknown as Prisma.InputJsonValue,
         completedAt: new Date(),
       },
     });

@@ -65,4 +65,16 @@ describe('AiService', () => {
 
     await expect(generateArticle(mockNewsItems)).rejects.toThrow('Groq API error');
   });
+
+  it('should carry the primary Gemini error when the Groq fallback also fails', async () => {
+    const geminiError = new Error('Gemini API error 429: rate limited');
+    vi.mocked(generateArticleWithGemini).mockRejectedValue(geminiError);
+    vi.mocked(generateArticleWithGroq).mockRejectedValue(new Error('Groq API error: 404 Not Found'));
+
+    const thrown = await generateArticle(mockNewsItems).catch((e: Error & { primaryError?: unknown }) => e);
+
+    expect(thrown.message).toBe('Groq API error: 404 Not Found');
+    // O erro final carrega o primário para o pipeline registrar os dois
+    expect(thrown.primaryError).toBe(geminiError);
+  });
 });

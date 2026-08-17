@@ -12,7 +12,7 @@ export const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   GROQ_API_KEY: z.string().min(1),
-  GROQ_MODEL: z.string().default('llama-3.1-8b-instant'),
+  GROQ_MODEL: z.string().default('openai/gpt-oss-20b'),
   JOB_SECRET: z.string().min(1),
   // Barra final quebra o CORS: o browser compara o header `Origin` byte a
   // byte com `Access-Control-Allow-Origin`, e `https://site.com/` NÃO casa

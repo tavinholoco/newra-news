@@ -23,7 +23,8 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
-        value: llama-3.1-8b-instant
+        # `llama-3.1-8b-instant` foi deprecado pelo Groq (shutdown 16/08/2026) — substituto: openai/gpt-oss-20b
+        value: openai/gpt-oss-20b
       - key: JOB_SECRET
         sync: false
       - key: CORS_ORIGIN

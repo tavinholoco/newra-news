@@ -5,7 +5,7 @@ import { generateArticleWithGroq } from '../../src/providers/ai/groq.provider';
 vi.mock('../../src/config/env', () => ({
   env: {
     GROQ_API_KEY: 'test-groq-api-key',
-    GROQ_MODEL: 'llama-3.1-8b-instant',
+    GROQ_MODEL: 'openai/gpt-oss-20b',
   },
 }));
 
@@ -92,7 +92,7 @@ describe('generateArticleWithGroq', () => {
     expect(headers['Authorization']).toBe('Bearer test-groq-api-key');
 
     const body = JSON.parse(calledOptions.body as string);
-    expect(body.model).toBe('llama-3.1-8b-instant');
+    expect(body.model).toBe('openai/gpt-oss-20b');
   });
 
   it('should include news item titles in the request body', async () => {

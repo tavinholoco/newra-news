@@ -32,7 +32,7 @@ vi.mock('../../src/config/env', () => ({
     GEMINI_API_KEY: 'test-gemini-key',
     GEMINI_MODEL: 'gemini-2.5-flash',
     GROQ_API_KEY: 'test-groq-key',
-    GROQ_MODEL: 'llama-3.1-8b-instant',
+    GROQ_MODEL: 'openai/gpt-oss-20b',
     JOB_SECRET: 'test-secret',
     CORS_ORIGIN: 'http://localhost:3000',
     CRON_SCHEDULE: '0 8 * * *',

@@ -7,6 +7,8 @@ export interface PipelineErrorDetail {
   message: string;
   provider?: string;
   statusCode?: number;
+  // Erro primário que disparou o fallback (ex.: Gemini falhou antes do Groq)
+  primaryError?: PipelineErrorDetail;
 }
 
 export interface PipelineEventView {

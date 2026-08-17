@@ -60,7 +60,7 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `GEMINI_API_KEY` | ✅ | Chave da Gemini (geração do artigo) |
 | `GEMINI_MODEL` | ❌ | Modelo Gemini (default `gemini-2.5-flash`) |
 | `GROQ_API_KEY` | ✅ | Chave da Groq (fallback de IA) |
-| `GROQ_MODEL` | ❌ | Modelo Groq (default `llama-3.1-8b-instant`) |
+| `GROQ_MODEL` | ❌ | Modelo Groq (default `openai/gpt-oss-20b` — o antigo `llama-3.1-8b-instant` foi deprecado em 16/08/2026) |
 | `JOB_SECRET` | ✅ | Token Bearer para disparar o pipeline (e proteger os endpoints `/api/dev/*` e `/dev/dashboard`) |
 | `CORS_ORIGIN` | ❌ | Origem permitida no CORS (default `http://localhost:3000`) |
 | `CRON_SCHEDULE` | ❌ | Cron interno (default `0 8 * * *`) |
@@ -124,6 +124,23 @@ pnpm db:seed
 
 # (Opcional) Abrir o Prisma Studio para inspecionar o banco
 pnpm db:studio
+```
+
+> 🔁 **Notícias duplicadas (pipeline rodou 2x no mesmo dia):** desde o fix de
+> 2026-08-17 o pipeline usa `skipDuplicates` + constraint única em
+> `News.sourceUrl`, então não gera mais duplicatas. Se o banco **já tinha**
+> duplicatas de antes do fix (ex.: 1º run falhou e um 2º re-inseriu as
+> notícias), limpe antes de aplicar o schema:
+
+```bash
+# (Opcional) Contar duplicatas sem alterar nada
+DATABASE_URL=... DRY_RUN=true pnpm --filter @newranews/database db:cleanup-news-duplicates
+
+# Remover duplicatas (mantém a linha mais recente por sourceUrl)
+DATABASE_URL=... pnpm --filter @newranews/database db:cleanup-news-duplicates
+
+# Depois disso, o db push consegue criar a constraint única:
+pnpm --filter @newranews/database exec prisma db push
 ```
 
 | Serviço | URL | Credenciais |
@@ -217,6 +234,7 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 | Página sem dados no frontend | API não está rodando ou `NEXT_PUBLIC_API_URL` errada | Confirmar `pnpm dev` e o valor no `.env.local` |
 | Pipeline roda só com RSS | `NEWSDATA_API_KEY` ausente ou inválida | Conferir a chave em `apps/api/.env` e em `/api/health/providers` |
 | Conteúdo com `ONLY AVAILABLE IN PAID PLANS` | Tier free da NewsData (placeholder) | Normal — o provider já converte para `null` |
+| Notícia repetida no feed (mesma URL 2×) | Pipeline rodou 2x no mesmo dia antes do fix de duplicatas | Rodar `db:cleanup-news-duplicates` (seção 4) e aplicar o schema atualizado |
 | `pnpm install` demora/erro de rede | Cache pnpm corrompido | `pnpm install --force` ou apagar `node_modules` |
 
 ---

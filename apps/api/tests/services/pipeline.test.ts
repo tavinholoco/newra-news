@@ -133,7 +133,9 @@ describe('PipelineService', () => {
 
     expect(prisma.pipelineLog.create).toHaveBeenCalledWith({ data: { status: 'RUNNING' } });
     expect(fetchAll).toHaveBeenCalled();
-    expect(prisma.news.createMany).toHaveBeenCalled();
+    expect(prisma.news.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
     expect(generateArticle).toHaveBeenCalled();
     expect(prisma.article.upsert).toHaveBeenCalled();
     expect(prisma.dailyMetric.upsert).toHaveBeenCalled();
@@ -142,6 +144,33 @@ describe('PipelineService', () => {
       (call) => (call[0] as { data: { status?: string } }).data?.status === 'SUCCESS',
     );
     expect(successUpdate).toBeDefined();
+  });
+
+  it('should not re-insert news already persisted when the pipeline runs twice in a day', async () => {
+    // Cenário real de 2026-08-17: 1º run falha após persistir as notícias e um
+    // 2º run roda no mesmo dia — sem skipDuplicates isso duplicaria as linhas.
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const createManyCall = vi.mocked(prisma.news.createMany).mock.calls[0]?.[0] as {
+      data: unknown[];
+      skipDuplicates?: boolean;
+    };
+    expect(createManyCall).toBeDefined();
+    expect(createManyCall.skipDuplicates).toBe(true);
+
+    // O evento do Stage 4 registra quantos foram pulados pelo dedup do banco
+    const persistedEvent = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) =>
+        (call[0] as { data: { stage: number; message: string } }).data?.message ===
+        'News persisted',
+    );
+    expect(persistedEvent).toBeDefined();
+    const context = (persistedEvent?.[0] as { data: { context?: { skipped?: number } } }).data
+      ?.context;
+    expect(context).toHaveProperty('skipped');
   });
 
   it('should skip if pipeline already ran today', async () => {
@@ -271,6 +300,59 @@ describe('PipelineService', () => {
     const data = warnCall?.[0] as { data: { stage: number; message: string; context: unknown } };
     expect(data.data.stage).toBe(7.5);
     expect(data.data.message).toBe('Newsletter failed (non-critical)');
+  });
+
+  it('should record both the primary and fallback provider errors on AI failure', async () => {
+    // Cenário real de 2026-08-17: Gemini falha (transitório) e o fallback Groq
+    // também falha (404 — modelo deprecado). O PipelineLog deve guardar os dois.
+    const primaryError = new Error('Gemini API error 429: rate limited');
+    const fallbackError = new Error('Groq API error: 404 Not Found');
+    (fallbackError as Error & { primaryError?: unknown }).primaryError = primaryError;
+    vi.mocked(generateArticle).mockRejectedValue(fallbackError);
+
+    await triggerPipeline();
+
+    // Allow fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const failedUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+      (call) => (call[0] as { data: { status?: string } }).data?.status === 'FAILED',
+    );
+    expect(failedUpdate).toBeDefined();
+    const failedData = failedUpdate?.[0] as {
+      data: {
+        error: string;
+        errorStage: number;
+        errorDetail: {
+          message: string;
+          provider?: string;
+          statusCode?: number;
+          primaryError?: { message: string; provider?: string; statusCode?: number };
+        };
+      };
+    };
+    expect(failedData.data.error).toBe('Groq API error: 404 Not Found');
+    expect(failedData.data.errorStage).toBe(6);
+    expect(failedData.data.errorDetail).toEqual({
+      message: 'Groq API error: 404 Not Found',
+      provider: 'groq',
+      statusCode: 404,
+      primaryError: {
+        message: 'Gemini API error 429: rate limited',
+        provider: 'gemini',
+        statusCode: 429,
+      },
+    });
+
+    // WARN com o erro primário + ERROR com o final
+    const warnEvent = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) =>
+        (call[0] as { data: { level: string; message: string } }).data?.level === 'WARN',
+    );
+    expect(warnEvent).toBeDefined();
+    const warnData = warnEvent?.[0] as { data: { stage: number; message: string } };
+    expect(warnData.data.stage).toBe(6);
+    expect(warnData.data.message).toBe('Primary provider failed before fallback');
   });
 
   it('should record the failing stage and structured error on failure', async () => {

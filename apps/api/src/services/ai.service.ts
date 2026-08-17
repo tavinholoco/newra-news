@@ -15,7 +15,21 @@ export async function generateArticle(
     return { article, provider: 'gemini' };
   } catch (geminiError) {
     console.warn('Gemini provider failed, falling back to Groq:', geminiError);
-    const article = await generateArticleWithGroq(newsItems);
-    return { article, provider: 'groq' };
+    try {
+      const article = await generateArticleWithGroq(newsItems);
+      return { article, provider: 'groq' };
+    } catch (groqError) {
+      // Fallback também falhou: carrega o erro primário (Gemini) junto ao erro
+      // final (Groq) para o pipeline persistir os DOIS no PipelineLog — sem
+      // isso, a causa real que disparou o fallback se perde (só o Groq 404
+      // ficava registrado, como no run de 17/08/2026).
+      throw withPrimaryError(groqError, geminiError);
+    }
   }
+}
+
+function withPrimaryError(error: unknown, primaryError: unknown): Error {
+  const err = error instanceof Error ? error : new Error(String(error));
+  (err as Error & { primaryError?: unknown }).primaryError = primaryError;
+  return err;
 }

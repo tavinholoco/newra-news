@@ -13,7 +13,7 @@ model News {
   description String
   content     String?
   source      String
-  sourceUrl   String
+  sourceUrl   String   @unique
   imageUrl    String?
   category    Category
   publishedAt DateTime
