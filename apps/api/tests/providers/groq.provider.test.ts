@@ -18,12 +18,16 @@ Este é o primeiro parágrafo com o resumo do artigo.
 Conteúdo detalhado do artigo aqui.`;
 
 function makeFetchMock(markdown = MOCK_MARKDOWN) {
-  return vi.fn().mockResolvedValue({
+  return vi.fn().mockResolvedValue(successResponse(markdown));
+}
+
+function successResponse(markdown = MOCK_MARKDOWN) {
+  return {
     ok: true,
     json: vi.fn().mockResolvedValue({
       choices: [{ message: { content: markdown } }],
     }),
-  });
+  };
 }
 
 const mockNewsItems = [
@@ -40,10 +44,14 @@ const mockNewsItems = [
 ];
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.stubGlobal('fetch', makeFetchMock());
 });
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -108,14 +116,14 @@ describe('generateArticleWithGroq', () => {
     expect(userMessage.content).toContain('Notícia de Teste');
   });
 
-  it('should throw when response is not ok', async () => {
+  it('should throw when response is not ok (permanent error, no retry)', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Internal Server Error' }),
+      vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found' }),
     );
 
     await expect(generateArticleWithGroq(mockNewsItems)).rejects.toThrow(
-      'Groq API error: 500 Internal Server Error',
+      'Groq API error: 404 Not Found',
     );
   });
 
@@ -131,5 +139,118 @@ describe('generateArticleWithGroq', () => {
     await expect(generateArticleWithGroq(mockNewsItems)).rejects.toThrow(
       'Groq returned empty response',
     );
+  });
+
+  it('should retry on transient 429 and succeed on the second attempt', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGroq(mockNewsItems);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should retry multiple transient failures and succeed', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGroq(mockNewsItems);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('should throw after exhausting retries on persistent 5xx', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGroq(mockNewsItems);
+    // Anexa a asserção antes de avançar os timers para evitar unhandled rejection
+    // (a rejeição acontece durante o advanceTimersByTimeAsync).
+    const assertion = expect(promise).rejects.toThrow('Groq API error: 503 Service Unavailable');
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await assertion;
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('should not retry on permanent 400 error', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await expect(generateArticleWithGroq(mockNewsItems)).rejects.toThrow(
+      'Groq API error: 400 Bad Request',
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('should retry when the request times out (AbortError)', async () => {
+    const abortError = new Error('The operation was aborted due to timeout');
+    abortError.name = 'AbortError';
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(abortError)
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGroq(mockNewsItems);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should honor the Retry-After header from 429 responses instead of the fixed backoff', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: new Headers({ 'retry-after': '5' }),
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGroq(mockNewsItems);
+    // Backoff fixo seria 1000ms; com Retry-After: 5s a 2ª tentativa só sai aos 5000ms.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

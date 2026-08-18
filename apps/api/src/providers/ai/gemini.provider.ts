@@ -1,6 +1,11 @@
 import { env } from '../../config/env';
 import { ARTICLE_SYSTEM_PROMPT, ARTICLE_USER_PROMPT } from '../../config/ai-prompts';
-import { formatNewsItems, parseMarkdownResponse } from './ai-utils';
+import {
+  attachRetryAfter,
+  formatNewsItems,
+  parseMarkdownResponse,
+  withRetry,
+} from './ai-utils';
 import type { RawNewsItem, GeneratedArticle } from '../types';
 
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -14,9 +19,7 @@ interface GeminiApiResponse {
   }>;
 }
 
-export async function generateArticleWithGemini(
-  newsItems: RawNewsItem[],
-): Promise<GeneratedArticle> {
+async function requestArticle(newsItems: RawNewsItem[]): Promise<GeneratedArticle> {
   const userPrompt = ARTICLE_USER_PROMPT + formatNewsItems(newsItems);
   const url = `${GEMINI_BASE_URL}/${env.GEMINI_MODEL}:generateContent`;
 
@@ -39,7 +42,10 @@ export async function generateArticleWithGemini(
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => 'unable to read error body');
-      throw new Error(`Gemini API error ${response.status}: ${errorBody}`);
+      throw attachRetryAfter(
+        new Error(`Gemini API error ${response.status}: ${errorBody}`),
+        response.headers,
+      );
     }
 
     const data = (await response.json()) as GeminiApiResponse;
@@ -53,4 +59,10 @@ export async function generateArticleWithGemini(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function generateArticleWithGemini(
+  newsItems: RawNewsItem[],
+): Promise<GeneratedArticle> {
+  return withRetry(() => requestArticle(newsItems), 'Gemini');
 }

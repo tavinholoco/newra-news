@@ -88,3 +88,99 @@ export function parseMarkdownResponse(markdown: string): GeneratedArticle {
 
   return { title, summary, content };
 }
+
+/** Erros transitórios de API: timeout (AbortError), HTTP 429 (rate limit) e 5xx. */
+export function isTransientApiError(error: unknown): boolean {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return true;
+  }
+
+  if (error instanceof Error) {
+    // Ex.: "Gemini API error 429: ..." e "Groq API error: 500 Internal Server Error"
+    const match = /API error:? (\d{3})/.exec(error.message);
+    if (match) {
+      const status = Number(match[1]);
+      return status === 429 || status >= 500;
+    }
+  }
+
+  return false;
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Retry com backoff compartilhado pelos providers de IA (Gemini e Groq): erros
+// transitórios (429/5xx/timeout) são re-tentados antes de desistir — foi uma
+// falha transitória da Gemini que derrubou o run de 17/08/2026 às 08:00 BRT.
+const MAX_RETRY_ATTEMPTS = 3;
+const BASE_RETRY_DELAY_MS = 1_000;
+const MAX_JITTER_MS = 500;
+const MAX_RETRY_AFTER_MS = 30_000;
+
+/**
+ * Lê o header `Retry-After` (delta-seconds ou HTTP-date) e devolve o delay em ms,
+ * ou `null` se ausente/inválido.
+ */
+export function parseRetryAfterMs(value: string | null, now = Date.now()): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return seconds * 1_000;
+  }
+
+  const date = Date.parse(value);
+  if (Number.isFinite(date)) {
+    return Math.max(0, date - now);
+  }
+
+  return null;
+}
+
+/** Anexa o delay do `Retry-After` ao erro, quando o header existir. */
+export function attachRetryAfter<T extends Error>(
+  error: T,
+  headers: Headers | undefined,
+): T {
+  const retryAfterMs = parseRetryAfterMs(headers?.get('retry-after') ?? null);
+  if (retryAfterMs !== null) {
+    (error as T & { retryAfterMs?: number }).retryAfterMs = retryAfterMs;
+  }
+  return error;
+}
+
+function retryDelayMs(error: unknown, attempt: number): number {
+  const retryAfterMs = (error as Error & { retryAfterMs?: number }).retryAfterMs;
+  if (retryAfterMs !== undefined) {
+    // O servidor mandou quando tentar de novo; respeita, mas com teto para não
+    // travar o pipeline (o fallback existe justamente para não esperar demais).
+    return Math.min(retryAfterMs, MAX_RETRY_AFTER_MS);
+  }
+  return BASE_RETRY_DELAY_MS * 2 ** (attempt - 1) + Math.random() * MAX_JITTER_MS;
+}
+
+/** Tenta `request` até `MAX_RETRY_ATTEMPTS`, retentando só erros transitórios. */
+export async function withRetry<T>(
+  request: () => Promise<T>,
+  provider: string,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await request();
+    } catch (error) {
+      if (attempt >= MAX_RETRY_ATTEMPTS || !isTransientApiError(error)) {
+        throw error;
+      }
+
+      const delayMs = retryDelayMs(error, attempt);
+      console.warn(
+        `${provider} API transient error (attempt ${attempt}/${MAX_RETRY_ATTEMPTS}), retrying in ${Math.round(delayMs)}ms`,
+      );
+      await sleep(delayMs);
+    }
+  }
+}

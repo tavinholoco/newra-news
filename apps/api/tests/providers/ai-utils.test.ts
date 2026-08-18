@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Category } from '@newranews/database';
-import { formatNewsItems, parseMarkdownResponse, decodeEntities } from '../../src/providers/ai/ai-utils';
+import {
+  attachRetryAfter,
+  decodeEntities,
+  formatNewsItems,
+  parseMarkdownResponse,
+  parseRetryAfterMs,
+} from '../../src/providers/ai/ai-utils';
 import type { RawNewsItem } from '../../src/providers/types';
 
 function makeNewsItem(overrides: Partial<RawNewsItem> = {}): RawNewsItem {
@@ -281,5 +287,48 @@ describe('decodeEntities', () => {
   it('should be idempotent (safe to run twice)', () => {
     const decoded = decodeEntities('caf&eacute;');
     expect(decodeEntities(decoded)).toBe('caf\u00E9');
+  });
+});
+
+describe('parseRetryAfterMs', () => {
+  it('should parse delta-seconds', () => {
+    expect(parseRetryAfterMs('5')).toBe(5_000);
+    expect(parseRetryAfterMs('120')).toBe(120_000);
+    expect(parseRetryAfterMs('0')).toBe(0);
+  });
+
+  it('should parse HTTP-date format', () => {
+    const now = new Date('2026-08-17T12:00:00Z').getTime();
+    const retryAfter = new Date(now + 4_000).toUTCString();
+    expect(parseRetryAfterMs(retryAfter, now)).toBe(4_000);
+  });
+
+  it('should clamp a past HTTP-date to zero', () => {
+    const now = new Date('2026-08-17T12:00:00Z').getTime();
+    const retryAfter = new Date(now - 5_000).toUTCString();
+    expect(parseRetryAfterMs(retryAfter, now)).toBe(0);
+  });
+
+  it('should return null for missing or invalid values', () => {
+    expect(parseRetryAfterMs(null)).toBeNull();
+    expect(parseRetryAfterMs('')).toBeNull();
+    expect(parseRetryAfterMs('not-a-date')).toBeNull();
+  });
+});
+
+describe('attachRetryAfter', () => {
+  it('should attach retryAfterMs from the Retry-After header', () => {
+    const err = attachRetryAfter(new Error('boom'), new Headers({ 'retry-after': '5' }));
+    expect((err as Error & { retryAfterMs?: number }).retryAfterMs).toBe(5_000);
+  });
+
+  it('should not attach when the header is absent', () => {
+    const err = attachRetryAfter(new Error('boom'), new Headers());
+    expect((err as Error & { retryAfterMs?: number }).retryAfterMs).toBeUndefined();
+  });
+
+  it('should tolerate undefined headers', () => {
+    const err = attachRetryAfter(new Error('boom'), undefined);
+    expect((err as Error & { retryAfterMs?: number }).retryAfterMs).toBeUndefined();
   });
 });

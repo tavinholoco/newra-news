@@ -18,12 +18,16 @@ Este é o primeiro parágrafo com o resumo do artigo.
 Conteúdo detalhado do artigo aqui.`;
 
 function makeFetchMock(markdown = MOCK_MARKDOWN) {
-  return vi.fn().mockResolvedValue({
+  return vi.fn().mockResolvedValue(successResponse(markdown));
+}
+
+function successResponse(markdown = MOCK_MARKDOWN) {
+  return {
     ok: true,
     json: vi.fn().mockResolvedValue({
       candidates: [{ content: { parts: [{ text: markdown }] } }],
     }),
-  });
+  };
 }
 
 const mockNewsItems = [
@@ -40,10 +44,14 @@ const mockNewsItems = [
 ];
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.stubGlobal('fetch', makeFetchMock());
 });
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -143,5 +151,138 @@ describe('generateArticleWithGemini', () => {
 
     const calledOptions = mockFetch.mock.calls[0][1] as RequestInit;
     expect(calledOptions.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('should retry on transient 429 and succeed on the second attempt', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: vi.fn().mockResolvedValue('rate limited'),
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGemini(mockNewsItems);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should retry multiple transient failures and succeed', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: vi.fn().mockResolvedValue('internal error'),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: vi.fn().mockResolvedValue('unavailable'),
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGemini(mockNewsItems);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('should throw after exhausting retries on persistent 5xx', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: vi.fn().mockResolvedValue('unavailable'),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGemini(mockNewsItems);
+    // Anexa a asserção antes de avançar os timers para evitar unhandled rejection
+    // (a rejeição acontece durante o advanceTimersByTimeAsync).
+    const assertion = expect(promise).rejects.toThrow('Gemini API error 503:');
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await assertion;
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('should not retry on permanent 400 error', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: vi.fn().mockResolvedValue('bad request'),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await expect(generateArticleWithGemini(mockNewsItems)).rejects.toThrow('Gemini API error 400:');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('should retry when the request times out (AbortError)', async () => {
+    const abortError = new Error('The operation was aborted due to timeout');
+    abortError.name = 'AbortError';
+    const mockFetch = vi
+      .fn()
+      .mockRejectedValueOnce(abortError)
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGemini(mockNewsItems);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should honor the Retry-After header from 429 responses instead of the fixed backoff', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: vi.fn().mockResolvedValue('rate limited'),
+        headers: new Headers({ 'retry-after': '5' }),
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGemini(mockNewsItems);
+    // Backoff fixo seria 1000ms; com Retry-After: 5s a 2ª tentativa só sai aos 5000ms.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('should cap an excessive Retry-After header so the pipeline is not stalled', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: vi.fn().mockResolvedValue('rate limited'),
+        headers: new Headers({ 'retry-after': '3600' }),
+      })
+      .mockResolvedValueOnce(successResponse());
+    vi.stubGlobal('fetch', mockFetch);
+
+    const promise = generateArticleWithGemini(mockNewsItems);
+    // Teto de 30s: aos 29s ainda não retentou...
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(promise).resolves.toHaveProperty('title');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });
