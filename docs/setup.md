@@ -115,9 +115,9 @@ docker compose up -d
 # Gerar o Prisma Client
 pnpm db:generate
 
-# Aplicar o schema ao banco. Neste repo as migrations são gitignored
-# (local-only): use `prisma db push` para aplicar direto e regenerar o client.
-pnpm --filter @newranews/database exec prisma db push
+# Aplicar o schema ao banco. As migrations SÃO versionadas neste repo —
+# `migrate dev` aplica o histórico existente e regenera o client.
+pnpm db:migrate
 
 # (Opcional) Popular com dados realistas de todas as categorias
 pnpm db:seed
@@ -139,9 +139,27 @@ DATABASE_URL=... DRY_RUN=true pnpm --filter @newranews/database db:cleanup-news-
 # Remover duplicatas (mantém a linha mais recente por sourceUrl)
 DATABASE_URL=... pnpm --filter @newranews/database db:cleanup-news-duplicates
 
-# Depois disso, o db push consegue criar a constraint única:
-pnpm --filter @newranews/database exec prisma db push
+# Depois disso, a migration com a constraint única aplica sem erro:
+pnpm db:migrate
 ```
+
+### Alterando o schema
+
+Toda mudança de schema passa por `packages/database/prisma/schema.prisma` seguida
+de uma migration gerada — nunca por alteração manual no banco nem por `db push`:
+
+```bash
+# 1. editar packages/database/prisma/schema.prisma
+# 2. gerar e aplicar localmente (o `--` é obrigatório: o script raiz é `turbo db:migrate`)
+pnpm db:migrate -- --name add_briefing_metadata
+# 3. revisar o SQL gerado em packages/database/prisma/migrations/ antes de commitar
+```
+
+Em produção as migrations são aplicadas pelo workflow `.github/workflows/migrate.yml`
+(`prisma migrate deploy`), nunca da máquina do dev. O baseline do banco de produção
+(operação única, pendente) está em `docs/db-baseline.md`. Estratégia completa —
+nomenclatura, expand-and-contract e rollback — na §37 do
+`docs/Newra-News-V2-Frontend-Redesign-Plan.md`.
 
 | Serviço | URL | Credenciais |
 |---------|-----|-------------|
@@ -243,7 +261,7 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 
 - **Frontend** → Vercel (repo conectado; cron em `vercel.json`)
 - **Backend** → Render (blueprint `render.yaml`; deploy automático a partir da `main`)
-- **Banco** → Neon (PostgreSQL serverless); rodar `pnpm db:migrate:deploy` em produção
+- **Banco** → Neon (PostgreSQL serverless); migrations aplicadas pelo workflow `migrate.yml` (`pnpm db:migrate:deploy`), disparado em push na `main` quando o schema ou as migrations mudam
 - **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.

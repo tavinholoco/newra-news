@@ -1,0 +1,86 @@
+name: Migrate (produção)
+
+# Aplica as migrations Prisma no banco de produção (Neon).
+#
+# Por que aqui e não no build do Render: a documentação do Prisma desaconselha
+# rodar `migrate deploy` localmente contra produção (exige manter a URL de
+# produção na máquina do dev) e recomenda executá-lo no pipeline de CI/CD.
+# Ver plano V2 §37-C.
+#
+# PRÉ-REQUISITO — baseline: o banco de produção foi criado com `prisma db push`
+# e não tem histórico de migrations. Antes de habilitar este workflow é preciso
+# marcar a migration `0_init` como já aplicada:
+#
+#   DATABASE_URL="<url do Neon>" pnpm --filter @newranews/database \
+#     exec prisma migrate resolve --applied 0_init
+#
+# Sem isso, o `migrate deploy` falha com P3005 (schema não-vazio).
+#
+# O workflow só age quando o secret DATABASE_URL existe no repositório —
+# enquanto ele não for configurado, cada execução é um no-op explícito.
+#
+# IMPORTANTE — o secret DATABASE_URL deste repositório deve conter a connection
+# string DIRETA do Neon (host SEM o sufixo `-pooler`). O endpoint pooled passa
+# pelo PgBouncer em modo transaction, que não suporta os advisory locks de sessão
+# nem o DDL usados pelo Prisma Migrate. A env DATABASE_URL do Render segue com a
+# string pooled — mesmo nome, valores diferentes, de propósito.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/database/prisma/migrations/**'
+      - 'packages/database/prisma/schema.prisma'
+  workflow_dispatch:
+
+concurrency:
+  group: prisma-migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: prisma migrate deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Verificar se o DATABASE_URL está configurado
+        id: guard
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::Secret DATABASE_URL ausente — nada a fazer. Configure-o depois do baseline (ver comentário no topo deste arquivo)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar dependências
+        if: steps.guard.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Gerar Prisma Client
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm db:generate
+
+      # Detecta drift antes de aplicar qualquer coisa (§37-G). Sai com código
+      # != 0 quando há migrations pendentes — que é justamente o caso normal
+      # aqui — então o resultado é informativo, não um gate.
+      - name: Status das migrations
+        if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm db:migrate:status
+
+      - name: Aplicar migrations
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm db:migrate:deploy
