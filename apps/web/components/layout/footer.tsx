@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { NAV_LINKS } from '@/lib/constants';
@@ -16,13 +15,6 @@ export async function Footer() {
           {/* Brand */}
           <div className='space-y-4'>
             <Link href='/' className='flex items-center gap-2.5'>
-              <Image
-                src='/logo-dark.svg'
-                alt='Newra News'
-                width={32}
-                height={32}
-                className='h-8 w-8'
-              />
               <span className='font-display text-lg font-bold tracking-tight'>
                 Newra News
               </span>
