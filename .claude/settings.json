@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm db:generate:*)",
+      "Bash(pnpm db:migrate:status:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git worktree list:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh secret list:*)",
+      "Bash(gh workflow list:*)",
+      "Bash(gh workflow view:*)",
+      "Bash(npx -y neonctl@latest projects list:*)",
+      "Bash(npx -y neonctl@latest branches list:*)",
+      "Bash(npx -y neonctl@latest databases list:*)",
+      "Bash(npx -y neonctl@latest operations list:*)",
+      "Bash(npx -y neonctl@latest me:*)",
+      "Bash(npx -y neonctl@latest orgs list:*)",
+      "Bash(npx -y neonctl@latest connection-string:*)",
+      "Bash(npx -y prisma@5.22.0 migrate status:*)"
+    ],
+    "deny": [
+      "Bash(npm install:*)",
+      "Bash(npm i:*)",
+      "Bash(npm add:*)",
+      "Bash(prisma migrate deploy:*)",
+      "Bash(prisma migrate reset:*)",
+      "Bash(prisma db push:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(rm -rf:*)",
+      "Read(./.env)",
+      "Read(./apps/api/.env)",
+      "Read(./apps/web/.env.local)"
+    ]
+  }
+}
