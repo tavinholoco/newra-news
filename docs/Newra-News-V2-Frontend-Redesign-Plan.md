@@ -1186,9 +1186,10 @@ Objetivo: preparar terreno antes do redesign.
 [x] gerar a migration de baseline 0_init                    (§37-G)
 [x] criar o job de deploy de migrations                     (§37-C)
 [x] escolher licença e adicionar LICENSE                    (§36-H)
-[ ] rodar `migrate resolve --applied 0_init` no Neon        (§37-G)
-[ ] cadastrar o secret DATABASE_URL no GitHub               (§37-C)
+[x] rodar `migrate resolve --applied 0_init` no Neon        (§37-G)
+[x] cadastrar o secret DATABASE_URL no GitHub               (§37-C)
 [x] receber e vetorizar o asset de logo                     (§40.3)
+[x] decidir o lockup: wordmark tipográfico                  (§40.3)
 [ ] mapear todos os usos de brand-400 e brand-900 no web    (§4.1)
 ```
 
@@ -1213,12 +1214,15 @@ Objetivo: preparar terreno antes do redesign.
 
 ```text
 [ ] top bar
-[ ] masthead                        (marca pronta; definir o lockup — §40.3)
+[ ] masthead                        (logo-mono.svg + wordmark tipográfico — §40.3)
 [ ] category navigation
-[ ] mobile header
+[ ] mobile header                   (wordmark some, marca fica)
 [ ] footer
 [ ] newsletter block
 [ ] landing /[locale]/newsletter    (não existe hoje — §23)
+
+    -- ao fechar a fase --
+[ ] reavaliar o lockup desenhado agora que a tipografia está fixa (§40.3-B)
 ```
 
 ## Fase 3 — Home
@@ -1898,13 +1902,26 @@ Ambos: `viewBox="0 0 1184 1312"` justo (sem padding — o espaçamento é do CSS
 
 Não foi criado `logo-mark-black.svg`: o preto é `logo-mono.svg` dentro de um contexto com `color: #000`.
 
-### Wordmark — pendência de decisão
+### Wordmark — decidido em 19/08/2026
 
-Não existe lockup horizontal, e desenhá-lo exigiria escolher tipografia e espacejamento — decisão de design, não de implementação. Duas saídas:
+Não existe lockup horizontal, e desenhá-lo exigiria escolher tipografia e espacejamento. **Decisão: a V2 usa wordmark tipográfico, e a possibilidade de um lockup desenhado só é reavaliada depois da Fase 2.**
 
-**A. Wordmark tipográfico (recomendado).** O header já compõe "Newra News" em Bricolage Grotesque; o masthead da Fase 2 passa a ser `logo-mono.svg` + o texto na fonte display definida na §5. Vantagens: acompanha a troca de tipografia da V2 sem redesenho, permite o wordmark responsivo (some no mobile, fica só a marca) e mantém o texto acessível e selecionável. É o caminho assumido pela Fase 2 até que se decida o contrário.
+**A. Wordmark tipográfico — adotado.** O masthead compõe `logo-mono.svg` + "Newra News" renderizado na **fonte de interface** definida na §5 (não na serif das headlines — a própria §5 já estabelece "navegação: sans").
 
-**B. Lockup desenhado.** Exige um SVG novo com o texto convertido em curvas, proporção entre 4:1 e 5:1, e a marca alinhada opticamente à altura-x do wordmark. Só vale se a identidade pedir um desenho de letra próprio.
+- acompanha a troca de tipografia da V2 sem redesenho;
+- responsivo de graça: o texto some no mobile via media query e sobra a marca, sem precisar de um segundo arquivo;
+- o nome continua sendo texto — selecionável, encontrável no Ctrl+F, lido por leitor de tela sem depender de `aria-label`;
+- custo zero: é o que o header já faz, faltando só a marca ao lado.
+
+Contrapartida aceita: o wordmark depende do webfont carregar, o que exige `font-display: swap` e uma stack de fallback decente para o flash não incomodar.
+
+**B. Lockup desenhado — adiado, não descartado.** SVG com o texto em curvas: proporção entre 4:1 e 5:1, marca alinhada opticamente à **altura-x** do wordmark (não à caixa alta), mais uma variante `currentColor` — o mesmo padrão dos SVGs já versionados.
+
+**Por que adiar e não decidir agora.** É sequenciamento, não qualidade. A §5 ainda vai fechar a tipografia da V2, e desenhar letra contra uma fonte que vai mudar é mirar em alvo móvel. Depois que a Fase 1 fixar as fontes e a Fase 2 fechar o masthead, o lockup — se ainda for desejado — nasce alinhado em vez de remendado.
+
+As opções não são excludentes: migrar de A para B é substituir um `<span>` por um SVG inline dentro de um componente só. O ponto de reavaliação está registrado na §28, ao final da Fase 2.
+
+**Quando B passaria na frente:** material impresso, licenciamento da marca para terceiros, ou um tratamento gráfico do nome que fonte nenhuma entrega.
 
 ### Derivados a gerar na Fase 2
 
@@ -1921,11 +1938,11 @@ Três itens, todos dependendo de algo que está fora do repositório:
 
 | Pendência | Depende de | Bloqueia |
 |---|---|---|
-| `migrate resolve --applied 0_init` no Neon + secret `DATABASE_URL` no GitHub | credenciais de produção | a primeira migration da V2 (§18.4, §37-E) |
-| Lockup horizontal: wordmark tipográfico ou desenhado (§40.3) | decisão de design — o padrão assumido é o tipográfico | Fase 2 — masthead |
-| Landing `/[locale]/newsletter` entra na Fase 2 | decisão de escopo — já registrada como entregável da Fase 2 | baseline visual da §30 |
+| ~~`migrate resolve --applied 0_init` no Neon + secret `DATABASE_URL` no GitHub~~ | — | ✅ **concluído em 19/08/2026** — drift conferido (vazio), baseline aplicado, `migrate status` retorna `Database schema is up to date!`, secret cadastrado e senha do role rotacionada |
+| ~~Lockup horizontal~~ | — | ✅ **decidido em 19/08/2026** — wordmark tipográfico na V2; lockup desenhado reavaliado ao fim da Fase 2 (§40.3) |
+| Landing `/[locale]/newsletter` | decisão de escopo — já registrada como entregável da Fase 2 | baseline visual da §30 |
 
-Nenhuma delas bloqueia a Fase 0 — só a primeira bloqueia trabalho de schema, e ela cai na Fase 0 pelo checklist da §28.
+**Nada bloqueia mais a Fase 0.** O único item aberto é de escopo, não de infraestrutura, e já tem lugar definido no plano.
 
 ---
 
