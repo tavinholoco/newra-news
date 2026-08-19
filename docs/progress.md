@@ -13,6 +13,10 @@
 > NewsAPI substituída pela NewsData.io — provider ativo em produção desde 2026-08-16: 3 chaves ok (NewsData/Gemini/Groq), 8 categorias preenchidas, 491 notícias/dia.
 > Checklist completo da Fase 5 fechado: UI/UX (item 7), code review geral, loading states + error boundaries e apresentação de portfólio (`docs/presentation.md`); typecheck adicionado ao CI.
 
+**Próximo ciclo — Newra News V2.0 (redesign editorial)** 📋 Planejado em 2026-08-19
+
+> Plano em `docs/Newra-News-V2-Frontend-Redesign-Plan.md`. Bloqueadores de infraestrutura resolvidos em 2026-08-19 (ver **item 10**); restam 3 pendências que dependem de algo fora do repositório — baseline no Neon, asset de logo e a landing de newsletter.
+
 ---
 
 ## Plano de Ação — Continuar o Desenvolvimento (atualizado 2026-08-16)
@@ -88,6 +92,35 @@
 - [x] Página HTML servida pela API em `/dev/dashboard` (protegida por `JOB_SECRET` via header ou `?secret=`, rate limit 60/min): histórico de runs (status, duração, contagens, etapa da falha, erro), erros recentes e status dos providers (reusa `checkAllProviders` do item 3); auto-refresh 30s, HTML auto-contido e escapado
 - [x] Testes Vitest (service `pipeline-event` 12 + rotas `dev` 17 + pipeline 3 novos = **32 novos**) + documentação em `docs/api.md`
 - **Validado (2026-08-16):** schema aplicado via `prisma db push` (migrations são gitignored no projeto); suíte completa verde (**394 testes: 322 API + 72 web**); smoke test real da API no ar: `/api/dev/logs` 401 sem/errado secret → 200 com `JOB_SECRET`, uuid inválido 400, pipeline inexistente 404, `/dev/dashboard` 401 sem secret → 200 com `?secret=`; lint e typecheck limpos; cobertura API 97% linhas (threshold 70); **validação visual no preview**: `/dev/dashboard` renderizando providers ao vivo (newsdata ok, gemini/groq invalid nesta máquina), run real FAILED com duração e "ver erro" expandindo a mensagem ("Groq API error: 401"); ajuste de CSS p/ tabelas com scroll próprio (sem overflow da página) e cores dos badges por status (ok verde / invalid vermelho / not_configured dourado)
+
+### 10. Newra News V2.0 — redesign editorial (planejado 2026-08-19)
+
+> Plano completo: `docs/Newra-News-V2-Frontend-Redesign-Plan.md` (versão 2.1 do documento + §40 auditoria de prontidão + §41 convenções de execução com Opus 5).
+> A V2.0 transforma o portal de "feed de cards" em publicação digital: grid editorial, Daily Brief como produto, experiência de leitura, newsletter/contas e fundação para monetização.
+
+**Concluído nesta rodada (2026-08-19):**
+
+- [x] Plano V2.1 instalado em `docs/Newra-News-V2-Frontend-Redesign-Plan.md` (substitui o rascunho V2.0, que era superset-verificado — nada perdido)
+- [x] Auditoria do repositório contra o plano → §40 (3 bloqueadores, 14 correções pontuais, 2 itens de higiene)
+- [x] README reescrito no padrão open source (§36): badge de CI ativado, badge de Node corrigido para >=22, links relativos, diagrama Mermaid do pipeline, seções "Por que o Newra existe" e "Roadmap"
+- [x] `CONTRIBUTING.md` criado (§36-F) com branches, Conventional Commits, convenções de código, testes, migrations e checklist de PR
+- [x] §41 do plano — convenções de execução com Claude Opus 5 (effort por dificuldade, escopo fechado por branch, sem passo de verificação redundante, iteração visual nas fases de UI)
+
+**Bloqueadores resolvidos (§40.1 do plano):**
+
+- [x] **Migrations versionadas** — removidas do `.gitignore` (a pasta só tinha `.gitkeep`) e migration de baseline `0_init` gerada a partir do schema atual via `prisma migrate diff --from-empty --to-schema-datamodel` (215 linhas de SQL: 5 enums + 9 tabelas), sem tocar em banco nenhum
+- [x] **Job de deploy de migrations** — `.github/workflows/migrate.yml`: dispara em push na `main` quando `schema.prisma` ou `migrations/**` mudam (+ `workflow_dispatch`), roda `migrate status` e depois `migrate deploy`, com `concurrency` serializando execuções. É um **no-op explícito enquanto o secret `DATABASE_URL` não existir** — o que garante a ordem correta (baseline antes do secret). Scripts raiz `db:migrate:deploy` e `db:migrate:status` adicionados (o primeiro era citado por `setup.md` mas não existia)
+- [x] **Licença** — `LICENSE` MIT na raiz; badge e seção do README atualizados
+- [x] **Repositório git órfão** — `apps/web/.git` removido (15.652 objetos soltos, **zero commits** — era um `git add` de 13/03 que nunca virou commit; nada recuperável perdido)
+- [x] **14 divergências do plano** — corrigidas no corpo das seções afetadas (§18.1 `/api/home`, §24 `Category`, §23 rotas signin/admin + newsletter, §12/§23 Tailwind v4, §4.1 custo da migração de paleta, §37-B comando com `--`, §38-B distância real da estrutura, §26 Lighthouse como piso 96/96/96/100, §36 badges). Registro completo em §40.2
+- [x] **`docs/setup.md`** — mandava aplicar schema com `prisma db push` e citava um script inexistente; agora documenta o fluxo de migrations + seção "Alterando o schema"
+
+**Pendências — dependem de algo fora do repositório (§40.5):**
+
+- [ ] **Baseline no Neon** — rodar `DATABASE_URL=<neon> pnpm --filter @newranews/database exec prisma migrate resolve --applied 0_init` e depois cadastrar o secret `DATABASE_URL` no GitHub. Sem isso o primeiro `migrate deploy` falha com **P3005** (schema não-vazio). Bloqueia a 1ª migration da V2
+- [x] **Asset de logo recebido e vetorizado (2026-08-19)** — vieram 3 PNGs de 1600px; a cor bateu exata com o `brand-600 #C94F22` da §4.1. A geometria é regular (4 stadiums de raio 112 + sparkle de raio 294, com simetria de rotação 180°), então foi **reconstruída em vetor** em vez de traçada: erro de forma de **3 px** em 768.744 px de arte na validação pixel a pixel, o resto sendo antialiasing de borda. Versionados `apps/web/public/logo/logo-mark.svg` (`#C94F22`) e `logo-mono.svg` (`currentColor`) — 633/638 bytes contra 36,7 KB do PNG. Detalhes em §40.3
+- [ ] **Lockup horizontal** — o PNG "horizontal" entregue está **vazio à direita de x=320** (zero pixels com alpha); não há wordmark. Padrão assumido para a Fase 2: marca + wordmark tipográfico na fonte display (§5), como o header já faz hoje. Alternativa é desenhar o lockup com texto em curvas
+- [ ] **Landing `/[locale]/newsletter`** — não existe hoje; entrou como entregável da Fase 2 e só depois disso entra na baseline visual da §30
 
 ---
 

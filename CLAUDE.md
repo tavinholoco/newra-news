@@ -14,7 +14,7 @@
 - `pnpm dev` — rodar todos os apps em dev
 - `pnpm build` — build de produção
 - `pnpm lint` — ESLint em todo o monorepo
-- `pnpm test` — Vitest (backend)
+- `pnpm test` — Vitest (backend + frontend)
 - `pnpm db:migrate` — rodar migrations Prisma
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
@@ -40,14 +40,18 @@
 - Frontend: Vitest + React Testing Library (jsdom)
 
 ## Referência
-- PRD completo: docs/PRD-NewraNews_V1_1.md
+- PRD completo: docs/PRD-NewraNews_V1.1.md (local-only, gitignored)
+- Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - Diagramas: docs/diagrams/
 
 ## Status Atual
 
 - **Fase:** Fase 5 (Polish e Portfólio) concluída em 2026-08-15 — checklist do PRD fechado
 - **Último marco (2026-08-16):** Item 9 (observabilidade dev-only) concluído — modelo `PipelineEvent` + `PipelineLog` enriquecido (`errorStage`/`errorDetail`), endpoints `/api/dev/logs` (+`:pipelineId`) e página HTML `/dev/dashboard`, todos protegidos por `JOB_SECRET`; pipeline registra eventos por etapa (INFO/WARN/ERROR) substituindo os `console.warn/error` soltos. **P3 (painel admin) concluído** — `DELETE /api/news/:id` (JWT + role ADMIN) e página `/admin` com "Executar pipeline" (reusa o cron via proxy com sessão+role server-side) e remoção de notícias
-- **Próximos passos:** Item 8 — deploy da newsletter (envs `RESEND_API_KEY`/`SITE_URL`/`NEWSLETTER_FROM` no Render + domínio verificado no Resend)
+- **Último marco (2026-08-19):** plano V2.0 (redesign editorial) instalado em `docs/Newra-News-V2-Frontend-Redesign-Plan.md` — versão 2.1 do documento + seção 40 (auditoria de prontidão do repositório) e seção 41 (convenções de execução com Opus 5). README reescrito no padrão open source e `CONTRIBUTING.md` criado
+- **Bloqueadores da V2 resolvidos (2026-08-19):** migrations versionadas (saíram do `.gitignore`) + baseline `0_init` gerada; workflow `.github/workflows/migrate.yml` (`migrate status` + `migrate deploy`, no-op enquanto não houver secret `DATABASE_URL`); `LICENSE` MIT; repo git órfão em `apps/web/.git` removido; 14 divergências do plano corrigidas no corpo das seções (registro em §40.2)
+- **Logo (2026-08-19):** asset recebido em PNG e **vetorizado** — `apps/web/public/logo/logo-mark.svg` (`#C94F22`, igual ao `brand-600` da V2) e `logo-mono.svg` (`currentColor`), 633/638 bytes, `viewBox="0 0 1184 1312"` justo. Reconstrução geométrica validada por diff de pixels (3 px de erro de forma). Falta o lockup horizontal — o PNG entregue não tinha wordmark; ver §40.3
+- **Próximos passos:** (1) baseline no Neon — `prisma migrate resolve --applied 0_init` + secret `DATABASE_URL` no GitHub (sem isso o 1º `migrate deploy` dá P3005); (2) Fase 0 do plano V2; (3) Item 8 — deploy da newsletter (domínio verificado no Resend)
 - **Testes:** 419 testes em 48 suites (330 API em 31 suites + 89 web em 17 suites — todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
