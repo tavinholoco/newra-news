@@ -12,6 +12,8 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "db:migrate": "turbo db:migrate",
+    "db:migrate:deploy": "pnpm --filter @newranews/database db:migrate:deploy",
+    "db:migrate:status": "pnpm --filter @newranews/database db:migrate:status",
     "db:generate": "turbo db:generate",
     "db:studio": "pnpm --filter @newranews/database db:studio",
     "db:seed": "turbo db:seed"

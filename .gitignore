@@ -25,8 +25,8 @@ out/
 Thumbs.db
 
 # Prisma
-packages/database/prisma/migrations/*
-!packages/database/prisma/migrations/.gitkeep
+# As migrations SÃO versionadas — elas são a fonte de verdade do schema
+# (ver docs/Newra-News-V2-Frontend-Redesign-Plan.md §37). Não voltar a ignorá-las.
 
 # Logs
 *.log
