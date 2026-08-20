@@ -8,3 +8,13 @@ export const NAV_LINKS = [
 ] as const;
 
 export type NavLink = (typeof NAV_LINKS)[number];
+
+/**
+ * Item de navegação montado em runtime — o menu mobile acrescenta links por
+ * sessão e por role, que não cabem na tupla literal de `NAV_LINKS`.
+ * `key` é a chave de tradução no namespace `nav.*`.
+ */
+export interface NavItem {
+  href: string;
+  key: string;
+}

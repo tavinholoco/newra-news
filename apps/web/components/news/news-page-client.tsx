@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type { Category, News, PaginatedResponse } from '@newranews/types';
+import { Category, type News, type PaginatedResponse } from '@newranews/types';
 import { useNewsList } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { NewsFilters } from './news-filters';
@@ -16,9 +17,30 @@ interface NewsPageClientProps {
 export function NewsPageClient({ initialData }: NewsPageClientProps) {
   const t = useTranslations('news');
   const tCommon = useTranslations('common');
-  const [category, setCategory] = useState<Category | null>(null);
-  const [search, setSearch] = useState('');
+  // A faixa de categorias do masthead e a busca do header chegam por query
+  // string, e é o que torna `/news?category=…` compartilhável. Ainda é só a
+  // **entrada**: escrever a URL a cada clique de filtro e de página é trabalho
+  // da Fase 4 ("filter state" na §28).
+  const searchParams = useSearchParams();
+  const categoryParam = searchParams.get('category');
+  const urlCategory =
+    categoryParam && categoryParam in Category
+      ? (categoryParam as Category)
+      : null;
+  const urlSearch = searchParams.get('search') ?? '';
+
+  const [category, setCategory] = useState<Category | null>(urlCategory);
+  const [search, setSearch] = useState(urlSearch);
   const [page, setPage] = useState(1);
+
+  // Navegar de `/news?category=A` para `?category=B` não remonta o componente,
+  // então o inicializador do `useState` não roda de novo — sem isto a URL
+  // mudava e a lista ficava na categoria anterior.
+  useEffect(() => {
+    setCategory(urlCategory);
+    setSearch(urlSearch);
+    setPage(1);
+  }, [urlCategory, urlSearch]);
 
   const { data, isFetching, isError } = useNewsList(
     {
@@ -27,6 +49,8 @@ export function NewsPageClient({ initialData }: NewsPageClientProps) {
       category: category ?? undefined,
       search: search || undefined,
     },
+    // O `initialData` do servidor é a primeira página sem filtro; com
+    // categoria ou busca na URL ele não corresponde ao que se pede.
     page === 1 && !category && !search ? initialData : undefined,
   );
 

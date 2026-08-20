@@ -1,8 +1,10 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import type { News } from '@newranews/types';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getNews } from '@/lib/api';
 import { NewsPageClient } from '@/components/news/news-page-client';
+import { NewsGrid } from '@/components/news/news-grid';
 
 export const revalidate = 3600;
 
@@ -55,7 +57,11 @@ export default async function NewsPage({ params }: Props) {
           {t('pageDescription')}
         </p>
       </div>
-      <NewsPageClient initialData={initialData} />
+      {/* `NewsPageClient` lê `?category=` e `?search=` da URL; numa página
+          estática isso exige fronteira de Suspense. */}
+      <Suspense fallback={<NewsGrid news={[]} isLoading />}>
+        <NewsPageClient initialData={initialData} />
+      </Suspense>
     </div>
   );
 }
