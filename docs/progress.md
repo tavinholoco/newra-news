@@ -29,9 +29,9 @@
 
 > `/[locale]/dashboard` (pública, indexada, ISR) virou `/[locale]/admin/metrics`, e `GET /api/metrics/dashboard` passou a exigir JWT com role ADMIN. Ver **item 14**.
 
-**Newra News V2.0 — Fase 2 (Shell)** ✅ Concluída em 2026-08-20
+**Newra News V2.0 — Fase 2 (Shell)** ✅ Concluída em 2026-08-20 — **checklist da §28 fechado**
 
-> Masthead em três linhas (§10), faixa de categorias, menu mobile, rodapé no ritmo dos tokens, `newsletter-cta` e a landing `/[locale]/newsletter`. 522 testes verdes; acessibilidade 100 no shell novo. Branch `feat/v2-header`. Ver **item 15**.
+> Masthead em três linhas (§10), faixa de categorias, menu mobile, rodapé no ritmo dos tokens, `newsletter-cta`, a landing `/[locale]/newsletter` e as duas telas de texto (`/about`, `/newsletter/unsubscribe`). Lockup reavaliado e baseline recapturada. 522 testes verdes; acessibilidade 100 em todas as telas medidas. Ver **item 15**.
 
 **Próximo ciclo — V2.0 Fase 3 (Home)** ⚠️ Bloqueada
 
@@ -306,10 +306,10 @@
 - [x] **`/[locale]/newsletter/unsubscribe`** — mesmo ritmo. Os dois estados diferem em ícone, cor e texto, não em estrutura, então viraram um objeto no lugar de dois blocos de JSX quase idênticos
 - [x] **Acessibilidade 100 nas duas**, sem nenhuma auditoria reprovando
 
-**Em aberto**
+**Fechamento da fase**
 
-- [ ] **Reavaliar o lockup desenhado (§40.3-B)** — o ponto de reavaliação é o fim desta fase, agora que a tipografia está fixa
-- [ ] **Recapturar a baseline visual** — a de `baseline-v2/` é anterior ao shell novo, à landing e a estas duas telas
+- [x] **Lockup reavaliado (§40.3-B) — fica o tipográfico.** Desta vez a decisão saiu de medição, não de sequenciamento: o lockup foi medido em produção no tamanho em que aparece (Inter 20px, `/pt-BR` a 1440px) e dá **151,5 × 28 px = 5,41:1**, praticamente a proporção de 4:1–5:1 que o lockup desenhado perseguiria. A geometria que justificaria desenhá-lo já está lá, saindo da composição tipográfica. A medição também mostrou que a marca alinha à **caixa alta** (centro a 0,5 px) e não à **altura-x** (1,5 px), que era o alvo da §40.3-B — **não corrigido de propósito**: 1,5 px num tipo de 20 px, com a marca transbordando o texto 6 px acima e 7 abaixo, e o conserto seria um `translate-y` mágico, exatamente o que a fase passou inteira tirando do código. Registro completo em §40.3
+- [x] **Baseline visual recapturada** — 42 capturas, 12 rotas, de produção às 23:05. Entrou `/pt-BR/newsletter` (3 imagens); as 37 restantes foram substituídas. O diretório é **reescrito a cada fase** em vez de acumular um por fase: a referência útil é sempre a da fase anterior, os estados antigos ficam no git, e cada conjunto pesa ~15 MB
 
 ---
 
