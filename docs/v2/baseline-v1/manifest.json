@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-20T01:03:51.324Z",
+  "capturedAt": "2026-08-20T13:42:39.954Z",
   "baseUrl": "http://localhost:3000",
   "format": "jpeg",
   "viewports": [
@@ -70,19 +70,19 @@
     },
     {
       "file": "news-detail--375.jpg",
-      "route": "/pt-BR/news/ab545db1-65c8-4118-8a1e-98c311639c6f",
+      "route": "/pt-BR/news/3136c53e-0e26-4d04-a31b-2aa2722d9a67",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--768.jpg",
-      "route": "/pt-BR/news/ab545db1-65c8-4118-8a1e-98c311639c6f",
+      "route": "/pt-BR/news/3136c53e-0e26-4d04-a31b-2aa2722d9a67",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--1440.jpg",
-      "route": "/pt-BR/news/ab545db1-65c8-4118-8a1e-98c311639c6f",
+      "route": "/pt-BR/news/3136c53e-0e26-4d04-a31b-2aa2722d9a67",
       "status": 200,
       "ok": true
     },

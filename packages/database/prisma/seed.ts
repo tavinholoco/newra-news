@@ -91,6 +91,16 @@ async function main() {
     },
   ];
 
+  // Aponta cada notícia para o placeholder da sua categoria. Sem imagem, todo
+  // card cai no fallback `from-brand-600 to-brand-400` e a tela local fica bem
+  // mais laranja que a produção — o que atrapalha exatamente quem está
+  // conferindo cor e tipografia. Os arquivos saem de
+  // `scripts/generate-seed-images.mjs`; se não existirem, o `SafeImage` volta
+  // sozinho para o gradiente, então o seed funciona de qualquer jeito.
+  for (const item of newsItems) {
+    item.imageUrl = `/seed/${item.category.toLowerCase()}.png`;
+  }
+
   let newsCreated = 0;
   for (const item of newsItems) {
     const existing = await prisma.news.findFirst({ where: { sourceUrl: item.sourceUrl } });
@@ -116,6 +126,48 @@ async function main() {
   } else {
     console.log('  Article: already exists for today');
   }
+
+  // 30 dias de métricas do pipeline. Sem elas a `/dashboard` fica inteira em
+  // zero e o `category-bars` — que consome `--chart-1..5` — não desenha barra
+  // nenhuma, o que esconde justamente o componente que a V2 muda.
+  // Determinístico, para o seed ser reprodutível: sem aleatoriedade.
+  let metricsCreated = 0;
+  for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+    const date = new Date(today);
+    date.setUTCDate(date.getUTCDate() - daysAgo);
+
+    const existing = await prisma.dailyMetric.findUnique({ where: { date } });
+    if (existing) continue;
+
+    const rssCount = 320 + ((daysAgo * 14) % 120);
+    const newsApiCount = 60 + ((daysAgo * 3) % 20);
+    await prisma.dailyMetric.create({
+      data: {
+        date,
+        newsCollected: rssCount + newsApiCount,
+        newsByCategory: {
+          WORLD: 121,
+          TECHNOLOGY: 62,
+          ECONOMY: 51,
+          POLITICS: 44,
+          SPORTS: 38,
+          HEALTH: 29,
+          SCIENCE: 22,
+          ENTERTAINMENT: 18,
+        },
+        articleGenerated: true,
+        pipelineDuration: 24_000 + ((daysAgo * 1300) % 12_000),
+        aiProvider: daysAgo % 5 === 0 ? 'groq' : 'gemini',
+        aiTokensUsed: 8_200 + ((daysAgo * 310) % 3_000),
+        pipelineErrors: 0,
+        newsApiCount,
+        rssCount,
+        cleanupCount: (daysAgo * 7) % 40,
+      },
+    });
+    metricsCreated++;
+  }
+  console.log(`  DailyMetric: ${metricsCreated} created (${30 - metricsCreated} already existed)`);
 
   console.log('Seed completed successfully.');
 }

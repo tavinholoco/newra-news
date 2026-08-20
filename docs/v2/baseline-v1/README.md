@@ -9,11 +9,12 @@ troca os design tokens globalmente, então esta é a última fotografia da V1.
 - **Larguras:** 375 / 768 / 1440 px, página inteira
 - **Temas:** claro em tudo; escuro em `home`, `news` e `article-detail`
 
-Regenerar (com a API e o site no ar):
+Regenerar:
 
 ```bash
-cd apps/web
-FORMAT=jpeg WIDTHS=375,768,1440 pnpm visual:baseline
+./scripts/dev-bootstrap.sh          # banco, envs, migrations, seed e imagens
+pnpm dev                            # api :3001 · web :3000
+cd apps/web && FORMAT=jpeg WIDTHS=375,768,1440 pnpm visual:baseline
 ```
 
 O script é `apps/web/scripts/capture-visual-baseline.mjs`. Sem `FORMAT`/`WIDTHS`
@@ -30,12 +31,15 @@ diferem apenas na margem lateral.
 
 Duas ressalvas importam na comparação com a V2:
 
-1. **Nenhuma notícia tem imagem.** A captura roda contra o seed local
-   (`packages/database/prisma/seed.ts`), onde todo `imageUrl` é `null`. Por isso
-   todos os cards caem no fallback `bg-gradient-to-br from-brand-600 to-brand-400`
-   e a tela fica muito mais laranja do que a produção, onde a maioria dos cards
-   traz foto real. O excesso de laranja é um problema real da V1 (§4.1), mas
-   estas capturas o exageram.
+1. **As imagens dos cards são placeholders gerados, não fotos.** O seed aponta
+   cada notícia para `/seed/<categoria>.png`, gerado por
+   `scripts/generate-seed-images.mjs` — gradientes de matiz variado, um por
+   categoria. Eles existem para o card ter o **peso visual** de um card com
+   foto; não representam o recorte real das imagens de produção, que é o que a
+   §13 discute. O que eles corrigem é mais importante para esta comparação: sem
+   imagem, todo card caía no fallback `from-brand-600 to-brand-400` e a tela
+   ficava uma parede de laranja que não existe na produção — e que escondia,
+   entre outras coisas, o badge de categoria cujo contraste reprova AA.
 2. **O `/favorites` aparece como tela de login.** A rota redireciona anônimos
    para `/signin`, e a captura roda sem sessão. O estado autenticado de
    favoritos e dashboard não está na baseline.

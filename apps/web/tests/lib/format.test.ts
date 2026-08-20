@@ -57,10 +57,18 @@ describe('formatPercent', () => {
 });
 
 describe('formatPipelineDuration', () => {
-  it('should format seconds as a compact duration', () => {
-    expect(formatPipelineDuration(27)).toBe('27s');
-    expect(formatPipelineDuration(65)).toBe('1m 05s');
-    expect(formatPipelineDuration(120)).toBe('2m 00s');
+  it('should format milliseconds as a compact duration', () => {
+    expect(formatPipelineDuration(27_000)).toBe('27s');
+    expect(formatPipelineDuration(65_000)).toBe('1m 05s');
+    expect(formatPipelineDuration(120_000)).toBe('2m 00s');
+  });
+
+  // A unidade vem do backend: `Date.now() - startedAt`, em milissegundos.
+  // Um run real de ~26,5s aparecia como "441m 40s" quando o valor era lido
+  // como segundos.
+  it('should read the value as milliseconds, matching what the API stores', () => {
+    expect(formatPipelineDuration(26_500)).toBe('27s');
+    expect(formatPipelineDuration(34_953)).toBe('35s');
   });
 
   it('should render a dash for missing durations', () => {

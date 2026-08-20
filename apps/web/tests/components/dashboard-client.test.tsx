@@ -10,7 +10,8 @@ const mockMetrics: DashboardMetrics = {
     newsCollected: 491,
     articleGenerated: true,
     aiProvider: 'gemini',
-    pipelineDuration: 27,
+    // Milissegundos, como o backend grava (`Date.now() - startedAt`).
+    pipelineDuration: 27_000,
     pipelineErrors: 0,
   },
   lastWeek: {
@@ -22,7 +23,7 @@ const mockMetrics: DashboardMetrics = {
     avgNewsPerDay: 489.7,
     totalArticlesGenerated: 7,
     pipelineSuccessRate: 1,
-    avgPipelineDuration: 65,
+    avgPipelineDuration: 65_000,
     newsByCategory: { WORLD: 3484, TECHNOLOGY: 345, ECONOMY: 128 },
     aiProviderUsage: { gemini: 6, groq: 1 },
   },
