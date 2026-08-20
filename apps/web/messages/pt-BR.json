@@ -28,6 +28,10 @@
     "WORLD": "Mundo",
     "HEALTH": "Saúde"
   },
+  "editorial": {
+    "readingTime": "{minutes} min de leitura",
+    "sourceLabel": "Ler em {source}"
+  },
   "common": {
     "loading": "Carregando...",
     "retry": "Tentar novamente",

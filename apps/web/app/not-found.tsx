@@ -19,7 +19,7 @@ export default async function GlobalNotFound() {
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <div className='mx-auto flex min-h-screen max-w-4xl flex-col items-center px-4 py-24 text-center sm:px-6 lg:px-8'>
-            <SearchX className='mb-6 h-16 w-16 text-muted-foreground/40' />
+            <SearchX className='mb-6 h-16 w-16 text-line-strong' />
             <h1 className='font-display mb-3 text-6xl font-bold text-foreground'>
               404
             </h1>
@@ -29,7 +29,7 @@ export default async function GlobalNotFound() {
             <p className='mb-8 text-muted-foreground'>{t('description')}</p>
             <a
               href={`/${locale}`}
-              className='flex items-center gap-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
+              className='flex items-center gap-2 text-sm font-medium text-link transition-colors hover:text-link-hover'
             >
               <ArrowLeft className='h-4 w-4' />
               {tCommon('backToHome')}

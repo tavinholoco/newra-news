@@ -65,7 +65,7 @@ export default async function SignInPage({ params, searchParams }: Props) {
 
   return (
     <div className='mx-auto max-w-md px-4 py-16 sm:px-6'>
-      <div className='rounded-xl border border-border bg-card p-8'>
+      <div className='rounded-lg border border-border bg-card p-8'>
         <h1 className='font-display mb-2 text-2xl font-bold text-foreground'>
           {t('title')}
         </h1>

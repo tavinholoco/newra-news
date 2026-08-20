@@ -68,3 +68,20 @@ export function formatProviderName(provider: string | null | undefined): string 
   if (!provider) return '—';
   return provider.charAt(0).toUpperCase() + provider.slice(1);
 }
+
+/**
+ * Corpo do texto → minutos de leitura, arredondando para cima (mínimo 1).
+ *
+ * 200 palavras por minuto é a taxa usual de texto editorial. Existe porque o
+ * `readingTimeMinutes` do contrato da §24 ainda não vem da API: até a branch
+ * `feat/v2-editorial-api` entrar, o frontend deriva o valor do `content`.
+ */
+export function readingTimeFromText(
+  text: string | null | undefined,
+  wordsPerMinute = 200,
+): number {
+  if (!text) return 0;
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  if (words === 0) return 0;
+  return Math.ceil(words / wordsPerMinute);
+}

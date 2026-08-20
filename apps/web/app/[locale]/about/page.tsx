@@ -82,8 +82,8 @@ export default async function AboutPage({ params }: Props) {
           {t('howItWorks')}
         </h2>
         <div className='grid grid-cols-1 gap-6 sm:grid-cols-3'>
-          <div className='flex flex-col items-center rounded-xl bg-card px-4 py-6 text-center ring-1 ring-foreground/10'>
-            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-brand-600'>
+          <div className='flex flex-col items-center rounded-lg bg-card px-4 py-6 text-center ring-1 ring-line'>
+            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
               <Newspaper className='h-6 w-6' />
             </div>
             <h3 className='font-display mb-1 text-base font-medium text-foreground'>
@@ -94,8 +94,8 @@ export default async function AboutPage({ params }: Props) {
             </p>
           </div>
 
-          <div className='flex flex-col items-center rounded-xl bg-card px-4 py-6 text-center ring-1 ring-foreground/10'>
-            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-brand-600'>
+          <div className='flex flex-col items-center rounded-lg bg-card px-4 py-6 text-center ring-1 ring-line'>
+            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
               <Sparkles className='h-6 w-6' />
             </div>
             <h3 className='font-display mb-1 text-base font-medium text-foreground'>
@@ -106,8 +106,8 @@ export default async function AboutPage({ params }: Props) {
             </p>
           </div>
 
-          <div className='flex flex-col items-center rounded-xl bg-card px-4 py-6 text-center ring-1 ring-foreground/10'>
-            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-100 text-brand-600'>
+          <div className='flex flex-col items-center rounded-lg bg-card px-4 py-6 text-center ring-1 ring-line'>
+            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
               <BookOpen className='h-6 w-6' />
             </div>
             <h3 className='font-display mb-1 text-base font-medium text-foreground'>
@@ -141,7 +141,7 @@ export default async function AboutPage({ params }: Props) {
       </section>
 
       {/* Open Source */}
-      <section className='rounded-xl border border-border bg-muted/30 px-6 py-8 text-center'>
+      <section className='rounded-lg border border-border bg-muted/30 px-6 py-8 text-center'>
         <Github className='mx-auto mb-4 h-10 w-10 text-foreground' />
         <h2 className='font-display mb-2 text-xl font-bold text-foreground'>
           {t('openSourceTitle')}
@@ -153,7 +153,7 @@ export default async function AboutPage({ params }: Props) {
           href='https://github.com/tavinholoco/newra-news'
           target='_blank'
           rel='noopener noreferrer'
-          className='inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
+          className='inline-flex items-center gap-1.5 text-sm font-medium text-link transition-colors hover:text-link-hover'
         >
           {t('viewOnGithub')}
           <ExternalLink className='h-3.5 w-3.5' />

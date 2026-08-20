@@ -1,6 +1,6 @@
 'use client';
 
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import type { News } from '@newranews/types';
 import { SafeImage } from '@/components/ui/safe-image';
@@ -12,10 +12,9 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { FavoriteButton } from '@/components/news/favorite-button';
-import { toDateFormatLocale } from '@/lib/i18n';
-import { formatDate } from '@/lib/format';
+import { ArticleMeta } from '@/components/editorial/article-meta';
 
 interface NewsCardProps {
   news: News;
@@ -23,18 +22,17 @@ interface NewsCardProps {
 
 export function NewsCard({ news }: NewsCardProps) {
   const t = useTranslations('categories');
-  const locale = useLocale();
 
   return (
-    <div className='group relative h-full transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-md'>
+    <div className='group relative h-full'>
       <Link href={`/news/${news.id}`} className='block h-full'>
         <Card className='h-full'>
         {/* Image */}
-        <div className='relative aspect-[16/9] w-full overflow-hidden rounded-t-xl'>
+        <div className='relative aspect-[16/9] w-full overflow-hidden rounded-t-lg'>
           {(() => {
             const placeholder = (
-              <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-600 to-brand-400'>
-                <span className='font-display text-2xl font-bold text-white/80'>N</span>
+              <div role='img' aria-label='Newra News' className='flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-mark to-brand-mark-soft'>
+                <span className='font-display text-2xl font-bold text-on-brand/80'>N</span>
               </div>
             );
             return news.imageUrl ? (
@@ -43,7 +41,7 @@ export function NewsCard({ news }: NewsCardProps) {
                 alt={news.title}
                 fill
                 sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                className='object-cover transition-transform duration-300 group-hover:scale-105'
+                className='object-cover transition-transform duration-slow group-hover:scale-105'
                 fallback={placeholder}
               />
             ) : (
@@ -51,7 +49,7 @@ export function NewsCard({ news }: NewsCardProps) {
             );
           })()}
           <div className='absolute left-3 top-3'>
-            <Badge className='bg-brand-600 text-white hover:bg-brand-600'>
+            <Badge>
               {t(news.category)}
             </Badge>
           </div>
@@ -59,7 +57,7 @@ export function NewsCard({ news }: NewsCardProps) {
 
         {/* Content */}
         <CardHeader>
-          <CardTitle className='font-display line-clamp-2 text-base leading-snug group-hover:text-brand-600'>
+          <CardTitle className='font-display line-clamp-2 text-base leading-snug transition-colors duration-base group-hover:text-link'>
             {news.title}
           </CardTitle>
           <CardDescription className='line-clamp-3'>
@@ -68,13 +66,14 @@ export function NewsCard({ news }: NewsCardProps) {
         </CardHeader>
 
         {/* Footer */}
-        <CardFooter className='mt-auto gap-3 text-xs text-muted-foreground'>
-          <span className='truncate font-medium'>{news.source}</span>
-          <span className='flex items-center gap-1'>
-            <Calendar className='h-3 w-3' />
-            {formatDate(news.publishedAt, toDateFormatLocale(locale))}
-          </span>
-          <ExternalLink className='ml-auto h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
+        <CardFooter className='mt-auto gap-3'>
+          {/* sem sourceHref: o card inteiro já é um link (âncora aninhada) */}
+          <ArticleMeta
+            source={news.source}
+            publishedAt={news.publishedAt}
+            className='min-w-0'
+          />
+          <ExternalLink className='ml-auto size-3 shrink-0 text-ink-muted opacity-0 transition-opacity duration-base group-hover:opacity-100' />
         </CardFooter>
         </Card>
       </Link>

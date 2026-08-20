@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { Inter, Bricolage_Grotesque } from 'next/font/google';
+import { Inter, Newsreader } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import {
   getMessages,
@@ -18,7 +18,10 @@ import { routing } from '@/i18n/routing';
 import type { Locale } from '@/lib/i18n';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-const bricolage = Bricolage_Grotesque({
+// Serif editorial das manchetes (§7 de docs/v2/01-design-tokens.md).
+// Inter continua na interface: trocar as duas fontes de uma vez dobraria o
+// risco de CLS numa fase que já mexe em todos os tokens.
+const newsreader = Newsreader({
   subsets: ['latin'],
   variable: '--font-display',
 });
@@ -71,7 +74,7 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning className={cn(inter.variable, bricolage.variable)}>
+    <html lang={locale} suppressHydrationWarning className={cn(inter.variable, newsreader.variable)}>
       <body className={cn('font-sans antialiased', inter.className)}>
         <ThemeInit />
         <NextIntlClientProvider locale={locale} messages={messages}>

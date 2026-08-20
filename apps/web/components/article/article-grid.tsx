@@ -17,7 +17,7 @@ export function ArticleGrid({ articles, isLoading = false }: ArticleGridProps) {
     return (
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className='flex flex-col gap-3 rounded-xl border p-4'>
+          <div key={i} className='flex flex-col gap-3 rounded-lg border p-4'>
             <Skeleton className='h-5 w-3/4' />
             <Skeleton className='h-4 w-full' />
             <Skeleton className='h-4 w-full' />
@@ -31,7 +31,7 @@ export function ArticleGrid({ articles, isLoading = false }: ArticleGridProps) {
 
   if (articles.length === 0) {
     return (
-      <div className='flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-6 py-16 text-center'>
+      <div className='flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center'>
         <p className='font-display text-lg font-semibold text-foreground'>
           {t('emptyTitle')}
         </p>

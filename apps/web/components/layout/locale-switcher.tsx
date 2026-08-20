@@ -36,8 +36,8 @@ export function LocaleSwitcher() {
             className={cn(
               'px-2 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors',
               active
-                ? 'bg-brand-600 text-white'
-                : 'bg-background text-foreground/60 hover:text-brand-600',
+                ? 'bg-brand-solid text-on-brand'
+                : 'bg-background text-foreground/60 hover:text-link',
             )}
           >
             {option === 'pt-BR' ? 'PT' : 'EN'}

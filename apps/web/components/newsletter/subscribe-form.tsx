@@ -52,7 +52,7 @@ export function SubscribeForm() {
           aria-label={t('emailLabel')}
           aria-invalid={status === 'error'}
           disabled={status === 'submitting'}
-          className='h-9 border-white/20 bg-white/10 text-white placeholder:text-white/40 focus-visible:border-white/50 focus-visible:ring-white/20'
+          className='h-9 border-on-brand/50 bg-on-brand/10 text-on-brand placeholder:text-on-brand/70 focus-visible:border-on-brand/70 focus-visible:ring-on-brand/30'
         />
         <Button
           type='submit'
@@ -66,12 +66,12 @@ export function SubscribeForm() {
       </div>
 
       {status === 'success' && (
-        <p role='status' className='text-xs text-green-300'>
+        <p role='status' className='text-xs text-success-on-brand'>
           {message}
         </p>
       )}
       {status === 'error' && (
-        <p role='alert' className='text-xs text-red-300'>
+        <p role='alert' className='text-xs text-danger-on-brand'>
           {message}
         </p>
       )}

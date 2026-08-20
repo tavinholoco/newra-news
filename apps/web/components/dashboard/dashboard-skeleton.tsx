@@ -8,7 +8,7 @@ export function DashboardSkeleton() {
         <Skeleton className='mb-4 h-7 w-28' />
         <div className='grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5'>
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2 rounded-xl border p-4'>
+            <div key={i} className='flex flex-col gap-2 rounded-lg border p-4'>
               <Skeleton className='h-3 w-24' />
               <Skeleton className='h-8 w-16' />
             </div>
@@ -21,7 +21,7 @@ export function DashboardSkeleton() {
         <Skeleton className='mb-4 h-7 w-36' />
         <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2 rounded-xl border p-4'>
+            <div key={i} className='flex flex-col gap-2 rounded-lg border p-4'>
               <Skeleton className='h-3 w-24' />
               <Skeleton className='h-8 w-16' />
             </div>
@@ -48,7 +48,7 @@ export function DashboardSkeleton() {
         <Skeleton className='mb-4 h-7 w-36' />
         <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2 rounded-xl border p-4'>
+            <div key={i} className='flex flex-col gap-2 rounded-lg border p-4'>
               <Skeleton className='h-3 w-24' />
               <Skeleton className='h-8 w-16' />
             </div>

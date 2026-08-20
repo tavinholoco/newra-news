@@ -17,7 +17,7 @@ export function FavoritesList() {
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
         {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className='space-y-3'>
-            <Skeleton className='aspect-[16/9] w-full rounded-xl' />
+            <Skeleton className='aspect-[16/9] w-full rounded-lg' />
             <Skeleton className='h-4 w-3/4' />
             <Skeleton className='h-4 w-1/2' />
           </div>
@@ -30,7 +30,7 @@ export function FavoritesList() {
     return (
       <div
         role='alert'
-        className='rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center'
+        className='rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center'
       >
         <p className='mb-4 text-muted-foreground'>
           {t('loadError')}
@@ -46,12 +46,12 @@ export function FavoritesList() {
 
   if (favorites.length === 0) {
     return (
-      <div className='rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center'>
-        <Heart className='mx-auto mb-3 h-8 w-8 text-muted-foreground/50' />
-        <p className='text-muted-foreground'>
+      <div className='rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center'>
+        <Heart className='mx-auto mb-3 h-8 w-8 text-line-strong' />
+        <p className='text-ink-secondary'>
           {t('emptyTitle')}
         </p>
-        <p className='mt-1 text-sm text-muted-foreground/70'>
+        <p className='mt-1 text-body-sm text-ink-muted'>
           {t('emptyHint')}
         </p>
       </div>

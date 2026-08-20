@@ -1,0 +1,360 @@
+/*
+ * Design tokens da V2.0 — Newra News
+ * ----------------------------------
+ * Valores fechados na Fase 0: docs/v2/01-design-tokens.md.
+ * Este arquivo não toma decisão de cor, fonte ou espaçamento — ele transcreve.
+ *
+ * Arquitetura em duas camadas (§1):
+ *
+ *   camada 1 — paleta      valores fixos, não mudam com o tema e não viram
+ *                          utility do Tailwind. É deliberado: se `brand-600`
+ *                          não existe como classe, nenhum componente consegue
+ *                          escrever `bg-brand-600` e furar a camada semântica.
+ *   camada 2 — semântica   papéis na interface. Só ela entra no `@theme`,
+ *                          e só ela é redeclarada no `.dark`.
+ *
+ * Divergências de nome em relação ao documento, todas por colisão de namespace
+ * do Tailwind v4 — os valores são os mesmos:
+ *
+ *   doc                   aqui                  porquê
+ *   --text-primary        --ink                 `--text-*` já é o namespace de
+ *   --text-secondary      --ink-secondary       font-size do Tailwind v4
+ *   --text-muted          --ink-muted
+ *   --text-on-brand       --on-brand
+ *   --accent              --brand-accent        `--accent` já é do shadcn (§6),
+ *   --accent-solid        --brand-solid         com outro valor
+ *   --accent-solid-hover  --brand-solid-hover
+ *   paleta `line`         --line-100            colidia com o papel semântico
+ *   paleta `line-strong`  --line-500            de mesmo nome
+ */
+
+@layer base {
+  :root {
+    /* ===================================================================
+     * Camada 1 — paleta (§2). Fixa: não muda com o tema.
+     * =================================================================== */
+
+    /* marca */
+    --brand-950: #6f2815;
+    --brand-800: #8e3518;
+    --brand-700: #a83e1c;
+    --brand-600: #c94f22;
+    --brand-500: #d96a34;
+    --brand-100: #f8e8de;
+    --brand-50: #fcf5f0;
+
+    /* neutros claros */
+    --ink-950: #111315;
+    --ink-700: #34383d;
+    --ink-500: #697178;
+    --paper: #faf9f7;
+    --white: #ffffff;
+    --line-100: #e4e1dd;
+    --line-500: #969084;
+
+    /* neutros escuros */
+    --night-900: #0f1113;
+    --night-800: #171a1d;
+    --night-700: #20252a;
+    --night-500: #6b6f73;
+    --night-line: rgb(255 255 255 / 0.1);
+    --mist-100: #f3f1ee;
+    --mist-300: #c4cad0;
+    --mist-400: #a8afb5;
+    --ember-500: #f07a45;
+    --ember-400: #f79a6e;
+
+    /* apoio */
+    --yellow: #f3b562;
+    --danger-600: #b4241c;
+    --danger-400: #f0705f;
+    --danger-300: #f79a90;
+    --success-600: #2e6b41;
+    --success-400: #6fbf8a;
+
+    /* ===================================================================
+     * Camada 2 — semântica (§3), tema claro.
+     * =================================================================== */
+
+    --bg: var(--paper);
+    --surface: var(--white);
+    --surface-raised: var(--white);
+    --surface-accent: var(--brand-50);
+    --surface-brand: var(--brand-950);
+
+    --ink: var(--ink-950);
+    --ink-secondary: var(--ink-700);
+    --ink-muted: var(--ink-500);
+    --on-brand: var(--white);
+
+    --link: var(--brand-700);
+    --link-hover: var(--brand-800);
+
+    --brand-accent: var(--brand-600);
+    /* não inverte: é o par que passa AA nos dois temas (§3) */
+    --brand-solid: var(--brand-700);
+    --brand-solid-hover: var(--brand-800);
+    /* marca genuína (logo, selo de IA, placeholder de imagem): fixa,
+       nunca inverte (§1) */
+    --brand-mark: var(--brand-600);
+    --brand-mark-soft: var(--brand-500);
+
+    --line: var(--line-100);
+    --line-strong: var(--line-500);
+
+    --focus: var(--brand-700);
+    --danger: var(--danger-600);
+    --success: var(--success-600);
+
+    /* Sobre `--surface-brand` a superfície é escura nos dois temas — o par de
+       estado tem de ser o do escuro sempre, pelo mesmo motivo que
+       `--brand-solid` não inverte. Usado pelo formulário do rodapé.
+
+       `danger-300` é acréscimo da Fase 1, pela mesma razão que a Fase 0
+       acrescentou o par de sucesso: a medição achou o buraco. `danger-400`
+       resolve sobre neutro escuro (6,48:1 em `night-900`), mas cai para
+       3,61:1 sobre `brand-950` — o fundo de marca é mais claro e mais quente
+       que o neutro. `danger-300` dá 5,01:1. Ver `scripts/check-contrast.mjs`. */
+    --danger-on-brand: var(--danger-300);
+    --success-on-brand: var(--success-400);
+
+    /* ===================================================================
+     * Ponte para o shadcn (§6). Aponta para a camada 2 sempre que o papel
+     * coincide — é por isso que o bloco `.dark` cabe em ~30 linhas.
+     * As 8 variáveis `--sidebar-*` do boilerplate foram removidas: não há
+     * componente de sidebar no projeto.
+     * =================================================================== */
+
+    --background: var(--bg);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface-raised);
+    --popover-foreground: var(--ink);
+    --primary: var(--brand-solid);
+    --primary-foreground: var(--on-brand);
+    --secondary: var(--brand-50);
+    --secondary-foreground: var(--brand-950);
+    --muted: var(--brand-50);
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--brand-100);
+    --accent-foreground: var(--brand-950);
+    --destructive: var(--danger);
+    --border: var(--line);
+    --input: var(--line-strong);
+    --ring: var(--focus);
+
+    /* rampa com matiz variado e luminância crescente: o gráfico do dashboard
+       precisa parecer dado, não decoração de marca (§6) */
+    --chart-1: #a83e1c;
+    --chart-2: #c97a1e;
+    --chart-3: #5e7a4a;
+    --chart-4: #3d6b7d;
+    --chart-5: #6b5b8a;
+
+    /* sombra só existe em overlay; a densidade muda com o tema (§8) */
+    --shadow-overlay-tint: rgb(17 19 21 / 0.1);
+    --shadow-modal-tint: rgb(17 19 21 / 0.18);
+  }
+
+  .dark {
+    /* Só a camada 2. A paleta acima continua valendo. */
+    --bg: var(--night-900);
+    --surface: var(--night-800);
+    --surface-raised: var(--night-700);
+    --surface-accent: var(--night-800);
+    --surface-brand: var(--night-900);
+
+    --ink: var(--mist-100);
+    --ink-secondary: var(--mist-300);
+    --ink-muted: var(--mist-400);
+    --on-brand: var(--white);
+
+    --link: var(--ember-500);
+    --link-hover: var(--ember-400);
+
+    --brand-accent: var(--ember-500);
+
+    --line: var(--night-line);
+    --line-strong: var(--night-500);
+
+    --focus: var(--ember-500);
+    --danger: var(--danger-400);
+    --success: var(--success-400);
+
+    /* shadcn — só o que não segue a camada 2 */
+    --secondary: var(--night-700);
+    --secondary-foreground: var(--mist-100);
+    --muted: var(--night-700);
+    --accent: var(--night-700);
+    --accent-foreground: var(--mist-100);
+
+    --chart-1: #f07a45;
+    --chart-2: #f0b45e;
+    --chart-3: #9dc183;
+    --chart-4: #7fb4c9;
+    --chart-5: #b0a0d0;
+
+    /* sombra sobre fundo escuro precisa ser mais densa para existir (§8) */
+    --shadow-overlay-tint: rgb(0 0 0 / 0.4);
+    --shadow-modal-tint: rgb(0 0 0 / 0.6);
+  }
+}
+
+/* =====================================================================
+ * O que vira utility do Tailwind: só a camada 2 e a ponte do shadcn.
+ * ===================================================================== */
+
+@theme inline {
+  /* --- cor: papéis editoriais (camada 2) --- */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-accent: var(--surface-accent);
+  --color-surface-brand: var(--surface-brand);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-on-brand: var(--on-brand);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-solid: var(--brand-solid);
+  --color-brand-solid-hover: var(--brand-solid-hover);
+  --color-brand-mark: var(--brand-mark);
+  --color-brand-mark-soft: var(--brand-mark-soft);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-focus: var(--focus);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-danger-on-brand: var(--danger-on-brand);
+  --color-success-on-brand: var(--success-on-brand);
+
+  /* --- cor: ponte do shadcn --- */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* --- tipografia (§7): Newsreader nas manchetes, Inter na interface --- */
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+
+  /* escala nomeada por papel, não por tamanho */
+  --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.5rem);
+  --text-display--line-height: 1.05;
+  --text-h1: clamp(1.875rem, 1.4rem + 2vw, 2.75rem);
+  --text-h1--line-height: 1.1;
+  --text-h2: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+  --text-h2--line-height: 1.2;
+  --text-h3: 1.375rem;
+  --text-h3--line-height: 1.3;
+  --text-h4: 1.125rem;
+  --text-h4--line-height: 1.35;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.7;
+  --text-body: 1rem;
+  --text-body--line-height: 1.65;
+  --text-body-sm: 0.9375rem;
+  --text-body-sm--line-height: 1.6;
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.4;
+  --text-overline: 0.6875rem;
+  --text-overline--line-height: 1.2;
+  --text-overline--letter-spacing: 0.08em;
+
+  /* --- forma (§8). Extremos 0 e 12px: publicação, não template SaaS. --- */
+  --radius-none: 0;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* conteúdo editorial não tem sombra: separação vem de borda e espaço */
+  --shadow-overlay: 0 4px 16px var(--shadow-overlay-tint);
+  --shadow-modal: 0 16px 48px var(--shadow-modal-tint);
+
+  /* --- ritmo (§8) --- */
+  --spacing-section: clamp(2.5rem, 2rem + 2vw, 4.5rem);
+  --spacing-block: clamp(1.5rem, 1.25rem + 1vw, 2.5rem);
+  --spacing-gutter: clamp(1rem, 0.5rem + 2vw, 2rem);
+
+  /* medida de linha e larguras de coluna */
+  --container-prose: 68ch;
+  --container-narrow: 45rem;
+  --container-wide: 80rem;
+
+  /* --- motion (§14) --- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/*
+ * Duração e camada não têm namespace de tema no Tailwind v4. Viram utility
+ * estática para o call site continuar legível (`duration-base`, `z-header`).
+ *
+ * As duas declarações não são redundância: o `transition-*` do Tailwind emite
+ * `transition-duration: var(--tw-duration, …)`, então sem escrever
+ * `--tw-duration` a duração só vence por vir depois no arquivo — e isso é
+ * ordem de emissão, não regra.
+ */
+
+@utility duration-fast {
+  --tw-duration: 120ms;
+  transition-duration: 120ms;
+}
+@utility duration-base {
+  --tw-duration: 180ms;
+  transition-duration: 180ms;
+}
+@utility duration-slow {
+  --tw-duration: 240ms;
+  transition-duration: 240ms;
+}
+
+@utility z-base {
+  z-index: 0;
+}
+@utility z-dropdown {
+  z-index: 30;
+}
+@utility z-header {
+  z-index: 50;
+}
+@utility z-overlay {
+  z-index: 60;
+}
+@utility z-modal {
+  z-index: 70;
+}
+@utility z-toast {
+  z-index: 80;
+}
+
+/* Grade editorial: a margem lateral é token, não breakpoint (§8). */
+@utility container-editorial {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--spacing-gutter);
+  max-width: var(--container-wide);
+}

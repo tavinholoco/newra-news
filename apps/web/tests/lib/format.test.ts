@@ -8,6 +8,7 @@ import {
   formatPipelineDuration,
   formatCount,
   formatProviderName,
+  readingTimeFromText,
 } from '@/lib/format';
 
 describe('CATEGORY_LABELS', () => {
@@ -93,5 +94,27 @@ describe('formatProviderName', () => {
   it('should render a dash for missing providers', () => {
     expect(formatProviderName(null)).toBe('—');
     expect(formatProviderName(undefined)).toBe('—');
+  });
+});
+
+describe('readingTimeFromText', () => {
+  it('should round up to the next full minute', () => {
+    // 201 palavras a 200 ppm = 1,005 min
+    expect(readingTimeFromText(Array(201).fill('palavra').join(' '))).toBe(2);
+    expect(readingTimeFromText(Array(200).fill('palavra').join(' '))).toBe(1);
+  });
+
+  it('should never return less than a minute for real text', () => {
+    expect(readingTimeFromText('duas palavras')).toBe(1);
+  });
+
+  it('should return 0 when there is no text to read', () => {
+    expect(readingTimeFromText(null)).toBe(0);
+    expect(readingTimeFromText(undefined)).toBe(0);
+    expect(readingTimeFromText('   \n  ')).toBe(0);
+  });
+
+  it('should accept another reading rate', () => {
+    expect(readingTimeFromText(Array(600).fill('palavra').join(' '), 300)).toBe(2);
   });
 });

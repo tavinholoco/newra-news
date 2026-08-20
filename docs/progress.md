@@ -21,9 +21,13 @@
 
 > Migration de auditoria do briefing entregue; os três endpoints editoriais ficam para a branch `feat/v2-editorial-api`, que precisa ser mergeada **antes** de a Fase 3 abrir. Ver **item 12**.
 
-**Próximo ciclo — V2.0 Fase 1 (Foundation)** 📋 Sem bloqueadores
+**Newra News V2.0 — Fase 1 (Foundation)** ✅ Concluída em 2026-08-20
 
-> Plano em `docs/Newra-News-V2-Frontend-Redesign-Plan.md`. Os design tokens estão fechados em `docs/v2/01-design-tokens.md` — a Fase 1 copia de lá para `apps/web/styles/tokens.css`.
+> `apps/web/styles/tokens.css` implementa a paleta, a tipografia e o ritmo fechados na Fase 0; 480 testes verdes. Branch `feat/v2-design-foundation`. Ver **item 13**.
+
+**Próximo ciclo — V2.0 Fase 2 (Shell)** 📋 Sem bloqueadores
+
+> Top bar, masthead, navegação de categorias, rodapé e a landing `/[locale]/newsletter`. Pode correr em paralelo com `feat/v2-editorial-api` (item 12), que continua sendo pré-requisito da Fase 3.
 
 ---
 
@@ -197,6 +201,32 @@
 - [ ] `GET /api/trending` — etapa 1: recência + favoritos. Cliques e compartilhamentos dependem da camada de analytics (§27), que não existe; documentar como etapa 1 para não virar mito
 - [ ] `GET /api/news/:id/related` — mesma categoria em ±72h, completando por categoria e depois por recência (§18.3)
 - [ ] Primeira rota da API a definir `Cache-Control` — **não há precedente no `apps/api`**; decidir se mora num hook `onSend` do plugin ou por rota
+
+### 13. V2.0 Fase 1 — Foundation ✅ Concluída em 2026-08-20
+
+> Branch `feat/v2-design-foundation` (§29). A fase troca os tokens globalmente: a partir daqui a V1 visual deixa de existir e a referência é `docs/v2/baseline-v1/`.
+
+- [x] **`styles/tokens.css`** — paleta (camada 1) + semântica (camada 2) + `@theme inline`, importado pelo `globals.css` antes de qualquer regra. O `globals.css` caiu de ~160 para 44 linhas: só imports, a animação e as regras de base
+- [x] **A camada 1 ficou fora do `@theme`, de propósito** — `bg-brand-600` deixou de ser uma classe válida, então a regra "componentes usam só a semântica" passou a ser mecânica em vez de convenção. O preço é que uma classe de camada 1 não quebra o build, só não pinta; por isso existe o teste de guarda
+- [x] **57 usos de classe de marca migrados** — os 13 de `brand-400`/`brand-900` mapeados na §5, mais os 44 de `brand-600`/`brand-100` que mantinham o nome e passaram a ser consumidos pela semântica
+- [x] **Dois `hover:text-brand-700` que nunca funcionaram** (`admin/page.tsx`, `sign-in-form.tsx`) — `brand-700` não existia como token na V1. Achados pela migração, não por bug report
+- [x] **As 16 falhas de AA de branco sobre laranja somem na origem** — `--primary` virou `brand-700` (6,23:1), e os `<Badge className='bg-brand-600 text-white'>` viraram `<Badge>` sem override
+- [x] **`text-white/50` do rodapé** (4,04:1) — títulos de seção passaram a `text-on-brand` sólido e a linha de copyright a `/70`. Ganhou hierarquia junto com o contraste
+- [x] **Tipografia** — Newsreader no lugar do Bricolage Grotesque; Inter fica. Escala nomeada por papel (`text-display`, `text-h1`…`text-overline`) com `clamp()`, sem breakpoint novo
+- [x] **Forma, ritmo, motion e camadas** — radius de 5 níveis (botão/input 8px, card 12px, badge pill), sombra só em overlay, `--spacing-section|block|gutter`, `container-editorial`, `duration-*`/`ease-*` e `z-*`. `prefers-reduced-motion` virou regra global
+- [x] **As 8 variáveis `--sidebar-*` apagadas** e `--chart-1..5` com rampa de matiz variado — as 10 cores medidas contra o trilho da barra nos dois temas
+- [x] **`components/editorial/`** — `ArticleMeta`, `SourceBadge` e `ReadingTime` (§11 do plano), adotados por `news-card` e `news-detail`. Mais `readingTimeFromText` em `lib/format.ts`, porque o `readingTimeMinutes` do contrato da §24 só chega na branch `feat/v2-editorial-api`
+- [x] **`scripts/check-contrast.mjs`** (`pnpm --filter @newranews/web contrast:check`) — mede os 53 pares lendo o próprio `tokens.css`, incluindo as composições de opacidade. Reproduziu todos os números da §4 e **achou um caso que o documento não previa**: `danger-400` dá 3,61:1 sobre `brand-950`, a superfície escura do rodapé. Acrescentado `danger-300 #F79A90` (5,01:1)
+- [x] **22 testes novos (458 → 480)** — `article-meta.test.tsx` (8), `readingTimeFromText` (4) e `design-tokens.test.ts` (7): este último varre `app/` e `components/` proibindo camada 1, opacidade sobre `--text-muted`, cor crua do Tailwind e sombra fora dos overlays, e confere que toda utility de cor aponta para variável declarada
+- [x] **Convenções registradas em `apps/web/CLAUDE.md`** — a tabela papel → classe é o que as Fases 2–7 vão consultar
+- [x] **Revisão da própria fase** — build, lint, typecheck e 477 testes passavam com **4 defeitos dentro**: `??` no lugar de `||` em `ArticleMeta` (com `source: ''` a data e o tempo de leitura sumiam junto), ativo e hover com o mesmo `bg-surface-accent` na nav mobile (a V1 distinguia em dois níveis e a tradução perdeu um), `z-base` (0) num scrim — traduzir `z-40` pelo token de valor mais próximo é o inverso do que a tabela da §8 quer — e `--radius-xl`/`--radius-2xl` aliasados para 12px em vez de as 29 classes serem migradas. Todos corrigidos; o do `??` tem teste de regressão verificado (falha com `??`, passa com `||`), e radius e duração viraram invariante de suíte. Registro em `docs/v2/01-design-tokens.md` §11.4
+
+**Em aberto, sem bloquear a Fase 2:**
+
+- [ ] **Lighthouse por rota contra a tabela do `00-diagnostico.md` §3.1** — aquela tabela saiu do runner do GitHub contra produção; medir em laboratório local daria número não comparável. Fecha quando a branch estiver publicada
+- [ ] **Baseline visual da V2** (`docs/v2/baseline-v2/`) — o script existe (`visual:baseline`) e precisa do ambiente local no ar
+- [ ] **A escala tipográfica e o `container-editorial` ainda não são usados** — as páginas seguem com `max-w-7xl px-4 sm:px-6 lg:px-8`. Trocar contêiner e hierarquia é reflow, que é a Fase 2/3
+- [ ] **`heading-order` do grid de notícias** continua quebrado (§3.3 do diagnóstico) — é estrutura semântica, corrigida na reorganização editorial da Fase 3
 
 ---
 

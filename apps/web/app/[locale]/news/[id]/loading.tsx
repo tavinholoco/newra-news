@@ -10,7 +10,7 @@ export default function NewsDetailLoading() {
       </div>
 
       {/* Hero image */}
-      <Skeleton className='mb-8 aspect-[16/9] w-full rounded-2xl' />
+      <Skeleton className='mb-8 aspect-[16/9] w-full rounded-lg' />
 
       {/* Title */}
       <Skeleton className='mb-2 h-10 w-full' />
