@@ -477,15 +477,133 @@ linhas em vez de repetir a paleta inteira, como o `globals.css` de hoje faz.
 
 ## 10. Checklist de saída da Fase 1
 
-- [ ] `styles/tokens.css` criado e importado antes das regras do `globals.css`
-- [ ] as 13 ocorrências de `brand-400`/`brand-900` migradas conforme §5
-- [ ] as 8 variáveis `--sidebar-*` removidas
-- [ ] `--chart-1..5` com a rampa nova e `category-bars.tsx` conferido nos 2 temas
-- [ ] nenhum componente usando `bg-brand-*`/`text-brand-*` direto (só semântica)
-- [ ] `text-green-*`/`text-emerald-*` trocados por `--success` (4 usos)
-- [ ] `text-muted-foreground/40,50,70` trocados por token sólido ou `--line` (§4, "Modificadores de opacidade")
-- [ ] `shadow-lg` e `ring-foreground/10` mapeados conforme §8
-- [ ] Newsreader no lugar do Bricolage Grotesque em `app/[locale]/layout.tsx`
-- [ ] contraste reconferido nos pares da §4 **e nas composições de opacidade** depois
+Fechado em 20/08/2026, na branch `feat/v2-design-foundation`.
+
+- [x] `styles/tokens.css` criado e importado antes das regras do `globals.css`
+- [x] as 13 ocorrências de `brand-400`/`brand-900` migradas conforme §5
+- [x] as 8 variáveis `--sidebar-*` removidas
+- [x] `--chart-1..5` com a rampa nova; as 10 cores medidas contra o trilho da
+      barra nos 2 temas (`brand-50` e `night-700`), todas acima de 3:1 —
+      conferência visual fica para a captura da baseline v2
+- [x] nenhum componente usando `bg-brand-*`/`text-brand-*` direto (só semântica)
+- [x] `text-green-*`/`text-emerald-*` trocados por `--success` (4 usos)
+- [x] `text-muted-foreground/40,50,70` trocados por token sólido ou `--line` (§4, "Modificadores de opacidade")
+- [x] `shadow-lg` e `ring-foreground/10` mapeados conforme §8
+- [x] Newsreader no lugar do Bricolage Grotesque em `app/[locale]/layout.tsx`
+- [x] contraste reconferido nos pares da §4 **e nas composições de opacidade** depois
       que a interface existir
-- [ ] `pnpm test` verde (448) e Lighthouse ≥ à tabela por rota de `00-diagnostico.md` §3.1
+- [x] `pnpm test` verde — **480 testes em 52 suites** (365 API + 115 web), mais
+      `pnpm lint` e `pnpm --filter @newranews/web build` limpos
+- [ ] **Lighthouse ≥ à tabela por rota de `00-diagnostico.md` §3.1** — em aberto.
+      A tabela da §3.1 foi medida pelo workflow no runner do GitHub, contra
+      produção; um número de laboratório local não é comparável com ela. Fecha
+      quando a branch estiver publicada e o workflow rodar contra ela. O que a
+      Fase 1 pode afirmar sem isso: os dois defeitos de `color-contrast` que
+      derrubavam o score (branco sobre `brand-600` em 16 elementos e
+      `text-white/50` no rodapé) estão corrigidos na origem, e o First Load JS
+      da home continua em 157 kB
+
+---
+
+## 11. O que a Fase 1 mudou no caminho
+
+Três coisas não sobreviveram ao contato com o Tailwind v4 e com a medição.
+Todas alteram este documento, não só o código.
+
+### 11.1 A camada 1 não vira utility — de propósito
+
+A §1 diz que componentes usam só a camada 2, mas isso era uma convenção: nada
+impedia alguém de escrever `bg-brand-600`. Na implementação a paleta ficou
+**fora** do `@theme inline`, então essas classes simplesmente não existem.
+
+O efeito colateral é a única armadilha da decisão: uma classe de camada 1 não
+gera erro de build, só deixa de pintar. É por isso que
+`tests/lib/design-tokens.test.ts` varre `app/` e `components/` procurando
+por elas — junto com opacidade sobre `--text-muted`, cor crua do Tailwind e
+sombra fora dos dois tokens de overlay.
+
+A exceção da §1 (material de marca genuíno) ganhou nome próprio:
+`--brand-mark` e `--brand-mark-soft`, fixos nos dois temas, usados pelo
+placeholder de imagem dos cards.
+
+### 11.2 Quatro renomeações por colisão de namespace
+
+O Tailwind v4 reserva prefixos de variável para gerar utilities, e três nomes
+da §3 caíam em cima deles. Os valores não mudaram:
+
+| §3 | implementado | por quê |
+|---|---|---|
+| `--text-primary`, `--text-secondary`, `--text-muted` | `--ink`, `--ink-secondary`, `--ink-muted` | `--text-*` é o namespace de **font-size** do Tailwind v4 — `--text-primary` viraria um tamanho de fonte chamado "primary" |
+| `--text-on-brand` | `--on-brand` | idem |
+| `--accent`, `--accent-solid`, `--accent-solid-hover` | `--brand-accent`, `--brand-solid`, `--brand-solid-hover` | `--accent` já é do shadcn (§6) **com outro valor** — a §3 e a §6 usavam o mesmo nome para coisas diferentes |
+| paleta `line`, `line-strong` | `--line-100`, `--line-500` | colidiam com os papéis semânticos de mesmo nome; a numeração segue a do resto da paleta |
+
+### 11.3 `danger-400` reprova sobre a superfície de marca
+
+O rodapé é `--surface-brand` — escuro **nos dois temas**, como `--brand-solid`.
+Por isso o formulário de inscrição não pode usar `--danger`/`--success`, que
+invertem com o tema: no claro eles são os valores escuros, ilegíveis ali.
+
+A saída natural seria fixar o par no valor de tema escuro, e é o que
+`--success-on-brand` faz (`success-400` dá 4,77:1 sobre `brand-950`). Mas
+`danger-400 #F0705F` dá **3,61:1** sobre `brand-950` — passa sobre neutro
+escuro (6,48:1 em `night-900`) e reprova sobre o fundo de marca, que é mais
+claro e mais quente. Foi acrescentado **`danger-300 #F79A90`** (5,01:1), pelo
+mesmo motivo que a Fase 0 acrescentou o par de sucesso: o código precisava da
+cor e ela não existia.
+
+`scripts/check-contrast.mjs` mede os 53 pares deste documento mais as
+composições de opacidade que o código realmente escreve, lendo os valores do
+próprio `tokens.css`. Roda com `pnpm --filter @newranews/web contrast:check` e
+sai com código 1 se algum reprovar — foi ele que achou este caso.
+
+### 11.4 O que a revisão da própria fase corrigiu
+
+A primeira versão da Fase 1 passou nos testes e no build com quatro defeitos
+dentro. Ficam registrados porque três deles são padrões que a Fase 2 pode
+repetir:
+
+1. **`??` no lugar de `||`** em `ArticleMeta`. Com `source: ''` — que a API
+   devolve quando o feed não traz o veículo — o coalescing parava na string
+   vazia e o componente escondia data e tempo de leitura junto. Coberto por
+   teste de regressão.
+2. **Ativo e hover com o mesmo fundo** na navegação mobile: `bg-surface-accent`
+   nos dois estados. A V1 distinguia com `brand-100` e `brand-100/50`; a
+   tradução para a semântica perdeu o segundo nível. Voltou como `bg-accent`
+   (ativo, `brand-100`) contra `bg-surface-accent` (hover, `brand-50`).
+   **Migrar cor um a um perde a relação entre estados** — conferir o par, não a
+   classe.
+3. **`z-base` (0) num scrim.** Traduzir `z-40` para o token mais próximo em
+   valor é o inverso do que a tabela da §8 quer: o scrim é `--z-overlay` e o
+   painel `--z-modal`, porque o menu mobile se comporta como folha modal.
+   Funciona hoje por acidente — os dois nascem dentro do `<header>`, que tem
+   z-index e portanto abre contexto de empilhamento próprio. A tabela só passa
+   a valer de verdade quando a Fase 2 tirar a navegação de dentro do masthead.
+4. **Dois nomes para 12px.** `--radius-xl` e `--radius-2xl` tinham sido
+   aliasados para `12px` em vez de as 29 classes serem migradas — o que deixava
+   `rounded-lg`, `rounded-xl` e `rounded-2xl` idênticos e a escala da §8 com
+   três nomes a mais do que ela define. As classes foram migradas para
+   `rounded-lg` e os dois aliases, removidos.
+
+Duas correções menores no mesmo passo: as `@utility` de duração passaram a
+escrever também `--tw-duration` (sem isso a duração só vencia o
+`transition-duration: var(--tw-duration, …)` do Tailwind por vir depois no
+arquivo — ordem de emissão, não regra), e o estado vazio de `favorites-list`
+recuperou a hierarquia que sumiu quando o `/70` do hint virou token sólido.
+
+`design-tokens.test.ts` cobre hoje sete invariantes: camada 1, opacidade sobre
+`--text-muted`, cor crua do Tailwind, escala de radius, escala de duração,
+sombra fora dos overlays, e a integridade do próprio `tokens.css`.
+
+### 11.5 Ficou para a Fase 2
+
+Nada bloqueante, mas registrado para não parecer esquecimento:
+
+- **`container-editorial`, a escala tipográfica e os tokens de ritmo existem e
+  não são usados ainda.** O Tailwind v4 só emite a utility quando alguém a
+  escreve, então `text-h1`, `py-section` e `max-w-prose` não estão no CSS
+  gerado. As páginas continuam com `max-w-7xl px-4 sm:px-6 lg:px-8` — trocar o
+  contêiner é reflow de layout, que é o trabalho da Fase 2, não da foundation.
+- **O `heading-order` do grid de notícias continua quebrado** (§3.3 do
+  diagnóstico). É estrutura semântica, e a reorganização editorial que a
+  corrige é da Fase 3.

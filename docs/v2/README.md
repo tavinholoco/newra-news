@@ -40,6 +40,21 @@ parem no meio para escolher paleta, fonte ou contrato de API.
 - **Os componentes usam os tokens com opacidade** (`token/NN`, 11 variantes), e
   três composições de `--text-muted` reprovam AA mesmo com a paleta nova.
 
+## O que a Fase 1 devolveu para este documento
+
+A Fase 1 implementou os tokens da `01-design-tokens.md` e mexeu no próprio
+documento em três pontos — registro completo na **§11** de lá:
+
+1. **A camada 1 ficou fora do `@theme` do Tailwind.** `bg-brand-600` não é mais
+   uma classe que existe, então a regra da §1 deixou de ser convenção.
+2. **Quatro renomeações por colisão de namespace** — `--text-primary` → `--ink`
+   e companhia, porque `--text-*` é o namespace de font-size do Tailwind v4, e
+   `--accent` da §3 colidia com o `--accent` do shadcn da §6.
+3. **`danger-400` reprova sobre a superfície de marca** (3,61:1 no rodapé, que é
+   escuro nos dois temas). Acrescentado `danger-300`. Achado por
+   `apps/web/scripts/check-contrast.mjs`, que mede os pares deste documento a
+   partir do `tokens.css` real.
+
 ## O que continua em aberto
 
 Nada bloqueia a Fase 1. Duas coisas dependem de fases posteriores:

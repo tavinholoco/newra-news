@@ -60,7 +60,85 @@
   `article/[date]`), com o id/date interpolado no path
 - Sitemap gerado automaticamente (entradas duplicadas por idioma)
 
-## Estilo
+## Estilo — design tokens da V2 (Fase 1)
+
+Os tokens vivem em `styles/tokens.css`, importado pelo `globals.css` **antes de
+qualquer regra**. Valores fechados em `docs/v2/01-design-tokens.md`; não decidir
+cor, fonte ou espaçamento fora de lá.
+
+### Duas camadas — e por que só uma existe como classe
+
+- **Camada 1 (paleta)** — `--brand-600`, `--ink-950`, `--night-800`… Fixa, não
+  muda com o tema e **não entra no `@theme`**. Ou seja: `bg-brand-600` não é uma
+  classe válida. Não gera erro de build, só não pinta nada.
+- **Camada 2 (semântica)** — é o que os componentes escrevem. Só ela é
+  redeclarada no `.dark`.
+
+| Papel | Classe |
+|---|---|
+| fundo da página / superfície / superfície elevada | `bg-bg`, `bg-surface`, `bg-surface-raised` |
+| destaque editorial (callout, item ativo de nav) | `bg-surface-accent` |
+| superfície de marca — escura **nos dois temas** (rodapé) | `bg-surface-brand` + `text-on-brand` |
+| texto: principal / secundário / metadata | `text-ink`, `text-ink-secondary`, `text-ink-muted` |
+| link e hover | `text-link`, `hover:text-link-hover` |
+| laranja de preenchimento, ícone, borda | `text-brand-accent`, `bg-brand-accent` |
+| botão sólido laranja (não inverte) | `bg-brand-solid` + `text-on-brand` |
+| divisória decorativa / borda de controle | `border-line` / `border-line-strong` |
+| estado | `text-danger`, `text-success` (e `-on-brand` sobre `bg-surface-brand`) |
+| marca genuína (logo, placeholder) — fixa | `text-brand-mark`, `from-brand-mark` |
+
+Os nomes do shadcn (`bg-card`, `text-muted-foreground`, `bg-primary`…) continuam
+válidos e apontam para a mesma camada 2 — use-os dentro de `components/ui/`.
+
+### Regras que a suíte cobre
+
+`tests/lib/design-tokens.test.ts` falha se alguma delas for quebrada:
+
+- **nada de camada 1 em componente** — `bg-brand-600`, `text-ink-950`, etc.;
+- **nada de opacidade sobre `--text-muted`** — já é o nível mais claro que passa
+  AA sólido; `/70` cai para 2,70:1. Opacidade sobre `--text-primary` vai até
+  `/60`. Para enfraquecer um **ornamento** (o "404"), use `text-line-strong`;
+- **nada de cor crua do Tailwind** (`text-green-600`, `text-red-300`…);
+- **nada de sombra em conteúdo editorial** — só `shadow-overlay` (dropdown, menu
+  mobile) e `shadow-modal`. Separação vem de borda, superfície e espaço;
+- **nada de `rounded-xl`/`2xl`/`3xl`/`4xl`** — a escala tem 5 níveis e esses
+  quatro ficaram fora dela;
+- **nada de `duration-<número>`** — use `duration-fast|base|slow`.
+
+Ao introduzir combinação de cor nova, rode `pnpm --filter @newranews/web
+contrast:check` — ele lê o `tokens.css` e mede, inclusive as composições de
+opacidade.
+
+### Tipografia, forma e ritmo
+
+- `font-display` = **Newsreader** (serif, manchetes) · `font-sans` = **Inter**
+  (interface). Ambas por `next/font/google` no `app/[locale]/layout.tsx`.
+- Escala por papel, não por tamanho: `text-display`, `text-h1`…`text-h4`,
+  `text-body-lg`, `text-body`, `text-body-sm`, `text-meta`, `text-overline`.
+- Radius, 5 níveis e só: `rounded-none`, `rounded-sm` (4px), `rounded-md` (8px,
+  botão e input), `rounded-lg` (12px, card), `rounded-full` (badge, avatar).
+  0 e 12px são os extremos — `rounded-xl` e acima estão fora da escala.
+- Ritmo: `py-section`, `gap-block`, `px-gutter`; larguras `max-w-prose` (68ch),
+  `max-w-narrow`, `max-w-wide`; `container-editorial` faz os três de uma vez.
+- Motion: `duration-fast|base|slow` + `ease-standard`/`ease-exit`. O
+  `prefers-reduced-motion` é regra global no `globals.css`.
+- Camadas: `z-base|dropdown|header|overlay|modal|toast`. Um `z-10` local dentro
+  de um componente (o botão de favoritar sobre o card) não é camada de página e
+  fica de fora da tabela.
+
+> A escala tipográfica e os tokens de ritmo existem mas quase não são usados
+> ainda — trocar contêiner e hierarquia é trabalho da Fase 2/3. O Tailwind v4 só
+> emite a utility quando alguém a escreve, então elas não aparecem no CSS gerado
+> até serem adotadas.
+
+### Componentes editoriais
+
+`components/editorial/` é a camada acima dos primitivos do shadcn (§11 do
+plano). Hoje tem `article-meta`, `source-badge` e `reading-time`. **Não passe
+`sourceHref` dentro de um card que já é um link** — âncora aninhada.
+
+### Outras regras de estilo
 - Mobile-first com Tailwind
-- Variáveis CSS do shadcn/ui para temas
 - Sem CSS modules ou styled-components
+- `components/ui/` é shadcn: alterar só o que os tokens exigem (radius,
+  superfície), nunca a API dos componentes

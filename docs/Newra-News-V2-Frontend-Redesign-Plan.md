@@ -1245,20 +1245,29 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 > Fases 1–2 — mas é **pré-requisito**, não trabalho concorrente: a Fase 3 não
 > abre antes dela estar mergeada.
 
-## Fase 1 — Foundation
+## Fase 1 — Foundation ✅ 20/08/2026 — branch `feat/v2-design-foundation`
 
 ```text
-[ ] nova paleta
-[ ] tipografia
-[ ] spacing
-[ ] grid
-[ ] breakpoints
-[ ] typography scale
-[ ] buttons
-[ ] badges
-[ ] article metadata
-[ ] card primitives
+[x] nova paleta                     (styles/tokens.css, duas camadas)
+[x] tipografia                      (Newsreader + Inter)
+[x] spacing                         (--spacing-section|block|gutter)
+[x] grid                            (container-editorial + larguras de coluna)
+[x] breakpoints                     (padrões do Tailwind v4 — as larguras da
+                                     §30 são pontos de verificação, não @media)
+[x] typography scale                (text-display … text-overline)
+[x] buttons                         (radius 8px, --primary = brand-700)
+[x] badges                          (pill; o override de cor sumiu)
+[x] article metadata                (components/editorial/article-meta)
+[x] card primitives                 (ring --line, sem hover lift)
+
+    -- fica em aberto, sem bloquear a Fase 2 --
+[ ] Lighthouse por rota contra a tabela do 00-diagnostico.md §3.1
+[ ] baseline visual da V2 (docs/v2/baseline-v2/)
 ```
+
+> Detalhe do que a fase encontrou no caminho — as renomeações forçadas pelo
+> namespace do Tailwind v4 e o par de erro que reprovava sobre o rodapé — em
+> `docs/v2/01-design-tokens.md` §11.
 
 ## Fase 2 — Shell
 
