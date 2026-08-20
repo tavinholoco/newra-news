@@ -70,6 +70,7 @@ async function resolveRoutes() {
     { slug: 'news', url: '/pt-BR/news' },
     { slug: 'article-history', url: '/pt-BR/article' },
     { slug: 'about', url: '/pt-BR/about' },
+    { slug: 'newsletter', url: '/pt-BR/newsletter' },
     // /pt-BR/admin/metrics fica de fora: exige sessão + role ADMIN (§30).
     // Era /pt-BR/dashboard, pública, até 20/08/2026.
     { slug: 'signin', url: '/pt-BR/signin' },

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-20T21:29:28.567Z",
+  "capturedAt": "2026-08-20T23:05:28.282Z",
   "baseUrl": "https://newra-news-web.vercel.app",
   "format": "jpeg",
   "viewports": [
@@ -119,6 +119,24 @@
     {
       "file": "about--1440.jpg",
       "route": "/pt-BR/about",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter--375.jpg",
+      "route": "/pt-BR/newsletter",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter--768.jpg",
+      "route": "/pt-BR/newsletter",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter--1440.jpg",
+      "route": "/pt-BR/newsletter",
       "status": 200,
       "ok": true
     },

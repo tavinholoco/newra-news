@@ -13,7 +13,7 @@ parem no meio para escolher paleta, fonte ou contrato de API.
 | [`03-contratos-api.md`](03-contratos-api.md) | `GET /api/home`, `/api/trending`, `/api/news/:id/related` e a migration de auditoria do briefing |
 | [`04-analytics-e-slots.md`](04-analytics-e-slots.md) | os 14 eventos de produto e o inventário de 5 slots de anúncio |
 | [`baseline-v1/`](baseline-v1/) | 42 capturas da V1 antes de os tokens mudarem |
-| [`baseline-v2/`](baseline-v2/) | 39 capturas de produção **depois** da Fase 1 — a referência das Fases 2–7 |
+| [`baseline-v2/`](baseline-v2/) | 42 capturas de produção — o **estado corrente** da V2, reescrito a cada fase |
 
 ## Decisões tomadas nesta fase
 

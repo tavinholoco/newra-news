@@ -1299,7 +1299,10 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 [x] opengraph-image                 (era gradiente slate #0f172a, fora da marca)
 
     -- ao fechar a fase --
-[ ] reavaliar o lockup desenhado agora que a tipografia está fixa (§40.3-B)
+[x] reavaliar o lockup desenhado agora que a tipografia está fixa (§40.3-B)
+    → fica o tipográfico; o lockup medido já dá 5,41:1, praticamente a
+      proporção que B perseguia. Medições em §40.3
+[x] recapturar a baseline visual (§30) — 42 capturas, 12 rotas
 ```
 
 > **A faixa de categorias exigiu uma URL.** `editorial-nav` aparece em todas as
@@ -2011,9 +2014,59 @@ As opções não são excludentes: migrar de A para B é substituir um `<span>` 
 
 **Quando B passaria na frente:** material impresso, licenciamento da marca para terceiros, ou um tratamento gráfico do nome que fonte nenhuma entrega.
 
-### Derivados a gerar na Fase 2
+### Reavaliação ao fim da Fase 2 — decidido em 20/08/2026
 
-A partir do vetor, sem novo asset: `app/icon.svg`, `app/apple-icon.png` (180×180, com safe area — ícones de app precisam de padding, ao contrário do SVG justo) e a imagem Open Graph 1200×630 consumida por `app/opengraph-image.tsx`.
+**O wordmark tipográfico fica. O lockup desenhado (B) segue sem ser
+necessário** — desta vez não por sequenciamento, mas por medição.
+
+Com o masthead entregue e a tipografia fixa, o lockup em produção foi medido no
+tamanho em que ele realmente aparece (Inter 20px, `/pt-BR` a 1440px):
+
+| | Medido | Alvo da §40.3-B |
+|---|---|---|
+| Proporção do lockup | 151,5 × 28 px = **5,41:1** | 4:1 a 5:1 |
+| Alinhamento da marca | centro em **66,0** | centro da altura-x |
+| Centro da caixa alta | 65,5 | — |
+| Centro da altura-x | 67,5 | ← alvo |
+
+Duas leituras saem daí.
+
+**A proporção já é praticamente a que B perseguia.** 5,41:1 fica 8% acima do
+topo da faixa que a §40.3-B definiria para um lockup desenhado. Ou seja: a
+geometria que justificaria desenhar o lockup já está lá, de graça, saindo da
+composição tipográfica. Desenhar para chegar onde já se está é trabalho sem
+prêmio.
+
+**A marca está alinhada à caixa alta, não à altura-x.** O centro dela cai a
+0,5 px do centro da caixa alta e a 1,5 px do centro da altura-x — que era o
+alinhamento que a §40.3-B pedia. **Não foi corrigido**: são 1,5 px num tipo de
+20 px, e a marca transborda o texto 6 px acima e 7 px abaixo, então "centro
+óptico" aqui é faixa, não ponto. Empurrar a marca com um `translate-y` de
+1,5 px seria reintroduzir exatamente o número mágico que a Fase 2 passou a fase
+inteira tirando do código. Fica registrado para quem reabrir B.
+
+Os critérios que fariam B passar na frente continuam sem se aplicar: não há
+material impresso, não há licenciamento da marca para terceiros, e o nome não
+pede tratamento gráfico que fonte nenhuma entregue.
+
+E as vantagens de A deixaram de ser promessa e viraram fato verificado em
+produção: o nome é texto selecionável e encontrável no Ctrl+F, o leitor de tela
+o lê sem `aria-label`, e o comportamento responsivo — wordmark some abaixo de
+`sm`, marca fica — custou zero asset adicional. A variante `currentColor` que
+a §40.3-B listava como requisito de B já existe em A: o `LogoMark` pinta com
+`currentColor`, e é o que permite a marca virar branca no rodapé escuro.
+
+**Migrar para B continua barato se um dia fizer sentido:** é trocar um `<span>`
+dentro de `components/layout/logo.tsx`, e em lugar nenhum mais.
+
+### Derivados gerados na Fase 2 ✅
+
+A partir do vetor, sem novo asset: `app/icon.svg` (com safe area — ícones
+precisam de padding, ao contrário do SVG justo), `app/apple-icon.tsx` (180×180;
+saiu `.tsx` em vez de PNG versionado, para não haver binário no git nem uma
+segunda fonte da marca) e a imagem Open Graph 1200×630 de
+`app/opengraph-image.tsx`, que era um gradiente slate `#0f172a` sem relação com
+a marca.
 
 ## 40.4 Higiene
 
@@ -2027,7 +2080,7 @@ Três itens, todos dependendo de algo que está fora do repositório:
 | Pendência | Depende de | Bloqueia |
 |---|---|---|
 | ~~`migrate resolve --applied 0_init` no Neon + secret `DATABASE_URL` no GitHub~~ | — | ✅ **concluído em 19/08/2026** — drift conferido (vazio), baseline aplicado, `migrate status` retorna `Database schema is up to date!`, secret cadastrado e senha do role rotacionada |
-| ~~Lockup horizontal~~ | — | ✅ **decidido em 19/08/2026** — wordmark tipográfico na V2; lockup desenhado reavaliado ao fim da Fase 2 (§40.3) |
+| ~~Lockup horizontal~~ | — | ✅ **decidido em 19/08/2026 e confirmado em 20/08/2026** — wordmark tipográfico na V2. A reavaliação ao fim da Fase 2 mediu o lockup em produção: 5,41:1, praticamente a proporção que o desenhado perseguia (§40.3) |
 | Landing `/[locale]/newsletter` | decisão de escopo — já registrada como entregável da Fase 2 | baseline visual da §30 |
 
 **Nada bloqueia mais a Fase 0.** O único item aberto é de escopo, não de infraestrutura, e já tem lugar definido no plano.
