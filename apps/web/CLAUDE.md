@@ -50,7 +50,10 @@
 - /[locale]/article → Histórico de artigos
 - /[locale]/article/[date] → Artigo diário (dinâmica)
 - /[locale]/about → Sobre o projeto
-- /[locale]/dashboard → Métricas (CSR com TanStack Query)
+- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN)
+- /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)
+  - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
+    para todo o segmento — página nova sob `/admin` já nasce protegida
 
 ## SEO
 - Meta tags dinâmicas via generateMetadata() em cada page

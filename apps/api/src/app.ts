@@ -17,6 +17,7 @@ import { articleDateRoutes } from './routes/articles/[date]';
 import { jobsRoutes } from './routes/jobs';
 import { jobStatusRoutes } from './routes/jobs/[id]';
 import { metricsRoutes } from './routes/metrics';
+import { metricsAdminRoutes } from './routes/metrics/admin';
 import { newsletterRoutes } from './routes/newsletter';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
@@ -59,6 +60,7 @@ export async function buildApp() {
   await app.register(jobStatusRoutes, { prefix: '/api/jobs' });
 
   await app.register(metricsRoutes, { prefix: '/api/metrics' });
+  await app.register(metricsAdminRoutes, { prefix: '/api/metrics' });
 
   await app.register(newsletterRoutes, { prefix: '/api/newsletter' });
 

@@ -74,11 +74,6 @@ export async function getArticleByDate(date: string): Promise<Article> {
   return res.data;
 }
 
-export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const res = await fetchApi<ApiResponse<DashboardMetrics>>('/metrics/dashboard');
-  return res.data;
-}
-
 export async function subscribeToNewsletter(email: string): Promise<Subscriber> {
   const res = await fetchApi<ApiResponse<Subscriber>>('/newsletter/subscribe', {
     method: 'POST',
@@ -156,6 +151,18 @@ export async function runDailyPipeline(): Promise<RunPipelineResult> {
   }
 
   return response.json() as Promise<RunPipelineResult>;
+}
+
+/**
+ * Métricas do pipeline (admin). Passa pelo proxy porque
+ * `GET /api/metrics/dashboard` exige JWT com role ADMIN — o dado é operacional
+ * e deixou de ser público na V2.
+ */
+export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+  const res = await fetchWebApi<ApiResponse<DashboardMetrics>>(
+    '/api/admin/metrics',
+  );
+  return res.data;
 }
 
 /** Remove uma notícia (admin). */

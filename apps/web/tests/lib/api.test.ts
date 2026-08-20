@@ -80,7 +80,7 @@ describe('getLatestArticle', () => {
 });
 
 describe('getDashboardMetrics', () => {
-  it('should request the dashboard metrics endpoint and return the data', async () => {
+  it('should request the admin proxy route and return the data', async () => {
     const mockDashboard = {
       today: null,
       lastWeek: {
@@ -104,8 +104,10 @@ describe('getDashboardMetrics', () => {
 
     const result = await getDashboardMetrics();
 
+    // Passa pela rota proxy do Next, nao direto na API: o endpoint exige JWT
+    // com role ADMIN e o browser nao tem o segredo para assinar.
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
-    expect(url).toContain('/metrics/dashboard');
+    expect(url).toBe('/api/admin/metrics');
     expect(result).toEqual(mockDashboard);
   });
 });

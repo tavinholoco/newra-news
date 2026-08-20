@@ -33,7 +33,8 @@ src/
 │   ├── news/               # GET /api/news, GET /api/news/:id
 │   ├── articles/           # GET /api/articles, /latest, /:date
 │   ├── jobs/               # POST /api/jobs/daily-pipeline, GET /api/jobs/:pipelineId
-│   └── metrics/            # GET /api/metrics/weekly, /monthly, /dashboard
+│   └── metrics/            # GET /api/metrics/weekly, /monthly (públicas)
+│                           # + /dashboard (admin.ts — JWT com role ADMIN)
 ├── services/
 │   ├── news.service.ts     # Lógica de listagem/busca de notícias
 │   ├── article.service.ts  # Lógica de listagem/busca de artigos

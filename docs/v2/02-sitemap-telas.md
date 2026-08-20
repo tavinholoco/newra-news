@@ -22,10 +22,10 @@ composição, não de arquitetura de informação — as 11 rotas atuais sobrevi
 ├── /newsletter                    Landing (NOVA)              Fase 2
 │   └── /unsubscribe               Cancelamento                Fase 2
 ├── /about                         Sobre o projeto             Fase 2
-├── /dashboard                     Métricas do pipeline        Fase 6
 ├── /favorites                     Salvos                      Fase 6
 ├── /signin                        Entrar                      Fase 6
 └── /admin                         Painel admin                fora do redesign
+    └── /metrics                   Métricas do pipeline        fora do redesign
 ```
 
 O shell (`top-bar`, `masthead`, `editorial-nav`, `footer`, `mobile-nav`) é da
@@ -151,18 +151,31 @@ Só recebe os tokens novos. Estados: cancelado, token inválido.
 
 Página de texto. Ganha a medida editorial de 68ch e a tipografia serif.
 
-### `/[locale]/dashboard` — Métricas do pipeline
+### `/[locale]/admin/metrics` — Métricas do pipeline
 
 | | |
 |---|---|
-| Render | ISR 3600s |
-| Dados | `GET /api/metrics/dashboard` |
-| Fase | 6 |
+| Render | `force-dynamic` (herdado de `admin/layout.tsx`) |
+| Auth | sessão + role **ADMIN**; anônimo → `/signin?callbackUrl=` |
+| Indexação | **noindex** |
+| Dados | `GET /api/metrics/dashboard` via proxy `/api/admin/metrics` |
+| Fase | fora do redesign (junto do painel admin) |
 
-É métrica **de pipeline**, não de produto — é o painel de operação do projeto, e
-o plano não pede que mude de natureza. O que muda: `category-bars` passa a usar
-a rampa de `--chart-1..5` da V2 (`01-design-tokens.md` §6), que distingue
-categorias em vez de repetir a marca.
+**Era `/[locale]/dashboard`, pública e indexada, até 20/08/2026.** É métrica de
+**pipeline** — quantas notícias entraram, qual provider de IA respondeu, quanto
+durou a execução, quantos dias falharam. Isso é operação do projeto, não
+conteúdo editorial: expor a saúde interna do sistema para o leitor anônimo não
+tem função de produto e conta mais do que precisa a quem estiver sondando.
+
+Foi para dentro de `/admin`, atrás do mesmo guard do painel. Esconder só a
+página seria cosmético — `GET /api/metrics/dashboard` também passou a exigir
+JWT com role ADMIN, e o browser chega nele pela rota proxy do Next, que lê a
+sessão e assina o token server-side. `/[locale]/dashboard` responde com um
+redirect 308 permanente, porque a URL antiga estava no sitemap.
+
+O que muda visualmente: `category-bars` passa a usar a rampa de `--chart-1..5`
+da V2 (`01-design-tokens.md` §6), que distingue categorias em vez de repetir a
+marca.
 
 ### `/[locale]/favorites` — Salvos
 
@@ -261,7 +274,7 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | 3 — Home | `/[locale]` |
 | 4 — News | `/news`, `/news/[id]` |
 | 5 — Article | `/article`, `/article/[date]` |
-| 6 — Account | `/favorites`, `/dashboard`, `/signin` |
+| 6 — Account | `/favorites`, `/signin` |
 | 7 — SEO/perf/a11y | todas (auditoria) |
 | 8 — Monetização | `ad-slot` nas telas da 3, 4 e 5 |
 
@@ -277,7 +290,7 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | `/pt-BR/article` | sim | |
 | `/pt-BR/article/[date]` | sim | + dark |
 | `/pt-BR/about` | sim | |
-| `/pt-BR/dashboard` | sim | |
+| `/pt-BR/admin/metrics` | não | atrás de sessão + role ADMIN; a captura da V1 pegou `/pt-BR/dashboard`, que era pública |
 | `/pt-BR/signin` | sim | |
 | `/pt-BR/favorites` | parcial | anônimo → cai no login |
 | `/pt-BR/newsletter/unsubscribe` | sim | |
@@ -287,5 +300,6 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | `/pt-BR/admin` | não | excluído pela §30 |
 
 Duas lacunas conhecidas, ambas registradas no `baseline-v1/README.md`: o estado
-**autenticado** de `/favorites` e `/dashboard` não está coberto, e o seed local
-não tem imagens de notícia.
+**autenticado** de `/favorites` e das métricas não está coberto, e o seed local
+não tem imagens de notícia. A captura de `/pt-BR/dashboard` na baseline V1
+continua válida como registro histórico — era essa a URL pública na V1.

@@ -29,6 +29,7 @@ export function Navbar({ links }: NavbarProps) {
     extraLinks.push({ href: '/favorites', key: 'favorites' });
     if (session?.user?.role === 'ADMIN') {
       extraLinks.push({ href: '/admin', key: 'admin' });
+      extraLinks.push({ href: '/admin/metrics', key: 'metrics' });
     }
   }
   const visibleLinks: LocalizedLink[] = [...links, ...extraLinks].map((link) => ({
@@ -51,9 +52,24 @@ export function Navbar({ links }: NavbarProps) {
     };
   }, [mobileOpen]);
 
+  // `startsWith` sozinho marcaria /admin e /admin/metrics ao mesmo tempo em
+  // /admin/metrics. Vence o href mais longo que casa — com isso um item pai
+  // continua ativo nas rotas de detalhe (/article/[date]) sem competir com um
+  // filho que também está no menu.
+  const activeHref = visibleLinks
+    .map((link) => link.href)
+    .filter((href) =>
+      href === '/'
+        ? pathname === '/'
+        : pathname === href || pathname.startsWith(`${href}/`),
+    )
+    .reduce<string | null>(
+      (longest, href) => (longest && longest.length >= href.length ? longest : href),
+      null,
+    );
+
   function isActive(href: string) {
-    if (href === '/') return pathname === '/';
-    return pathname.startsWith(href);
+    return href === activeHref;
   }
 
   return (
