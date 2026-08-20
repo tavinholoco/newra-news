@@ -32,7 +32,13 @@
       "Bash(npx -y neonctl@latest me:*)",
       "Bash(npx -y neonctl@latest orgs list:*)",
       "Bash(npx -y neonctl@latest connection-string:*)",
-      "Bash(npx -y prisma@5.22.0 migrate status:*)"
+      "Bash(npx -y prisma@5.22.0 migrate status:*)",
+      "Bash(render whoami:*)",
+      "Bash(render services:*)",
+      "Bash(render deploys list:*)",
+      "Bash(render logs:*)",
+      "Bash(render workspaces:*)",
+      "Bash(render postgres list:*)"
     ],
     "deny": [
       "Bash(npm install:*)",
@@ -43,6 +49,11 @@
       "Bash(prisma db push:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
+      "Bash(render deploys create:*)",
+      "Bash(render restart:*)",
+      "Bash(render jobs create:*)",
+      "Bash(render ssh:*)",
+      "Bash(render logout:*)",
       "Bash(rm -rf:*)",
       "Read(./.env)",
       "Read(./apps/api/.env)",
