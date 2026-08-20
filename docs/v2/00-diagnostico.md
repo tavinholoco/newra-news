@@ -99,7 +99,8 @@ relacionadas**, e o modelo `Article` não tem os campos de auditoria da §18.4.
 ## 2. Design tokens de hoje
 
 `styles/globals.css` declara **36 variáveis** em `:root`: 4 de marca, 1 de radius
-e **31 semânticas** do shadcn, todas redeclaradas em `.dark`.
+e **31 semânticas** do shadcn. O bloco `.dark` redeclara **35** delas — todas
+menos `--radius`, que não depende do tema.
 
 | | Claro | Escuro |
 |---|---|---|
@@ -124,7 +125,7 @@ e **31 semânticas** do shadcn, todas redeclaradas em `.dark`.
 `brand-600` tem 33 usos e `brand-100`, 6 — mantêm o nome, mudam de valor.
 Destino de cada um em `01-design-tokens.md` §5.
 
-### 2.2 Duas descobertas sobre a camada semântica
+### 2.2 Quatro descobertas sobre a camada semântica
 
 1. **As 8 variáveis `--sidebar-*` não são usadas em lugar nenhum.** Não existe
    componente de sidebar no projeto; vieram no boilerplate do shadcn. A Fase 1
@@ -132,6 +133,16 @@ Destino de cada um em `01-design-tokens.md` §5.
 2. **`--chart-1..5` são usadas de verdade** — `dashboard/category-bars.tsx` monta
    as barras por categoria com elas. Hoje são as 5 cores da marca, o que faz o
    gráfico parecer decoração em vez de dado.
+3. **Não existe token de sucesso.** O código usa cores cruas do Tailwind em 4
+   lugares — `text-green-600`/`text-emerald-600` no estado de confirmação de
+   `subscribe-form.tsx` e `admin-panel.tsx`, `text-green-300` no ícone de
+   `newsletter/unsubscribe`. Ficam fora de qualquer tema. A V2 nomeia o par em
+   `01-design-tokens.md` §2.
+4. **Os componentes consomem os tokens com opacidade, não puros.** São 11
+   variantes de `token/NN`, e três delas — `text-muted-foreground/40`, `/50` e
+   `/70` — **reprovam AA mesmo com a paleta nova**, porque diluir o nível mais
+   claro que já passa no limite não sobra margem. Medições e regra em
+   `01-design-tokens.md` §4, "Modificadores de opacidade".
 
 **Nenhum dos 448 testes faz asserção sobre classe de marca.** A troca de tokens
 não quebra a suíte — e a suíte também não protege contra regressão visual. É
