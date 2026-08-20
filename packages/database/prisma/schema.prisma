@@ -35,7 +35,41 @@ model Article {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auditoria da geração (plano V2 §18.4). Nullable por causa dos artigos
+  // publicados antes desta migration — não há como preenchê-los retroativamente.
+  generatedAt   DateTime?
+  promptVersion String?
+  modelVersion  String?
+  status        ArticleStatus @default(PUBLISHED)
+
+  sources BriefingSource[]
+
   @@index([date])
+}
+
+/// Notícia que originou o briefing do dia, na ordem em que foi enviada à IA.
+/// Os campos de exibição são desnormalizados de propósito: o Stage 8 do
+/// pipeline apaga News com mais de 30 dias, e o Article vive 90 — sem copiar
+/// título/fonte/URL, dois terços dos briefings retidos ficariam sem lista de
+/// fontes, que é justamente o que a §18.4 quer auditar.
+///
+/// A chave natural é `sourceUrl` (é `@unique` em News e nunca falta), não
+/// `newsId` — que é um ponteiro fraco, sem FK como em Favorite, nulo quando a
+/// notícia não pôde ser resolvida e obsoleto depois que o cleanup a remove.
+model BriefingSource {
+  id        String   @id @default(uuid())
+  articleId String
+  newsId    String?
+  position  Int
+  title     String
+  source    String
+  sourceUrl String
+  createdAt DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceUrl])
+  @@index([articleId, position])
 }
 
 model PipelineLog {
@@ -143,6 +177,12 @@ enum Category {
   ENTERTAINMENT
   WORLD
   HEALTH
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  FAILED
 }
 
 enum PipelineStatus {

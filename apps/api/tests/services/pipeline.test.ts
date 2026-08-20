@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { triggerPipeline } from '../../src/services/pipeline.service';
+import { ARTICLE_PROMPT_VERSION } from '../../src/config/ai-prompts';
 
 vi.mock('@newranews/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@newranews/database')>();
@@ -15,10 +16,15 @@ vi.mock('@newranews/database', async (importOriginal) => {
       news: {
         createMany: vi.fn(),
         deleteMany: vi.fn(),
+        findMany: vi.fn(),
       },
       article: {
         upsert: vi.fn(),
         deleteMany: vi.fn(),
+      },
+      briefingSource: {
+        deleteMany: vi.fn(),
+        createMany: vi.fn(),
       },
       dailyMetric: {
         upsert: vi.fn(),
@@ -26,6 +32,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
       pipelineEvent: {
         create: vi.fn(),
       },
+      $transaction: vi.fn(),
     },
   };
 });
@@ -97,6 +104,7 @@ const mockGeneratedArticle = {
     content: 'Conteúdo completo.',
   },
   provider: 'gemini' as const,
+  modelVersion: 'gemini-2.5-flash',
 };
 
 const mockSavedArticle = { id: 'article-uuid-123' };
@@ -115,6 +123,10 @@ beforeEach(() => {
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.pipelineEvent.create).mockResolvedValue({} as never);
+  vi.mocked(prisma.news.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.briefingSource.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.briefingSource.createMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
   vi.mocked(fetchAll).mockResolvedValue(mockFetchResult);
   vi.mocked(generateArticle).mockResolvedValue(mockGeneratedArticle);
   vi.mocked(sendDailyNewsletter).mockResolvedValue({
@@ -392,5 +404,99 @@ describe('PipelineService', () => {
     };
     expect(eventData.data.stage).toBe(1);
     expect(eventData.data.message).toBe('Gemini API error 500: boom');
+  });
+
+  // ── Auditoria do briefing (plano V2 §18.4) ───────────────────────────────
+
+  it('should persist the generation audit fields on the article', async () => {
+    await triggerPipeline();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const upsert = vi.mocked(prisma.article.upsert).mock.calls[0]?.[0] as {
+      create: {
+        generatedAt: Date;
+        promptVersion: string;
+        modelVersion: string;
+        status: string;
+      };
+      update: { promptVersion: string; modelVersion: string; status: string };
+    };
+
+    expect(upsert.create.generatedAt).toBeInstanceOf(Date);
+    expect(upsert.create.promptVersion).toBe(ARTICLE_PROMPT_VERSION);
+    expect(upsert.create.modelVersion).toBe('gemini-2.5-flash');
+    expect(upsert.create.status).toBe('PUBLISHED');
+    // O upsert também roda como update quando o pipeline repete no mesmo dia —
+    // sem isso, um artigo regenerado manteria a auditoria da primeira execução.
+    expect(upsert.update.promptVersion).toBe(ARTICLE_PROMPT_VERSION);
+    expect(upsert.update.modelVersion).toBe('gemini-2.5-flash');
+    expect(upsert.update.status).toBe('PUBLISHED');
+  });
+
+  it('should persist the briefing sources in the order sent to the AI', async () => {
+    vi.mocked(prisma.news.findMany).mockResolvedValue([
+      { id: 'news-1', sourceUrl: 'https://g1.com/1' },
+      { id: 'news-2', sourceUrl: 'https://bbc.com/1' },
+    ] as never);
+
+    await triggerPipeline();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const createMany = vi.mocked(prisma.briefingSource.createMany).mock
+      .calls[0]?.[0] as { data: Array<Record<string, unknown>> };
+
+    // selectTopItems ordena por publishedAt desc: NewsData (10:00) e RSS (09:00)
+    expect(createMany.data).toEqual([
+      {
+        articleId: 'article-uuid-123',
+        newsId: 'news-1',
+        position: 0,
+        title: 'NewsData Article',
+        source: 'G1',
+        sourceUrl: 'https://g1.com/1',
+      },
+      {
+        articleId: 'article-uuid-123',
+        newsId: 'news-2',
+        position: 1,
+        title: 'RSS Article',
+        source: 'BBC',
+        sourceUrl: 'https://bbc.com/1',
+      },
+    ]);
+  });
+
+  it('should record a source with a null newsId when the lookup does not resolve', async () => {
+    vi.mocked(prisma.news.findMany).mockResolvedValue([
+      { id: 'news-1', sourceUrl: 'https://g1.com/1' },
+    ] as never);
+
+    await triggerPipeline();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const createMany = vi.mocked(prisma.briefingSource.createMany).mock
+      .calls[0]?.[0] as { data: Array<{ sourceUrl: string; newsId: string | null }> };
+
+    // Perder o registro de auditoria é pior que perder o ponteiro: a fonte
+    // entra mesmo assim, com os campos que a interface exibe.
+    expect(createMany.data).toHaveLength(2);
+    expect(createMany.data[1]).toMatchObject({
+      sourceUrl: 'https://bbc.com/1',
+      newsId: null,
+    });
+  });
+
+  it('should replace the sources instead of appending on a same-day re-run', async () => {
+    await triggerPipeline();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // O artigo é upsert por data; sem a remoção, um segundo run do dia
+    // acumularia as fontes dos dois conjuntos no mesmo briefing.
+    expect(prisma.briefingSource.deleteMany).toHaveBeenCalledWith({
+      where: { articleId: 'article-uuid-123' },
+    });
+    // As duas operações vão juntas numa transação para não existir um instante
+    // em que o briefing fique sem nenhuma fonte.
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });

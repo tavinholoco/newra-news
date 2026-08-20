@@ -13,7 +13,8 @@ Nenhum outro package deve importar @prisma/client diretamente.
 
 ## Models
 - News → Notícias coletadas (retenção: 30 dias)
-- Article → Artigos diários gerados por IA (retenção: 90 dias)
+- Article → Artigos diários gerados por IA (retenção: 90 dias), com auditoria da geração (`generatedAt`, `promptVersion`, `modelVersion`, `status`)
+- BriefingSource → Notícias que originaram o briefing do dia, ordenadas por `position`; título/fonte/URL são **desnormalizados** para o registro sobreviver ao cleanup de News, e `newsId` é ponteiro fraco (nulável, sem FK)
 - PipelineLog → Logs de execução do pipeline (retenção: 30 dias)
 - PipelineEvent → Eventos por etapa de uma execução do pipeline, com nível e contexto (sem cleanup próprio — removidos em cascata junto do PipelineLog)
 - User → Contas autenticadas, com papel de acesso (USER/ADMIN); criado/atualizado por upsert no login
@@ -25,6 +26,7 @@ Nenhum outro package deve importar @prisma/client diretamente.
 > O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) só apaga News, Article e PipelineLog — os demais models não têm política de retenção.
 
 ## Enums
+- ArticleStatus: DRAFT, PUBLISHED, FAILED
 - Category: TECHNOLOGY, POLITICS, ECONOMY, SPORTS, SCIENCE, ENTERTAINMENT, WORLD, HEALTH
 - PipelineStatus: RUNNING, SUCCESS, FAILED
 - PipelineEventLevel: INFO, WARN, ERROR

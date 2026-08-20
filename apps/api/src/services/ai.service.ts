@@ -1,10 +1,13 @@
 import { generateArticleWithGemini } from '../providers/ai/gemini.provider';
 import { generateArticleWithGroq } from '../providers/ai/groq.provider';
+import { env } from '../config/env';
 import type { RawNewsItem, GeneratedArticle } from '../providers/types';
 
 export interface GenerateArticleResult {
   article: GeneratedArticle;
   provider: 'gemini' | 'groq';
+  /** Modelo que de fato gerou o artigo — gravado em `Article.modelVersion`. */
+  modelVersion: string;
 }
 
 export async function generateArticle(
@@ -12,12 +15,12 @@ export async function generateArticle(
 ): Promise<GenerateArticleResult> {
   try {
     const article = await generateArticleWithGemini(newsItems);
-    return { article, provider: 'gemini' };
+    return { article, provider: 'gemini', modelVersion: env.GEMINI_MODEL };
   } catch (geminiError) {
     console.warn('Gemini provider failed, falling back to Groq:', geminiError);
     try {
       const article = await generateArticleWithGroq(newsItems);
-      return { article, provider: 'groq' };
+      return { article, provider: 'groq', modelVersion: env.GROQ_MODEL };
     } catch (groqError) {
       // Fallback também falhou: carrega o erro primário (Gemini) junto ao erro
       // final (Groq) para o pipeline persistir os DOIS no PipelineLog — sem
