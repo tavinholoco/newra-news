@@ -48,115 +48,107 @@ const techStack = [
   'TypeScript',
 ] as const;
 
+/**
+ * Página de texto (§2 de `docs/v2/02-sitemap-telas.md`).
+ *
+ * O corrido fica em `max-w-prose` — os 68ch da §8 — enquanto a grade de etapas
+ * e os chips usam a largura editorial inteira. Medida de leitura é regra de
+ * **texto corrido**: aplicá-la à grade espremeria três cartões numa coluna de
+ * 620 px sem melhorar leitura nenhuma.
+ */
 export default async function AboutPage({ params }: Props) {
   const { locale } = params;
   setRequestLocale(locale);
 
   const t = await getTranslations('about');
 
+  const steps = [
+    {
+      icon: Newspaper,
+      title: t('steps.collectionTitle'),
+      desc: t('steps.collectionDesc'),
+    },
+    { icon: Sparkles, title: t('steps.aiTitle'), desc: t('steps.aiDesc') },
+    { icon: BookOpen, title: t('steps.dailyTitle'), desc: t('steps.dailyDesc') },
+  ];
+
   return (
-    <div className='mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8'>
-      {/* Hero */}
-      <div className='mb-12'>
-        <h1 className='font-display text-3xl font-bold text-foreground sm:text-4xl'>
+    <div className='container-editorial py-section'>
+      <header className='max-w-prose'>
+        <h1 className='font-display text-h1 font-bold text-ink'>
           {t('heroTitle')}
         </h1>
-        <p className='mt-4 text-lg leading-relaxed text-muted-foreground'>
+        <p className='mt-block text-body-lg text-ink-secondary'>
           {t('heroDesc')}
         </p>
-      </div>
+      </header>
 
-      {/* O que é */}
-      <section className='mb-12'>
-        <h2 className='font-display mb-4 text-2xl font-bold text-foreground'>
+      <section className='mt-section max-w-prose'>
+        <h2 className='font-display text-h2 font-bold text-ink'>
           {t('whatIsTitle')}
         </h2>
-        <p className='leading-relaxed text-muted-foreground'>
+        <p className='mt-block text-body text-ink-secondary'>
           {t('whatIsDesc')}
         </p>
       </section>
 
-      {/* Como funciona */}
-      <section className='mb-12'>
-        <h2 className='font-display mb-6 text-2xl font-bold text-foreground'>
+      <section className='mt-section'>
+        <h2 className='font-display text-h2 font-bold text-ink'>
           {t('howItWorks')}
         </h2>
-        <div className='grid grid-cols-1 gap-6 sm:grid-cols-3'>
-          <div className='flex flex-col items-center rounded-lg bg-card px-4 py-6 text-center ring-1 ring-line'>
-            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
-              <Newspaper className='h-6 w-6' />
-            </div>
-            <h3 className='font-display mb-1 text-base font-medium text-foreground'>
-              {t('steps.collectionTitle')}
-            </h3>
-            <p className='text-sm text-muted-foreground'>
-              {t('steps.collectionDesc')}
-            </p>
-          </div>
-
-          <div className='flex flex-col items-center rounded-lg bg-card px-4 py-6 text-center ring-1 ring-line'>
-            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
-              <Sparkles className='h-6 w-6' />
-            </div>
-            <h3 className='font-display mb-1 text-base font-medium text-foreground'>
-              {t('steps.aiTitle')}
-            </h3>
-            <p className='text-sm text-muted-foreground'>
-              {t('steps.aiDesc')}
-            </p>
-          </div>
-
-          <div className='flex flex-col items-center rounded-lg bg-card px-4 py-6 text-center ring-1 ring-line'>
-            <div className='mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
-              <BookOpen className='h-6 w-6' />
-            </div>
-            <h3 className='font-display mb-1 text-base font-medium text-foreground'>
-              {t('steps.dailyTitle')}
-            </h3>
-            <p className='text-sm text-muted-foreground'>
-              {t('steps.dailyDesc')}
-            </p>
-          </div>
-        </div>
+        <ol className='mt-block grid grid-cols-1 gap-block sm:grid-cols-3'>
+          {steps.map(({ icon: Icon, title, desc }) => (
+            <li
+              key={title}
+              className='flex flex-col items-center rounded-lg border border-line bg-surface p-6 text-center'
+            >
+              <span className='inline-flex size-12 items-center justify-center rounded-full bg-surface-accent text-brand-accent'>
+                <Icon className='size-6' aria-hidden='true' />
+              </span>
+              <h3 className='mt-4 font-display text-h4 font-semibold text-ink'>
+                {title}
+              </h3>
+              <p className='mt-2 text-body-sm text-ink-secondary'>{desc}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
-      {/* Stack tecnológica */}
-      <section className='mb-12'>
-        <h2 className='font-display mb-4 text-2xl font-bold text-foreground'>
+      <section className='mt-section'>
+        <h2 className='font-display text-h2 font-bold text-ink'>
           {t('stackTitle')}
         </h2>
-        <p className='mb-4 text-muted-foreground'>
+        <p className='mt-block max-w-prose text-body text-ink-secondary'>
           {t('stackDesc')}
         </p>
-        <div className='flex flex-wrap gap-2'>
+        <ul className='mt-block flex flex-wrap gap-2'>
           {techStack.map((tech) => (
-            <span
+            <li
               key={tech}
-              className='inline-flex items-center rounded-full bg-secondary px-3 py-1 text-sm font-medium text-secondary-foreground'
+              className='inline-flex items-center rounded-full bg-surface-accent px-3 py-1 text-body-sm font-medium text-ink-secondary'
             >
               {tech}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
-      {/* Open Source */}
-      <section className='rounded-lg border border-border bg-muted/30 px-6 py-8 text-center'>
-        <Github className='mx-auto mb-4 h-10 w-10 text-foreground' />
-        <h2 className='font-display mb-2 text-xl font-bold text-foreground'>
+      <section className='mt-section rounded-lg border border-line bg-surface-accent px-gutter py-block text-center'>
+        <Github className='mx-auto size-10 text-ink' aria-hidden='true' />
+        <h2 className='mt-4 font-display text-h3 font-bold text-ink'>
           {t('openSourceTitle')}
         </h2>
-        <p className='mb-4 text-sm text-muted-foreground'>
+        <p className='mx-auto mt-2 max-w-prose text-body-sm text-ink-secondary'>
           {t('openSourceDesc')}
         </p>
         <a
           href='https://github.com/tavinholoco/newra-news'
           target='_blank'
           rel='noopener noreferrer'
-          className='inline-flex items-center gap-1.5 text-sm font-medium text-link transition-colors hover:text-link-hover'
+          className='mt-block inline-flex items-center gap-1.5 text-body-sm font-medium text-link transition-colors duration-fast hover:text-link-hover'
         >
           {t('viewOnGithub')}
-          <ExternalLink className='h-3.5 w-3.5' />
+          <ExternalLink className='size-3.5' aria-hidden='true' />
         </a>
       </section>
     </div>
