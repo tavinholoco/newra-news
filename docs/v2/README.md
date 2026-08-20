@@ -35,6 +35,10 @@ parem no meio para escolher paleta, fonte ou contrato de API.
   `text-white/50` a 4,04:1. É a causa dos scores de acessibilidade em 94–96.
 - **O piso "96/96/96/100" da §26 era só da home.** A tabela por rota está no
   diagnóstico.
+- **A paleta do plano não tinha token de sucesso**, e o código já usa verde cru
+  do Tailwind em 4 lugares. Par nomeado e medido acrescentado.
+- **Os componentes usam os tokens com opacidade** (`token/NN`, 11 variantes), e
+  três composições de `--text-muted` reprovam AA mesmo com a paleta nova.
 
 ## O que continua em aberto
 

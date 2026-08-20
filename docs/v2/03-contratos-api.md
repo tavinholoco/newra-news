@@ -120,6 +120,11 @@ Regras que o serviço precisa garantir:
 A ISR de 3600s da home continua; o `s-maxage` menor existe para o
 `revalidatePath` on-demand do cron (`/api/cron/daily-news`) surtir efeito.
 
+> Atenção: **nenhuma rota da API define `Cache-Control` hoje** — não há
+> precedente no `apps/api` para copiar. Este endpoint estreia o padrão, então a
+> Fase 3 precisa decidir onde ele mora (um hook `onSend` no plugin, ou header
+> por rota) em vez de assumir que já existe um lugar para isso.
+
 **Sem campo `newsletter`.** A §18.1 lista `newsletter` no exemplo conceitual, mas
 o bloco da Home é estático (copy + form) e não depende de dado do servidor.
 Incluí-lo seria peso morto na resposta.

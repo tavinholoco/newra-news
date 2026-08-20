@@ -80,12 +80,21 @@ Os valores vêm da §4.2; os nomes são novos, porque a §4.2 não nomeia nada.
 | Token | Valor | Papel |
 |---|---|---|
 | `yellow` | `#F3B562` | preenchimento pontual — **nunca texto** (ver §4) |
-| `danger-600` | `#B4241C` | estados semânticos reais, tema claro |
-| `danger-400` | `#F0705F` | estados semânticos reais, tema escuro |
+| `danger-600` | `#B4241C` | erro e destrutivo, tema claro |
+| `danger-400` | `#F0705F` | erro e destrutivo, tema escuro |
+| `success-600` | `#2E6B41` | confirmação, tema claro |
+| `success-400` | `#6FBF8A` | confirmação, tema escuro |
 
 O `--destructive` de hoje é `oklch(0.577 0.245 27.325)` em claro e
 `oklch(0.704 0.191 22.216)` em escuro — herança do shadcn, sem relação com a
 paleta. A V2 nomeia os dois como acima.
+
+Os tokens de sucesso **não estavam na §4.1 do plano**, mas o código já depende
+deles: `text-green-600`/`text-emerald-600` no estado de sucesso do
+`subscribe-form.tsx` e do `admin-panel.tsx`, e `text-green-300` no ícone de
+confirmação de `newsletter/unsubscribe`. Sem um par nomeado, a Fase 1 teria de
+improvisar um verde no meio da migração. Os valores acima passam AA nos dois
+temas (6,06:1 sobre `paper`; 8,56:1 sobre `night-900`).
 
 ---
 
@@ -114,6 +123,7 @@ aponta em cada tema.
 | `--line-strong` | `line-strong` | `night-500` |
 | `--focus` | `brand-700` | `ember-500` |
 | `--danger` | `danger-600` | `danger-400` |
+| `--success` | `success-600` | `success-400` |
 
 `--accent-solid` não inverte: botões laranja sólidos com texto branco usam
 `brand-700` nos dois temas, porque é o par que passa AA (6,23:1) e continua
@@ -177,6 +187,43 @@ como **preenchimento**, com `ink-950` por cima (10,28:1).
 Dois limites secundários, para constar: `brand-500` sobre branco é **3,46:1**
 (só texto grande e UI) e `ink-500` sobre `brand-100` é **4,15:1** — metadata
 dentro de callout usa `--text-secondary`, não `--text-muted`.
+
+### Modificadores de opacidade
+
+A §1 diz que componentes consomem só a camada semântica. Na prática o código
+não usa os tokens puros: usa `token/NN`. Há **11 variantes distintas** hoje
+(`text-foreground/60,70,80`, `text-muted-foreground/40,50,70`, `bg-muted/30`,
+`ring-foreground/10`, `bg-destructive/10`, `border-destructive/30`,
+`text-destructive/70`). Um token que passa AA sólido não passa mais quando
+composto — e é isso que o leitor enxerga.
+
+Medido com os tokens novos, sobre `paper`:
+
+| Classe | Cor composta | Ratio | Veredito |
+|---|---|---|---|
+| `text-foreground/80` | `#404142` | 9,72:1 | AA |
+| `text-foreground/70` | `#575859` | 6,78:1 | AA |
+| `text-foreground/60` | `#6E6F6F` | 4,79:1 | AA |
+| `text-muted-foreground/70` | `#959A9E` | **2,70:1** | reprova |
+| `text-muted-foreground/50` | `#B2B5B8` | **1,96:1** | reprova |
+| `text-muted-foreground/40` | `#C0C3C4` | **1,69:1** | reprova |
+
+As três últimas reprovam também no escuro (2,98:1 e 2,33:1 para `/50` e `/40`
+sobre `night-900`). Os usos reais são o numeral gigante "404" nas quatro
+páginas de not-found (`/40`) e o estado vazio de `favorites-list.tsx`
+(`/50` e `/70`) — nem mesmo o piso de 3:1 de texto grande é alcançado.
+
+> **Regra:** opacidade pode compor `--text-primary` (até `/60`), e nunca
+> `--text-muted` — que já é o nível mais claro que passa AA sólido, e portanto
+> não tem margem para diluir. Onde hoje há `text-muted-foreground/40..70`, a V2
+> usa `--text-muted` sólido; onde a intenção era só enfraquecer visualmente um
+> ornamento (o "404"), use `--line` ou `--line-strong`, que são tokens de
+> elemento decorativo e não prometem legibilidade.
+
+Opacidade em **fundo** (`bg-muted/30`, `bg-destructive/10`) e em **borda**
+(`border-destructive/30`, `ring-foreground/10`) continua liberada: não carrega
+texto, e o par que importa é o do texto por cima — que deve ser reconferido
+contra o fundo composto, não contra o token puro.
 
 ---
 
@@ -325,6 +372,13 @@ Conteúdo editorial não tem sombra. Separação vem de borda, superfície e esp
 No escuro as duas sombras sobem para `.40` e `.60` de opacidade — sombra sobre
 fundo escuro precisa ser mais densa para existir.
 
+Os dois usos de profundidade que existem hoje têm destino direto: o `shadow-lg`
+do painel do menu mobile (`navbar.tsx:106`) vira `--shadow-overlay`, e o
+`ring-1 ring-foreground/10` do `ui/card.tsx:15` vira `--line` — é uma divisória
+decorativa, não a borda de um controle, então não precisa dos 3:1 da §4.
+O hover lift dos cards da V1 (sombra ao passar o mouse) sai: pela §12 a
+separação de conteúdo editorial vem de borda e espaço, não de elevação.
+
 ### Espaço e medida
 
 A escala de 4px do Tailwind continua. O que falta é o ritmo editorial:
@@ -428,6 +482,10 @@ linhas em vez de repetir a paleta inteira, como o `globals.css` de hoje faz.
 - [ ] as 8 variáveis `--sidebar-*` removidas
 - [ ] `--chart-1..5` com a rampa nova e `category-bars.tsx` conferido nos 2 temas
 - [ ] nenhum componente usando `bg-brand-*`/`text-brand-*` direto (só semântica)
+- [ ] `text-green-*`/`text-emerald-*` trocados por `--success` (4 usos)
+- [ ] `text-muted-foreground/40,50,70` trocados por token sólido ou `--line` (§4, "Modificadores de opacidade")
+- [ ] `shadow-lg` e `ring-foreground/10` mapeados conforme §8
 - [ ] Newsreader no lugar do Bricolage Grotesque em `app/[locale]/layout.tsx`
-- [ ] contraste reconferido nos pares da §4 depois que a interface existir
+- [ ] contraste reconferido nos pares da §4 **e nas composições de opacidade** depois
+      que a interface existir
 - [ ] `pnpm test` verde (448) e Lighthouse ≥ à tabela por rota de `00-diagnostico.md` §3.1
