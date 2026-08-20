@@ -1283,7 +1283,9 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 ```text
 [ ] top bar
 [ ] masthead                        (logo-mono.svg + wordmark tipográfico — §40.3)
-[ ] category navigation
+[ ] category navigation             (= `editorial-nav`, a linha 3 do masthead
+                                     da §10. NÃO é o `category-nav` da Fase 4,
+                                     que é o filtro do acervo em /news)
 [ ] mobile header                   (wordmark some, marca fica)
 [ ] footer
 [ ] newsletter block

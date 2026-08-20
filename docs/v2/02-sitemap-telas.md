@@ -66,6 +66,12 @@ idênticos. **Nenhum dos componentes da V2 existe.** É a fase mais pesada.
 Componentes: `category-nav` + `story-card` / `story-card-horizontal` +
 paginação + estados vazio e skeleton.
 
+> **`category-nav` não é `editorial-nav`.** O `editorial-nav` da Fase 2 é a
+> linha 3 do masthead (§10): a faixa horizontal de categorias que aparece em
+> todas as telas. O `category-nav` desta fase é o controle de **filtro** do
+> acervo, com estado de categoria selecionada e contagem. A §28 chama o
+> primeiro de "category navigation" na Fase 2 — é o do masthead, não este.
+
 Reaproveita: `news-search`, `news-filters` e `news-page-client` já resolvem
 estado de busca e filtro — a Fase 4 troca a apresentação, não a lógica.
 
@@ -212,10 +218,13 @@ de tokens.
 
 ## 3. Componentes: o que nasce, o que é renomeado, o que só muda de estilo
 
-### Nascem (18)
+### Nascem (20)
 
 | Componente | Pasta | Fase |
 |---|---|---|
+| `article-meta` | `editorial/` | **1 — entregue** |
+| `source-badge` | `editorial/` | **1 — entregue** |
+| `reading-time` | `editorial/` | **1 — entregue** |
 | `top-bar` | `layout/` | 2 |
 | `masthead` | `layout/` | 2 |
 | `editorial-nav` | `layout/` | 2 |
@@ -227,7 +236,6 @@ de tokens.
 | `trending-list` | `editorial/` | 3 |
 | `category-section` | `editorial/` | 3 |
 | `category-nav` | `editorial/` | 4 |
-| `reading-time` | `editorial/` | 5 |
 | `source-list` | `editorial/` | 5 |
 | `related-stories` | `editorial/` | 5 |
 | `ad-slot` | `monetization/` | 3 |
