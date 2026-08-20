@@ -494,14 +494,11 @@ Fechado em 20/08/2026, na branch `feat/v2-design-foundation`.
       que a interface existir
 - [x] `pnpm test` verde — **480 testes em 52 suites** (365 API + 115 web), mais
       `pnpm lint` e `pnpm --filter @newranews/web build` limpos
-- [ ] **Lighthouse ≥ à tabela por rota de `00-diagnostico.md` §3.1** — em aberto.
-      A tabela da §3.1 foi medida pelo workflow no runner do GitHub, contra
-      produção; um número de laboratório local não é comparável com ela. Fecha
-      quando a branch estiver publicada e o workflow rodar contra ela. O que a
-      Fase 1 pode afirmar sem isso: os dois defeitos de `color-contrast` que
-      derrubavam o score (branco sobre `brand-600` em 16 elementos e
-      `text-white/50` no rodapé) estão corrigidos na origem, e o First Load JS
-      da home continua em 157 kB
+- [x] **Lighthouse por rota** — medido contra produção depois do merge, pelo
+      mesmo workflow que produziu a tabela da §3.1 ([run
+      32419365560](https://github.com/tavinholoco/newra-news/actions/runs/32419365560)).
+      Resultado na §12 abaixo
+- [x] **Baseline visual da V2** — 39 capturas em `baseline-v2/`, de produção
 
 ---
 
@@ -607,3 +604,54 @@ Nada bloqueante, mas registrado para não parecer esquecimento:
 - **O `heading-order` do grid de notícias continua quebrado** (§3.3 do
   diagnóstico). É estrutura semântica, e a reorganização editorial que a
   corrige é da Fase 3.
+
+---
+
+## 12. Lighthouse — a Fase 1 medida em produção
+
+Mediana de 3 execuções por rota, runner do GitHub, 20/08/2026
+([run 32419365560](https://github.com/tavinholoco/newra-news/actions/runs/32419365560)),
+mesmo workflow e mesmas URLs que produziram a tabela da §3.1 do diagnóstico.
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 97 <sub>(=)</sub> | 96 <sub>(=)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/pt-BR/news` | 97 <sub>(+2)</sub> | **98** <sub>(+3)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/pt-BR/article` | 96 <sub>(−1)</sub> | **98** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/pt-BR/about` | 98 <sub>(=)</sub> | **100** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/en` | 97 <sub>(−1)</sub> | 96 <sub>(=)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+
+**Acessibilidade sobe em 3 das 5 rotas e não cai em nenhuma.** `/about` fecha
+em 100. Em `/news` e `/article` o `color-contrast` **desaparece** — sobra só o
+`heading-order`, que é estrutura semântica e a §3.3 do diagnóstico já atribuiu
+à reorganização editorial da Fase 3.
+
+**Performance fica de pé.** Duas rotas marcam 1 ponto abaixo da V1. Isso é
+ruído entre execuções, não regressão: são 3 runs contra um deploy real, o First
+Load JS da home é o mesmo 157 kB da baseline e nenhuma auditoria de performance
+mudou de veredito. Registrado como está, sem arredondar para cima.
+
+### O que a medição encontrou de errado
+
+A home e `/en` **continuaram reprovando em `color-contrast`**, e a causa era um
+erro da própria Fase 1:
+
+```
+Element has insufficient color contrast of 4.2
+(foreground #c94f22, background #fcf5f0, font size 14px)
+<span class="font-display text-sm font-semibold uppercase tracking-wider">
+```
+
+É o kicker "ARTIGO DO DIA" do `article-card`. Na V1 ele era `text-brand-600`; a
+migração o traduziu para `text-brand-accent`, que é o mesmo `brand-600`. Sobre
+`surface-accent` isso dá **4,21:1** — passa os 3:1 de ícone e reprova os 4,5:1
+de texto.
+
+A regra da §4 estava escrita ("links e texto em laranja usam `brand-700`") e o
+`check-contrast.mjs` até media esse par — **classificado como ícone**, porque
+foi assim que eu li o elemento. Ele tinha ícone *e* texto na mesma linha, e a
+cor herdava para os dois.
+
+Corrigido para `text-link` (5,77:1) e o par de texto acrescentado ao script.
+A lição, para as Fases 2–7: **`--brand-accent` é preenchimento, ícone e borda;
+no instante em que houver texto na mesma linha, o token é `--link`.**

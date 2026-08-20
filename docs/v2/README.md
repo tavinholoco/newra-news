@@ -13,6 +13,7 @@ parem no meio para escolher paleta, fonte ou contrato de API.
 | [`03-contratos-api.md`](03-contratos-api.md) | `GET /api/home`, `/api/trending`, `/api/news/:id/related` e a migration de auditoria do briefing |
 | [`04-analytics-e-slots.md`](04-analytics-e-slots.md) | os 14 eventos de produto e o inventário de 5 slots de anúncio |
 | [`baseline-v1/`](baseline-v1/) | 42 capturas da V1 antes de os tokens mudarem |
+| [`baseline-v2/`](baseline-v2/) | 39 capturas de produção **depois** da Fase 1 — a referência das Fases 2–7 |
 
 ## Decisões tomadas nesta fase
 
@@ -57,7 +58,12 @@ documento em três pontos — registro completo na **§11** de lá:
 
 ## O que continua em aberto
 
-Nada bloqueia a Fase 1. Duas coisas dependem de fases posteriores:
+As duas pendências que a Fase 1 deixou foram fechadas em 20/08/2026: o
+Lighthouse por rota foi medido contra produção (`01-design-tokens.md` §12 —
+acessibilidade sobe em 3 das 5 rotas, `/about` fecha em 100) e a baseline
+visual da V2 foi capturada (`baseline-v2/`, 39 imagens).
+
+Duas coisas dependem de fases posteriores:
 
 - **Core Web Vitals de campo** não existem — o site não tem tráfego para o CrUX,
   e só a camada de analytics vai produzir o dado.
