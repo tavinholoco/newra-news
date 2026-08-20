@@ -42,6 +42,36 @@
 - Client HTTP configurado em lib/api.ts
 - Utilitários em lib/utils.ts
 
+## Shell (Fase 2)
+
+O topo são **três linhas** (§10 do plano), compostas em `layout/header.tsx`:
+
+| Componente | Linha | Papel |
+|---|---|---|
+| `top-bar` | 1 | data, edição, newsletter, idioma, tema, sessão — some no mobile |
+| `masthead` | 2 | marca, navegação secundária, busca; no mobile é o header compacto |
+| `editorial-nav` | 3 | faixa de assuntos, em todas as telas, scroll horizontal no mobile |
+| `mobile-nav` | — | painel do header compacto; **não** repete as categorias (§10) |
+
+Regras que não são óbvias no código:
+
+- **Ninguém sabe a altura do header.** O `<main>` cresce por `flex-1` dentro de
+  um `<body>` em coluna, e o menu mobile se ancora por `absolute top-full`. Não
+  reintroduza `h-16`/`top-16`/`calc(100vh-…)` — era assim antes, e um masthead
+  de três linhas quebrava os três de uma vez.
+- **`editorial-nav` ≠ `category-nav`.** Este é navegação e leva a
+  `/news?category=X`; o `category-nav` da Fase 4 é o filtro do acervo dentro de
+  `/news`, com estado selecionado e contagem.
+- **`/news` lê `?category=` e `?search=` da URL e ressincroniza quando eles
+  mudam.** Navegar dentro da mesma rota não remonta o componente, então um
+  `useState(inicial)` sozinho deixa o filtro velho e a URL passa a mentir.
+- **Componentes do shell aparecem duas vezes** (desktop e dentro do menu). Se
+  algum precisar de `id`, use `useId()`.
+- **`Logo`** tem a marca em SVG inline com `currentColor` — é o que a deixa
+  herdar a cor no rodapé escuro, coisa que um `<img>` não faz. O wordmark é
+  texto (§40.3-A); trocar pelo lockup desenhado é substituir um `<span>` ali
+  dentro e em mais lugar nenhum.
+
 ## Páginas
 - / → redireciona (307) para /pt-BR ou /en (middleware)
 - /[locale]/ → Home com feed de notícias (SSG + ISR)
@@ -49,6 +79,7 @@
 - /[locale]/news/[id] → Notícia individual (dinâmica)
 - /[locale]/article → Histórico de artigos
 - /[locale]/article/[date] → Artigo diário (dinâmica)
+- /[locale]/newsletter → Landing de aquisição (estática, no sitemap)
 - /[locale]/about → Sobre o projeto
 - /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN)
 - /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)

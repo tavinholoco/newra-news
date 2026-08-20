@@ -1278,22 +1278,33 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 > namespace do Tailwind v4 e o par de erro que reprovava sobre o rodapé — em
 > `docs/v2/01-design-tokens.md` §11.
 
-## Fase 2 — Shell
+## Fase 2 — Shell ✅ 20/08/2026 — branch `feat/v2-header`
 
 ```text
-[ ] top bar
-[ ] masthead                        (logo-mono.svg + wordmark tipográfico — §40.3)
-[ ] category navigation             (= `editorial-nav`, a linha 3 do masthead
+[x] top bar                         (data, edição, newsletter, idioma, tema, entrar)
+[x] masthead                        (marca inline + wordmark tipográfico — §40.3)
+[x] category navigation             (= `editorial-nav`, a linha 3 do masthead
                                      da §10. NÃO é o `category-nav` da Fase 4,
                                      que é o filtro do acervo em /news)
-[ ] mobile header                   (wordmark some, marca fica)
-[ ] footer
-[ ] newsletter block
-[ ] landing /[locale]/newsletter    (não existe hoje — §23)
+[x] mobile header                   (wordmark some, marca fica)
+[x] footer                          (ritmo dos tokens: container-editorial + py-section)
+[x] newsletter block                (monetization/newsletter-cta)
+[x] landing /[locale]/newsletter    (§23 — entrou no sitemap)
+
+    -- derivados do vetor da marca, que a §40.3 pede nesta fase --
+[x] app/icon.svg                    (com safe area — o viewBox justo cola na borda a 16px)
+[x] app/apple-icon.tsx              (180×180; `.tsx` e não PNG versionado)
+[x] opengraph-image                 (era gradiente slate #0f172a, fora da marca)
 
     -- ao fechar a fase --
 [ ] reavaliar o lockup desenhado agora que a tipografia está fixa (§40.3-B)
 ```
+
+> **A faixa de categorias exigiu uma URL.** `editorial-nav` aparece em todas as
+> telas e precisa levar a algum lugar; as categorias eram estado local do
+> `/news`. Passaram a `…/news?category=X`, que dá para compartilhar e o
+> buscador enxerga. O `/news` **lê** o parâmetro; **escrever** a URL a cada
+> clique de filtro e de página continua sendo o "filter state" da Fase 4.
 
 ## Fase 3 — Home
 

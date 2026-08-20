@@ -117,20 +117,26 @@ Componentes: hero do briefing, corpo em serif com medida de 68ch,
 `source-list`, bloco de divulgação de IA, `share`/`save`, `related-stories`,
 `newsletter-cta`.
 
-### `/[locale]/newsletter` — Landing **(não existe)**
+### `/[locale]/newsletter` — Landing ✅ entregue
 
 | | |
 |---|---|
-| Propósito | peça de aquisição da §20 — hoje a newsletter é só um form no rodapé |
-| Render | estática |
+| Propósito | peça de aquisição da §20 |
+| Render | estática (SSG, 119 kB de First Load JS) |
 | Auth | pública |
-| Indexação | sim |
+| Indexação | sim — no sitemap com prioridade 0.6 |
 | Dados | `POST /api/newsletter/subscribe` (existe) |
-| Fase | **2** |
+| Fase | **2 — entregue** |
 
-Única rota nova da V2. Conteúdo: proposta de valor, exemplo do briefing,
-frequência, form de inscrição, política de privacidade. Entra na baseline visual
-da §30 assim que existir.
+Única rota nova da V2. Traz a proposta de valor, o `newsletter-cta` com a
+manchete da §20, três blocos do que o leitor recebe e um FAQ de quatro
+perguntas — frequência, uso do e-mail, cancelamento e transparência de IA.
+
+O FAQ é `<dl>` e não acordeão: são quatro respostas curtas, e esconder cada uma
+atrás de um clique só acrescentaria trabalho.
+
+Entra na próxima captura da baseline visual (§30) — a de `baseline-v2/` é
+anterior à landing existir.
 
 ### `/[locale]/newsletter/unsubscribe` — Cancelamento
 
@@ -218,17 +224,19 @@ de tokens.
 
 ## 3. Componentes: o que nasce, o que é renomeado, o que só muda de estilo
 
-### Nascem (20)
+### Nascem (22)
 
 | Componente | Pasta | Fase |
 |---|---|---|
 | `article-meta` | `editorial/` | **1 — entregue** |
 | `source-badge` | `editorial/` | **1 — entregue** |
 | `reading-time` | `editorial/` | **1 — entregue** |
-| `top-bar` | `layout/` | 2 |
-| `masthead` | `layout/` | 2 |
-| `editorial-nav` | `layout/` | 2 |
-| `mobile-nav` | `layout/` | 2 |
+| `top-bar` | `layout/` | **2 — entregue** |
+| `masthead` | `layout/` | **2 — entregue** |
+| `editorial-nav` | `layout/` | **2 — entregue** |
+| `mobile-nav` | `layout/` | **2 — entregue** |
+| `logo` | `layout/` | **2 — entregue** (marca inline + wordmark tipográfico) |
+| `masthead-search` | `layout/` | **2 — entregue** |
 | `hero-story` | `editorial/` | 3 |
 | `briefing-card` | `editorial/` | 3 |
 | `story-card-horizontal` | `editorial/` | 3 |
@@ -239,9 +247,9 @@ de tokens.
 | `source-list` | `editorial/` | 5 |
 | `related-stories` | `editorial/` | 5 |
 | `ad-slot` | `monetization/` | 3 |
-| `newsletter-cta` | `monetization/` | 2 |
+| `newsletter-cta` | `monetization/` | **2 — entregue** |
 | `premium-cta` | `monetization/` | 8 |
-| landing `/newsletter` | `app/` | 2 |
+| landing `/newsletter` | `app/` | **2 — entregue** |
 
 ### Renomeados a partir do que existe
 

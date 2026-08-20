@@ -29,9 +29,13 @@
 
 > `/[locale]/dashboard` (pública, indexada, ISR) virou `/[locale]/admin/metrics`, e `GET /api/metrics/dashboard` passou a exigir JWT com role ADMIN. Ver **item 14**.
 
-**Próximo ciclo — V2.0 Fase 2 (Shell)** 📋 Sem bloqueadores
+**Newra News V2.0 — Fase 2 (Shell)** ✅ Concluída em 2026-08-20
 
-> Top bar, masthead, navegação de categorias, rodapé e a landing `/[locale]/newsletter`. Pode correr em paralelo com `feat/v2-editorial-api` (item 12), que continua sendo pré-requisito da Fase 3.
+> Masthead em três linhas (§10), faixa de categorias, menu mobile, rodapé no ritmo dos tokens, `newsletter-cta` e a landing `/[locale]/newsletter`. 522 testes verdes; acessibilidade 100 no shell novo. Branch `feat/v2-header`. Ver **item 15**.
+
+**Próximo ciclo — V2.0 Fase 3 (Home)** ⚠️ Bloqueada
+
+> **`feat/v2-editorial-api` (item 12) precisa entrar antes.** A Fase 3 abre com `HeroStory`/`DailyBrief`/`TrendingList`, que consomem `GET /api/home`, `/api/trending` e `/api/news/:id/related` — nenhum existe.
 
 ---
 
@@ -249,6 +253,57 @@
 - [x] **Bug achado no caminho:** o `isActive` da navbar usava `startsWith`, então em `/admin/metrics` os itens "Admin" e "Métricas" ficavam **os dois** marcados como ativos. Passou a vencer o href mais longo que casa — item pai segue ativo em rota de detalhe (`/article/[date]`) sem competir com um filho que também está no menu
 - [x] **9 testes novos (480 → 489)** — 3 na API (401 sem token, 401 com token inválido, 403 para não-admin) e 6 no `navbar.test.tsx`, que não existia: visibilidade por role e as quatro combinações de link ativo
 - [x] **Plano inteiro atualizado** — §23 (estrutura + nota), §28 Fase 6, §30 (rotas da baseline), §19, §2.2 do plano mestre; `docs/v2/02-sitemap-telas.md` (árvore, ficha da tela, tabela de fases, cobertura da baseline); nota datada em `docs/v2/00-diagnostico.md`, que é retrato do commit `8827d3c` e não foi reescrito; `docs/api.md`, `docs/architecture.md`, `README.md`, `apps/web/CLAUDE.md` e o script de captura visual
+
+### 15. V2.0 Fase 2 — Shell ✅ Concluída em 2026-08-20
+
+> Branch `feat/v2-header` (§29). A V1 empilhava marca, idioma, tema, sessão e navegação numa faixa única de 64 px. A §10 separa informação de sistema de navegação editorial, em três linhas.
+
+**M0 — o acoplamento que precisava sair primeiro**
+
+- [x] **A altura do header estava fixa em três lugares** (`h-16` no header, `top-16` no menu mobile, `calc(100vh-4rem)` no `<main>`) e um masthead de três linhas quebraria os três. Resolvido **estruturalmente, não com um token**: o `<body>` virou coluna flex com `flex-1` no `<main>`, e o menu mobile se ancora por `absolute top-full` dentro do header. Nenhum número mágico sobrou, e nada precisa ser remedido quando o masthead mudar de altura
+
+**M1 — marca**
+
+- [x] **`layout/logo.tsx`** — marca em SVG inline (`currentColor`, para herdar a cor no rodapé escuro, coisa que um `<img>` não faz) + wordmark **tipográfico** (§40.3-A). Variantes `full`/`mark`/`responsive`; no mobile o wordmark some e a marca fica, com `sr-only` cobrindo o nome acessível
+- [x] **Derivados do vetor, sem asset novo** — `app/icon.svg` (com safe area: o `viewBox` justo cola na borda a 16 px), `app/apple-icon.tsx` (180×180, gerado em vez de PNG versionado) e `opengraph-image` na paleta da V2 — era um gradiente slate `#0f172a`, fora da marca
+
+**M2 — masthead em três linhas**
+
+- [x] **`top-bar`** — data, edição, newsletter, idioma, tema, sessão. A data é renderizada **no cliente**: no servidor seria o dia do servidor, e o mismatch quebraria a hidratação
+- [x] **`masthead`** — marca, navegação secundária e busca; no mobile vira o header compacto
+- [x] **`editorial-nav`** — a faixa de assuntos, em todas as telas, com scroll horizontal no mobile e sublinhado de seção como indicador (§12: parecer editoria, não pílula de app)
+- [x] **`mobile-nav`** — painel com busca, links por sessão/role, idioma e tema; fecha no Esc e prende o scroll do body
+- [x] **`masthead-search`** — `<form role="search">` de verdade, que submete para `/news?search=`
+
+**M3/M4 — rodapé, bloco de newsletter e landing**
+
+- [x] **Rodapé** no ritmo dos tokens (`container-editorial`, `py-section`, escala tipográfica) e com o logo no lugar do texto solto
+- [x] **`monetization/newsletter-cta`** — a manchete da §20, a frequência declarada e o que acontece com o e-mail
+- [x] **`/[locale]/newsletter`** — a única rota nova da V2 (§23). SSG, 119 kB, no sitemap
+
+**A decisão que a faixa de categorias forçou**
+
+- [x] **As categorias eram estado local do `/news`.** Uma faixa presente em todas as telas precisa levar a algum lugar, então elas viraram `/news?category=X` — URL compartilhável e indexável. O `/news` **lê** o parâmetro; **escrever** a URL a cada clique de filtro e de página continua sendo o "filter state" da Fase 4
+
+**Revisão do próprio código — 4 defeitos que build, lint e tipos deixavam passar**
+
+- [x] **A URL mudava e a lista não** — navegar de `?category=A` para `?category=B` é client-side na mesma rota: o componente não remonta e o inicializador do `useState` não roda de novo. O filtro ficava na categoria anterior e a URL passava a mentir. Teste de regressão escrito **antes** da correção, verificado falhando
+- [x] **`id` fixo em componente renderizado duas vezes** — `masthead-search` aparece no masthead e dentro do menu; dois elementos com o mesmo `id` e dois `<label>` apontando para ele. Agora `useId()`
+- [x] **Sessão duplicada no mobile** — `AuthButton` aparecia no masthead compacto e de novo dentro do menu aberto. Saiu do menu
+- [x] **`<nav aria-label>` dizendo "Abrir menu"** e uma condicional de radius com os dois ramos iguais
+- [x] **O `renderWithIntl` perdia o provider no `rerender`** — passava `<Provider>{ui}</Provider>` como JSX, então `rerender(ui)` renderizava sem contexto. Passou a usar a opção `wrapper` do RTL, e isso vale para toda a suíte
+
+**Verificação**
+
+- [x] **522 testes (516 → 522 depois das correções; 154 no web, 6 suites novas)** — `nav.test.ts`, `editorial-nav`, `mobile-nav`, `logo`, `masthead-search` e `news-page-client`
+- [x] **Acessibilidade 100, zero auditorias reprovando** — Lighthouse local contra `/pt-BR/newsletter`, que exercita masthead, faixa de categorias, rodapé e o CTA
+- [x] **Home continua em 157 kB** de First Load JS; typecheck 5/5, lint 5/5, 54 pares de contraste passando
+- [x] **Aviso de fonte silenciado** — o `next/font` não tem Newsreader na base de métricas e imprimia `Failed to find font override values` a cada build sem gerar ajuste nenhum. Ficou uma stack de fallback serif explícita (§40.3 previu o risco de CLS) e `adjustFontFallback: false`
+
+**Em aberto**
+
+- [ ] **Reavaliar o lockup desenhado (§40.3-B)** — o ponto de reavaliação é o fim desta fase, agora que a tipografia está fixa
+- [ ] **Recapturar a baseline visual** — a de `baseline-v2/` é anterior ao shell novo e à landing
 
 ---
 
