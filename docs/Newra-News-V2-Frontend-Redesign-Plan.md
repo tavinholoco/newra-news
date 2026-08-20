@@ -1290,6 +1290,8 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 [x] footer                          (ritmo dos tokens: container-editorial + py-section)
 [x] newsletter block                (monetization/newsletter-cta)
 [x] landing /[locale]/newsletter    (§23 — entrou no sitemap)
+[x] /[locale]/about                 (medida de 68ch + escala nomeada)
+[x] /[locale]/newsletter/unsubscribe (ritmo dos tokens; os 2 estados)
 
     -- derivados do vetor da marca, que a §40.3 pede nesta fase --
 [x] app/icon.svg                    (com safe area — o viewBox justo cola na borda a 16px)

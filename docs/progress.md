@@ -300,10 +300,16 @@
 - [x] **Home continua em 157 kB** de First Load JS; typecheck 5/5, lint 5/5, 54 pares de contraste passando
 - [x] **Aviso de fonte silenciado** — o `next/font` não tem Newsreader na base de métricas e imprimia `Failed to find font override values` a cada build sem gerar ajuste nenhum. Ficou uma stack de fallback serif explícita (§40.3 previu o risco de CLS) e `adjustFontFallback: false`
 
+**As duas telas de texto que a tabela §4 atribui à Fase 2**
+
+- [x] **`/[locale]/about`** — a ficha pedia "a medida editorial de 68ch e a tipografia serif". Passou para `container-editorial` + `max-w-prose` no corrido e para a escala nomeada (`text-h1`…`text-body-sm`) no lugar de `text-3xl`/`text-2xl`/`text-sm`. A medida vale para o corrido: a grade de etapas e os chips seguem na largura editorial, porque espremer três cartões em 620 px não melhora leitura
+- [x] **`/[locale]/newsletter/unsubscribe`** — mesmo ritmo. Os dois estados diferem em ícone, cor e texto, não em estrutura, então viraram um objeto no lugar de dois blocos de JSX quase idênticos
+- [x] **Acessibilidade 100 nas duas**, sem nenhuma auditoria reprovando
+
 **Em aberto**
 
 - [ ] **Reavaliar o lockup desenhado (§40.3-B)** — o ponto de reavaliação é o fim desta fase, agora que a tipografia está fixa
-- [ ] **Recapturar a baseline visual** — a de `baseline-v2/` é anterior ao shell novo e à landing
+- [ ] **Recapturar a baseline visual** — a de `baseline-v2/` é anterior ao shell novo, à landing e a estas duas telas
 
 ---
 

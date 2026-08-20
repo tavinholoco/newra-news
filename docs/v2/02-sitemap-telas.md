@@ -138,24 +138,32 @@ atrás de um clique só acrescentaria trabalho.
 Entra na próxima captura da baseline visual (§30) — a de `baseline-v2/` é
 anterior à landing existir.
 
-### `/[locale]/newsletter/unsubscribe` — Cancelamento
+### `/[locale]/newsletter/unsubscribe` — Cancelamento ✅ entregue
 
 | | |
 |---|---|
-| Indexação | **noindex** (manter) |
+| Indexação | **noindex** (mantida) |
 | Dados | `GET /api/newsletter/unsubscribe?token=` |
-| Fase | 2 |
+| Fase | **2 — entregue** |
 
-Só recebe os tokens novos. Estados: cancelado, token inválido.
+Só recebe os tokens novos. Os dois estados — cancelado e token inválido —
+diferem em ícone, cor e texto, não em estrutura, então saíram de dois blocos de
+JSX quase idênticos para um objeto de estado. Duplicar a marcação é como uma
+das metades sai do lugar quando alguém mexe só numa.
 
-### `/[locale]/about` — Sobre
+### `/[locale]/about` — Sobre ✅ entregue
 
 | | |
 |---|---|
 | Render | estática |
-| Fase | 2 |
+| Fase | **2 — entregue** |
 
-Página de texto. Ganha a medida editorial de 68ch e a tipografia serif.
+Página de texto, agora na medida editorial de 68ch (`max-w-prose`) com a serif
+nas manchetes e a escala nomeada no lugar dos tamanhos crus do Tailwind.
+
+A medida vale para o **corrido**: a grade de etapas e os chips da stack usam a
+largura editorial inteira. Espremer três cartões numa coluna de 620 px não
+melhoraria leitura nenhuma.
 
 ### `/[locale]/admin/metrics` — Métricas do pipeline
 
@@ -278,7 +286,7 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | Fase | Telas |
 |---|---|
 | 1 — Foundation | nenhuma; tokens e primitivos |
-| 2 — Shell | shell em todas as telas + `/about` + `/newsletter` (nova) + `/newsletter/unsubscribe` |
+| 2 — Shell ✅ | shell em todas as telas + `/about` + `/newsletter` (nova) + `/newsletter/unsubscribe` |
 | 3 — Home | `/[locale]` |
 | 4 — News | `/news`, `/news/[id]` |
 | 5 — Article | `/article`, `/article/[date]` |
