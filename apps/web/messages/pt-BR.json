@@ -3,15 +3,21 @@
     "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar."
   },
   "nav": {
-    "home": "Home",
-    "news": "Notícias",
-    "articles": "Artigos",
-    "metrics": "Métricas",
     "about": "Sobre",
-    "favorites": "Favoritos",
     "admin": "Admin",
+    "articles": "Artigos",
+    "closeMenu": "Fechar menu",
+    "favorites": "Favoritos",
+    "home": "Home",
+    "metrics": "Métricas",
+    "news": "Notícias",
     "openMenu": "Abrir menu",
-    "closeMenu": "Fechar menu"
+    "secondary": "Navegação secundária"
+  },
+  "shell": {
+    "edition": "Edição de hoje",
+    "newsletter": "Newsletter",
+    "skipToContent": "Pular para o conteúdo"
   },
   "locale": {
     "label": "Selecionar idioma",
@@ -43,7 +49,8 @@
     "clearSearch": "Limpar busca",
     "backToHome": "Voltar para a Home",
     "sourcesConsulted": "{count, plural, one {# fonte consultada} other {# fontes consultadas}}",
-    "sources": "{count, plural, one {# fonte} other {# fontes}}"
+    "sources": "{count, plural, one {# fonte} other {# fontes}}",
+    "categories": "Categorias"
   },
   "home": {
     "latestNews": "Últimas Notícias",
@@ -170,18 +177,40 @@
     "light": "Modo claro"
   },
   "newsletter": {
-    "subscribe": "Assinar",
-    "emailPlaceholder": "seu@email.com",
+    "benefitBriefDesc": "Não é uma coletânea de manchetes. É um texto que conecta o que aconteceu, com as fontes consultadas listadas no fim.",
+    "benefitBriefTitle": "Um artigo, não uma lista",
+    "benefitRhythmDesc": "Enviado de manhã, todo dia. Sem notificação, sem sequência de e-mails, sem venda.",
+    "benefitRhythmTitle": "Uma vez por dia",
+    "benefitSourcesDesc": "Todo briefing traz de onde veio cada informação. Nada é afirmado sem origem.",
+    "benefitSourcesTitle": "Fontes à vista",
+    "ctaDescription": "Receba o Newra Daily no seu e-mail: o artigo do dia, escrito a partir das principais notícias, em uma leitura só.",
+    "ctaHeadline": "O mundo não cabe no seu feed. O resumo certo cabe na sua manhã.",
+    "ctaPrivacy": "Um e-mail por dia. Cancele quando quiser, em um clique.",
     "emailLabel": "Seu e-mail",
-    "invalidEmail": "Informe um e-mail válido.",
-    "success": "Você receberá o artigo do dia no seu e-mail!",
+    "emailPlaceholder": "seu@email.com",
     "error": "Não foi possível assinar agora. Tente novamente.",
-    "footerTitle": "Newsletter",
+    "faqAiA": "Sim, e isso está declarado em todo artigo. A curadoria das fontes é automática e o texto é gerado por modelo de linguagem a partir delas.",
+    "faqAiQ": "O texto é escrito por IA?",
+    "faqCancelA": "Todo e-mail tem um link de cancelamento que funciona em um clique, sem login e sem pergunta.",
+    "faqCancelQ": "Como eu cancelo?",
+    "faqDataA": "Guardamos só o endereço, e usamos só para enviar o briefing. Não é compartilhado nem vendido.",
+    "faqDataQ": "O que vocês fazem com meu e-mail?",
+    "faqFrequencyA": "Uma vez por dia, de manhã. Só isso — não existe segundo envio nem série de boas-vindas.",
+    "faqFrequencyQ": "Com que frequência chega?",
+    "faqTitle": "Perguntas diretas",
     "footerDesc": "Receba o artigo do dia no seu e-mail, direto das principais notícias.",
-    "unsubscribedTitle": "Inscrição cancelada",
-    "unsubscribedDesc": "Você não receberá mais o artigo diário no seu e-mail. Se mudar de ideia, basta assinar novamente pelo rodapé do site.",
+    "footerTitle": "Newsletter",
+    "invalidDesc": "Não foi possível cancelar a inscrição com este link. Verifique o e-mail recebido ou tente novamente.",
+    "invalidEmail": "Informe um e-mail válido.",
     "invalidTitle": "Link inválido ou já utilizado",
-    "invalidDesc": "Não foi possível cancelar a inscrição com este link. Verifique o e-mail recebido ou tente novamente."
+    "landingLede": "Todo dia a IA lê as principais notícias do Brasil e do mundo e escreve um artigo único, com as fontes à vista. Você lê uma vez e sabe o que aconteceu.",
+    "landingTitle": "O Newra Daily na sua caixa de entrada",
+    "sampleTitle": "Como é o briefing",
+    "subscribe": "Assinar",
+    "success": "Você receberá o artigo do dia no seu e-mail!",
+    "unsubscribedDesc": "Você não receberá mais o artigo diário no seu e-mail. Se mudar de ideia, basta assinar novamente pelo rodapé do site.",
+    "unsubscribedTitle": "Inscrição cancelada",
+    "whatYouGet": "O que você recebe"
   },
   "footer": {
     "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar.",
@@ -210,17 +239,16 @@
     "dashboardDesc": "Ocorreu um erro ao buscar os dados do pipeline. Por favor, tente novamente."
   },
   "metadata": {
-    "news": {
-      "title": "Notícias",
-      "description": "Todas as notícias do mundo em um só lugar."
+    "about": {
+      "title": "Sobre",
+      "description": "Conheça o Newra News, portal de notícias com artigo diário gerado por IA."
+    },
+    "admin": {
+      "title": "Admin"
     },
     "articles": {
       "title": "Histórico de Artigos",
       "description": "Todos os artigos diários gerados por IA sobre as principais notícias."
-    },
-    "about": {
-      "title": "Sobre",
-      "description": "Conheça o Newra News, portal de notícias com artigo diário gerado por IA."
     },
     "dashboard": {
       "title": "Métricas",
@@ -229,15 +257,20 @@
     "favorites": {
       "title": "Favoritos"
     },
-    "admin": {
-      "title": "Admin"
+    "news": {
+      "title": "Notícias",
+      "description": "Todas as notícias do mundo em um só lugar."
     },
-    "signin": {
-      "title": "Entrar"
+    "newsletter": {
+      "description": "Receba o artigo do dia do Newra News no seu e-mail: um resumo escrito por IA a partir das principais notícias, com as fontes à vista.",
+      "title": "Newsletter"
     },
     "newsletterUnsubscribe": {
       "title": "Cancelar inscrição",
       "description": "Cancele sua assinatura da newsletter do Newra News."
+    },
+    "signin": {
+      "title": "Entrar"
     }
   }
 }

@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { NAV_LINKS } from '@/lib/constants';
 import { SubscribeForm } from '@/components/newsletter/subscribe-form';
+import { Logo } from '@/components/layout/logo';
 
 export async function Footer() {
   const t = await getTranslations('footer');
@@ -9,58 +10,66 @@ export async function Footer() {
   const tNewsletter = await getTranslations('newsletter');
 
   return (
+    // `surface-brand` é escura nos dois temas — daí `on-brand` e não `ink`.
     <footer className='bg-surface-brand text-on-brand'>
-      <div className='mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8'>
-        <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4'>
-          {/* Brand */}
+      <div className='container-editorial py-section'>
+        <div className='grid grid-cols-1 gap-block md:grid-cols-2 lg:grid-cols-4'>
           <div className='space-y-4'>
-            <Link href='/' className='flex items-center gap-2.5'>
-              <span className='font-display text-lg font-bold tracking-tight'>
-                Newra News
-              </span>
+            <Link
+              href='/'
+              className='inline-flex rounded-md transition-colors duration-fast hover:text-on-brand/70'
+            >
+              {/* `tone='inherit'`: sobre o marrom escuro do rodapé a marca em
+                  `brand-mark` some. Aqui ela herda o branco do contexto. */}
+              <Logo variant='full' tone='inherit' />
             </Link>
-            <p className='text-sm leading-relaxed text-on-brand/70'>
+            <p className='max-w-prose text-body-sm leading-relaxed text-on-brand/70'>
               {t('description')}
             </p>
           </div>
 
-          {/* Quick links */}
           <div>
-            <h3 className='font-display text-sm font-semibold uppercase tracking-wider text-on-brand'>
+            <h2 className='font-display text-overline uppercase text-on-brand'>
               {t('navigation')}
-            </h3>
+            </h2>
             <ul className='mt-4 space-y-2'>
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className='text-sm text-on-brand/70 transition-colors hover:text-on-brand'
+                    className='text-body-sm text-on-brand/70 transition-colors duration-fast hover:text-on-brand'
                   >
                     {tNav(link.key)}
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link
+                  href='/newsletter'
+                  className='text-body-sm text-on-brand/70 transition-colors duration-fast hover:text-on-brand'
+                >
+                  {tNewsletter('footerTitle')}
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* About */}
           <div>
-            <h3 className='font-display text-sm font-semibold uppercase tracking-wider text-on-brand'>
+            <h2 className='font-display text-overline uppercase text-on-brand'>
               {t('aboutTitle')}
-            </h3>
-            <ul className='mt-4 space-y-2 text-sm text-on-brand/70'>
+            </h2>
+            <ul className='mt-4 space-y-2 text-body-sm text-on-brand/70'>
               <li>{t('items.stack')}</li>
               <li>{t('items.aiGenerated')}</li>
               <li>{t('items.updatedDaily')}</li>
             </ul>
           </div>
 
-          {/* Newsletter */}
           <div>
-            <h3 className='font-display text-sm font-semibold uppercase tracking-wider text-on-brand'>
+            <h2 className='font-display text-overline uppercase text-on-brand'>
               {tNewsletter('footerTitle')}
-            </h3>
-            <p className='mt-4 text-sm leading-relaxed text-on-brand/70'>
+            </h2>
+            <p className='mt-4 text-body-sm leading-relaxed text-on-brand/70'>
               {tNewsletter('footerDesc')}
             </p>
             <div className='mt-4'>
@@ -69,10 +78,11 @@ export async function Footer() {
           </div>
         </div>
 
-        {/* Bottom bar */}
-        <div className='mt-10 border-t border-on-brand/20 pt-6'>
-          <div className='flex flex-col items-center justify-between gap-2 text-xs text-on-brand/70 sm:flex-row'>
-            <p>&copy; {new Date().getFullYear()} Newra News. {t('rights')}</p>
+        <div className='mt-section border-t border-on-brand/20 pt-6'>
+          <div className='flex flex-col items-center justify-between gap-2 text-meta text-on-brand/70 sm:flex-row'>
+            <p>
+              &copy; {new Date().getFullYear()} Newra News. {t('rights')}
+            </p>
             <p>{t('poweredBy')}</p>
           </div>
         </div>

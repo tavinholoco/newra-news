@@ -28,6 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...localized('', now, 'daily', 1.0),
     ...localized('/news', now, 'hourly', 0.9),
     ...localized('/article', now, 'daily', 0.8),
+    ...localized('/newsletter', now, 'monthly', 0.6),
     ...localized('/about', now, 'monthly', 0.5),
   ];
 
