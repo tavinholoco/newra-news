@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { SignJWT } from 'jose';
 import { buildTestApp } from '../helpers/test-server';
 import type { FastifyInstance } from 'fastify';
 
@@ -23,8 +24,20 @@ vi.mock('../../src/config/env', () => ({
     CORS_ORIGIN: 'http://localhost:3000',
     CRON_SCHEDULE: '0 8 * * *',
     CRON_TIMEZONE: 'America/Sao_Paulo',
+    AUTH_JWT_SECRET: 'test-jwt-secret',
+    ADMIN_EMAILS: 'admin@newranews.com',
   },
 }));
+
+const SECRET = new TextEncoder().encode('test-jwt-secret');
+
+async function signToken(payload: Record<string, string>) {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(SECRET);
+}
 
 import { getWeeklyMetrics, getMonthlyMetrics, getDashboardMetrics } from '../../src/services/metrics.service';
 
@@ -155,7 +168,7 @@ describe('GET /api/metrics/monthly', () => {
   });
 });
 
-describe('GET /api/metrics/dashboard', () => {
+describe('GET /api/metrics/dashboard (admin)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -166,10 +179,55 @@ describe('GET /api/metrics/dashboard', () => {
     await app.close();
   });
 
-  it('should return 200 with dashboard metrics', async () => {
-    vi.mocked(getDashboardMetrics).mockResolvedValue(mockDashboard);
-
+  it('should return 401 without a token', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/metrics/dashboard' });
+
+    expect(res.statusCode).toBe(401);
+    expect(getDashboardMetrics).not.toHaveBeenCalled();
+  });
+
+  it('should return 401 with an invalid token', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/dashboard',
+      headers: { authorization: 'Bearer not-a-jwt' },
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('should return 403 for an authenticated non-admin user', async () => {
+    const token = await signToken({
+      sub: 'bbbbbbbb-0000-0000-0000-000000000002',
+      email: 'user@test.com',
+      role: 'USER',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/dashboard',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    const body = JSON.parse(res.body) as { error: string };
+    expect(body.error).toBe('Admin access required');
+    expect(getDashboardMetrics).not.toHaveBeenCalled();
+  });
+
+  it('should return 200 with dashboard metrics for an ADMIN', async () => {
+    vi.mocked(getDashboardMetrics).mockResolvedValue(mockDashboard);
+    const token = await signToken({
+      sub: 'aaaaaaaa-0000-0000-0000-000000000001',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/dashboard',
+      headers: { authorization: `Bearer ${token}` },
+    });
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { data: typeof mockDashboard };
@@ -181,11 +239,21 @@ describe('GET /api/metrics/dashboard', () => {
 
   it('should handle null today when no pipeline ran today', async () => {
     vi.mocked(getDashboardMetrics).mockResolvedValue({ ...mockDashboard, today: null });
+    const token = await signToken({
+      sub: 'aaaaaaaa-0000-0000-0000-000000000001',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
 
-    const res = await app.inject({ method: 'GET', url: '/api/metrics/dashboard' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/dashboard',
+      headers: { authorization: `Bearer ${token}` },
+    });
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { data: { today: null } };
+    expect(body.data).toBeDefined();
     expect(body.data.today).toBeNull();
   });
 });
