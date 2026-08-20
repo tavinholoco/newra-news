@@ -13,9 +13,13 @@
 > NewsAPI substituída pela NewsData.io — provider ativo em produção desde 2026-08-16: 3 chaves ok (NewsData/Gemini/Groq), 8 categorias preenchidas, 491 notícias/dia.
 > Checklist completo da Fase 5 fechado: UI/UX (item 7), code review geral, loading states + error boundaries e apresentação de portfólio (`docs/presentation.md`); typecheck adicionado ao CI.
 
-**Próximo ciclo — Newra News V2.0 (redesign editorial)** 📋 Planejado em 2026-08-19
+**Newra News V2.0 — Fase 0 (Discovery técnico)** ✅ Concluída em 2026-08-20
 
-> Plano em `docs/Newra-News-V2-Frontend-Redesign-Plan.md`. Bloqueadores de infraestrutura resolvidos em 2026-08-19 (ver **item 10**); restam 3 pendências que dependem de algo fora do repositório — baseline no Neon, asset de logo e a landing de newsletter.
+> Entregáveis em `docs/v2/` (5 documentos + baseline visual). Checklist da §28 do plano fechado. Ver **item 11**.
+
+**Próximo ciclo — V2.0 Fase 1 (Foundation)** 📋 Sem bloqueadores
+
+> Plano em `docs/Newra-News-V2-Frontend-Redesign-Plan.md`. Os design tokens estão fechados em `docs/v2/01-design-tokens.md` — a Fase 1 copia de lá para `apps/web/styles/tokens.css`.
 
 ---
 
@@ -121,6 +125,48 @@
 - [x] **Asset de logo recebido e vetorizado (2026-08-19)** — vieram 3 PNGs de 1600px; a cor bateu exata com o `brand-600 #C94F22` da §4.1. A geometria é regular (4 stadiums de raio 112 + sparkle de raio 294, com simetria de rotação 180°), então foi **reconstruída em vetor** em vez de traçada: erro de forma de **3 px** em 768.744 px de arte na validação pixel a pixel, o resto sendo antialiasing de borda. Versionados `apps/web/public/logo/logo-mark.svg` (`#C94F22`) e `logo-mono.svg` (`currentColor`) — 633/638 bytes contra 36,7 KB do PNG. Detalhes em §40.3
 - [x] **Lockup horizontal decidido (2026-08-19)** — o PNG "horizontal" entregue está **vazio à direita de x=320** (zero pixels com alpha); não havia wordmark para vetorizar. **Decisão: a V2 usa wordmark tipográfico** — `logo-mono.svg` + "Newra News" na fonte de **interface** da §5 (não na serif das headlines). Motivos: acompanha a troca de tipografia da V2 sem redesenho, o responsivo sai de graça (texto some no mobile via media query, sem segundo arquivo), e o nome continua sendo texto real — selecionável, achável no Ctrl+F e acessível sem `aria-label`. O lockup desenhado fica **adiado, não descartado**: reavaliado ao fim da Fase 2, quando a tipografia já estiver fixa — desenhar letra contra uma fonte que ainda vai mudar é mirar em alvo móvel. Ponto de reavaliação registrado no checklist da Fase 2 (§28) e detalhes em §40.3
 - [ ] **Landing `/[locale]/newsletter`** — não existe hoje; entrou como entregável da Fase 2 e só depois disso entra na baseline visual da §30
+
+### 11. V2.0 Fase 0 — Discovery técnico ✅ Concluída em 2026-08-20
+
+> Entregáveis em `docs/v2/`. Índice em `docs/v2/README.md`. Checklist da §28 do plano fechado.
+
+**Documentos entregues:**
+
+- [x] **`00-diagnostico.md`** — 11 rotas de página (com estratégia de render, indexação e auth), 33 componentes, mapa de consumo das APIs pelo frontend (função → endpoint → quem chama), Lighthouse por rota, auditoria de acessibilidade, First Load JS por rota e baseline de métricas de uso
+- [x] **`01-design-tokens.md`** — paleta em duas camadas (paleta fixa + semântica que inverte no tema), claro e escuro reconciliados, contraste medido par a par, mapeamento das 31 variáveis do shadcn, escala tipográfica, radius, sombra, espaço, motion e z-index
+- [x] **`02-sitemap-telas.md`** — as 11 rotas cruzadas com a árvore de componentes da §23; 18 componentes que nascem, 6 renomeados, o resto só muda de estilo; que fase entrega cada tela
+- [x] **`03-contratos-api.md`** — `GET /api/home`, `GET /api/trending`, `GET /api/news/:id/related` e a migration `add_daily_briefing_metadata`; tipos `EditorialStory`/`DailyBriefing`
+- [x] **`04-analytics-e-slots.md`** — os 14 eventos da §18.5 com payload fechado, regras de LGPD e consentimento, mais 5 slots de anúncio com altura reservada
+- [x] **`baseline-v1/`** — 42 capturas da V1 (12 rotas × 3 larguras + dark mode em 3 rotas), com o script `apps/web/scripts/capture-visual-baseline.mjs` (`pnpm visual:baseline`) para regenerar nas fases seguintes
+
+**Decisões fechadas:**
+
+- [x] **Tipografia: Newsreader (manchetes) + Inter (interface)** — a §5 listava opções sem escolher e o wordmark da §40.3 depende da fonte de interface. Sai o Bricolage Grotesque; a interface fica com métricas já validadas em produção, evitando trocar duas fontes de uma vez
+- [x] **Destino dos 13 usos de `brand-400`/`brand-900`** — 3 padrões apenas: hover de link (9×), gradiente de fallback de imagem (2×) e fundo do rodapé (1×)
+
+**Correções que a medição fez no próprio plano:**
+
+- [x] **O piso "96·96·96·100" da §26 era só da home** — medindo as 5 rotas com mediana de 3 execuções: `/pt-BR` 97·96·96·100, `/pt-BR/news` 95·95·96·100, `/pt-BR/article` 97·94·96·100, `/pt-BR/about` 98·96·96·100, `/en` 98·96·96·100. O critério de aceite passa a ser a tabela por rota
+- [x] **`brand-600` não passa AA para texto normal sobre `paper`** — a §4.1 verificou só sobre branco puro (4,54:1); sobre o fundo editorial `#FAF9F7` cai para 4,32:1 e sobre `brand-100` para 3,80:1. Links e texto em laranja usam `brand-700` (5,92:1)
+- [x] **A §4.1 não cobria a camada semântica do shadcn** — são 31 variáveis, e 8 delas (`--sidebar-*`) são código morto: não existe componente de sidebar no projeto
+- [x] **`line #E4E1DD` não serve como borda significativa** — 1,24:1 sobre `paper`, abaixo do 3:1 da WCAG 1.4.11. Token novo `line-strong #969084` (3,02:1) para bordas de controle
+
+**Defeitos de acessibilidade identificados na V1** (causa dos scores 94–96):
+
+- [x] `#FFFFFF` sobre `#EC6426` = **3,27:1** em 16 elementos (badges de categoria, seletor de idioma, toggle de tema, botão de favoritar) — resolvido pelo token novo (6,23:1)
+- [x] `text-white/50` sobre `bg-brand-900` = **4,04:1** nos títulos de seção e no copyright do rodapé (`footer:29,48,60,74`)
+- [x] `heading-order` — o grid de notícias emite `h3` sem `h2` na sequência
+
+**Infraestrutura — dois defeitos que a §40 dava como resolvidos:**
+
+- [x] **A migration `0_init` não replicava em banco limpo** — o `migration.sql` terminava com o banner "Update available 5.22.0 -> 7.9.1" do CLI do Prisma (10 linhas de caracteres de caixa), porque foi gerada com `migrate diff` redirecionado para arquivo e o aviso saiu junto pelo stdout. Invisível em produção: lá o baseline foi aplicado com `migrate resolve --applied`, que **marca como aplicada sem executar o SQL** — e o `migrate deploy` do workflow, pelo mesmo motivo, nunca a executa. Qualquer banco novo falhava com `syntax error at or near "┌───┐"`
+- [x] **Faltava `migration_lock.toml`** — criado pelo `migrate dev`, e o baseline nasceu de um `migrate diff`. Sem ele, `migrate diff --from-migrations` não resolve o conector, ou seja: **não havia como checar drift** entre as migrations e o `schema.prisma`. Verificado em banco limpo depois da correção: `All migrations have been successfully applied` + `No difference detected`
+
+**Workflow do Lighthouse — três defeitos silenciosos:**
+
+- [x] auditava **só a raiz**, que redireciona para `/pt-BR` — o score era medido através de um redirect, o que penaliza performance. Agora audita as 5 rotas de URL estável (as de detalhe ficam fora de propósito: id de notícia é removido pelo cleanup e a data do artigo muda todo dia)
+- [x] `numberOfRuns: 3` do `.lighthouserc.json` era **ignorado** — a action sempre repassa o próprio input `runs` (default 1) ao `lhci`. Corrigido no `with:`
+- [x] o `upload-artifact` ignora caminhos ocultos por padrão, então `.lighthouseci/` subia **vazio** e os relatórios morriam com o runner. Corrigido com `include-hidden-files`, mais um passo que imprime a mediana por rota no summary do job
 
 ---
 
