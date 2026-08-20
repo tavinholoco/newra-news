@@ -29,6 +29,26 @@ git clone <url-do-repositorio> && cd newranews
 pnpm install
 ```
 
+### Atalho: `./scripts/dev-bootstrap.sh`
+
+Faz de uma vez tudo o que as seções 3 e 4 descrevem passo a passo — sobe o
+Postgres (Docker se houver daemon, serviço nativo se não), cria banco, papel e
+shadow database, escreve os três arquivos de ambiente com valores locais, aplica
+as migrations, gera as imagens de placeholder e roda o seed:
+
+```bash
+./scripts/dev-bootstrap.sh
+pnpm dev        # api :3001 · web :3000
+```
+
+É idempotente e **nunca sobrescreve um `.env` existente** — se você ajustou algo
+à mão, fica. Rodar de novo só preenche o que falta.
+
+Leia as seções abaixo quando quiser entender o que cada peça faz, ou quando
+precisar de valores diferentes dos placeholders. Em ambientes efêmeros — uma
+sessão do Claude Code na web, por exemplo — o script é o caminho, porque o
+container começa vazio a cada sessão.
+
 ---
 
 ## 3. Variáveis de ambiente

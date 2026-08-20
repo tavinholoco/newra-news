@@ -39,9 +39,19 @@ export function formatPercent(rate: number): string {
   return `${Math.round(rate * 100)}%`;
 }
 
-/** Duração em segundos → "27s" ou "1m 05s"; null/undefined → "—". */
-export function formatPipelineDuration(seconds: number | null | undefined): string {
-  if (seconds === null || seconds === undefined) return '—';
+/**
+ * Duração do pipeline em **milissegundos** → "27s" ou "1m 05s";
+ * null/undefined → "—".
+ *
+ * A unidade é milissegundos porque é o que o backend grava:
+ * `pipelineDuration = Date.now() - startedAt` em `pipeline.service.ts`, e o
+ * mesmo vale para a média (`avgPipelineDuration`). Esta função interpretava o
+ * valor como segundos, então um run real de ~26.500 ms aparecia como
+ * "441m 40s" em vez de "26s".
+ */
+export function formatPipelineDuration(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined) return '—';
+  const seconds = ms / 1000;
   if (seconds < 60) return `${Math.round(seconds)}s`;
   const minutes = Math.floor(seconds / 60);
   const rest = String(Math.round(seconds % 60)).padStart(2, '0');

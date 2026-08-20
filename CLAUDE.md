@@ -10,11 +10,13 @@
 - packages/tsconfig → TSConfigs base
 
 ## Comandos
+- `./scripts/dev-bootstrap.sh` — **ambiente pronto do zero**: Postgres, envs locais, migrations, imagens de placeholder e seed (idempotente; não sobrescreve `.env` existente). Use em container novo antes de rodar o app ou capturar screenshots
 - `pnpm install` — instalar dependências
 - `pnpm dev` — rodar todos os apps em dev
 - `pnpm build` — build de produção
 - `pnpm lint` — ESLint em todo o monorepo
-- `pnpm test` — Vitest (backend + frontend)
+- `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
+- `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`
 - `pnpm db:migrate` — rodar migrations Prisma
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
@@ -57,7 +59,9 @@
 - **Correções que a Fase 0 fez (2026-08-20):** (a) a migration `0_init` **não replicava** — terminava com o banner do CLI do Prisma colado no SQL, invisível em produção porque lá foi aplicada com `migrate resolve` (que não executa o SQL); faltava também o `migration_lock.toml`, sem o qual não havia como checar drift. Ambos corrigidos e verificados em banco limpo; (b) o workflow do Lighthouse media **uma URL só, através de um redirect, uma vez por execução, e descartava os relatórios** — corrigido para 5 rotas × 3 execuções, com scores no summary e artifact de 90 dias; (c) o piso "96·96·96·100" da §26 era **só da home** — o critério de aceite passa a ser a tabela por rota do diagnóstico
 - **V2.0 Fase 0.5 — auditoria do briefing (2026-08-20):** a revisão da Fase 0 expôs que **nenhuma fase do §28 comportava o trabalho de backend** — as Fases 1 e 2 são 100% frontend e a Fase 3 abre consumindo endpoints inexistentes. Criada a **Fase 0.5 (Backend editorial)** no plano + branch `feat/v2-editorial-api` na §29. **Migration `add_daily_briefing_metadata` entregue antes da Fase 1**, porque o dado só é capturado daqui pra frente: nada registrava quais notícias entravam no briefing (o Stage 5 logava só a contagem) e o cleanup apaga `News`/`PipelineLog` aos 30 dias enquanto `Article` vive 90 — cada dia de atraso era um briefing sem lista de fontes, sem backfill possível. O pipeline agora grava `generatedAt`, `promptVersion` (época + hash do conteúdo do prompt, para não depender de alguém lembrar de subir a versão), `modelVersion` (o modelo, não o provider) e a tabela `BriefingSource` (título/fonte/URL **desnormalizados** para sobreviver ao cleanup; `newsId` é ponteiro fraco nulável). Fontes substituídas em transação a cada run — o artigo é upsert por data
 - **Próximos passos:** (1) **Fase 1 do plano V2 (Foundation)** — copiar `docs/v2/01-design-tokens.md` para `apps/web/styles/tokens.css`; (2) **`feat/v2-editorial-api`** — `GET /api/home`, `/api/trending` (etapa 1) e `/api/news/:id/related`, mergeado **antes** de a Fase 3 abrir; (3) Item 8 — deploy da newsletter (domínio verificado no Resend)
-- **Testes:** 457 testes em 50 suites (365 API em 32 suites + 92 web em 18 suites — todos passando)
+- **Ambiente local (2026-08-20):** `./scripts/dev-bootstrap.sh` deixa tudo pronto do zero — Postgres (Docker se houver daemon, serviço nativo se não), envs locais, migrations, imagens de placeholder e seed com 30 dias de métricas. Idempotente. `test`/`lint`/`typecheck`/`build` **não precisam de banco**; só rodar o app e capturar screenshots precisa. **Gotcha:** o cache de `fetch` do Next (`.next/cache/fetch-cache`) sobrevive entre builds e serve dados velhos — limpar antes de recapturar a baseline depois de mudar o seed
+- **Fix (2026-08-20):** `formatPipelineDuration` lia o valor como segundos, mas o backend grava milissegundos (`Date.now() - startedAt`) — a dashboard mostrava um run de 26,5s como "441m 40s". Os fixtures do teste codificavam o mesmo equívoco, por isso passava
+- **Testes:** 458 testes em 50 suites (365 API em 32 suites + 93 web em 18 suites — todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 
