@@ -3,6 +3,13 @@ name: Lighthouse CI
 # Auditoria de performance/acessibilidade/best-practices/SEO contra a produção
 # (critério do PRD §18: Lighthouse >90). Roda semanalmente e sob demanda.
 # O workflow falha se alguma categoria cair abaixo de 90 (ver .lighthouserc.json).
+#
+# As rotas auditadas são apenas as de URL estável. As páginas de detalhe
+# (`/news/[id]` e `/article/[date]`) ficam de fora de propósito: os ids de
+# notícia são removidos pelo estágio de cleanup do pipeline e a data do artigo
+# muda todo dia, então qualquer URL fixa viraria 404 — o que faria o workflow
+# falhar por um motivo que não é regressão de qualidade. Esses dois templates
+# são cobertos pela baseline visual (plano V2 §30).
 
 on:
   schedule:
@@ -19,3 +26,14 @@ jobs:
         uses: treosh/lighthouse-ci-action@v12
         with:
           temporaryPublicStorage: false
+
+      # Sem este passo os relatórios morrem com o runner e sobra apenas o
+      # pass/fail — inutilizável como linha de base histórica.
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 90
+          if-no-files-found: warn

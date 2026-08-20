@@ -1,8 +1,14 @@
 {
   "ci": {
     "collect": {
-      "url": ["https://newra-news-web.vercel.app/"],
-      "numberOfRuns": 1,
+      "url": [
+        "https://newra-news-web.vercel.app/pt-BR",
+        "https://newra-news-web.vercel.app/pt-BR/news",
+        "https://newra-news-web.vercel.app/pt-BR/article",
+        "https://newra-news-web.vercel.app/pt-BR/about",
+        "https://newra-news-web.vercel.app/en"
+      ],
+      "numberOfRuns": 3,
       "settings": {
         "onlyCategories": ["performance", "accessibility", "best-practices", "seo"],
         "chromeFlags": "--no-sandbox"
@@ -17,7 +23,8 @@
       }
     },
     "upload": {
-      "target": "filesystem"
+      "target": "filesystem",
+      "outputDir": ".lighthouseci"
     }
   }
 }
