@@ -19,6 +19,9 @@
 - GET /api/health — healthcheck (keep-alive)
 - GET /api/news — listar notícias (paginado, filtro por categoria, busca, data)
 - GET /api/news/:id — notícia por ID
+- GET /api/news/:id/related — relacionadas (mesma categoria em ±72h, com 2 níveis de fallback)
+- GET /api/home — resposta agregada da Home da V2 (hero, briefing, top, trending, categorias, latest)
+- GET /api/trending — etapa 1: recência (meia-vida 12h) + favoritos × 2
 - GET /api/articles — listar artigos
 - GET /api/articles/:date — artigo por data (YYYY-MM-DD)
 - GET /api/articles/latest — artigo mais recente
@@ -26,10 +29,23 @@
 - GET /api/jobs/:pipelineId — status de execução do pipeline
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
-- GET /api/metrics/dashboard — resumo: hoje + última semana + último mês
+- GET /api/metrics/dashboard — **admin (JWT + role ADMIN)**: hoje + última semana + último mês
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only (JOB_SECRET via header ou `?secret=`): runs, erros e status dos providers
+
+## Editorial (V2)
+- Serviços em `services/{home,trending,related}.service.ts`, mapper compartilhado
+  em `services/editorial.mapper.ts` (`News` → `EditorialStory`)
+- **A ponte entre os dois enums `Category`** (Prisma e `packages/types`) mora no
+  mapper, uma vez só — são idênticos em membros e nominalmente distintos para o
+  TypeScript
+- **`Cache-Control` só existe nestas rotas**, via `utils/cache.ts`. É header por
+  rota e não hook global de propósito: um hook aplicaria política às rotas
+  autenticadas, e `s-maxage` num proxy compartilhado ali seria vazamento entre
+  sessões
+- `getHome` não repete notícia entre blocos — a precedência resolve a disputa e
+  o bloco perdedor desce o próprio ranking até preencher
 
 ## Pipeline Diário (9 etapas)
 Coleta → Normalização → Deduplicação → Persistência →

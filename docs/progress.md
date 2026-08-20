@@ -33,9 +33,13 @@
 
 > Masthead em três linhas (§10), faixa de categorias, menu mobile, rodapé no ritmo dos tokens, `newsletter-cta`, a landing `/[locale]/newsletter` e as duas telas de texto (`/about`, `/newsletter/unsubscribe`). Lockup reavaliado e baseline recapturada. 522 testes verdes; acessibilidade 100 em todas as telas medidas. Ver **item 15**.
 
-**Próximo ciclo — V2.0 Fase 3 (Home)** ⚠️ Bloqueada
+**Newra News V2.0 — Fase 0.5 (Backend editorial)** ✅ Concluída em 2026-08-20
 
-> **`feat/v2-editorial-api` (item 12) precisa entrar antes.** A Fase 3 abre com `HeroStory`/`DailyBrief`/`TrendingList`, que consomem `GET /api/home`, `/api/trending` e `/api/news/:id/related` — nenhum existe.
+> Os três endpoints entregues: `GET /api/home`, `/api/trending` (etapa 1) e `/api/news/:id/related`. 422 testes na API. Branch `feat/v2-editorial-api`. Ver **item 16**.
+
+**Próximo ciclo — V2.0 Fase 3 (Home)** 📋 **Desbloqueada**
+
+> `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos. Os endpoints que ela consome existem e estão documentados em `docs/api.md`.
 
 ---
 
@@ -203,12 +207,7 @@
 
 > **Por que a migration não esperou.** Nada registrava quais notícias entravam no briefing — o Stage 5 logava só `{ count }` — e tanto `News` quanto `PipelineLog` são purgados aos 30 dias. Todo briefing gerado antes desta migration fica permanentemente sem lista de fontes, **sem backfill possível**. Como a Fase 5 exibe transparência de IA sobre um histórico de 90 dias, adiar custava dado, não só tempo.
 
-**Pendente — branch `feat/v2-editorial-api`, mergeada antes de a Fase 3 abrir:**
-
-- [ ] `GET /api/home` — resposta agregada da Home (§18.1). Hoje a home faz 2 chamadas; a Home da V2 tem 6 blocos. Contrato em `docs/v2/03-contratos-api.md` §3, incluindo a regra de não repetir notícia entre blocos
-- [ ] `GET /api/trending` — etapa 1: recência + favoritos. Cliques e compartilhamentos dependem da camada de analytics (§27), que não existe; documentar como etapa 1 para não virar mito
-- [ ] `GET /api/news/:id/related` — mesma categoria em ±72h, completando por categoria e depois por recência (§18.3)
-- [ ] Primeira rota da API a definir `Cache-Control` — **não há precedente no `apps/api`**; decidir se mora num hook `onSend` do plugin ou por rota
+**Entregue na branch `feat/v2-editorial-api` (2026-08-20) — ver item 16.**
 
 ### 13. V2.0 Fase 1 — Foundation ✅ Concluída em 2026-08-20
 
@@ -310,6 +309,27 @@
 
 - [x] **Lockup reavaliado (§40.3-B) — fica o tipográfico.** Desta vez a decisão saiu de medição, não de sequenciamento: o lockup foi medido em produção no tamanho em que aparece (Inter 20px, `/pt-BR` a 1440px) e dá **151,5 × 28 px = 5,41:1**, praticamente a proporção de 4:1–5:1 que o lockup desenhado perseguiria. A geometria que justificaria desenhá-lo já está lá, saindo da composição tipográfica. A medição também mostrou que a marca alinha à **caixa alta** (centro a 0,5 px) e não à **altura-x** (1,5 px), que era o alvo da §40.3-B — **não corrigido de propósito**: 1,5 px num tipo de 20 px, com a marca transbordando o texto 6 px acima e 7 abaixo, e o conserto seria um `translate-y` mágico, exatamente o que a fase passou inteira tirando do código. Registro completo em §40.3
 - [x] **Baseline visual recapturada** — 42 capturas, 12 rotas, de produção às 23:05. Entrou `/pt-BR/newsletter` (3 imagens); as 37 restantes foram substituídas. O diretório é **reescrito a cada fase** em vez de acumular um por fase: a referência útil é sempre a da fase anterior, os estados antigos ficam no git, e cada conjunto pesa ~15 MB
+
+### 16. V2.0 Fase 0.5 — Backend editorial ✅ Concluída em 2026-08-20
+
+> Branch `feat/v2-editorial-api` (§29). **É o que desbloqueia a Fase 3**: ela abre com `HeroStory`/`DailyBrief`/`TrendingList`, que consomem estes endpoints. Contratos fechados na Fase 0 em `docs/v2/03-contratos-api.md`.
+
+- [x] **Tipos editoriais** — `packages/types/src/editorial.ts` com `EditorialStory`, `DailyBriefing`, `HomeResponse`. `EditorialStory` é a notícia na perspectiva da **composição**, não da coleta; os três campos que não existem no banco (`readingTimeMinutes`, `isFeatured`, `isTrending`) são calculados ou posicionais, e nenhum exigiu migration
+- [x] **`editorial.mapper.ts`** — `News` → `EditorialStory`, compartilhado pelos três serviços. **A ponte entre os dois enums `Category`** (Prisma e `packages/types`, idênticos em membros mas nominalmente distintos para o TypeScript) mora aqui, uma vez só, em vez de espalhar casts
+- [x] **`GET /api/home`** — agregada, para a Home não fazer 6+ chamadas em sequência a partir de um Server Component. Hero é a mais recente **com imagem** (a §6.2 quer capa e ~30% do acervo vem de RSS sem imagem); briefing é `null` quando o pipeline do dia não rodou; categorias vazias são omitidas
+- [x] **`GET /api/trending` (etapa 1)** — `recência + saves × 2`, com meia-vida de 12h. Documentado como etapa 1 em três lugares (serviço, `docs/api.md`, contratos): **o que ele devolve hoje é "recentes mais favoritadas"**, e um trending cujo critério não está escrito vira mito
+- [x] **`GET /api/news/:id/related`** — mesma categoria em ±72h, com dois níveis de fallback. O terceiro nível existe para categoria pouco povoada nunca devolver lista vazia
+- [x] **`Cache-Control` estreia na API** — o contrato registrava que **não havia precedente** e deixava a decisão para esta etapa. Ficou **header por rota** via `utils/cache.ts`, não hook global: um hook aplicaria política a `/api/favorites` e `/api/metrics/dashboard`, que devolvem dado por usuário — `s-maxage` num proxy compartilhado ali é vazamento entre sessões, não otimização
+- [x] **54 testes novos (368 → 422)** em 5 suites: mapper, trending, related, home e as rotas
+
+**Dois defeitos que a revisão do próprio código achou**
+
+- [x] **A precedência esvaziava o trending.** A §3 manda "sem repetição entre blocos" com `hero` → `topStories` → `trending` → …; lida ao pé da letra, `topStories` leva as mais recentes, o trending ranqueia por recência, e o bloco voltava vazio. A leitura correta é que a precedência decide **quem fica com a notícia disputada** — o perdedor desce o próprio ranking até preencher. O `/api/home` passou a pedir 4× mais candidatos. Pego por teste antes de ir para produção
+- [x] **O trending nunca alcançava a matéria antiga e favoritada.** Os candidatos vinham só das 200 mais recentes, mas um favorito vale 2,0 e a recência vale no máximo 1,0 — ou seja, o score existe justamente para promover a matéria que a recência não promove, e ela era cortada antes de ser pontuada. Na janela de 7 dias o efeito era gritante: recência de 0,00006, só os saves colocariam a matéria ali. Os candidatos passaram a vir de **dois lados** — as mais recentes e as mais favoritadas
+
+**Fica para depois da Fase 8**
+
+- [ ] **`GET /api/trending` etapa 2** — `+ clicks × 0,5 + shares × 3`, quando a camada de analytics da §27 existir
 
 ---
 

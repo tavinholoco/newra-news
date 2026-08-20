@@ -85,6 +85,137 @@ payload (o JWT é assinado pelo frontend com o role vindo da sessão, que segue
 
 ---
 
+## Editorial
+
+Os três endpoints que a Home e as telas de matéria da V2 consomem. Contratos
+fechados na Fase 0 em `docs/v2/03-contratos-api.md`.
+
+**São as únicas rotas da API que definem `Cache-Control`**
+(`public, s-maxage=300, stale-while-revalidate=3600`). O `s-maxage` vale para o
+CDN, não para o browser: a ISR de 3600s da home continua, e os 300s existem para
+o `revalidatePath` on-demand do cron surtir efeito em minutos. Nenhuma rota
+autenticada recebe o cabeçalho — num proxy compartilhado isso seria vazamento
+entre sessões, não otimização.
+
+### GET /api/home
+
+Resposta agregada da Home. Existe porque a Home da V2 tem hero, briefing, top
+stories, trending, seções por categoria e newsletter: composta bloco a bloco,
+seriam 6+ chamadas em sequência a partir de um Server Component.
+
+| Param | Tipo | Default | Limites |
+|---|---|---|---|
+| `locale` | `pt-BR` \| `en` | `pt-BR` | reservado; o acervo é único hoje |
+| `categories` | number | 4 | 1–8 |
+
+**Nenhuma notícia aparece duas vezes na resposta.** A precedência é
+`hero` → `topStories` → `trending` → `categories` → `latest`; um bloco que
+perde a disputa continua descendo o próprio ranking até preencher.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "hero": { "...EditorialStory": "...", "isFeatured": true },
+    "briefing": {
+      "id": "uuid",
+      "date": "2026-08-20",
+      "title": "...",
+      "summary": "...",
+      "sourceCount": 15,
+      "readingTimeMinutes": 4,
+      "generatedAt": "2026-08-20T08:02:11.000Z",
+      "aiDisclosure": true,
+      "sources": [{ "id": "uuid", "position": 0, "title": "...", "source": "G1", "sourceUrl": "...", "newsId": null }]
+    },
+    "topStories": ["...EditorialStory"],
+    "trending": ["...EditorialStory com isTrending"],
+    "latest": ["...EditorialStory"],
+    "categories": [{ "category": "ECONOMY", "stories": ["...EditorialStory"] }]
+  }
+}
+```
+
+Regras que a resposta garante:
+
+- `hero` é a mais recente **com imagem** — a §6.2 quer capa, e cerca de 30% do
+  acervo vem de RSS sem imagem. `null` se nenhuma tiver;
+- `briefing` é `null` quando o pipeline do dia ainda não rodou. A Home renderiza
+  sem ele;
+- categorias vazias são **omitidas**, não devolvidas com lista vazia;
+- `sourceCount` cai para `newsCount` nos artigos anteriores à migration de
+  auditoria, que não têm `sources`.
+
+Sem campo `newsletter`: o bloco é estático (texto + formulário) e não depende de
+dado do servidor.
+
+### GET /api/trending
+
+| Param | Tipo | Default | Limites |
+|---|---|---|---|
+| `limit` | number | 5 | 1–20 |
+| `window` | `24h` \| `7d` | `24h` | |
+
+Resposta: `{ data: EditorialStory[] }`, todas com `isTrending: true`.
+
+**Etapa 1.** A §18.2 do plano propõe `recency + clicks + saves + shares`.
+Destes, só `saves` existe — é a tabela `Favorite`. Cliques e compartilhamentos
+dependem da camada de analytics da §27, que ainda não foi construída.
+
+```
+etapa 1 (atual)          score = recência + saves × 2
+etapa 2 (após a Fase 8)  score = recência + saves × 2 + clicks × 0,5 + shares × 3
+```
+
+A recência decai por meia-vida de 12h: peso 1,0 na publicação, 0,5 doze horas
+depois. **O que este endpoint devolve hoje é "recentes mais favoritadas"**, e
+está dito assim de propósito — um "trending" cujo critério não está escrito vira
+mito.
+
+### GET /api/news/:id/related
+
+| Param | Tipo | Default | Limites |
+|---|---|---|---|
+| `limit` | number | 4 | 1–12 |
+
+Resposta: `{ data: EditorialStory[] }`. **404** se a notícia base não existir.
+
+Critério, em ordem de precedência: mesma categoria em ±72h → mesma categoria
+fora da janela → mais recentes de qualquer categoria. O terceiro nível existe
+para uma categoria pouco povoada nunca devolver lista vazia.
+
+Sem embeddings nem busca semântica: o acervo é de notícia diária, a categoria já
+é sinal forte, e a §9 pede relacionadas úteis, não relevância de estado da arte.
+
+### EditorialStory
+
+O formato que os três endpoints devolvem — a notícia na perspectiva da
+**composição**, não da coleta.
+
+```json
+{
+  "id": "uuid",
+  "title": "...",
+  "dek": "a description da News, no vocabulário editorial",
+  "imageUrl": null,
+  "category": "ECONOMY",
+  "source": "G1",
+  "sourceUrl": "https://...",
+  "publishedAt": "2026-08-20T12:00:00.000Z",
+  "updatedAt": "2026-08-20T12:00:00.000Z",
+  "readingTimeMinutes": 3,
+  "isFeatured": true,
+  "isTrending": true
+}
+```
+
+`readingTimeMinutes` é calculado (200 ppm, do `content` e caindo para o `dek`) e
+é `null` quando não há texto — zero seria uma afirmação, e ausência de conteúdo
+é outra coisa. `isFeatured` e `isTrending` são **posicionais**, só aparecem
+quando verdadeiros, e nenhum dos três é coluna no banco.
+
+---
+
 ## Artigos
 
 ### GET /api/articles
