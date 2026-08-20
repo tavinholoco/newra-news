@@ -42,6 +42,7 @@
 ## Referência
 - PRD completo: docs/PRD-NewraNews_V1.1.md (local-only, gitignored)
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
+- Discovery da V2 (Fase 0 — tokens, sitemap, contratos, baseline visual): docs/v2/
 - Diagramas: docs/diagrams/
 
 ## Status Atual
@@ -52,8 +53,10 @@
 - **Bloqueadores da V2 resolvidos (2026-08-19):** migrations versionadas (saíram do `.gitignore`) + baseline `0_init` gerada; workflow `.github/workflows/migrate.yml` (`migrate status` + `migrate deploy`, no-op enquanto não houver secret `DATABASE_URL`); `LICENSE` MIT; repo git órfão em `apps/web/.git` removido; 14 divergências do plano corrigidas no corpo das seções (registro em §40.2)
 - **Logo (2026-08-19):** asset recebido em PNG e **vetorizado** — `apps/web/public/logo/logo-mark.svg` (`#C94F22`, igual ao `brand-600` da V2) e `logo-mono.svg` (`currentColor`), 633/638 bytes, `viewBox="0 0 1184 1312"` justo. Reconstrução geométrica validada por diff de pixels (3 px de erro de forma). **Lockup decidido:** wordmark tipográfico na fonte de interface (§5), com o lockup desenhado adiado para reavaliação ao fim da Fase 2 — ver §40.3
 - **Baseline do banco concluído (2026-08-19):** drift conferido (vazio), `migrate resolve --applied 0_init` aplicado no Neon, secret `DATABASE_URL` no GitHub com a string **direta** (sem `-pooler` — o Render segue com a pooled), senha do role rotacionada. Produção validada: `/api/health` e `/api/news` em 200
-- **Próximos passos:** (1) **Fase 0 do plano V2** — nada mais a bloqueia; (2) Item 8 — deploy da newsletter (domínio verificado no Resend)
-- **Testes:** 419 testes em 48 suites (330 API em 31 suites + 89 web em 17 suites — todos passando)
+- **V2.0 Fase 0 concluída (2026-08-20):** discovery técnico entregue em **`docs/v2/`** — diagnóstico (rotas, componentes, consumo das APIs, Lighthouse por rota, acessibilidade, bundle), **design tokens fechados** (paleta em duas camadas + contraste medido + mapeamento das 31 variáveis do shadcn), sitemap de telas, contratos de `GET /api/home`/`/trending`/`/:id/related` e catálogo de analytics + slots de anúncio. **Tipografia decidida: Newsreader (manchetes) + Inter (interface)** — sai o Bricolage Grotesque. Baseline visual da V1 capturada (42 imagens, `pnpm --filter @newranews/web visual:baseline`). Checklist da §28 fechado
+- **Correções que a Fase 0 fez (2026-08-20):** (a) a migration `0_init` **não replicava** — terminava com o banner do CLI do Prisma colado no SQL, invisível em produção porque lá foi aplicada com `migrate resolve` (que não executa o SQL); faltava também o `migration_lock.toml`, sem o qual não havia como checar drift. Ambos corrigidos e verificados em banco limpo; (b) o workflow do Lighthouse media **uma URL só, através de um redirect, uma vez por execução, e descartava os relatórios** — corrigido para 5 rotas × 3 execuções, com scores no summary e artifact de 90 dias; (c) o piso "96·96·96·100" da §26 era **só da home** — o critério de aceite passa a ser a tabela por rota do diagnóstico
+- **Próximos passos:** (1) **Fase 1 do plano V2 (Foundation)** — copiar `docs/v2/01-design-tokens.md` para `apps/web/styles/tokens.css`; (2) Item 8 — deploy da newsletter (domínio verificado no Resend)
+- **Testes:** 448 testes em 50 suites (356 API em 32 suites + 92 web em 18 suites — todos passando)
 - **Plano de ação completo:** docs/progress.md — seção "Plano de Ação"
 - **Progresso detalhado:** docs/progress.md
 

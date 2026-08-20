@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "visual:baseline": "node scripts/capture-visual-baseline.mjs",
     "lighthouse:audit": "lighthouse https://newra-news-web.vercel.app/ --only-categories=performance,accessibility,best-practices,seo --output=json --output-path=lh-report.json --quiet"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@newranews/eslint-config": "workspace:*",
     "@newranews/tsconfig": "workspace:*",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query-devtools": "^5.91.3",
     "@testing-library/jest-dom": "^6.4.0",

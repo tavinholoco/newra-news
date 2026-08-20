@@ -1172,14 +1172,14 @@ Idealmente, manter anonimização e retenção de dados compatíveis com LGPD.
 Objetivo: preparar terreno antes do redesign.
 
 ```text
-[ ] mapear todas as rotas públicas
-[ ] mapear todos os componentes atuais
-[ ] documentar contrato das APIs
-[ ] medir Lighthouse atual
-[ ] registrar Core Web Vitals atuais
-[ ] registrar métricas atuais de uso
-[ ] definir design tokens V2
-[ ] criar sitemap de telas
+[x] mapear todas as rotas públicas                          (docs/v2/00 §1.1)
+[x] mapear todos os componentes atuais                      (docs/v2/00 §1.2)
+[x] documentar contrato das APIs                            (docs/v2/00 §1.3)
+[x] medir Lighthouse atual                                  (docs/v2/00 §3.1)
+[x] registrar Core Web Vitals atuais                        (docs/v2/00 §3.2)
+[x] registrar métricas atuais de uso                        (docs/v2/00 §3.5)
+[x] definir design tokens V2                                (docs/v2/01)
+[x] criar sitemap de telas                                  (docs/v2/02)
 
     -- pré-requisitos de infraestrutura (auditoria §40) --
 [x] remover migrations do .gitignore                        (§37-A)
@@ -1190,10 +1190,29 @@ Objetivo: preparar terreno antes do redesign.
 [x] cadastrar o secret DATABASE_URL no GitHub               (§37-C)
 [x] receber e vetorizar o asset de logo                     (§40.3)
 [x] decidir o lockup: wordmark tipográfico                  (§40.3)
-[ ] mapear todos os usos de brand-400 e brand-900 no web    (§4.1)
+[x] mapear todos os usos de brand-400 e brand-900 no web    (§4.1 — 13 usos)
+
+    -- entregues além do checklist original --
+[x] escolher a tipografia: Newsreader + Inter               (§5, docs/v2/01 §7)
+[x] contrato de GET /api/home, /trending, /:id/related      (§35, docs/v2/03)
+[x] catálogo de eventos de analytics                        (§35, docs/v2/04)
+[x] inventário de slots de anúncio                          (§35, docs/v2/04)
+[x] capturar a baseline visual da V1                        (§30, docs/v2/baseline-v1/)
 ```
 
-**Entrega:** diagnóstico técnico + design tokens.
+**Entrega:** diagnóstico técnico + design tokens → **`docs/v2/`** (concluída em
+20/08/2026).
+
+> **Três correções que a Fase 0 fez no próprio plano**, todas por medição:
+> (1) o piso "96·96·96·100" da §26 era da home apenas — duas rotas já estavam
+> abaixo, e o critério de aceite passa a ser a tabela por rota do diagnóstico;
+> (2) `brand-600` não passa AA para texto normal sobre `paper`, só sobre branco
+> puro — links usam `brand-700`; (3) a paleta da §4.1 não cobre a camada
+> semântica do shadcn (31 variáveis), e 8 delas são código morto.
+>
+> A verificação também encontrou dois defeitos de infraestrutura que a §40 dava
+> como resolvidos: a migration `0_init` não replicava em banco limpo (banner do
+> CLI do Prisma colado no SQL) e faltava o `migration_lock.toml`. Corrigidos.
 
 ## Fase 1 — Foundation
 
