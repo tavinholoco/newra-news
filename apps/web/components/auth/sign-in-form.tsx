@@ -49,7 +49,7 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
 
       <Link
         href='/'
-        className='inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700'
+        className='inline-flex items-center gap-1.5 text-sm font-medium text-link hover:text-link-hover'
       >
         <ArrowLeft className='h-4 w-4' />
         {t('backHome')}

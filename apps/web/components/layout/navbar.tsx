@@ -67,8 +67,8 @@ export function Navbar({ links }: NavbarProps) {
             className={cn(
               'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
               isActive(link.href)
-                ? 'text-brand-600'
-                : 'text-foreground/70 hover:text-brand-600'
+                ? 'text-link'
+                : 'text-foreground/70 hover:text-link'
             )}
           >
             {link.label}
@@ -80,17 +80,27 @@ export function Navbar({ links }: NavbarProps) {
       <button
         type='button'
         onClick={() => setMobileOpen(!mobileOpen)}
-        className='inline-flex items-center justify-center rounded-lg p-2 text-foreground/70 transition-colors hover:text-brand-600 md:hidden'
+        className='inline-flex items-center justify-center rounded-lg p-2 text-foreground/70 transition-colors hover:text-link md:hidden'
         aria-label={mobileOpen ? t('closeMenu') : t('openMenu')}
         aria-expanded={mobileOpen}
       >
         {mobileOpen ? <X className='h-5 w-5' /> : <Menu className='h-5 w-5' />}
       </button>
 
+      {/*
+        O painel se comporta como folha modal: escurece a página e prende o
+        scroll. Daí `z-overlay` no scrim e `z-modal` no painel (§8).
+
+        Hoje os dois nascem dentro do `<header>`, que tem z-index próprio e
+        portanto abre um contexto de empilhamento — os valores só valem entre
+        si, não contra a página. Funciona, mas a tabela de camadas só passa a
+        valer de verdade quando a Fase 2 tirar a navegação mobile de dentro do
+        masthead (§23).
+      */}
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className='fixed inset-0 top-16 z-40 bg-black/20 md:hidden'
+          className='fixed inset-0 top-16 z-overlay bg-black/20 md:hidden'
           onClick={() => setMobileOpen(false)}
           aria-hidden='true'
         />
@@ -98,7 +108,7 @@ export function Navbar({ links }: NavbarProps) {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className='fixed inset-x-0 top-16 z-50 border-b border-border bg-background shadow-lg md:hidden'>
+        <div className='fixed inset-x-0 top-16 z-modal border-b border-border bg-popover shadow-overlay md:hidden'>
           <nav className='mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4'>
             {visibleLinks.map((link) => (
               <Link
@@ -107,8 +117,8 @@ export function Navbar({ links }: NavbarProps) {
                 className={cn(
                   'rounded-lg px-3 py-2.5 text-base font-medium transition-colors',
                   isActive(link.href)
-                    ? 'bg-brand-100 text-brand-600'
-                    : 'text-foreground/70 hover:bg-brand-100/50 hover:text-brand-600'
+                    ? 'bg-accent text-link'
+                    : 'text-foreground/70 hover:bg-surface-accent hover:text-link'
                 )}
               >
                 {link.label}

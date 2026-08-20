@@ -54,7 +54,7 @@ export default async function AdminPage({ params }: Props) {
         <p className='mb-6 text-muted-foreground'>{t('restrictedDesc')}</p>
         <Link
           href='/'
-          className='text-sm font-medium text-brand-600 hover:text-brand-700'
+          className='text-sm font-medium text-link hover:text-link-hover'
         >
           {t('backHome')}
         </Link>

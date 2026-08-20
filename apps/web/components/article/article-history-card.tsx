@@ -24,9 +24,9 @@ export function ArticleHistoryCard({ article }: ArticleHistoryCardProps) {
 
   return (
     <Link href={`/article/${toDateSlug(article.date)}`} className='group block'>
-      <Card className='h-full border-l-4 border-l-brand-600 transition-shadow duration-200 group-hover:shadow-md'>
+      <Card className='h-full border-l-4 border-l-brand-accent'>
         <CardHeader>
-          <CardTitle className='font-display line-clamp-2 text-base leading-snug group-hover:text-brand-600'>
+          <CardTitle className='font-display line-clamp-2 text-base leading-snug transition-colors duration-base group-hover:text-link'>
             {article.title}
           </CardTitle>
           <CardDescription className='line-clamp-3'>

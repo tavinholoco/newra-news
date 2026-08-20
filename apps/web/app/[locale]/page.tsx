@@ -68,7 +68,7 @@ export default async function HomePage({ params }: Props) {
           {news.length > 0 && (
             <Link
               href='/news'
-              className='flex items-center gap-1 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
+              className='flex items-center gap-1 text-sm font-medium text-link transition-colors hover:text-link-hover'
             >
               {t('viewAll')}
               <ArrowRight className='h-4 w-4' />

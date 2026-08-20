@@ -15,7 +15,7 @@ export function AdminPanel() {
 
   return (
     <div className='space-y-10'>
-      <section className='rounded-xl border border-border bg-card p-6'>
+      <section className='rounded-lg border border-border bg-card p-6'>
         <h2 className='font-display mb-1 text-lg font-semibold text-foreground'>
           {t('runPipeline')}
         </h2>
@@ -34,7 +34,7 @@ export function AdminPanel() {
         </Button>
 
         {runPipeline.isSuccess && (
-          <p role='status' className='mt-4 text-sm text-emerald-600 dark:text-emerald-400'>
+          <p role='status' className='mt-4 text-sm text-success'>
             {t('runSuccess')}
           </p>
         )}
@@ -63,7 +63,7 @@ export function AdminPanel() {
         ) : (newsQuery.data?.data.length ?? 0) === 0 ? (
           <p className='text-sm text-muted-foreground'>{t('empty')}</p>
         ) : (
-          <ul className='divide-y divide-border overflow-hidden rounded-xl border border-border bg-card'>
+          <ul className='divide-y divide-border overflow-hidden rounded-lg border border-border bg-card'>
             {newsQuery.data?.data.map((news) => (
               <li
                 key={news.id}

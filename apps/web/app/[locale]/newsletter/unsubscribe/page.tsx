@@ -46,7 +46,7 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
     <div className='mx-auto flex max-w-2xl flex-col items-center px-4 py-24 text-center sm:px-6 lg:px-8'>
       {unsubscribed.unsubscribed ? (
         <>
-          <CheckCircle2 className='mb-6 h-16 w-16 text-green-600' />
+          <CheckCircle2 className='mb-6 h-16 w-16 text-success' />
           <h1 className='font-display mb-3 text-2xl font-bold text-foreground'>
             {t('unsubscribedTitle')}
           </h1>
@@ -56,7 +56,7 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
         </>
       ) : (
         <>
-          <XCircle className='mb-6 h-16 w-16 text-destructive/70' />
+          <XCircle className='mb-6 h-16 w-16 text-destructive' />
           <h1 className='font-display mb-3 text-2xl font-bold text-foreground'>
             {t('invalidTitle')}
           </h1>
@@ -67,7 +67,7 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
       )}
       <Link
         href='/'
-        className='flex items-center gap-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-400'
+        className='flex items-center gap-2 text-sm font-medium text-link transition-colors hover:text-link-hover'
       >
         <ArrowLeft className='h-4 w-4' />
         {tCommon('backToHome')}

@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "visual:baseline": "node scripts/capture-visual-baseline.mjs",
-    "lighthouse:audit": "lighthouse https://newra-news-web.vercel.app/ --only-categories=performance,accessibility,best-practices,seo --output=json --output-path=lh-report.json --quiet"
+    "lighthouse:audit": "lighthouse https://newra-news-web.vercel.app/ --only-categories=performance,accessibility,best-practices,seo --output=json --output-path=lh-report.json --quiet",
+    "contrast:check": "node scripts/check-contrast.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

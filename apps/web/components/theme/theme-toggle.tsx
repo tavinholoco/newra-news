@@ -47,7 +47,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       type='button'
       onClick={handleToggle}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg p-2 text-foreground/70 transition-colors hover:text-brand-600',
+        'inline-flex items-center justify-center rounded-lg p-2 text-foreground/70 transition-colors hover:text-link',
         className,
       )}
       aria-label={isDark ? t('enableLight') : t('enableDark')}
