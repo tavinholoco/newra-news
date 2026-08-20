@@ -105,32 +105,79 @@ Lista artigos diários com paginação.
       "date": "ISO string",
       "newsCount": 15,
       "createdAt": "ISO string",
-      "updatedAt": "ISO string"
+      "updatedAt": "ISO string",
+      "generatedAt": "ISO string | null",
+      "promptVersion": "v1-ebb73b75 | null",
+      "modelVersion": "gemini-2.5-flash | null",
+      "status": "PUBLISHED"
     }
   ],
   "meta": { "total": 30, "page": 1, "limit": 10, "totalPages": 3 }
 }
 ```
 
+> A listagem **não** traz `sources` — seriam 15 linhas por artigo sem nada as
+> exibindo. Elas acompanham só os endpoints de detalhe abaixo.
+
+---
+
+### Campos de auditoria da geração
+
+Presentes em todo artigo (plano V2 §18.4). São **nulos nos artigos publicados
+antes da migration `add_daily_briefing_metadata`** — não há como preenchê-los
+retroativamente, porque nada registrava quais notícias entraram no briefing.
+
+| Campo | Descrição |
+|---|---|
+| `generatedAt` | quando a IA gerou o texto (≠ `createdAt`, que é a linha do banco) |
+| `promptVersion` | época do prompt + impressão digital do conteúdo (ex.: `v1-ebb73b75`) |
+| `modelVersion` | modelo que de fato gerou (ex.: `gemini-2.5-flash`, `openai/gpt-oss-20b`) |
+| `status` | `DRAFT` \| `PUBLISHED` \| `FAILED` |
+
 ---
 
 ### GET /api/articles/latest
 
-Retorna o artigo mais recente.
+Retorna o artigo mais recente, com a lista de fontes.
 
-**Resposta 200:** `{ "data": { ...article } }`  
+**Resposta 200:** `{ "data": { ...article, "sources": [...] } }`  
 **Resposta 404:** `{ "error": "Article not found" }`
 
 ---
 
 ### GET /api/articles/:date
 
-Retorna o artigo de uma data específica.
+Retorna o artigo de uma data específica, com a lista de fontes.
 
 **Param:** `:date` — formato `YYYY-MM-DD`
 
-**Resposta 200:** `{ "data": { ...article } }`  
+**Resposta 200:**
+```json
+{
+  "data": {
+    "...": "campos do artigo",
+    "sources": [
+      {
+        "id": "uuid",
+        "position": 0,
+        "title": "string",
+        "source": "G1",
+        "sourceUrl": "https://...",
+        "newsId": "uuid | null"
+      }
+    ]
+  }
+}
+```
+
 **Resposta 404:** `{ "error": "Article not found" }`
+
+`sources` vem ordenado por `position` — a ordem em que as notícias foram
+enviadas à IA. Os campos de exibição são cópias, não joins: o cleanup do
+pipeline apaga `News` com mais de 30 dias e o artigo vive 90, então um join
+deixaria dois terços dos briefings retidos sem lista de fontes. Por isso
+`newsId` é um ponteiro fraco — nulo quando não resolveu, e obsoleto depois que
+a notícia é removida.
 
 ---
 

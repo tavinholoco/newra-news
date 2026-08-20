@@ -1214,6 +1214,37 @@ Objetivo: preparar terreno antes do redesign.
 > como resolvidos: a migration `0_init` não replicava em banco limpo (banner do
 > CLI do Prisma colado no SQL) e faltava o `migration_lock.toml`. Corrigidos.
 
+## Fase 0.5 — Backend editorial
+
+Objetivo: entregar os dados que as Fases 3–5 consomem. **Nenhuma fase do
+frontend produz isso** — as Fases 1 e 2 são 100% de interface, e a Fase 3 abre
+com `HeroStory`, `DailyBrief` e `TrendingList`, que dependem de endpoints
+inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
+
+```text
+    -- antes da Fase 1: o dado só é capturado daqui para frente --
+[x] migration add_daily_briefing_metadata                   (§18.4, §37-E)
+[x] pipeline gravando generatedAt/promptVersion/modelVersion/status
+[x] pipeline gravando BriefingSource (lista de fontes do dia)
+[x] tipos compartilhados + docs/api.md
+
+    -- durante as Fases 1–2, em branch própria; mergeado antes da Fase 3 --
+[ ] GET /api/home            (agregado da Home — §18.1)
+[ ] GET /api/trending        (etapa 1: recência + favoritos — §18.2)
+[ ] GET /api/news/:id/related                              (§18.3)
+```
+
+> **Por que a migration saiu antes da Fase 1.** Nada registrava quais notícias
+> entravam no briefing — o Stage 5 logava só a contagem — e o cleanup apaga
+> `News` e `PipelineLog` aos 30 dias, enquanto `Article` vive 90. Cada dia sem a
+> migration era um briefing permanentemente sem lista de fontes, sem backfill
+> possível. A Fase 5 exibe transparência de IA sobre esse histórico.
+
+> **Por que o resto não é "paralelo".** Backend (`apps/api`) e frontend
+> (`apps/web`) não conflitam em arquivo, então a branch pode correr junto das
+> Fases 1–2 — mas é **pré-requisito**, não trabalho concorrente: a Fase 3 não
+> abre antes dela estar mergeada.
+
 ## Fase 1 — Foundation
 
 ```text
@@ -1336,6 +1367,7 @@ Para uma mudança tão grande, evitar um único PR gigantesco.
 Sugestão:
 
 ```text
+feat/v2-editorial-api        # Fase 0.5 — precede feat/v2-home
 feat/v2-design-foundation
 feat/v2-header
 feat/v2-home
@@ -1345,6 +1377,12 @@ feat/v2-monetization
 feat/v2-seo
 feat/v2-analytics
 ```
+
+A primeira é a única de backend. Ela existe porque a lista original era toda de
+frontend e nenhuma fase da §28 comportava `GET /api/home`, `/api/trending` e
+`/api/news/:id/related` — que a Fase 3 consome. Pode correr em paralelo às
+branches de foundation e header (apps diferentes, sem conflito de arquivo), mas
+precisa estar mergeada antes de `feat/v2-home` começar.
 
 Cada feature deve ter:
 
@@ -1660,7 +1698,7 @@ Mapeando direto para a seção 18 deste plano:
 
 | Mudança de produto (seção 18) | Migration correspondente |
 |---|---|
-| Histórico do briefing (18.4) | adicionar `promptVersion`, `modelVersion`, `status` e relação com `sources` |
+| Histórico do briefing (18.4) | ✅ `add_daily_briefing_metadata` (20/08/2026) — `generatedAt`, `promptVersion`, `modelVersion`, `status` e a tabela `BriefingSource` |
 | Trending (18.2) | coluna/tabela de score, ou view materializada `trending_score` |
 | Related stories (18.3) | índice por categoria + data para consulta rápida, ou tabela de cache |
 | Métricas de produto (18.5) | tabela `product_events` cobrindo os 13 eventos já listados |

@@ -119,8 +119,22 @@ describe('getArticleByDate', () => {
 
     await getArticleByDate('2024-01-15');
 
-    expect(prisma.article.findUnique).toHaveBeenCalledWith({
-      where: { date: new Date('2024-01-15') },
-    });
+    expect(prisma.article.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { date: new Date('2024-01-15') } }),
+    );
+  });
+
+  it('should include the briefing sources ordered by position', async () => {
+    vi.mocked(prisma.article.findUnique).mockResolvedValue(null);
+
+    await getArticleByDate('2024-01-15');
+
+    expect(prisma.article.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          sources: expect.objectContaining({ orderBy: { position: 'asc' } }),
+        }),
+      }),
+    );
   });
 });

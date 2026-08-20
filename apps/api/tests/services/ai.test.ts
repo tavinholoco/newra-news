@@ -1,6 +1,13 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
 import { generateArticle } from '../../src/services/ai.service';
+import { env } from '../../src/config/env';
+import {
+  ARTICLE_PROMPT_VERSION,
+  ARTICLE_SYSTEM_PROMPT,
+  ARTICLE_USER_PROMPT,
+} from '../../src/config/ai-prompts';
 
 vi.mock('../../src/providers/ai/gemini.provider');
 vi.mock('../../src/providers/ai/groq.provider');
@@ -76,5 +83,54 @@ describe('AiService', () => {
     expect(thrown.message).toBe('Groq API error: 404 Not Found');
     // O erro final carrega o primário para o pipeline registrar os dois
     expect(thrown.primaryError).toBe(geminiError);
+  });
+
+  // Auditoria da geração (plano V2 §18.4): o artigo precisa registrar qual
+  // modelo o gerou, e não basta o nome do provider — o modelo por trás dele
+  // muda (o Groq trocou llama-3.1-8b-instant por openai/gpt-oss-20b em 08/2026).
+  it('should report the Gemini model that generated the article', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+
+    const result = await generateArticle(mockNewsItems);
+
+    expect(result.provider).toBe('gemini');
+    expect(result.modelVersion).toBe(env.GEMINI_MODEL);
+  });
+
+  it('should report the Groq model when the fallback generates the article', async () => {
+    vi.mocked(generateArticleWithGemini).mockRejectedValue(new Error('Gemini down'));
+    vi.mocked(generateArticleWithGroq).mockResolvedValue(mockGeneratedArticle);
+
+    const result = await generateArticle(mockNewsItems);
+
+    expect(result.provider).toBe('groq');
+    expect(result.modelVersion).toBe(env.GROQ_MODEL);
+  });
+});
+
+describe('ARTICLE_PROMPT_VERSION', () => {
+  it('should be an epoch plus an 8-char content fingerprint', () => {
+    expect(ARTICLE_PROMPT_VERSION).toMatch(/^v\d+-[0-9a-f]{8}$/);
+  });
+
+  it('should change when the prompt text changes', async () => {
+    // A versão é derivada do conteúdo justamente para não depender de alguém
+    // lembrar de subi-la à mão — uma versão manual esquecida mente sobre qual
+    // prompt gerou o artigo. Este teste falha se o hash virar constante fixa.
+    const digest = createHash('sha256')
+      .update(ARTICLE_SYSTEM_PROMPT)
+      .update(ARTICLE_USER_PROMPT)
+      .digest('hex')
+      .slice(0, 8);
+
+    expect(ARTICLE_PROMPT_VERSION.endsWith(digest)).toBe(true);
+
+    const otherDigest = createHash('sha256')
+      .update(`${ARTICLE_SYSTEM_PROMPT} alterado`)
+      .update(ARTICLE_USER_PROMPT)
+      .digest('hex')
+      .slice(0, 8);
+
+    expect(otherDigest).not.toBe(digest);
   });
 });

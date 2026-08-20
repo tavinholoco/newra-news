@@ -3,6 +3,7 @@ import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
+import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -11,6 +12,45 @@ function startOfDay(date: Date): Date {
   const d = new Date(date);
   d.setUTCHours(0, 0, 0, 0);
   return d;
+}
+
+/**
+ * Grava a lista de fontes do briefing (plano V2 §18.4).
+ *
+ * Substitui as fontes em vez de acrescentar: o artigo é um upsert por data, e
+ * uma segunda execução no mesmo dia escolhe outro conjunto de notícias — sem a
+ * remoção, o briefing acumularia as fontes dos dois runs.
+ *
+ * O `newsId` é resolvido por `sourceUrl` (que é `@unique` em News) porque o
+ * `createMany` do Stage 4 não devolve ids. Quando não resolve, a fonte é
+ * gravada mesmo assim com `newsId` nulo — perder o registro de auditoria é pior
+ * que perder o ponteiro, e os campos que a interface mostra estão todos aqui.
+ */
+async function persistBriefingSources(
+  articleId: string,
+  selected: RawNewsItem[],
+): Promise<number> {
+  const rows = await prisma.news.findMany({
+    where: { sourceUrl: { in: selected.map((item) => item.sourceUrl) } },
+    select: { id: true, sourceUrl: true },
+  });
+  const idByUrl = new Map(rows.map((row) => [row.sourceUrl, row.id]));
+
+  const data = selected.map((item, index) => ({
+    articleId,
+    newsId: idByUrl.get(item.sourceUrl) ?? null,
+    position: index,
+    title: item.title,
+    source: item.source,
+    sourceUrl: item.sourceUrl,
+  }));
+
+  await prisma.$transaction([
+    prisma.briefingSource.deleteMany({ where: { articleId } }),
+    prisma.briefingSource.createMany({ data }),
+  ]);
+
+  return data.length;
 }
 
 function deduplicateByUrl(items: RawNewsItem[]): RawNewsItem[] {
@@ -134,14 +174,24 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
 
     // Stage 6: Generate article via AI (Gemini → Groq fallback)
     currentStage = 6;
-    const { article, provider } = await generateArticle(selected);
+    const generatedAt = new Date();
+    const { article, provider, modelVersion } = await generateArticle(selected);
     metrics.aiProvider = provider;
     await logPipelineEvent(pipelineLogId, 6, 'INFO', 'Article generated', {
       provider,
+      modelVersion,
+      promptVersion: ARTICLE_PROMPT_VERSION,
     });
 
-    // Stage 7: Persist article (upsert by date — one article per day)
+    // Stage 7: Persist article (upsert by date — one article per day) com a
+    // auditoria da geração e a lista de fontes (§18.4 do plano V2).
     currentStage = 7;
+    const auditFields = {
+      generatedAt,
+      promptVersion: ARTICLE_PROMPT_VERSION,
+      modelVersion,
+      status: 'PUBLISHED' as const,
+    };
     const savedArticle = await prisma.article.upsert({
       where: { date: today },
       create: {
@@ -150,17 +200,23 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
         content: article.content,
         date: today,
         newsCount: selected.length,
+        ...auditFields,
       },
       update: {
         title: article.title,
         summary: article.summary,
         content: article.content,
         newsCount: selected.length,
+        ...auditFields,
       },
     });
+
+    const sourcesSaved = await persistBriefingSources(savedArticle.id, selected);
+
     metrics.articleGenerated = true;
     await logPipelineEvent(pipelineLogId, 7, 'INFO', 'Article persisted', {
       articleId: savedArticle.id,
+      sources: sourcesSaved,
     });
 
     // Update log with counts before cleanup

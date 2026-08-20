@@ -189,8 +189,17 @@ de estado da arte.
 
 ## 6. Auditoria do briefing — a única migration obrigatória
 
+> **✅ Implementada em 20/08/2026**, antes da Fase 1 e não entre as Fases 2 e 3
+> como a ordem original previa. O motivo é que **o dado só é capturado daqui
+> para frente**: nada registrava quais notícias entravam no briefing, o Stage 8
+> apaga `News` com mais de 30 dias e `Article` vive 90 — cada dia de atraso era
+> um briefing permanentemente sem lista de fontes. Ver §7.
+>
+> Duas coisas mudaram do que está especificado abaixo, e o motivo está anotado
+> logo após o bloco de schema.
+
 A §18.4 exige que o artigo diário tenha data de referência, horário de geração,
-versão do prompt/modelo, lista de fontes e status. O modelo `Article` tem hoje:
+versão do prompt/modelo, lista de fontes e status. O modelo `Article` tinha:
 
 ```prisma
 model Article {
@@ -224,14 +233,19 @@ model Article {
 }
 
 model BriefingSource {
-  id        String  @id @default(uuid())
+  id        String   @id @default(uuid())
   articleId String
-  newsId    String
+  newsId    String?              // ponteiro fraco, ver nota 1
   position  Int
-  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  title     String               // desnormalizado, ver nota 1
+  source    String
+  sourceUrl String
+  createdAt DateTime @default(now())
 
-  @@unique([articleId, newsId])
-  @@index([articleId])
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceUrl])
+  @@index([articleId, position])
 }
 
 enum ArticleStatus {
@@ -241,31 +255,64 @@ enum ArticleStatus {
 }
 ```
 
-Notas de implementação:
+### O que mudou da especificação, e por quê
+
+**1. `BriefingSource` guarda `title`, `source` e `sourceUrl`, não só o `newsId`.**
+A versão original supunha um join com `News` na hora de exibir. Mas o Stage 8 do
+pipeline apaga `News` com mais de **30 dias** e `Article` vive **90** — o join
+deixaria dois terços dos briefings retidos com a lista de fontes vazia, que é
+exatamente o que a §18.4 quer preservar. Copiar três colunas custa ~200 bytes
+por fonte e faz o registro de auditoria sobreviver ao cleanup.
+
+**2. A chave natural passou a ser `sourceUrl`, e `newsId` virou nulável.**
+O `createMany` do Stage 4 não devolve ids, então o `newsId` é resolvido por
+`sourceUrl` (que é `@unique` em `News`) depois de persistir. Quando a busca não
+resolve, a fonte é gravada mesmo assim com `newsId` nulo: perder o registro de
+auditoria é pior que perder o ponteiro, e os campos que a interface exibe estão
+todos na própria linha. Com `newsId` nulável, ele não serve mais como chave de
+unicidade — o Postgres aceita múltiplos nulos num índice único.
+
+### Como ficou no pipeline
 
 - os campos novos são **nullable** por causa dos artigos já publicados —
-  expand and contract da §37-F, sem backfill obrigatório;
-- `BriefingSource` guarda `newsId` sem chave estrangeira, seguindo o padrão já
-  usado em `Favorite` (as notícias são removidas pelo cleanup do pipeline; uma FK
-  transformaria isso em cascata de exclusão do histórico);
-- `position` preserva a ordem em que a IA citou as fontes;
-- `packages/types/src/article.ts` acompanha a mesma migration;
-- o `pipeline.service` passa a gravar `generatedAt`, `modelVersion` (que ele já
-  conhece — é o provider escolhido no estágio 6) e as `sources` (o estágio 5 já
-  seleciona as 15 notícias).
+  expand and contract da §37-F, sem backfill (que seria impossível de qualquer
+  forma: nada registrava as notícias de origem);
+- `position` preserva a ordem em que as notícias foram enviadas à IA;
+- `promptVersion` é **época + impressão digital do conteúdo do prompt**
+  (`v1-ebb73b75`), não um número escrito à mão — uma versão manual que alguém
+  esquece de subir passa a mentir sobre qual prompt gerou o artigo;
+- `modelVersion` é o **modelo**, não o provider: o `ai.service` devolve
+  `GEMINI_MODEL` ou `GROQ_MODEL` conforme quem gerou. O nome do provider não
+  bastaria — o modelo por trás dele muda (o Groq trocou `llama-3.1-8b-instant`
+  por `openai/gpt-oss-20b` em 08/2026);
+- o Stage 7 **substitui** as fontes numa transação em vez de acrescentar: o
+  artigo é upsert por data, e um segundo run no mesmo dia escolhe outro conjunto
+  de notícias;
+- `packages/types/src/article.ts` acompanha, com `BriefingSource` e
+  `ArticleWithSources`.
 
 ---
 
 ## 7. Ordem de implementação
 
-| Ordem | Item | Bloqueia |
-|---|---|---|
-| 1 | migration `add_daily_briefing_metadata` + tipos | Fase 5 |
-| 2 | `GET /api/home` | Fase 3 |
-| 3 | `GET /api/trending` (etapa 1) | Fase 3 |
-| 4 | `GET /api/news/:id/related` | Fases 4 e 5 |
-| 5 | `GET /api/trending` (etapa 2) | — depois da analytics |
+| Ordem | Item | Quando | Bloqueia |
+|---|---|---|---|
+| 1 | migration `add_daily_briefing_metadata` + tipos | ✅ **feito, antes da Fase 1** | Fase 5 |
+| 2 | `GET /api/home` | branch `feat/v2-editorial-api`, durante as Fases 1–2 | Fase 3 |
+| 3 | `GET /api/trending` (etapa 1) | idem | Fase 3 |
+| 4 | `GET /api/news/:id/related` | idem | Fases 4 e 5 |
+| 5 | `GET /api/trending` (etapa 2) | depois da Fase 8 | — |
 
-Os itens 2–4 são pré-requisito de fases do frontend e devem estar prontos
-**antes** delas, não em paralelo. Cada um leva teste Vitest com
-`fastify.inject()` e validação Zod na entrada, como manda a convenção do repo.
+**Por que o item 1 saiu na frente.** A ordem não é só de dependência técnica: o
+dado de auditoria **só é capturado daqui para frente**. Nada registrava quais
+notícias entravam no briefing — o Stage 5 logava apenas a contagem — e tanto
+`News` (30 dias) quanto `PipelineLog` (30 dias) são purgados pelo cleanup. Todo
+briefing gerado antes desta migration fica permanentemente sem lista de fontes,
+sem backfill possível. Como a Fase 5 exibe transparência de IA sobre um
+histórico de 90 dias, adiar custava dado, não só tempo.
+
+**Os itens 2–4 são pré-requisito das fases de frontend**, não trabalho paralelo
+a elas: precisam estar mergeados antes de a Fase 3 abrir. Como vivem em
+`apps/api` e as Fases 1–2 em `apps/web`, as branches não conflitam. Cada um leva
+teste Vitest com `fastify.inject()` e validação Zod na entrada, como manda a
+convenção do repo.

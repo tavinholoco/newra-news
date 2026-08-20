@@ -17,6 +17,10 @@
 
 > Entregáveis em `docs/v2/` (5 documentos + baseline visual). Checklist da §28 do plano fechado. Ver **item 11**.
 
+**Newra News V2.0 — Fase 0.5 (Backend editorial)** 🔶 Parcial em 2026-08-20
+
+> Migration de auditoria do briefing entregue; os três endpoints editoriais ficam para a branch `feat/v2-editorial-api`, que precisa ser mergeada **antes** de a Fase 3 abrir. Ver **item 12**.
+
 **Próximo ciclo — V2.0 Fase 1 (Foundation)** 📋 Sem bloqueadores
 
 > Plano em `docs/Newra-News-V2-Frontend-Redesign-Plan.md`. Os design tokens estão fechados em `docs/v2/01-design-tokens.md` — a Fase 1 copia de lá para `apps/web/styles/tokens.css`.
@@ -167,6 +171,32 @@
 - [x] auditava **só a raiz**, que redireciona para `/pt-BR` — o score era medido através de um redirect, o que penaliza performance. Agora audita as 5 rotas de URL estável (as de detalhe ficam fora de propósito: id de notícia é removido pelo cleanup e a data do artigo muda todo dia)
 - [x] `numberOfRuns: 3` do `.lighthouserc.json` era **ignorado** — a action sempre repassa o próprio input `runs` (default 1) ao `lhci`. Corrigido no `with:`
 - [x] o `upload-artifact` ignora caminhos ocultos por padrão, então `.lighthouseci/` subia **vazio** e os relatórios morriam com o runner. Corrigido com `include-hidden-files`, mais um passo que imprime a mediana por rota no summary do job
+
+### 12. V2.0 Fase 0.5 — Backend editorial 🔶 Parcial em 2026-08-20
+
+> Criada porque a revisão da Fase 0 expôs que **nenhuma fase do §28 comportava o trabalho de backend**: as Fases 1 e 2 são 100% frontend (conferido item a item) e a Fase 3 abre com `HeroStory`/`DailyBrief`/`TrendingList`, que consomem endpoints inexistentes. A lista de branches da §29 também era toda de frontend. Plano atualizado com a **Fase 0.5** e a branch `feat/v2-editorial-api`.
+
+**Entregue — antes da Fase 1, não entre a 2 e a 3:**
+
+- [x] **Migration `add_daily_briefing_metadata`** — `Article` ganha `generatedAt`, `promptVersion`, `modelVersion` e `status` (enum `ArticleStatus`); nova tabela `BriefingSource`. Aplicada e verificada em banco limpo (`migrate reset` → as duas migrations aplicam; `migrate diff --from-migrations` → `No difference detected`)
+- [x] **Pipeline gravando a auditoria** — Stage 6 captura `generatedAt` antes da chamada à IA e loga `modelVersion`/`promptVersion`; Stage 7 grava os quatro campos **no `create` e no `update`** do upsert (sem isso um artigo regenerado manteria a auditoria do primeiro run)
+- [x] **`ARTICLE_PROMPT_VERSION`** — época manual + **impressão digital sha256 do conteúdo dos dois prompts** (`v1-ebb73b75`). Versão escrita à mão que alguém esquece de subir é pior que nenhuma, porque passa a mentir sobre qual prompt gerou o artigo; com o hash, editar o texto muda a versão sozinho
+- [x] **`modelVersion` é o modelo, não o provider** — `ai.service` devolve `GEMINI_MODEL`/`GROQ_MODEL` conforme quem gerou. O nome do provider não bastaria: o modelo por trás dele muda (o Groq trocou `llama-3.1-8b-instant` por `openai/gpt-oss-20b` em 08/2026)
+- [x] **`BriefingSource` com campos desnormalizados** — `title`/`source`/`sourceUrl` são cópias, não join. O Stage 8 apaga `News` aos 30 dias e `Article` vive 90; com join, dois terços dos briefings retidos ficariam sem lista de fontes, que é justamente o que a §18.4 quer auditar. `newsId` é ponteiro fraco (nulável, sem FK) resolvido por `sourceUrl` — o `createMany` do Stage 4 não devolve ids. Quando não resolve, a fonte entra mesmo assim: perder o registro de auditoria é pior que perder o ponteiro
+- [x] **Fontes substituídas em transação**, não acrescentadas — o artigo é upsert por data e um segundo run do dia escolhe outro conjunto; sem a remoção o briefing acumularia as fontes dos dois runs
+- [x] **Endpoints de detalhe servem `sources`** ordenadas por `position`; a listagem não (seriam 15 linhas por artigo sem nada as exibindo)
+- [x] **Tipos compartilhados** — `BriefingSource`, `ArticleWithSources`, enum `ArticleStatus` em `packages/types/src/article.ts`; `docs/api.md` atualizado com os campos de auditoria e o formato de `sources`
+- [x] **9 testes novos** (448 → **457**): 4 no `ai.service` (modelo do Gemini, modelo do Groq no fallback, formato da versão do prompt, versão derivada do conteúdo) e 4 no pipeline (campos de auditoria no create e no update, fontes na ordem enviada à IA, `newsId` nulo quando não resolve, substituição em transação), mais 1 no `article.service` (fontes ordenadas por `position`)
+- [x] **Smoke test contra o banco real** — auditoria persistida e devolvida pelo service, fontes na ordem certa com `newsId` resolvido, re-run substituindo (3 → 2, não 5) e cascade delete zerando as fontes junto com o artigo
+
+> **Por que a migration não esperou.** Nada registrava quais notícias entravam no briefing — o Stage 5 logava só `{ count }` — e tanto `News` quanto `PipelineLog` são purgados aos 30 dias. Todo briefing gerado antes desta migration fica permanentemente sem lista de fontes, **sem backfill possível**. Como a Fase 5 exibe transparência de IA sobre um histórico de 90 dias, adiar custava dado, não só tempo.
+
+**Pendente — branch `feat/v2-editorial-api`, mergeada antes de a Fase 3 abrir:**
+
+- [ ] `GET /api/home` — resposta agregada da Home (§18.1). Hoje a home faz 2 chamadas; a Home da V2 tem 6 blocos. Contrato em `docs/v2/03-contratos-api.md` §3, incluindo a regra de não repetir notícia entre blocos
+- [ ] `GET /api/trending` — etapa 1: recência + favoritos. Cliques e compartilhamentos dependem da camada de analytics (§27), que não existe; documentar como etapa 1 para não virar mito
+- [ ] `GET /api/news/:id/related` — mesma categoria em ±72h, completando por categoria e depois por recência (§18.3)
+- [ ] Primeira rota da API a definir `Cache-Control` — **não há precedente no `apps/api`**; decidir se mora num hook `onSend` do plugin ou por rota
 
 ---
 
