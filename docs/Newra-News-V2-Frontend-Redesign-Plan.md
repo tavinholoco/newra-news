@@ -82,7 +82,7 @@ No frontend, o projeto já utiliza:
 - `next/image`;
 - renderização estática/ISR;
 - estrutura de componentes por domínio;
-- páginas separadas para notícias, artigo, favoritos, dashboard, newsletter e autenticação.
+- páginas separadas para notícias, artigo, favoritos, métricas, newsletter e autenticação.
 
 Isso significa que a V2.0 pode ser feita majoritariamente por refatoração de experiência, composição visual e evolução de componentes, sem necessidade de abandonar a arquitetura atual.
 
@@ -805,7 +805,7 @@ Expandir o painel atual para eventos de produto:
 
 # 19. Personalização futura
 
-O projeto já possui autenticação, favoritos e dashboard.
+O projeto já possui autenticação, favoritos e um painel de métricas (hoje restrito a ADMIN, §23).
 
 Isso abre espaço para uma segunda camada de produto:
 
@@ -971,9 +971,9 @@ apps/web/
 │       ├── favorites/
 │       ├── newsletter/      # hoje só newsletter/unsubscribe/ — ver nota abaixo
 │       ├── about/
-│       ├── dashboard/
 │       ├── signin/          # existe hoje; precisa sobreviver ao redesign
 │       └── admin/           # existe hoje (noindex, role ADMIN)
+│           └── metrics/     # era /dashboard, público — ver nota abaixo
 │
 ├── components/
 │   ├── editorial/
@@ -1008,6 +1008,15 @@ apps/web/
     ├── globals.css
     └── tokens.css
 ```
+
+> **Métricas saíram de `/[locale]/dashboard` (20/08/2026).** A rota era pública
+> e indexada. É métrica de **pipeline** — volume coletado, provider de IA,
+> duração da execução, dias com falha — ou seja, operação do projeto, não
+> conteúdo editorial. Passou para `/[locale]/admin/metrics`, atrás do mesmo
+> guard do painel admin, que agora vive em `admin/layout.tsx` e vale para todo
+> o segmento. `GET /api/metrics/dashboard` também passou a exigir JWT com role
+> ADMIN: esconder só a página deixaria o dado a um `curl` de distância. A URL
+> antiga responde 308. Sai da §28 Fase 6 e do sitemap.
 
 > **Landing de newsletter:** hoje não existe `/[locale]/newsletter` — a
 > newsletter é o `SubscribeForm` no rodapé mais a página
@@ -1323,7 +1332,6 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 
 ```text
 [ ] favorites
-[ ] dashboard
 [ ] profile
 [ ] preferences
 [ ] newsletter settings
@@ -1426,13 +1434,12 @@ Rotas mínimas:
 /pt-BR/article/[date]
 /pt-BR/favorites
 /pt-BR/signin
-/pt-BR/dashboard
 /pt-BR/about
 /pt-BR/newsletter          # só depois que a landing da Fase 2 existir
 /en
 ```
 
-Todas essas rotas existem hoje, com uma exceção: `/pt-BR/newsletter` só entra na baseline depois que a landing for entregue na Fase 2 (§23). `/pt-BR/admin` fica fora — é `noindex`, exige role ADMIN e `force-dynamic`, o que a torna instável como referência visual.
+Todas essas rotas existem hoje, com uma exceção: `/pt-BR/newsletter` só entra na baseline depois que a landing for entregue na Fase 2 (§23). `/pt-BR/admin` e `/pt-BR/admin/metrics` ficam fora — são `noindex`, exigem role ADMIN e `force-dynamic`, o que as torna instáveis como referência visual. As métricas estavam nesta lista como `/pt-BR/dashboard` até 20/08/2026, quando deixaram de ser públicas (§23).
 
 Executar visual regression após cada etapa relevante.
 

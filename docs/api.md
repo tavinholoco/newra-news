@@ -277,9 +277,21 @@ Retorna métricas do mês completo.
 
 ---
 
-### GET /api/metrics/dashboard
+### GET /api/metrics/dashboard (admin)
 
 Retorna um resumo com métricas de hoje, última semana e último mês.
+
+**Era pública até 20/08/2026.** Passou a exigir `Authorization: Bearer <jwt>`
+com `role: ADMIN` no payload — mesmo desenho de `DELETE /api/news/:id`. Métrica
+de pipeline é dado operacional, e a página que a consome saiu de
+`/[locale]/dashboard` para `/[locale]/admin/metrics`; o browser chega aqui pela
+rota proxy `/api/admin/metrics`, que lê a sessão e assina o token server-side.
+
+`GET /api/metrics/weekly` e `/monthly` seguem públicas.
+
+**Resposta 401:** token ausente ou inválido.
+**Resposta 403:** `{ "error": "Admin access required" }` — autenticado sem role
+ADMIN.
 
 **Resposta 200:**
 ```json

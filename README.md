@@ -29,7 +29,7 @@ Acompanhar notícias hoje significa navegar por dezenas de fontes diferentes sem
 - **SEO completo** — sitemap automático, Open Graph, meta tags dinâmicas localizadas
 - **Mobile-first** com Tailwind CSS + shadcn/ui
 - **Dark mode** com toggle e preferência do sistema
-- **Métricas em produção** — painel `/api/metrics/*` com contagens por provider e categoria
+- **Métricas em produção** — painel restrito a ADMIN em `/[locale]/admin/metrics`, com contagens por provider e categoria
 
 ## 🏗️ Arquitetura do pipeline
 

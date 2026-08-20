@@ -25,6 +25,10 @@
 
 > `apps/web/styles/tokens.css` implementa a paleta, a tipografia e o ritmo fechados na Fase 0; 480 testes verdes. Branch `feat/v2-design-foundation`. Ver **item 13**.
 
+**Métricas restritas a ADMIN** ✅ 2026-08-20
+
+> `/[locale]/dashboard` (pública, indexada, ISR) virou `/[locale]/admin/metrics`, e `GET /api/metrics/dashboard` passou a exigir JWT com role ADMIN. Ver **item 14**.
+
 **Próximo ciclo — V2.0 Fase 2 (Shell)** 📋 Sem bloqueadores
 
 > Top bar, masthead, navegação de categorias, rodapé e a landing `/[locale]/newsletter`. Pode correr em paralelo com `feat/v2-editorial-api` (item 12), que continua sendo pré-requisito da Fase 3.
@@ -227,6 +231,21 @@
 - [ ] **Baseline visual da V2** (`docs/v2/baseline-v2/`) — o script existe (`visual:baseline`) e precisa do ambiente local no ar
 - [ ] **A escala tipográfica e o `container-editorial` ainda não são usados** — as páginas seguem com `max-w-7xl px-4 sm:px-6 lg:px-8`. Trocar contêiner e hierarquia é reflow, que é a Fase 2/3
 - [ ] **`heading-order` do grid de notícias** continua quebrado (§3.3 do diagnóstico) — é estrutura semântica, corrigida na reorganização editorial da Fase 3
+
+### 14. Métricas do pipeline restritas a ADMIN ✅ 2026-08-20
+
+> Branch `feat/admin-only-metrics`, empilhada sobre `feat/v2-design-foundation`. Métrica de pipeline — volume coletado, provider de IA que respondeu, duração da execução, dias com falha — é **operação do projeto**, não conteúdo editorial. Expor a saúde interna do sistema para o leitor anônimo não tem função de produto e conta mais do que precisa a quem estiver sondando.
+
+- [x] **Página movida** — `/[locale]/dashboard` → `/[locale]/admin/metrics`, `noindex`, atrás de sessão + role ADMIN
+- [x] **O guard passou para `app/[locale]/admin/layout.tsx`** — junto do `force-dynamic`. Assim "tudo sob `/admin` é só para ADMIN" é garantia estrutural, e uma página nova não depende de alguém lembrar de repetir a verificação. O `/admin/page.tsx` deixou de carregar a sua cópia. **Verificado no `prerender-manifest.json`: nenhuma rota de `/admin` é prerenderizada** — o bug histórico de o `redirect()` ser assado no HTML estático não volta
+- [x] **`GET /api/metrics/dashboard` passou a exigir JWT com role ADMIN** — esconder só a página seria cosmético: o dado ficaria a um `curl` de distância. Rota nova em `routes/metrics/admin.ts` com `authPlugin` encapsulado, mesmo desenho do `DELETE /news/:id`. `/weekly` e `/monthly` seguem públicas
+- [x] **Rota proxy `/api/admin/metrics`** — o browser não tem o `AUTH_JWT_SECRET`; a rota lê a sessão do next-auth, confere o role e assina o token server-side. `getDashboardMetrics` saiu do bloco público de `lib/api.ts` e passou a usar `fetchWebApi`
+- [x] **A página deixou de buscar no servidor** — não há mais SSR de métricas porque o token é assinado pelo proxy; o `DashboardClient` busca no cliente e mostra o `DashboardSkeleton`. É `noindex` e atrás de sessão, então não há SEO a perder
+- [x] **Redirect 308 de `/[locale]/dashboard`** — a URL antiga estava no sitemap; o `next.config.js` mantém link antigo funcionando e deixa o buscador reconciliar
+- [x] **Saiu do `sitemap.ts`, do menu público (`NAV_LINKS`) e da baseline visual** — entrou no bloco de links que só aparece para ADMIN, ao lado de "Admin"
+- [x] **Bug achado no caminho:** o `isActive` da navbar usava `startsWith`, então em `/admin/metrics` os itens "Admin" e "Métricas" ficavam **os dois** marcados como ativos. Passou a vencer o href mais longo que casa — item pai segue ativo em rota de detalhe (`/article/[date]`) sem competir com um filho que também está no menu
+- [x] **9 testes novos (480 → 489)** — 3 na API (401 sem token, 401 com token inválido, 403 para não-admin) e 6 no `navbar.test.tsx`, que não existia: visibilidade por role e as quatro combinações de link ativo
+- [x] **Plano inteiro atualizado** — §23 (estrutura + nota), §28 Fase 6, §30 (rotas da baseline), §19, §2.2 do plano mestre; `docs/v2/02-sitemap-telas.md` (árvore, ficha da tela, tabela de fases, cobertura da baseline); nota datada em `docs/v2/00-diagnostico.md`, que é retrato do commit `8827d3c` e não foi reescrito; `docs/api.md`, `docs/architecture.md`, `README.md`, `apps/web/CLAUDE.md` e o script de captura visual
 
 ---
 

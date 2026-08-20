@@ -29,11 +29,19 @@ que o redesign comece a apagar as evidências.
 | `/[locale]/article` | ISR 3600s | sim | — | histórico de briefings |
 | `/[locale]/article/[date]` | dinâmica | sim | — | |
 | `/[locale]/about` | estática | sim | — | |
-| `/[locale]/dashboard` | ISR 3600s | sim | — | métricas do pipeline |
+| `/[locale]/dashboard` | ISR 3600s | sim | — | métricas do pipeline — **movida, ver nota** |
 | `/[locale]/signin` | `force-dynamic` | **noindex** | — | Google + GitHub |
 | `/[locale]/favorites` | `force-dynamic` | **noindex** | sessão | |
 | `/[locale]/newsletter/unsubscribe` | estática | **noindex** | token | |
 | `/[locale]/admin` | `force-dynamic` | **noindex** | role ADMIN | |
+
+> **Nota posterior (20/08/2026).** Este documento é o retrato da V1 no commit
+> `8827d3c` e as medições abaixo ficam como estavam. Uma rota mudou desde
+> então: `/[locale]/dashboard` virou **`/[locale]/admin/metrics`**, atrás de
+> sessão + role ADMIN e `noindex`, e `GET /api/metrics/dashboard` passou a
+> exigir JWT com role ADMIN. Métrica de pipeline é operação, não conteúdo
+> editorial. A URL antiga responde com redirect 308. Detalhe em
+> `02-sitemap-telas.md`.
 
 O `force-dynamic` em `/signin`, `/favorites` e `/admin` **não é decorativo**: sem
 ele o `redirect()` das páginas protegidas era pré-renderizado no HTML estático e
@@ -74,7 +82,7 @@ como espinha dorsal da V2. Também não existe `top-bar`, `masthead`,
 | `getLatestArticle` | `GET /articles/latest` | home |
 | `getArticles` | `GET /articles` | `/article`, `sitemap.ts` |
 | `getArticleByDate` | `GET /articles/:date` | `/article/[date]` |
-| `getDashboardMetrics` | `GET /metrics/dashboard` | `/dashboard` |
+| `getDashboardMetrics` | `GET /metrics/dashboard` | `/dashboard` (hoje: proxy `/api/admin/metrics` → mesma rota com JWT ADMIN, consumida por `/admin/metrics`) |
 | `subscribeToNewsletter` | `POST /newsletter/subscribe` | `SubscribeForm` (rodapé) |
 | `unsubscribeFromNewsletter` | `GET /newsletter/unsubscribe` | `/newsletter/unsubscribe` |
 | `getFavorites` / `addFavorite` / `removeFavorite` | proxy `/api/favorites*` → `GET/POST/DELETE /favorites` | `FavoritesList`, `FavoriteButton` |
