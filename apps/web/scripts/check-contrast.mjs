@@ -89,6 +89,9 @@ const CASES = [
 
   // --- ícone e borda em brand: componentes de interface ---
   ['brand-600 sobre brand-50 (ícone)', P['brand-600'], P['brand-50'], 'large'],
+  // Um kicker sobre `surface-accent` levou `brand-accent` na migração da
+  // Fase 1 e reprovou em produção: o elemento tinha ícone e texto juntos.
+  ['brand-700 sobre brand-50 (kicker)', P['brand-700'], P['brand-50'], 'normal'],
   ['ember-500 sobre night-800 (ícone)', P['ember-500'], P['night-800'], 'large'],
   ['brand-600 sobre paper (ícone)', P['brand-600'], P.paper, 'large'],
 

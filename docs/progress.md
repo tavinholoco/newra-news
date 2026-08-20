@@ -225,10 +225,13 @@
 - [x] **Convenções registradas em `apps/web/CLAUDE.md`** — a tabela papel → classe é o que as Fases 2–7 vão consultar
 - [x] **Revisão da própria fase** — build, lint, typecheck e 477 testes passavam com **4 defeitos dentro**: `??` no lugar de `||` em `ArticleMeta` (com `source: ''` a data e o tempo de leitura sumiam junto), ativo e hover com o mesmo `bg-surface-accent` na nav mobile (a V1 distinguia em dois níveis e a tradução perdeu um), `z-base` (0) num scrim — traduzir `z-40` pelo token de valor mais próximo é o inverso do que a tabela da §8 quer — e `--radius-xl`/`--radius-2xl` aliasados para 12px em vez de as 29 classes serem migradas. Todos corrigidos; o do `??` tem teste de regressão verificado (falha com `??`, passa com `||`), e radius e duração viraram invariante de suíte. Registro em `docs/v2/01-design-tokens.md` §11.4
 
-**Em aberto, sem bloquear a Fase 2:**
+**Pendências fechadas em 2026-08-20, depois do merge:**
 
-- [ ] **Lighthouse por rota contra a tabela do `00-diagnostico.md` §3.1** — aquela tabela saiu do runner do GitHub contra produção; medir em laboratório local daria número não comparável. Fecha quando a branch estiver publicada
-- [ ] **Baseline visual da V2** (`docs/v2/baseline-v2/`) — o script existe (`visual:baseline`) e precisa do ambiente local no ar
+- [x] **Lighthouse por rota** — rodado contra produção pelo mesmo workflow da §3.1 ([run 32419365560](https://github.com/tavinholoco/newra-news/actions/runs/32419365560)). **Acessibilidade sobe em 3 das 5 rotas e não cai em nenhuma**; `/about` fecha em 100; o `color-contrast` desaparece de `/news` e `/article`, sobrando só o `heading-order`, que é da Fase 3. Performance de pé (duas rotas 1 ponto abaixo, dentro do ruído entre execuções). Tabela completa em `docs/v2/01-design-tokens.md` §12
+- [x] **A medição achou um erro da própria Fase 1** — a home continuava reprovando em `color-contrast`: o kicker "ARTIGO DO DIA" do `article-card` foi migrado para `text-brand-accent` (= `brand-600`), que sobre `surface-accent` dá 4,21:1 — passa os 3:1 de ícone e reprova os 4,5:1 de texto. O elemento tinha ícone **e** texto na mesma linha, e eu classifiquei a linha como ícone, inclusive no `check-contrast.mjs`. Corrigido para `text-link` (5,77:1); o par de texto entrou no script
+- [x] **Baseline visual da V2** — 39 capturas em `docs/v2/baseline-v2/`, tiradas **de produção** em vez do seed local (o seed não tem imagens de notícia, o que exagerava a saturação da V1). São 3 a menos que a V1 porque as do dashboard saíram junto com a rota
+
+**Em aberto, sem bloquear a Fase 2:**
 - [ ] **A escala tipográfica e o `container-editorial` ainda não são usados** — as páginas seguem com `max-w-7xl px-4 sm:px-6 lg:px-8`. Trocar contêiner e hierarquia é reflow, que é a Fase 2/3
 - [ ] **`heading-order` do grid de notícias** continua quebrado (§3.3 do diagnóstico) — é estrutura semântica, corrigida na reorganização editorial da Fase 3
 

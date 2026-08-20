@@ -1,0 +1,246 @@
+{
+  "capturedAt": "2026-08-20T21:29:28.567Z",
+  "baseUrl": "https://newra-news-web.vercel.app",
+  "format": "jpeg",
+  "viewports": [
+    375,
+    768,
+    1440
+  ],
+  "shots": [
+    {
+      "file": "home--375.jpg",
+      "route": "/pt-BR",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "home--375-dark.jpg",
+      "route": "/pt-BR",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "home--768.jpg",
+      "route": "/pt-BR",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "home--1440.jpg",
+      "route": "/pt-BR",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "home--1440-dark.jpg",
+      "route": "/pt-BR",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news--375.jpg",
+      "route": "/pt-BR/news",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news--375-dark.jpg",
+      "route": "/pt-BR/news",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news--768.jpg",
+      "route": "/pt-BR/news",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news--1440.jpg",
+      "route": "/pt-BR/news",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news--1440-dark.jpg",
+      "route": "/pt-BR/news",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news-detail--375.jpg",
+      "route": "/pt-BR/news/e0382c70-1f35-49a0-ad02-87ab92cb6047",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news-detail--768.jpg",
+      "route": "/pt-BR/news/e0382c70-1f35-49a0-ad02-87ab92cb6047",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news-detail--1440.jpg",
+      "route": "/pt-BR/news/e0382c70-1f35-49a0-ad02-87ab92cb6047",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-history--375.jpg",
+      "route": "/pt-BR/article",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-history--768.jpg",
+      "route": "/pt-BR/article",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-history--1440.jpg",
+      "route": "/pt-BR/article",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "about--375.jpg",
+      "route": "/pt-BR/about",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "about--768.jpg",
+      "route": "/pt-BR/about",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "about--1440.jpg",
+      "route": "/pt-BR/about",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "signin--375.jpg",
+      "route": "/pt-BR/signin",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "signin--768.jpg",
+      "route": "/pt-BR/signin",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "signin--1440.jpg",
+      "route": "/pt-BR/signin",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "favorites-anon--375.jpg",
+      "route": "/pt-BR/favorites",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "favorites-anon--768.jpg",
+      "route": "/pt-BR/favorites",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "favorites-anon--1440.jpg",
+      "route": "/pt-BR/favorites",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter-unsubscribe--375.jpg",
+      "route": "/pt-BR/newsletter/unsubscribe",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter-unsubscribe--768.jpg",
+      "route": "/pt-BR/newsletter/unsubscribe",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter-unsubscribe--1440.jpg",
+      "route": "/pt-BR/newsletter/unsubscribe",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "not-found--375.jpg",
+      "route": "/pt-BR/rota-que-nao-existe",
+      "status": 404,
+      "ok": true
+    },
+    {
+      "file": "not-found--768.jpg",
+      "route": "/pt-BR/rota-que-nao-existe",
+      "status": 404,
+      "ok": true
+    },
+    {
+      "file": "not-found--1440.jpg",
+      "route": "/pt-BR/rota-que-nao-existe",
+      "status": 404,
+      "ok": true
+    },
+    {
+      "file": "home-en--375.jpg",
+      "route": "/en",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "home-en--768.jpg",
+      "route": "/en",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "home-en--1440.jpg",
+      "route": "/en",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-detail--375.jpg",
+      "route": "/pt-BR/article/2026-08-20",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-detail--375-dark.jpg",
+      "route": "/pt-BR/article/2026-08-20",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-detail--768.jpg",
+      "route": "/pt-BR/article/2026-08-20",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-detail--1440.jpg",
+      "route": "/pt-BR/article/2026-08-20",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-detail--1440-dark.jpg",
+      "route": "/pt-BR/article/2026-08-20",
+      "status": 200,
+      "ok": true
+    }
+  ]
+}

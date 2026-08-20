@@ -17,7 +17,9 @@ export async function ArticleCard({ article }: ArticleCardProps) {
 
   return (
     <section className='animate-fade-in-up motion-reduce:animate-none rounded-lg bg-surface-accent p-6 sm:p-8 lg:p-10'>
-      <div className='flex items-center gap-2 text-brand-accent'>
+      {/* `text-link`, não `text-brand-accent`: a linha tem texto, e laranja
+          em texto é brand-700 (§4). O ícone acompanha sem prejuízo. */}
+      <div className='flex items-center gap-2 text-link'>
         <Newspaper className='h-5 w-5' />
         <span className='font-display text-sm font-semibold uppercase tracking-wider'>
           {t('dailyArticle')}

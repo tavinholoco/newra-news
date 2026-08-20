@@ -85,6 +85,7 @@ cor, fonte ou espaçamento fora de lá.
 | texto: principal / secundário / metadata | `text-ink`, `text-ink-secondary`, `text-ink-muted` |
 | link e hover | `text-link`, `hover:text-link-hover` |
 | laranja de preenchimento, ícone, borda | `text-brand-accent`, `bg-brand-accent` |
+| laranja em **texto** (inclusive kicker) | `text-link` — ver aviso abaixo |
 | botão sólido laranja (não inverte) | `bg-brand-solid` + `text-on-brand` |
 | divisória decorativa / borda de controle | `border-line` / `border-line-strong` |
 | estado | `text-danger`, `text-success` (e `-on-brand` sobre `bg-surface-brand`) |
@@ -92,6 +93,13 @@ cor, fonte ou espaçamento fora de lá.
 
 Os nomes do shadcn (`bg-card`, `text-muted-foreground`, `bg-primary`…) continuam
 válidos e apontam para a mesma camada 2 — use-os dentro de `components/ui/`.
+
+> ⚠️ **`--brand-accent` não vai em texto.** É `brand-600`: sobre
+> `surface-accent` dá 4,21:1, o que passa os 3:1 de ícone e **reprova** os
+> 4,5:1 de texto. Havendo texto na linha, o token é `--link` (`brand-700`,
+> 5,77:1). A armadilha é a linha que mistura ícone e texto e herda a cor pelos
+> dois — foi assim que o kicker do `article-card` passou por build, lint,
+> testes e pelo `check-contrast.mjs`, e só caiu no Lighthouse de produção.
 
 ### Regras que a suíte cobre
 
