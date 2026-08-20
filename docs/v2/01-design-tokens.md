@@ -610,31 +610,42 @@ Nada bloqueante, mas registrado para não parecer esquecimento:
 ## 12. Lighthouse — a Fase 1 medida em produção
 
 Mediana de 3 execuções por rota, runner do GitHub, 20/08/2026
-([run 32419365560](https://github.com/tavinholoco/newra-news/actions/runs/32419365560)),
+([run 32420796553](https://github.com/tavinholoco/newra-news/actions/runs/32420796553)),
 mesmo workflow e mesmas URLs que produziram a tabela da §3.1 do diagnóstico.
 
 | Rota | Performance | Acessibilidade | Best practices | SEO |
 |---|---|---|---|---|
-| `/pt-BR` | 97 <sub>(=)</sub> | 96 <sub>(=)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
-| `/pt-BR/news` | 97 <sub>(+2)</sub> | **98** <sub>(+3)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/pt-BR` | 97 <sub>(=)</sub> | **100** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/pt-BR/news` | 98 <sub>(+3)</sub> | **98** <sub>(+3)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
 | `/pt-BR/article` | 96 <sub>(−1)</sub> | **98** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
-| `/pt-BR/about` | 98 <sub>(=)</sub> | **100** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
-| `/en` | 97 <sub>(−1)</sub> | 96 <sub>(=)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/pt-BR/about` | 97 <sub>(−1)</sub> | **100** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
+| `/en` | 98 <sub>(=)</sub> | **100** <sub>(+4)</sub> | 96 <sub>(=)</sub> | 100 <sub>(=)</sub> |
 
-**Acessibilidade sobe em 3 das 5 rotas e não cai em nenhuma.** `/about` fecha
-em 100. Em `/news` e `/article` o `color-contrast` **desaparece** — sobra só o
-`heading-order`, que é estrutura semântica e a §3.3 do diagnóstico já atribuiu
-à reorganização editorial da Fase 3.
+**A acessibilidade sobe nas cinco rotas.** Três fecham em 100 sem nenhuma
+auditoria reprovando. Conferido nos relatórios, auditoria por auditoria, nas
+três execuções de cada rota:
 
-**Performance fica de pé.** Duas rotas marcam 1 ponto abaixo da V1. Isso é
-ruído entre execuções, não regressão: são 3 runs contra um deploy real, o First
-Load JS da home é o mesmo 157 kB da baseline e nenhuma auditoria de performance
-mudou de veredito. Registrado como está, sem arredondar para cima.
+| Rota | Reprovando |
+|---|---|
+| `/pt-BR`, `/en`, `/pt-BR/about` | nenhuma |
+| `/pt-BR/news`, `/pt-BR/article` | só `heading-order` |
 
-### O que a medição encontrou de errado
+**`color-contrast` desapareceu das cinco rotas.** Era ele que segurava os
+scores em 94–96 na V1, por dois defeitos estruturais de token: branco sobre
+`brand-600` em 16 elementos (3,27:1) e `text-white/50` no rodapé (4,04:1). O
+`heading-order` que sobra é estrutura semântica, não estilo — a §3.3 do
+diagnóstico já o atribui à reorganização editorial da Fase 3.
 
-A home e `/en` **continuaram reprovando em `color-contrast`**, e a causa era um
-erro da própria Fase 1:
+**Performance fica de pé.** `/news` ganha 3 pontos; duas rotas marcam 1 abaixo
+da V1, o que é ruído entre execuções — o First Load JS da home é o mesmo 157 kB
+da baseline e nenhuma auditoria de performance mudou de veredito. Registrado
+como saiu, sem arredondar.
+
+### O que a primeira medição encontrou de errado
+
+A leitura anterior ([run 32419365560](https://github.com/tavinholoco/newra-news/actions/runs/32419365560))
+tinha a home e `/en` ainda reprovando em `color-contrast`, e a causa era um erro
+da própria Fase 1:
 
 ```
 Element has insufficient color contrast of 4.2
@@ -648,10 +659,11 @@ migração o traduziu para `text-brand-accent`, que é o mesmo `brand-600`. Sobr
 de texto.
 
 A regra da §4 estava escrita ("links e texto em laranja usam `brand-700`") e o
-`check-contrast.mjs` até media esse par — **classificado como ícone**, porque
-foi assim que eu li o elemento. Ele tinha ícone *e* texto na mesma linha, e a
-cor herdava para os dois.
+`check-contrast.mjs` até media esse par — **classificado como ícone**, porque foi
+assim que eu li o elemento. Ele tinha ícone *e* texto na mesma linha, e a cor
+herdava para os dois. Passou por build, lint, 480 testes e pelo próprio script
+de contraste; só caiu numa página real.
 
-Corrigido para `text-link` (5,77:1) e o par de texto acrescentado ao script.
+Corrigido para `text-link` (5,77:1), com o par de texto acrescentado ao script.
 A lição, para as Fases 2–7: **`--brand-accent` é preenchimento, ícone e borda;
 no instante em que houver texto na mesma linha, o token é `--link`.**
