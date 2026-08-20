@@ -298,10 +298,14 @@ unicidade — o Postgres aceita múltiplos nulos num índice único.
 | Ordem | Item | Quando | Bloqueia |
 |---|---|---|---|
 | 1 | migration `add_daily_briefing_metadata` + tipos | ✅ **feito, antes da Fase 1** | Fase 5 |
-| 2 | `GET /api/home` | branch `feat/v2-editorial-api`, durante as Fases 1–2 | Fase 3 |
-| 3 | `GET /api/trending` (etapa 1) | idem | Fase 3 |
-| 4 | `GET /api/news/:id/related` | idem | Fases 4 e 5 |
+| 2 | `GET /api/home` | ✅ **feito** — `feat/v2-editorial-api`, 20/08/2026 | Fase 3 |
+| 3 | `GET /api/trending` (etapa 1) | ✅ **feito** | Fase 3 |
+| 4 | `GET /api/news/:id/related` | ✅ **feito** | Fases 4 e 5 |
 | 5 | `GET /api/trending` (etapa 2) | depois da Fase 8 | — |
+
+> **A Fase 3 deixou de estar bloqueada.** Os três endpoints estão implementados,
+> com 52 testes, e documentados em `docs/api.md`. O que a implementação decidiu
+> além do que esta especificação previa está em §8.
 
 **Por que o item 1 saiu na frente.** A ordem não é só de dependência técnica: o
 dado de auditoria **só é capturado daqui para frente**. Nada registrava quais
@@ -316,3 +320,54 @@ a elas: precisam estar mergeados antes de a Fase 3 abrir. Como vivem em
 `apps/api` e as Fases 1–2 em `apps/web`, as branches não conflitam. Cada um leva
 teste Vitest com `fastify.inject()` e validação Zod na entrada, como manda a
 convenção do repo.
+
+---
+
+## 8. O que a implementação decidiu além desta especificação
+
+Três pontos que o contrato deixava em aberto e que só apareceram ao escrever o
+código. Ficam aqui porque são decisões, não detalhes.
+
+### 8.1 A precedência não pode esvaziar um bloco
+
+A §3 manda "sem repetição entre blocos", com precedência `hero` → `topStories`
+→ `trending` → `categories` → `latest`. Lida ao pé da letra, ela **esvazia o
+trending**: `topStories` leva as mais recentes, o trending ranqueia por
+recência, e os primeiros colocados dele já saíram.
+
+O teste pegou isso antes de ir para produção. A leitura correta é que a
+precedência resolve **quem fica com a notícia disputada** — o bloco perdedor
+continua descendo o próprio ranking até preencher suas vagas. Na prática:
+`/api/home` pede 4× mais candidatos ao trending do que as vagas que tem.
+
+### 8.2 Onde o `Cache-Control` mora
+
+O contrato registrava que **não havia precedente** no `apps/api` e deixava a
+decisão para esta etapa. Ficou **header por rota**, através de
+`utils/cache.ts`, e não um hook `onSend` global.
+
+O motivo é segurança, não estilo: um hook aplicaria política a rotas que não
+devem tê-la. `/api/favorites` e `/api/metrics/dashboard` devolvem dado por
+usuário — `s-maxage` num proxy compartilhado ali é vazamento entre sessões, não
+otimização. Com helper, a string mora num lugar só e o call site diz se a rota
+é cacheável sem ninguém abrir um plugin.
+
+### 8.3 `EditorialStory` ganhou `sourceUrl`
+
+A §2 não o listava. Mas `SourceBadge` (entregue na Fase 1) linka o veículo para
+a matéria original, e sem `sourceUrl` na resposta a Home teria de buscar a
+notícia inteira só para montar uma atribuição de fonte.
+
+### Detalhes menores, pelo mesmo critério
+
+- **`readingTimeMinutes` é `null`, não `0`, quando não há texto.** Zero minutos
+  é uma afirmação; ausência de conteúdo é outra coisa, e cerca de um terço do
+  acervo vem de RSS só com o resumo.
+- **`isFeatured`/`isTrending` só aparecem quando verdadeiros.** Mandá-los como
+  `false` em toda matéria triplicaria o ruído sem dizer nada que a ausência já
+  não diga.
+- **As seções por categoria saem na ordem do enum.** Ordenar por volume faria
+  os blocos da Home trocarem de lugar sozinhos de um dia para o outro.
+- **`aiDisclosure` é constante `true`, não coluna.** Todo briefing é gerado por
+  IA e a §8 do plano exige declará-lo; uma coluna sugeriria que existe briefing
+  sem IA — e daria a alguém a chance de gravar `false`.

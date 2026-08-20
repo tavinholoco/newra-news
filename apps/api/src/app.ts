@@ -12,6 +12,9 @@ import { healthRoutes } from './routes/health';
 import { newsRoutes } from './routes/news';
 import { newsDetailRoutes } from './routes/news/[id]';
 import { newsAdminRoutes } from './routes/news/admin';
+import { newsRelatedRoutes } from './routes/news/related';
+import { homeRoutes } from './routes/editorial/home';
+import { trendingRoutes } from './routes/editorial/trending';
 import { articlesRoutes } from './routes/articles';
 import { articleDateRoutes } from './routes/articles/[date]';
 import { jobsRoutes } from './routes/jobs';
@@ -52,6 +55,11 @@ export async function buildApp() {
   await app.register(newsRoutes, { prefix: '/api/news' });
   await app.register(newsDetailRoutes, { prefix: '/api/news' });
   await app.register(newsAdminRoutes, { prefix: '/api/news' });
+  await app.register(newsRelatedRoutes, { prefix: '/api/news' });
+
+  // Editorial (contratos da Fase 0, §3 e §4) — consumidos pela Home da V2.
+  await app.register(homeRoutes, { prefix: '/api/home' });
+  await app.register(trendingRoutes, { prefix: '/api/trending' });
 
   await app.register(articlesRoutes, { prefix: '/api/articles' });
   await app.register(articleDateRoutes, { prefix: '/api/articles' });
