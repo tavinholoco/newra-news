@@ -58,10 +58,11 @@ documento em três pontos — registro completo na **§11** de lá:
 
 ## O que continua em aberto
 
-As duas pendências que a Fase 1 deixou foram fechadas em 20/08/2026: o
-Lighthouse por rota foi medido contra produção (`01-design-tokens.md` §12 —
-acessibilidade sobe em 3 das 5 rotas, `/about` fecha em 100) e a baseline
-visual da V2 foi capturada (`baseline-v2/`, 39 imagens).
+As duas pendências que a Fase 1 deixou foram fechadas em 20/08/2026:
+**acessibilidade sobe nas cinco rotas** e três delas fecham em 100 sem nenhuma
+auditoria reprovando — `color-contrast` sumiu do site inteiro
+(`01-design-tokens.md` §12) — e a baseline visual da V2 foi capturada
+(`baseline-v2/`, 39 imagens de produção).
 
 Duas coisas dependem de fases posteriores:
 
