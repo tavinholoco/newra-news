@@ -41,9 +41,9 @@
 
 > A Home editorial da §6: `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos, mais a camada de cards da §11 que os alimenta. **Uma chamada de rede** (`GET /api/home`) no lugar de duas que montavam bem menos página. 625 testes verdes. Ver **item 17**.
 
-**Newra News V2.0 — Fase 4 (News / Category)** ✅ Concluída em 2026-08-21 — **checklist da §28 fechado**
+**Newra News V2.0 — Fase 4 (News / Category)** ✅ Concluída em 2026-08-21 — **checklist da §28 fechado, verificada contra produção**
 
-> A `/news` virou o acervo da §7: `category-nav` com contagem, busca com histórico local e destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e paginação numerada. O **estado saiu do componente e foi para a URL** — até a Fase 3 ela só era lida. A contagem por categoria pediu um endpoint aditivo, `GET /api/news/facets`. 783 testes verdes. Ver **item 19**.
+> A `/news` virou o acervo da §7: `category-nav` com contagem, busca com histórico local e destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e paginação numerada. O **estado saiu do componente e foi para a URL** — até a Fase 3 ela só era lida. A contagem por categoria pediu um endpoint aditivo, `GET /api/news/facets`. Lighthouse **97·100·100·100** na rota (era 93), baseline recapturada, 786 testes verdes. Ver **item 19**.
 
 **Próximo ciclo — V2.0 Fase 5 (Article)** 📋
 
@@ -625,6 +625,58 @@ mas o hero do acervo é `HeroStory` e a lista é de cards horizontais.
   reprovando — o par novo é o texto principal sobre `surface-accent`, que é o
   `<mark>` do destaque (17,25:1 no claro, 15,50:1 no escuro).
 
+#### Fechamento contra produção (21/08, depois do merge do PR #110)
+
+**Lighthouse por rota** ([run 32525537279](https://github.com/tavinholoco/newra-news/actions/runs/32525537279)) — disparado por `workflow_dispatch`, não pela agenda de segunda:
+
+| Rota | Perf | Acess. | BP | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 95 | 100 | 100 | 100 |
+| `/pt-BR/news` | **97** (era 93) | **100** | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 94 | 100 | 100 | 100 |
+
+A `/news` reescrita **subiu** de 93 para 97 e manteve acessibilidade 100 — a
+hierarquia `h1 → h2 → h3` segurou o `heading-order`. O gate rodou (`Asserting`)
+e passou nas cinco.
+
+**Baseline visual recapturada** — 42 imagens, mesmas 12 rotas e 3 larguras, de
+produção. E ela achou um defeito que o Lighthouse não veria.
+
+##### O defeito que a baseline encontrou
+
+Nas três larguras da `/news`, as oito pílulas de categoria apareceram com **0**
+ao lado do nome, logo acima de "5.783 notícias". A página pontuou 97 assim —
+zero é tão rápido de renderizar quanto qualquer número, então nenhuma métrica
+sintética reclamaria.
+
+A cadeia:
+
+1. O merge dispara os dois deploys ao mesmo tempo. O build da Vercel correu
+   **antes** de o Render subir `/api/news/facets`, então o prefetch tomou 404.
+2. O `.catch(() => ({ categories: [], sources: [] }))` da página transformou a
+   falha num **resultado vazio** — e resultado vazio é uma afirmação: "o acervo
+   tem zero matérias em cada categoria".
+3. Essa afirmação foi ao ar como `initialData` de uma query com `staleTime` de 5
+   minutos. O TanStack Query a considerou fresca e **nunca buscou de novo** —
+   para todo visitante, em toda visita, porque a página é estática e cada mount
+   recebe o mesmo `initialData`.
+
+O conserto é `prefetch` em `lib/api.ts`: falha vira `undefined`, que significa
+"não medido" e a tela já sabe desenhar (chip sem número, esqueleto na lista).
+**A `/article` tinha exatamente o mesmo padrão** e teria mostrado "nenhum
+artigo" num acervo de 89 — corrigida junto, embora não seja da Fase 4.
+
+> A lição não é sobre o race de deploy, que vai acontecer de novo. É que
+> `catch` com valor de fallback **mente sobre a diferença entre "vazio" e "não
+> deu"** — e um `staleTime` transforma a mentira em permanente. Onde o valor só
+> é renderizado no servidor, sem query atrás, `.catch(() => null)` continua
+> certo: ali `null` já significa ausência.
+
+Fica pendente **recapturar só as `news--*`** depois que este conserto subir; o
+resto do conjunto está correto.
+
 #### O que **não** entrou
 
 - **"Somente salvos" da §7.** Filtrar a listagem por favoritos exige juntar
@@ -632,8 +684,6 @@ mas o hero do acervo é `HeroStory` e a lista é de cards horizontais.
   pode ser cacheada no CDN como o resto da rota é. É trabalho da **Fase 6**, com
   o resto do ecossistema de conta.
 - **Autocomplete da busca**, que a própria §7 marca como futuro.
-- **Recaptura da baseline visual** (§30) e **Lighthouse por rota**: rodam contra
-  produção, depois do merge.
 
 ---
 

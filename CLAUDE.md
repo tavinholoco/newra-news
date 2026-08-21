@@ -53,11 +53,13 @@
 - **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3 e 4 concluídas. **O
   próximo ciclo é a Fase 5 (Article).** O PRD da V1 foi fechado em 2026-08-15;
   a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-21):** Fase 4 (News / Category) — a `/news` virou o
-  acervo da §7, com `category-nav` e contagem, busca com histórico local e
-  destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e
-  paginação numerada. O **estado da tela saiu do componente e foi para a URL**.
-- **Testes:** 783 em 75 suites (497 API em 40 + 286 web em 35 — todos passando).
+- **Última entrega (2026-08-21):** Fase 4 (News / Category) fechada contra
+  produção — a `/news` virou o acervo da §7 (contagem no `category-nav`, busca
+  com histórico local, filtros de fonte/período/ordem, hero, lista e paginação),
+  o **estado da tela saiu do componente e foi para a URL**, Lighthouse **97** na
+  rota (era 93) com acessibilidade 100 nas cinco medidas, e baseline visual
+  recapturada (42 imagens).
+- **Testes:** 786 em 75 suites (497 API em 40 + 289 web em 35 — todos passando).
 
 ### O que a Fase 5 precisa saber antes de começar
 
@@ -87,6 +89,12 @@
   devolve.** A pílula "Todas" da Fase 4 mostrava o total **já filtrado** por
   categoria: lia 594 e abria 2.373. Contagem de faceta ignora a própria
   dimensão; o total do recorte é o `meta.total` da listagem, e só ele.
+- **`catch` com valor de fallback mente sobre "vazio" × "não deu" — e um
+  `staleTime` torna a mentira permanente.** Prefetch de server component que
+  vira `initialData` usa `prefetch` de `lib/api.ts`, que falha em `undefined`.
+  Com um objeto vazio no lugar, a `/news` foi ao ar com as oito categorias
+  zeradas ao lado de "5.783 notícias" e a query nunca buscou de novo. Onde o
+  valor só é renderizado no servidor, `.catch(() => null)` continua certo.
 - **O cache de `fetch` do Next (`.next/cache/fetch-cache`) sobrevive entre
   builds e serve dado velho.** Limpar antes de recapturar a baseline depois de
   mexer no seed ou nos dados.
@@ -103,8 +111,9 @@
 - **"Somente salvos" da §7** — filtrar por favoritos exige juntar `Favorite` e
   `News` e uma resposta por usuário, que não pode ser cacheada no CDN como o
   resto da rota é. É trabalho da **Fase 6**.
-- **Lighthouse por rota e recaptura da baseline visual** rodam contra produção,
-  depois do merge.
+- **Recapturar só as `news--*` da baseline** depois que o conserto do prefetch
+  subir: as imagens de 21/08 fotografaram as pílulas zeradas. O resto do
+  conjunto está correto.
 - **A categoria gravada acerta ~67%**, e isso é o teto do classificador por
   palavra-chave. A Fase 4 é interface sobre um campo que existe e é estável, mas
   evita a surpresa de ver matéria fora de lugar navegando por categoria. Passar
