@@ -111,9 +111,8 @@
 - **"Somente salvos" da §7** — filtrar por favoritos exige juntar `Favorite` e
   `News` e uma resposta por usuário, que não pode ser cacheada no CDN como o
   resto da rota é. É trabalho da **Fase 6**.
-- **Recapturar só as `news--*` da baseline** depois que o conserto do prefetch
-  subir: as imagens de 21/08 fotografaram as pílulas zeradas. O resto do
-  conjunto está correto.
+- **Nada mais.** As `news--*` da baseline foram recapturadas depois do conserto
+  do prefetch, e as contagens somam o total do acervo.
 - **A categoria gravada acerta ~67%**, e isso é o teto do classificador por
   palavra-chave. A Fase 4 é interface sobre um campo que existe e é estável, mas
   evita a surpresa de ver matéria fora de lugar navegando por categoria. Passar

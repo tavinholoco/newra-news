@@ -674,8 +674,10 @@ artigo" num acervo de 89 — corrigida junto, embora não seja da Fase 4.
 > é renderizado no servidor, sem query atrás, `.catch(() => null)` continua
 > certo: ali `null` já significa ausência.
 
-Fica pendente **recapturar só as `news--*`** depois que este conserto subir; o
-resto do conjunto está correto.
+As cinco `news--*` foram recapturadas depois do deploy do conserto, e agora as
+contagens somam o total: 639 + 248 + 838 + 331 + 243 + 119 + 3.106 + 259 =
+5.783. O seletor de **Fonte**, que a lista vazia estava escondendo, também
+apareceu.
 
 #### O que **não** entrou
 
