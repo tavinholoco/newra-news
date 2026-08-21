@@ -53,9 +53,19 @@
     "categories": "Categories"
   },
   "home": {
-    "latestNews": "Latest News",
+    "latestNews": "More news",
     "viewAll": "View all",
-    "dailyArticle": "Article of the Day"
+    "srHeading": "Newra News — today's edition",
+    "topStories": "Top stories",
+    "trending": "Trending",
+    "leadStory": "Lead story",
+    "briefKicker": "Newra Daily Brief",
+    "briefCta": "Read the full briefing",
+    "briefAiDisclosure": "Summary produced by AI from the sources listed below.",
+    "categoryViewAll": "View all in {category}",
+    "emptyTitle": "Today's edition is still being put together",
+    "emptyDesc": "No stories available right now. Try again in a few minutes.",
+    "readStory": "Read the story"
   },
   "news": {
     "title": "News",
@@ -272,5 +282,8 @@
     "signin": {
       "title": "Sign in"
     }
+  },
+  "ads": {
+    "label": "Advertisement"
   }
 }

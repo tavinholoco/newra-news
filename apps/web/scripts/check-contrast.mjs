@@ -95,6 +95,15 @@ const CASES = [
   ['ember-500 sobre night-800 (ícone)', P['ember-500'], P['night-800'], 'large'],
   ['brand-600 sobre paper (ícone)', P['brand-600'], P.paper, 'large'],
 
+  // --- a Home da Fase 3 põe texto de marca e metadata sobre `surface` ---
+  // O cabeçalho do "Em alta" é ícone **e** título na mesma cor, e o card
+  // editorial mede metadata sobre a superfície do card, não sobre a página.
+  // São pares que a Fase 1 não tinha porque nenhum bloco vivia em `surface`.
+  ['brand-700 sobre surface (título "Em alta")', P['brand-700'], P.white, 'normal'],
+  ['ember-500 sobre night-800 (título "Em alta")', P['ember-500'], P['night-800'], 'normal'],
+  ['ink-500 sobre surface (metadata do card)', P['ink-500'], P.white, 'normal'],
+  ['mist-400 sobre night-800 (metadata do card)', P['mist-400'], P['night-800'], 'normal'],
+
   // --- o "404": ornamento, não texto. Só precisa existir. ---
   ['line-500 sobre paper (ornamento)', P['line-500'], P.paper, 'large'],
   ['night-500 sobre night-900 (ornamento)', P['night-500'], P['night-900'], 'large'],

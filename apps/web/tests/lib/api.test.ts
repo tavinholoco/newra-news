@@ -12,6 +12,8 @@ import {
   removeFavorite,
   runDailyPipeline,
   deleteNewsAdmin,
+  getHome,
+  getTrending,
 } from '@/lib/api';
 
 const mockNews = {
@@ -231,5 +233,66 @@ describe('admin client API', () => {
     );
 
     await expect(runDailyPipeline()).rejects.toThrow('403');
+  });
+});
+
+describe('getHome', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('should unwrap the aggregated payload from the { data } envelope', async () => {
+    const home = {
+      hero: null,
+      briefing: null,
+      topStories: [],
+      trending: [],
+      latest: [],
+      categories: [],
+    };
+    mockFetchJson({ data: home });
+
+    await expect(getHome()).resolves.toEqual(home);
+  });
+
+  // Sem argumento a rota vai sem querystring: o default de `categories` e do
+  // backend, e repeti-lo aqui criaria um segundo lugar para mante-lo.
+  it('should call /home without a querystring when no override is given', async () => {
+    mockFetchJson({ data: { hero: null, briefing: null, topStories: [], trending: [], latest: [], categories: [] } });
+
+    await getHome();
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/home'),
+      expect.anything(),
+    );
+    expect(fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('categories='),
+      expect.anything(),
+    );
+  });
+
+  it('should forward an explicit category count', async () => {
+    mockFetchJson({ data: { hero: null, briefing: null, topStories: [], trending: [], latest: [], categories: [] } });
+
+    await getHome(6);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/home?categories=6'),
+      expect.anything(),
+    );
+  });
+});
+
+describe('getTrending', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('should send the limit and window the ranking was asked for', async () => {
+    mockFetchJson({ data: [] });
+
+    await getTrending(3, '7d');
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/trending?limit=3&window=7d'),
+      expect.anything(),
+    );
   });
 });
