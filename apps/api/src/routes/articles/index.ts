@@ -8,6 +8,7 @@ import {
   errorResponseSchema,
 } from './schemas';
 import { NotFoundError } from '../../utils/errors';
+import { serializeArticle } from './serialize';
 
 export async function articlesRoutes(app: FastifyInstance) {
   const typed = app.withTypeProvider<ZodTypeProvider>();
@@ -25,12 +26,7 @@ export async function articlesRoutes(app: FastifyInstance) {
       const { data, total } = await listArticles({ page, limit });
 
       return {
-        data: data.map((item) => ({
-          ...item,
-          date: item.date.toISOString(),
-          createdAt: item.createdAt.toISOString(),
-          updatedAt: item.updatedAt.toISOString(),
-        })),
+        data: data.map(serializeArticle),
         meta: {
           total,
           page,
@@ -51,14 +47,7 @@ export async function articlesRoutes(app: FastifyInstance) {
     async () => {
       const article = await getLatestArticle();
       if (!article) throw new NotFoundError('Article');
-      return {
-        data: {
-          ...article,
-          date: article.date.toISOString(),
-          createdAt: article.createdAt.toISOString(),
-          updatedAt: article.updatedAt.toISOString(),
-        },
-      };
+      return { data: serializeArticle(article) };
     },
   );
 }

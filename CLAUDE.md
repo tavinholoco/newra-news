@@ -59,7 +59,7 @@
   o **estado da tela saiu do componente e foi para a URL**, Lighthouse **97** na
   rota (era 93) com acessibilidade 100 nas cinco medidas, e baseline visual
   recapturada (42 imagens).
-- **Testes:** 786 em 75 suites (497 API em 40 + 289 web em 35 — todos passando).
+- **Testes:** 791 em 75 suites (502 API em 40 + 289 web em 35 — todos passando).
 
 ### O que a Fase 5 precisa saber antes de começar
 
@@ -69,6 +69,13 @@
   `docs/v2/02-sitemap-telas.md`.
 - **`GET /api/news/:id/related` já existe** desde a Fase 0.5 e nunca foi
   consumido — a tela de notícia ainda não mostra relacionadas.
+- **O payload do artigo já traz a auditoria e as fontes** (21/08). Antes disso o
+  serviço as lia e o schema de resposta as descartava; ver item 20 do
+  `progress.md`. `sources` só nos endpoints de detalhe, `position` 0-based, e os
+  três campos de auditoria são **nulos** nos artigos anteriores a 20/08.
+- **Falta decidir de quem é a `/news/[id]`.** A ficha da tela diz Fase 4, o §28
+  diz Fase 5, e ela continua com o visual da V1. A recomendação registrada é
+  tratá-la como Fase 5 — item 20.2.
 - **Duas telas, não uma.** `/news/[id]` é a notícia coletada; `/article/[date]`
   é o briefing diário gerado por IA. A §8 fala das duas, e a transparência de
   IA (`sources`, `generatedAt`) só existe na segunda.
@@ -89,6 +96,11 @@
   devolve.** A pílula "Todas" da Fase 4 mostrava o total **já filtrado** por
   categoria: lia 594 e abria 2.373. Contagem de faceta ignora a própria
   dimensão; o total do recorte é o `meta.total` da listagem, e só ele.
+- **Com schema de resposta declarado, o schema é o contrato — não o `select` do
+  serviço.** O `fastify-type-provider-zod` serializa pelo schema: campo que o
+  serviço carrega e o schema não declara é buscado e descartado, sem erro. Foi
+  assim que a auditoria do briefing e as 15 fontes por artigo ficaram invisíveis
+  por um dia, com a `docs/api.md` documentando o comportamento certo.
 - **`catch` com valor de fallback mente sobre "vazio" × "não deu" — e um
   `staleTime` torna a mentira permanente.** Prefetch de server component que
   vira `initialData` usa `prefetch` de `lib/api.ts`, que falha em `undefined`.

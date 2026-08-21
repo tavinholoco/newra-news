@@ -45,9 +45,13 @@
 
 > A `/news` virou o acervo da §7: `category-nav` com contagem, busca com histórico local e destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e paginação numerada. O **estado saiu do componente e foi para a URL** — até a Fase 3 ela só era lida. A contagem por categoria pediu um endpoint aditivo, `GET /api/news/facets`. Lighthouse **97·100·100·100** na rota (era 93), baseline recapturada, 786 testes verdes. Ver **item 19**.
 
+**Pré-requisitos da Fase 5** 🔶 em andamento em 2026-08-21
+
+> O artigo era buscado com a auditoria e as fontes e **servido sem elas** — o schema de resposta era o da V1 e o `fastify-type-provider-zod` serializa pelo schema. Corrigido; três itens do checklist da Fase 5 dependiam disso. Falta decidir de quem é a `/news/[id]`. Ver **item 20**.
+
 **Próximo ciclo — V2.0 Fase 5 (Article)** 📋
 
-> `article hero`, tipografia do corpo, lista de fontes, transparência de IA, share/save, relacionadas e o CTA da newsletter — §8 e §9 do plano. O `GET /api/news/:id/related` já existe desde a Fase 0.5.
+> `article hero`, tipografia do corpo, lista de fontes, transparência de IA, share/save, relacionadas e o CTA da newsletter — §8 e §9 do plano. O `GET /api/news/:id/related` já existe desde a Fase 0.5 e nunca foi consumido.
 
 ---
 
@@ -686,6 +690,80 @@ apareceu.
   pode ser cacheada no CDN como o resto da rota é. É trabalho da **Fase 6**, com
   o resto do ecossistema de conta.
 - **Autocomplete da busca**, que a própria §7 marca como futuro.
+
+---
+
+### 20. Pré-requisitos da Fase 5 🔶 em andamento (2026-08-21)
+
+> Mesma forma que a Fase 0.5 teve para a Fase 3: backend pequeno que precisa
+> entrar **antes**, não trabalho concorrente. A Fase 5 é a tela de artigo (§8 e
+> §9), e três dos sete itens do checklist dependem de dado que não estava
+> chegando.
+
+**20.1 — O artigo era buscado com auditoria e servido sem ela** ✅
+
+O `article.service` lia os campos de auditoria e a lista de fontes desde a Fase
+0.5 (`include: withSources`). Mas `articleItemSchema` continuava sendo o da V1, e
+o `fastify-type-provider-zod` **serializa pelo schema**: `generatedAt`,
+`promptVersion`, `modelVersion`, `status` e as ~15 fontes iam do banco direto
+para o lixo na saída.
+
+Três itens do checklist da Fase 5 dependiam disso: `source list`, `AI
+disclosure` e parte do `article hero`. O tipo `ArticleWithSources` já existia em
+`packages/types` desde a Fase 0.5 e **não era usado por ninguém** — foi escrito
+justamente para isto.
+
+- [x] Campos de auditoria no `articleItemSchema` (listagem inclusive: são
+      escalares baratos, já carregados, e o tipo compartilhado `Article` os
+      declara como obrigatórios — sem eles o tipo mentia)
+- [x] `articleWithSourcesSchema` nos dois endpoints de detalhe (`/:date` e
+      `/latest`); a listagem paginada **não** ganha `sources`, que seriam ~150
+      objetos por página sem nada os exibindo
+- [x] `serializeArticle` em arquivo próprio — as três rotas precisam dela, e uma
+      importar da outra acoplaria módulos de rota sem relação hierárquica
+- [x] `getArticleByDate`/`getLatestArticle` do web tipados como
+      `ArticleWithSources`
+- [x] 5 testes novos: os quatro campos no `/:date`, a ordem das fontes, os
+      mesmos no `/latest`, o artigo legado com os três nulos, e a listagem
+      **sem** `sources`
+
+> **A documentação estava certa; o código é que ficou para trás.** O
+> `docs/api.md` descrevia `{ ...article, "sources": [...] }` e a tabela dos
+> quatro campos desde 20/08 — então nada denunciava a divergência, e ela passou
+> despercebida por um dia. A lição é sobre onde a verdade mora: com schema de
+> resposta declarado, **o schema é o contrato**, não o `select` do serviço.
+
+**Verificação.** O banco local só tem artigos anteriores à migration, então
+todos os campos vêm nulos e `sources` vazio — que é exatamente o caso legado
+coberto por teste. Que o pipeline preenche de verdade está confirmado pelo
+`GET /api/home` de **produção**, que expõe o mesmo dado como `DailyBriefing`:
+briefing de 21/08 com `generatedAt: 2026-08-21T11:00:10.888Z` e **15 fontes**.
+`promptVersion` e `modelVersion` são gravados no mesmo objeto `auditFields` que
+`generatedAt`, então preenchem juntos.
+
+**20.2 — `/news/[id]` precisa de dono** ⏳ decisão pendente
+
+A ficha da tela em `docs/v2/02-sitemap-telas.md` a marca como **Fase 4**; o §28
+põe os componentes dela (`article hero`, `source list`, `related stories`,
+`share/save`, `newsletter CTA`) na **Fase 5**. A Fase 4 seguiu o §28, então a
+tela continua com o visual da V1 — `text-sm`, `text-6xl`, `mb-8`, fora da escala
+nomeada e do ritmo dos tokens — e o `GET /api/news/:id/related`, entregue na
+Fase 0.5, **nunca foi consumido**.
+
+Recomendação: tratar como Fase 5. Os cinco itens mapeiam nela um a um, e separar
+as duas telas de artigo em fases diferentes duplicaria `source-list` e
+`related-stories`.
+
+**20.3 — O que a Fase 5 não terá** 📋
+
+- **"Salvar" no briefing.** `Favorite` referencia `newsId`; um `Article` não
+  pode ser favoritado hoje. O `share` da §8 é novo e independe disso; o `save`
+  vale só em `/news/[id]`, onde já funciona.
+- **"Horário da coleta"** que a §8 lista junto do horário de geração: não há
+  coluna para ele. O mais próximo é o `createdAt` do artigo, que é quando a
+  linha foi escrita — a poucos segundos da geração, e portanto redundante com
+  `generatedAt`. Melhor omitir do que rotular um número como coisa que ele não
+  é, como já foi decidido para o indicador "Atualizado" da Home.
 
 ---
 

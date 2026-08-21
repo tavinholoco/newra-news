@@ -250,6 +250,20 @@ URL anterior.
 > Duas coisas mudaram do que está especificado abaixo, e o motivo está anotado
 > logo após o bloco de schema.
 
+> **A migration entrou; a serialização não — e isso passou um dia despercebido
+> porque a documentação já descrevia o comportamento certo.** O
+> `article.service` lia as colunas e as fontes desde 20/08 (`include:
+> withSources`), mas `articleItemSchema` continuava sendo o da V1, e o
+> `fastify-type-provider-zod` serializa **pelo schema**: os quatro campos de
+> auditoria e a lista inteira de fontes eram buscados do banco e descartados na
+> saída. O `docs/api.md` documentava `{ ...article, "sources": [...] }` desde
+> então, e ninguém tinha por que desconfiar. Corrigido em 21/08, ao abrir os
+> pré-requisitos da Fase 5.
+>
+> A lição é sobre onde a verdade mora: com schema de resposta declarado, **o
+> schema é o contrato**, não o `select` do serviço. Campo que não está nele não
+> existe para quem consome, por mais que o serviço o carregue.
+
 A §18.4 exige que o artigo diário tenha data de referência, horário de geração,
 versão do prompt/modelo, lista de fontes e status. O modelo `Article` tinha:
 
