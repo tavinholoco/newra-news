@@ -50,37 +50,29 @@
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3 e 4 concluídas. **O
-  próximo ciclo é a Fase 5 (Article).** O PRD da V1 foi fechado em 2026-08-15;
-  a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-21):** Fase 4 (News / Category) fechada contra
-  produção — a `/news` virou o acervo da §7 (contagem no `category-nav`, busca
-  com histórico local, filtros de fonte/período/ordem, hero, lista e paginação),
-  o **estado da tela saiu do componente e foi para a URL**, Lighthouse **97** na
-  rota (era 93) com acessibilidade 100 nas cinco medidas, e baseline visual
-  recapturada (42 imagens).
-- **Testes:** 791 em 75 suites (502 API em 40 + 289 web em 35 — todos passando).
+- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4 e 5 concluídas. **O
+  próximo ciclo é a Fase 6 (Account ecosystem).** O PRD da V1 foi fechado em
+  2026-08-15; a V2 é o redesign editorial em cima dele.
+- **Última entrega (2026-08-21):** Fase 5 (Article) — as três telas de leitura
+  (`/news/[id]`, `/article/[date]` e o histórico `/article`) sobre uma camada
+  editorial nova. A transparência de IA fica **só** no briefing. Falta medir
+  contra produção (Lighthouse e baseline), como em toda fase.
+- **Testes:** 820 em 78 suites (502 API em 40 + 318 web em 38 — todos passando).
 
-### O que a Fase 5 precisa saber antes de começar
+### O que a Fase 6 precisa saber antes de começar
 
-- **Escopo:** `article hero`, tipografia do corpo, lista de fontes,
-  transparência de IA, share/save, relacionadas e o CTA da newsletter.
-  Especificação nas **§8 e §9 do plano V2**, e as fichas das telas em
-  `docs/v2/02-sitemap-telas.md`.
-- **`GET /api/news/:id/related` já existe** desde a Fase 0.5 e nunca foi
-  consumido — a tela de notícia ainda não mostra relacionadas.
-- **O payload do artigo já traz a auditoria e as fontes** (21/08). Antes disso o
-  serviço as lia e o schema de resposta as descartava; ver item 20 do
-  `progress.md`. `sources` só nos endpoints de detalhe, `position` 0-based, e os
-  três campos de auditoria são **nulos** nos artigos anteriores a 20/08.
-- **Falta decidir de quem é a `/news/[id]`.** A ficha da tela diz Fase 4, o §28
-  diz Fase 5, e ela continua com o visual da V1. A recomendação registrada é
-  tratá-la como Fase 5 — item 20.2.
-- **Duas telas, não uma.** `/news/[id]` é a notícia coletada; `/article/[date]`
-  é o briefing diário gerado por IA. A §8 fala das duas, e a transparência de
-  IA (`sources`, `generatedAt`) só existe na segunda.
-- **Os cards editoriais continuam sendo para reusar.** Depois da Fase 4 eles
-  aceitam `highlight` e um slot `action` — ver `apps/web/CLAUDE.md`.
+- **Escopo:** `favorites`, `profile`, `preferences` e `newsletter settings`.
+  Especificação nas **§19 e §23 do plano V2**.
+- **`Favorite` só referencia `newsId`.** É por isso que não dá para favoritar um
+  briefing, e é a Fase 6 que decide se isso muda. Duas coisas dependem: o
+  `save` em `/article/[date]` e o filtro **"somente salvos"** da §7 em `/news`.
+- **"Somente salvos" não é só UI.** Junta `Favorite` e `News` na consulta do
+  acervo e devolve resposta por usuário — que **não pode** ser cacheada no CDN
+  como o resto da rota é. Decidir a política de cache antes de escrever a tela.
+- **`favorites-list` ainda usa o `news-card` da V1.** É o último consumidor dele;
+  quando a Fase 6 migrar para os cards editoriais, `news-card` pode sair.
+- **A camada editorial é para reusar.** `article-hero` é casca com encaixes;
+  `pagination`, `story-card*` e `article-meta` não sabem de domínio nenhum.
 
 ### Armadilhas que já custaram caro
 
@@ -96,6 +88,13 @@
   devolve.** A pílula "Todas" da Fase 4 mostrava o total **já filtrado** por
   categoria: lia 594 e abria 2.373. Contagem de faceta ignora a própria
   dimensão; o total do recorte é o `meta.total` da listagem, e só ele.
+- **O nível do heading é da página, não do texto.** A IA escreve `###` no corpo
+  do briefing; o `ArticleBody` emite `h2`, porque o `h1` é o título. Emitir `h3`
+  abriria salto de nível — o defeito que já reprovou `heading-order` duas vezes.
+- **Duas utilities de mesma especificidade brigando são decididas pela ordem no
+  CSS gerado**, que ninguém controla. O par `sr-only` / `focus:not-sr-only` é o
+  caso clássico; o skip link usa `top` negativo + `focus:top-4`, onde o
+  pseudo-seletor vence por especificidade. Ver `app/[locale]/layout.tsx`.
 - **Com schema de resposta declarado, o schema é o contrato — não o `select` do
   serviço.** O `fastify-type-provider-zod` serializa pelo schema: campo que o
   serviço carrega e o schema não declara é buscado e descartado, sem erro. Foi
@@ -118,13 +117,15 @@
   action): a execução semanal de segunda 09:00 UTC falha se alguma categoria
   cair abaixo de 90.
 
-### O que ficou em aberto na Fase 4
+### O que ficou em aberto na Fase 5
 
-- **"Somente salvos" da §7** — filtrar por favoritos exige juntar `Favorite` e
-  `News` e uma resposta por usuário, que não pode ser cacheada no CDN como o
-  resto da rota é. É trabalho da **Fase 6**.
-- **Nada mais.** As `news--*` da baseline foram recapturadas depois do conserto
-  do prefetch, e as contagens somam o total do acervo.
+- **Lighthouse por rota e recaptura da baseline visual** — rodam contra
+  produção, depois do merge. É o ritual de fechamento de toda fase.
+- **Página na URL em `/article`** — a lista usa `useState`, ao contrário de
+  `/news`. Dívida consciente: a ficha escopa a tela a ritmo visual, e ler a
+  query string pediria uma fronteira de Suspense que a página não precisa.
+- **"Salvar" no briefing e "somente salvos" no acervo** — os dois esperam a
+  Fase 6, pelo mesmo motivo: `Favorite` referencia `newsId`.
 - **A categoria gravada acerta ~67%**, e isso é o teto do classificador por
   palavra-chave. A Fase 4 é interface sobre um campo que existe e é estável, mas
   evita a surpresa de ver matéria fora de lugar navegando por categoria. Passar
@@ -135,7 +136,7 @@
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 19. É lá que mora o detalhe — este bloco é orientação, não
+  itens 11 a 21. É lá que mora o detalhe — este bloco é orientação, não
   changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,
