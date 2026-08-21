@@ -2,6 +2,7 @@ import { prisma, Prisma } from '@newranews/database';
 import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
+import { renormalizeStoredNews } from './news-renormalizer.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
@@ -271,6 +272,44 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       await logPipelineEvent(pipelineLogId, 8, 'WARN', 'Cleanup failed (non-critical)', {
         ...extractErrorDetail(cleanupErr),
       });
+    }
+
+    // Stage 8.5: Reaplica as regras de ingestão ao acervo (non-critical —
+    // failure does not abort pipeline).
+    //
+    // **É o que faz a correção de regra valer para o que já está gravado.**
+    // Consertar a ingestão só conserta o que entra; as linhas antigas seguem
+    // servidas até o cleanup, e a Home da V2 agrupa por categoria, então uma
+    // regra corrigida hoje levaria 30 dias para aparecer inteira. Rodando aqui,
+    // todo dia, o acervo converge sozinho no dia seguinte a qualquer mudança de
+    // regra — sem ninguém lembrar de disparar nada, sem segredo na mão de
+    // alguém, e sem voltar a divergir na próxima vez.
+    //
+    // **Depois do cleanup, de propósito:** renormalizar linha que a etapa 8
+    // acabou de apagar é trabalho jogado fora.
+    //
+    // É idempotente e barato em regime: a primeira execução depois de uma
+    // mudança de regra ajusta o que precisa, e as seguintes varrem e não
+    // escrevem nada. Fica em `clear-only`, que é o subconjunto seguro — ver
+    // `CategoryMode`.
+    try {
+      currentStage = 8.5;
+      const renormalized = await renormalizeStoredNews({ dryRun: false });
+      await logPipelineEvent(pipelineLogId, 8.5, 'INFO', 'Stored news renormalized', {
+        scanned: renormalized.scanned,
+        textChanged: renormalized.textChanged,
+        categoryChanged: renormalized.categoryChanged,
+        categorySkipped: renormalized.categorySkipped,
+      });
+    } catch (renormalizeErr) {
+      metrics.pipelineErrors += 1;
+      await logPipelineEvent(
+        pipelineLogId,
+        8.5,
+        'WARN',
+        'Renormalization failed (non-critical)',
+        { ...extractErrorDetail(renormalizeErr) },
+      );
     }
 
     // Stage 9: Record daily metrics (non-critical — failure does not abort pipeline)
