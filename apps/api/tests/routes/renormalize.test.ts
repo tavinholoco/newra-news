@@ -36,6 +36,7 @@ const emptyReport = {
   scanned: 0,
   textChanged: 0,
   categoryChanged: 0,
+  categorySkipped: 0,
   transitions: [],
   sample: [],
 };
@@ -121,6 +122,7 @@ describe('POST /api/jobs/renormalize-news', () => {
         scanned: 400,
         textChanged: 380,
         categoryChanged: 16,
+        categorySkipped: 1240,
         transitions: [{ from: 'TECHNOLOGY', to: 'WORLD', count: 14 }],
         sample: [
           {

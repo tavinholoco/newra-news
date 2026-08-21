@@ -139,7 +139,9 @@ describe('renormalizeStoredNews', () => {
   });
 
   // A ordem importa: classificar sobre a descrição suja daria um resultado
-  // diferente do que a mesma matéria teria se entrasse hoje.
+  // diferente do que a mesma matéria teria se entrasse hoje. Vai de
+  // `categoryMode: 'all'` porque o assunto aqui é a ordem, não o modo — e uma
+  // promoção é justamente o que o padrão `clear-only` deixa de aplicar.
   it('should classify from the sanitized text, not the stored blob', async () => {
     mockFindMany.mockResolvedValue([
       row({
@@ -151,7 +153,7 @@ describe('renormalizeStoredNews', () => {
       }),
     ]);
 
-    const report = await renormalizeStoredNews({ dryRun: false });
+    const report = await renormalizeStoredNews({ dryRun: false, categoryMode: 'all' });
 
     expect(report.categoryChanged).toBe(1);
     expect(mockUpdate).toHaveBeenCalledWith(
@@ -222,5 +224,100 @@ describe('renormalizeStoredNews', () => {
     await renormalizeStoredNews({ limit: 50 });
 
     expect(mockFindMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
+  });
+});
+
+/**
+ * O modo existe porque as duas direções da mudança têm qualidade diferente.
+ * Medido contra as 3.688 linhas do acervo de produção em 21/08: 320 demoções,
+ * todas certas na amostra, e 1.240 promoções, erradas perto de metade das
+ * vezes — corpo longo cita "prefeitura" ou "festival" de passagem e limpa o
+ * piso de 3 palavras distintas.
+ */
+describe('renormalizeStoredNews — categoryMode', () => {
+  const policeStory = row({
+    title: 'Polícia prende suspeito',
+    description: 'A família usou as redes sociais para pedir ajuda.',
+    category: Category.TECHNOLOGY,
+  });
+
+  const uncategorised = row({
+    title: 'Agenda cultural do fim de semana',
+    description: 'Tem música, show, festival, banda e cantor na cidade.',
+    category: Category.WORLD,
+  });
+
+  it('should default to clear-only', async () => {
+    mockFindMany.mockResolvedValue([uncategorised]);
+
+    const report = await renormalizeStoredNews({ dryRun: false });
+
+    expect(report.categoryChanged).toBe(0);
+    expect(report.categorySkipped).toBe(1);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('should apply a demotion in clear-only', async () => {
+    mockFindMany.mockResolvedValue([policeStory]);
+
+    const report = await renormalizeStoredNews({ dryRun: false });
+
+    expect(report.categoryChanged).toBe(1);
+    expect(report.categorySkipped).toBe(0);
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: Category.WORLD }),
+      }),
+    );
+  });
+
+  it('should apply a promotion only when asked for all', async () => {
+    mockFindMany.mockResolvedValue([uncategorised]);
+
+    const report = await renormalizeStoredNews({ dryRun: false, categoryMode: 'all' });
+
+    expect(report.categoryChanged).toBe(1);
+    expect(report.categorySkipped).toBe(0);
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: Category.ENTERTAINMENT }),
+      }),
+    );
+  });
+
+  // Uma linha ignorada para categoria ainda pode ter o texto reparado — as duas
+  // coisas são independentes, e a higiene é segura nas duas direções.
+  it('should still repair the text of a row whose category it skips', async () => {
+    mockFindMany.mockResolvedValue([
+      row({
+        title: '\nAgenda cultural do fim de semana',
+        description: 'Tem música, show, festival, banda e cantor na cidade.',
+        category: Category.WORLD,
+      }),
+    ]);
+
+    const report = await renormalizeStoredNews({ dryRun: false });
+
+    expect(report.categorySkipped).toBe(1);
+    expect(report.textChanged).toBe(1);
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: '11111111-1111-1111-1111-111111111111' },
+      data: { title: 'Agenda cultural do fim de semana' },
+    });
+  });
+
+  it('should count a label-to-label swap as skipped in clear-only', async () => {
+    mockFindMany.mockResolvedValue([
+      row({
+        title: 'Bolsa e dólar: juros do Banco Central',
+        description: 'O Ibovespa fechou em alta.',
+        category: Category.SPORTS,
+      }),
+    ]);
+
+    const report = await renormalizeStoredNews({ dryRun: false });
+
+    expect(report.categoryChanged).toBe(0);
+    expect(report.categorySkipped).toBe(1);
   });
 });

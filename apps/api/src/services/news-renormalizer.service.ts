@@ -38,6 +38,31 @@ export const CLASSIFIER_OWNED_SOURCES: string[] = rssSources
   .filter((source) => !source.category)
   .map((source) => source.name);
 
+/**
+ * Que mudanças de categoria o job aplica.
+ *
+ * - `clear-only` — **padrão** — só as que **removem** um rótulo, isto é, as que
+ *   levam a matéria para `WORLD`. É a operação segura: tirar um rótulo que a
+ *   evidência não sustenta.
+ * - `all` — aplica também as promoções (`WORLD` → rótulo) e as trocas entre
+ *   rótulos.
+ *
+ * O padrão não é timidez, é medição. O ensaio contra as 3.688 linhas do acervo
+ * de produção em 21/08 deu 320 demoções e 1.240 promoções, e as duas metades
+ * têm qualidade muito diferente: as demoções conferidas na amostra estavam
+ * todas certas — matéria policial, trânsito, obituário e loteria saindo de
+ * "Tecnologia" e "Economia" —, enquanto as promoções erravam perto de metade
+ * das vezes, porque um corpo de milhares de caracteres acaba citando
+ * "prefeitura" ou "festival" de passagem e limpa o piso de 3 palavras
+ * distintas. "Carnaval 2027" virava Política; "Festival da Juventude oferece
+ * vagas de estágio" virava Entretenimento.
+ *
+ * Aplicar tudo consertaria 320 erros e criaria algo perto de 500. O piso do
+ * classificador para texto longo é o que precisa melhorar antes de `all` valer
+ * a pena — e essa é uma mudança de regra, não de backfill.
+ */
+export type CategoryMode = 'clear-only' | 'all';
+
 export interface RenormalizeOptions {
   /** Padrão `true`: sem passar `false` explícito, nada é gravado. */
   dryRun?: boolean;
@@ -45,6 +70,8 @@ export interface RenormalizeOptions {
   limit?: number;
   /** Sobrescreve o recorte de fontes. Vazio ou ausente usa o padrão. */
   sources?: string[];
+  /** Ver `CategoryMode`. Padrão `clear-only`. */
+  categoryMode?: CategoryMode;
 }
 
 export interface CategoryTransition {
@@ -66,6 +93,8 @@ export interface RenormalizeReport {
   /** Linhas cujo título, descrição ou fonte mudaram com a higiene. */
   textChanged: number;
   categoryChanged: number;
+  /** Mudanças que o modo corrente **não** aplicou, mas que existiriam em `all`. */
+  categorySkipped: number;
   transitions: CategoryTransition[];
   /** Amostra das reclassificações, para conferir antes de aplicar. */
   sample: RenormalizeChange[];
@@ -86,6 +115,7 @@ export async function renormalizeStoredNews(
   options: RenormalizeOptions = {},
 ): Promise<RenormalizeReport> {
   const dryRun = options.dryRun ?? true;
+  const categoryMode: CategoryMode = options.categoryMode ?? 'clear-only';
   const sources =
     options.sources && options.sources.length > 0
       ? options.sources
@@ -103,6 +133,7 @@ export async function renormalizeStoredNews(
   const sample: RenormalizeChange[] = [];
   let textChanged = 0;
   let categoryChanged = 0;
+  let categorySkipped = 0;
 
   for (const row of rows) {
     const title = sanitizeTitle(decodeEntities(row.title));
@@ -116,7 +147,16 @@ export async function renormalizeStoredNews(
     if (title !== row.title) data.title = title;
     if (description !== row.description) data.description = description;
     if (source !== row.source) data.source = source;
-    if (category !== row.category) data.category = category;
+
+    if (category !== row.category) {
+      // Em `clear-only`, promoção e troca entram na contagem de ignoradas em
+      // vez de virar update — a linha ainda pode ter reparo de texto.
+      if (categoryMode === 'all' || category === 'WORLD') {
+        data.category = category;
+      } else {
+        categorySkipped++;
+      }
+    }
 
     if (Object.keys(data).length === 0) continue;
 
@@ -155,6 +195,7 @@ export async function renormalizeStoredNews(
     scanned: rows.length,
     textChanged,
     categoryChanged,
+    categorySkipped,
     transitions: [...transitions.values()].sort((a, b) => b.count - a.count),
     sample,
   };

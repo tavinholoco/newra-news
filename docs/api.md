@@ -355,10 +355,30 @@ para aparecer inteira sem este job.
 | `dryRun` | boolean | **`true`** | Sem `false` explícito, nada é gravado |
 | `limit` | number | — | Teto de linhas examinadas, das mais recentes para as mais antigas |
 | `sources` | string[] | fontes sem categoria fixa | Sobrescreve o recorte |
+| `categoryMode` | `clear-only` \| `all` | **`clear-only`** | Quais mudanças de categoria aplicar |
 
 > **`dryRun` é o padrão de propósito.** É mutação em massa de conteúdo
 > publicado; a resposta do ensaio traz `transitions` e uma amostra de até 25
 > reclassificações justamente para ser lida antes de aplicar.
+
+> **`categoryMode` também tem o padrão conservador, e por medição.** O ensaio
+> contra as 3.688 linhas do acervo em 21/08 deu **320 demoções** (rótulo →
+> `WORLD`) e **1.240 promoções** (`WORLD` → rótulo), e a qualidade das duas
+> metades não é a mesma: as demoções conferidas na amostra estavam todas certas
+> — matéria policial, trânsito, obituário e loteria saindo de "Tecnologia" e
+> "Economia" —, enquanto as promoções erravam perto de metade das vezes, porque
+> um corpo de milhares de caracteres cita "prefeitura" ou "festival" de
+> passagem e limpa o piso de 3 palavras distintas do classificador. "Carnaval
+> 2027" virava Política; "Festival da Juventude oferece vagas de estágio"
+> virava Entretenimento.
+>
+> `clear-only` aplica só as demoções: remover um rótulo que a evidência não
+> sustenta. `all` aplica tudo, e hoje isso consertaria 320 erros para criar
+> perto de 500. O que precisa melhorar antes é o piso do classificador para
+> texto longo — e isso é mudança de regra, não de backfill.
+>
+> `categorySkipped` na resposta conta o que o modo corrente **não** aplicou.
+> Reparo de texto acontece nos dois modos: são independentes.
 
 O recorte padrão são as fontes **sem `category` fixa** em `rss-sources.ts` — as
 únicas cuja categoria o classificador decidiu. Fonte especializada (TechCrunch,
@@ -370,17 +390,18 @@ ali destruiria dado correto.
 {
   "data": {
     "dryRun": true,
-    "scanned": 910,
-    "textChanged": 255,
-    "categoryChanged": 279,
+    "scanned": 3688,
+    "textChanged": 1974,
+    "categoryChanged": 320,
+    "categorySkipped": 1272,
     "transitions": [
-      { "from": "POLITICS", "to": "WORLD", "count": 118 },
-      { "from": "TECHNOLOGY", "to": "WORLD", "count": 54 }
+      { "from": "TECHNOLOGY", "to": "WORLD", "count": 94 },
+      { "from": "POLITICS", "to": "WORLD", "count": 78 }
     ],
     "sample": [
       {
         "id": "uuid",
-        "title": "Receita Nosso Campo: aprenda a fazer uma broa de fubá",
+        "title": "Primas desaparecidas no PR: principal suspeito é morto",
         "from": "TECHNOLOGY",
         "to": "WORLD"
       }

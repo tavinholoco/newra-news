@@ -45,6 +45,7 @@ export const renormalizeBodySchema = z
     dryRun: z.boolean().default(true),
     limit: z.coerce.number().int().min(1).max(10_000).optional(),
     sources: z.array(z.string().min(1)).optional(),
+    categoryMode: z.enum(['clear-only', 'all']).default('clear-only'),
   })
   .default({});
 
@@ -54,6 +55,7 @@ export const renormalizeResponseSchema = z.object({
     scanned: z.number().int(),
     textChanged: z.number().int(),
     categoryChanged: z.number().int(),
+    categorySkipped: z.number().int(),
     transitions: z.array(
       z.object({
         from: categorySchema,
