@@ -10,6 +10,9 @@ import type {
   AddedFavorite,
   RunPipelineResult,
   DeleteNewsResult,
+  HomeResponse,
+  EditorialStory,
+  TrendingWindow,
 } from '@newranews/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -174,5 +177,43 @@ export async function deleteNewsAdmin(id: string): Promise<DeleteNewsResult> {
   }
 
   const res = (await response.json()) as ApiResponse<DeleteNewsResult>;
+  return res.data;
+}
+
+// ── Editorial (V2) ─────────────────────────────────────────────────────
+// Endpoints da Fase 0.5. A Home consome **um** deles: `/api/home` já traz
+// hero, briefing, top stories, trending, categorias e latest numa resposta só,
+// sem repetir notícia entre blocos.
+
+/**
+ * Resposta agregada da Home (§3 dos contratos da V2).
+ *
+ * `categories` é quantas *seções* por categoria voltar, não quantas matérias —
+ * o default do backend é 4 e o teto, 8.
+ */
+export async function getHome(categories?: number): Promise<HomeResponse> {
+  const params = new URLSearchParams();
+  if (categories !== undefined) params.set('categories', String(categories));
+
+  const query = params.toString();
+  const res = await fetchApi<ApiResponse<HomeResponse>>(
+    `/home${query ? `?${query}` : ''}`,
+  );
+  return res.data;
+}
+
+/**
+ * Ranking de alta (§4 dos contratos). A Home **não** chama isto — o bloco dela
+ * sai de `getHome().trending`, que já respeita a precedência entre blocos.
+ * Existe para telas que mostram o ranking isolado.
+ */
+export async function getTrending(
+  limit = 5,
+  window: TrendingWindow = '24h',
+): Promise<EditorialStory[]> {
+  const params = new URLSearchParams({ limit: String(limit), window });
+  const res = await fetchApi<ApiResponse<EditorialStory[]>>(
+    `/trending?${params.toString()}`,
+  );
   return res.data;
 }

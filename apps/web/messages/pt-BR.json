@@ -53,9 +53,19 @@
     "categories": "Categorias"
   },
   "home": {
-    "latestNews": "Últimas Notícias",
+    "latestNews": "Mais notícias",
     "viewAll": "Ver todas",
-    "dailyArticle": "Artigo do Dia"
+    "srHeading": "Newra News — a edição de hoje",
+    "topStories": "Principais notícias",
+    "trending": "Em alta",
+    "leadStory": "Destaque do dia",
+    "briefKicker": "Newra Daily Brief",
+    "briefCta": "Ler o briefing completo",
+    "briefAiDisclosure": "Resumo produzido por IA a partir das fontes listadas.",
+    "categoryViewAll": "Ver tudo em {category}",
+    "emptyTitle": "A edição de hoje ainda está sendo montada",
+    "emptyDesc": "Nenhuma notícia disponível no momento. Tente novamente em alguns minutos.",
+    "readStory": "Ler a matéria"
   },
   "news": {
     "title": "Notícias",
@@ -272,5 +282,8 @@
     "signin": {
       "title": "Entrar"
     }
+  },
+  "ads": {
+    "label": "Publicidade"
   }
 }

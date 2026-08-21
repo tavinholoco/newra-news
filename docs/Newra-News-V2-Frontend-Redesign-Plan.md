@@ -1311,17 +1311,64 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 > buscador enxerga. O `/news` **lê** o parâmetro; **escrever** a URL a cada
 > clique de filtro e de página continua sendo o "filter state" da Fase 4.
 
-## Fase 3 — Home
+## Fase 3 — Home ✅ 21/08/2026 — branch `feat/v2-home`
 
 ```text
-[ ] HeroStory
-[ ] DailyBrief
-[ ] TopStories
-[ ] TrendingList
-[ ] CategorySections
-[ ] AdSlot
-[ ] responsive layouts
+[x] HeroStory                       (imagem `priority` — é o LCP; sem indicador
+                                     "Atualizado", ver nota abaixo)
+[x] DailyBrief                      (= `briefing-card`: superfície própria,
+                                     selo, contagem de fontes e a linha de
+                                     transparência de IA da §8)
+[x] TopStories                      (coluna ao lado do hero)
+[x] TrendingList                    (ranking; numeral `aria-hidden`, a posição
+                                     é semântica pelo `<ol>`)
+[x] CategorySections                (lead + lista; "ver tudo" em
+                                     /news?category=X, a URL da Fase 2)
+[x] AdSlot                          (as 2 posições da Home; sem inventário não
+                                     renderiza nada — §8 dos slots)
+[x] responsive layouts              (duas faixas de 3 colunas que colapsam;
+                                     mobile em coluna, sem overflow em 375px)
+
+    -- a camada de cards da §11, que os blocos acima consomem --
+[x] story-card / -horizontal / -compact
+[x] story-image                     (placeholder de marca num lugar só)
+[x] section-heading                 (filete + título + "ver tudo")
+[x] latest-stories                  (a grade cronológica de "mais notícias")
+
+    -- ao fechar a fase --
+[ ] Lighthouse por rota contra produção (§26)
+[ ] recapturar a baseline visual (§30)
 ```
+
+> **Uma chamada de rede, não seis.** A Home consome só `GET /api/home`, e é o
+> servidor que garante que nenhuma matéria aparece em dois blocos. A Home da V1
+> fazia duas chamadas para montar bem menos página.
+>
+> **Todo bloco se omite sozinho.** Hero sem imagem no acervo, briefing antes de
+> o pipeline do dia rodar, trending sem publicação nas últimas 24h, categoria
+> sem matéria: os quatro são estados normais. Quando os dois lados de uma faixa
+> faltam, o wrapper também sai — um grid vazio tem altura zero mas ainda consome
+> o `gap-section` do pai, e o buraco no meio da página não tem explicação para
+> quem olha.
+>
+> **O `h1` da Home é `sr-only`.** Quem abre a página vê a manchete do dia, não a
+> palavra "Home" — mas página sem `h1` reprova `heading-order`, que era a única
+> auditoria ainda de pé nas medições da Fase 1.
+>
+> **Sem o indicador "Atualizado" que a §6.2 previa como opcional.** O `updatedAt`
+> do contrato é o `@updatedAt` do Prisma: muda quando o pipeline reclassifica a
+> categoria, não quando alguém revisa o texto. Rotular isso como "atualizado"
+> mentiria em praticamente toda matéria.
+>
+> **A revisão da fase achou um defeito de Fase 1 que só a Home tornou visível.**
+> O `cn` usa `tailwind-merge`, que resolve `text-<valor>` por heurística: um
+> tamanho nomeado (`text-meta`) e uma cor nomeada (`text-ink-muted`) caíam no
+> mesmo grupo, e a última classe apagava a primeira. A linha de metadata dos
+> cards vinha renderizando em `--ink` cheio desde a Fase 1 — passava no
+> contraste (17:1), então o Lighthouse nunca reclamou; o que se perdia era a
+> hierarquia, exatamente o problema que a §2.2 aponta na V1. Corrigido em
+> `lib/utils.ts`, declarando a escala tipográfica como `font-size` para o
+> `tailwind-merge`, com `tests/lib/cn.test.ts` de guarda.
 
 ## Fase 4 — News / Category
 

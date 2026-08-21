@@ -37,9 +37,13 @@
 
 > Os três endpoints entregues: `GET /api/home`, `/api/trending` (etapa 1) e `/api/news/:id/related`. 422 testes na API. Branch `feat/v2-editorial-api`. Ver **item 16**.
 
-**Próximo ciclo — V2.0 Fase 3 (Home)** 📋 **Desbloqueada**
+**Newra News V2.0 — Fase 3 (Home)** ✅ Concluída em 2026-08-21 — **checklist da §28 fechado**
 
-> `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos. Os endpoints que ela consome existem e estão documentados em `docs/api.md`.
+> A Home editorial da §6: `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos, mais a camada de cards da §11 que os alimenta. **Uma chamada de rede** (`GET /api/home`) no lugar de duas que montavam bem menos página. 625 testes verdes. Ver **item 17**.
+
+**Próximo ciclo — V2.0 Fase 4 (News / Category)** 📋 **Desbloqueada**
+
+> `category-nav`, busca, `filter state` (escrever a URL a cada clique — hoje `/news` só **lê** o parâmetro), paginação, estados vazios e skeletons. Os cards de `components/editorial/` são para reusar, não reconstruir.
 
 ---
 
@@ -330,6 +334,54 @@
 **Fica para depois da Fase 8**
 
 - [ ] **`GET /api/trending` etapa 2** — `+ clicks × 0,5 + shares × 3`, quando a camada de analytics da §27 existir
+
+---
+
+### 17. V2.0 Fase 3 — Home ✅ Concluída em 2026-08-21
+
+> Branch `feat/v2-home` (§29). É a fase mais pesada da V2: dos sete blocos da §6.1 só o `newsletter-cta` já existia. A Home da V1 era um `ArticleCard` de altura fixa mais um grid de 12 cards idênticos — sem hierarquia, que é o diagnóstico da §2.2.
+
+**Camada de dados**
+
+- [x] **`getHome()` em `lib/api.ts`** — a Home passou a fazer **uma** chamada. Compor bloco a bloco a partir de um Server Component seriam 6+ requisições em sequência; a da V1 fazia 2 para montar bem menos página. `getTrending()` entrou junto (tipado, testado) para telas que mostrem o ranking isolado — a Home não o usa, porque `/api/home` já devolve o bloco com a precedência aplicada
+- [x] **`lib/ads.ts`** — placements, formatos e a tabela de alturas da §9 dos slots, mais o `hasAdInventory()` que hoje devolve `false`
+
+**Camada de cards (§11)**
+
+- [x] **`story-card`, `story-card-horizontal`, `story-card-compact`** — vertical com imagem, miniatura + manchete, e só manchete. **São client components de propósito:** precisam de `useTranslations` para o rótulo da categoria, e um server component assíncrono não pode ser renderizado de dentro de um client component — o que quebraria o reuso na listagem CSR de `/news` na Fase 4. Continuam renderizando no servidor, porque a Home é SSG/ISR
+- [x] **`story-image`** — o placeholder de marca num lugar só. ~30% do acervo vem de RSS sem imagem, e na V1 cada card reescrevia o mesmo IIFE com o mesmo gradiente
+- [x] **`section-heading`** — filete + título + "ver tudo". Numa página sem sombra (§8 dos tokens) o filete é o que separa dois blocos; cinco seções desenhando cada uma a sua régua era o começo do problema de hierarquia
+
+**Blocos da Home**
+
+- [x] **`hero-story`** — imagem com `priority` (é o LCP; as outras 27 ficam `lazy`), manchete em `text-h1`, dek e metadata. **Uma âncora só** — o CTA "Ler a matéria" está dentro dela e não é um segundo tab stop
+- [x] **`briefing-card`** — o "Newra Daily Brief" como peça editorial própria, não "um card colorido" (§6.3): superfície `surface-accent`, selo, contagem de fontes, tempo de leitura e a linha de transparência de IA da §8 como texto normal, não rodapé cinza
+- [x] **`top-stories`, `trending-list`, `latest-stories`, `category-section`** — o numeral do ranking é `aria-hidden`: a posição já é semântica pelo `<ol>`, e ouvir "3" antes de cada manchete seria a mesma informação duas vezes
+- [x] **`ad-slot`** — sem inventário **não renderiza nada**, nem caixa vazia nem a palavra "Publicidade" (§8 dos slots). Com inventário reserva a altura antes de o criativo chegar, e o leaderboard reserva 100px e não 90 porque abaixo de `md` ele vira mobile-banner — crescer depois seria o salto que o componente existe para impedir
+- [x] **Layouts responsivos** — duas faixas de três colunas que colapsam; sem overflow horizontal em 375px, verificado no browser nos dois locales
+
+**Decisões que valem registro**
+
+- [x] **O `h1` da Home é `sr-only`.** Quem abre a página vê a manchete do dia, não a palavra "Home" — mas página sem `h1` reprova `heading-order`, a única auditoria ainda de pé nas medições da Fase 1. A hierarquia ficou `h1` (oculto) → `h2` de hero e de seção → `h3` de card, conferida no DOM renderizado
+- [x] **Sem o indicador "Atualizado"** que a §6.2 previa como opcional — o `updatedAt` do contrato é o `@updatedAt` do Prisma e muda quando o pipeline reclassifica a categoria, não quando alguém revisa o texto
+- [x] **Todo bloco se omite sozinho, e o wrapper também.** Um grid vazio tem altura zero mas ainda consome o `gap-section` do pai; sem o guard, acervo sem imagem abria um buraco sem explicação no meio da página
+- [x] **`ArticleCard` removido** — era o hero da V1, ficou sem nenhum consumidor quando o `briefing-card` entrou
+- [x] **Home caiu de 157 kB para 143 kB de First Load JS** — o grid da V1 arrastava `FavoriteButton` para dentro do bundle da Home, e com ele `next-auth/react` e o TanStack Query. Salvar matéria é da Fase 5/6 e não estava no checklist desta
+
+**O defeito que a revisão achou — e que era da Fase 1**
+
+- [x] **`cn` apagava a cor sempre que a classe de tamanho vinha junto.** O `tailwind-merge` resolve `text-<valor>` por heurística: `text-sm` ele conhece como tamanho, `text-red-500` como cor, e **qualquer outra coisa cai num grupo só**. Como a V2 nomeia a escala por papel (`text-meta`, `text-h3`), tamanho e cor viravam "conflito" e a última classe apagava a primeira. `ArticleMeta` vinha desde a Fase 1 renderizando a metadata em `--ink` cheio em vez de `--ink-muted` — passava no contraste (17:1), então o Lighthouse nunca reclamou; o que se perdia era a hierarquia, exatamente o problema que a §2.2 aponta na V1. Não aparece em build, lint nem tipos: a classe simplesmente não chega ao HTML. Corrigido em `lib/utils.ts` declarando a escala como `font-size` para o `tailwind-merge`, com `tests/lib/cn.test.ts` de guarda. Medido no browser antes e depois: `rgb(17,19,21)` → `rgb(105,113,120)`
+- [x] **`leading-snug` sumiu dos títulos de card** como consequência correta — a escala nomeada carrega a própria entrelinha (1,3 e 1,35), e o `leading-*` brigava com o token
+
+**Testes**
+
+- [x] **49 testes novos (154 → 203 no web; 625 no total)** em 5 suites: `story-card`, `home-blocks`, `ad-slot`, `ads` e `cn`, mais os de `getHome`/`getTrending` em `api.test.ts`. Fixtures dos blocos em `tests/fixtures/editorial.ts` e um mock de `next/image` compartilhado em `tests/mocks/` — `fill` e `priority` são props do componente, não atributos de DOM, e repassá-las cruas fazia o React descartá-las, o que deixaria qualquer asserção sobre elas passando por engano
+- [x] **4 pares novos no `check-contrast.mjs`** (58 no total, 0 reprovando) — a Fase 3 é a primeira a pôr texto de marca e metadata sobre `surface`, que é a superfície do card e não a da página
+
+**Ao fechar a fase (depois do merge, contra produção)**
+
+- [ ] **Lighthouse por rota** (§26) — em especial se `heading-order` finalmente sai de `/news` e `/article`
+- [ ] **Recapturar a baseline visual** (§30)
 
 ---
 
