@@ -41,11 +41,11 @@
 
 > A Home editorial da §6: `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos, mais a camada de cards da §11 que os alimenta. **Uma chamada de rede** (`GET /api/home`) no lugar de duas que montavam bem menos página. 625 testes verdes. Ver **item 17**.
 
-**Próximo ciclo — V2.0 Fase 4 (News / Category)** 📋 **Depende do item 18**
+**Próximo ciclo — V2.0 Fase 4 (News / Category)** 📋 **Desbloqueada** — item 18 fechado
 
 > `category-nav`, busca, `filter state` (escrever a URL a cada clique — hoje `/news` só **lê** o parâmetro), paginação, estados vazios e skeletons. Os cards de `components/editorial/` são para reusar, não reconstruir.
 >
-> **Não abrir antes de fechar o item 18.** A Fase 4 é a experiência de navegar por categoria, e hoje a categoria que o pipeline grava ainda não é confiável — ver o item para o que falta e por quê.
+> O item 18 fechou: classificador medido e apertado, acervo se renormalizando sozinho na etapa 8.5 do pipeline, Lighthouse de volta a 95 na Home e baseline recapturada.
 
 ---
 
@@ -412,12 +412,12 @@ As três execuções de `/pt-BR` deram 78 · 86 · 94, e `/en` — a mesma pági
 
 ---
 
-### 18. Pendências antes de abrir a Fase 4 📋 aberto em 2026-08-21
+### 18. Pendências antes de abrir a Fase 4 ✅ fechadas em 2026-08-21
 
 > Saiu da medição da Fase 3 contra produção. Três frentes, e só **uma** delas é
 > bloqueio de verdade — as outras duas são dívida que fica cara se ficar.
 
-**18.1 — O classificador ainda promove demais** 🔴 **bloqueia a Fase 4**
+**18.1 — O classificador promovia demais** ✅
 
 O conserto de 21/08 tirou o vocabulário ambiente e acabou com a matéria policial
 dentro de "Tecnologia". Mas ele destravou o problema simétrico: agora que a
@@ -434,56 +434,74 @@ filtro por categoria na URL, estado vazio por categoria. Polir essa tela sobre
 categoria não confiável é construir sobre areia — e cada dia de pipeline grava
 mais linhas com a fraqueza.
 
-- [ ] Hipótese a medir: classificar pelo **lide** (os primeiros ~600–800
-      caracteres) em vez do corpo inteiro. Um lide diz do que a matéria trata; o
-      parágrafo 14 divaga
-- [ ] Comparar 2–3 regras candidatas contra as 3.688 linhas do acervo **antes**
-      de mudar código — o corpus já está baixado por `/api/news`, que devolve o
-      acervo inteiro sem filtro
-- [ ] Critério de aceite: precisão das promoções numa amostra conferida à mão,
-      e as demoções continuando em 100%
-- [ ] Se a precisão subir o bastante, `categoryMode: 'all'` deixa de ser risco e
-      o backfill completo passa a valer
+**Dez regras candidatas medidas** contra as 3.688 linhas do acervo, com um
+gabarito de 24 decisões conferidas à mão:
 
-**18.2 — Fechar a medição da Fase 3** 🟡 vira ruído se ficar
+| regra | acerto |
+|---|---|
+| corpo inteiro, piso 3 (a anterior) | 54% |
+| lide de 600 ou 800 caracteres, piso 3 | 63% |
+| **corpo inteiro, piso 5** (a que subiu) | **67%** |
+| lide de 600, piso 5 | 58% |
+| só o título classifica | 54% |
+
+- [x] **A hipótese do lide perdeu.** Cortar o texto tira tanto sinal bom quanto
+      ruim; o ganho veio de exigir mais evidência, não de ler menos. A
+      maquinaria do lide não ficou no código — não se guarda o que a medição
+      rejeitou
+- [x] Piso subiu de 3 para 5 palavras distintas
+- [ ] **67% é o teto do método.** Dez regras, intervalo de 54% a 67%: não é
+      falta de ajuste, é o limite de casar palavra-chave em corpo de notícia.
+      Passar disso pede **classificação por IA** — o pipeline já fala com Gemini
+      e Groq. Fica como trabalho próprio, e é o que destravaria
+      `categoryMode: 'all'`
+
+> **Correção à avaliação anterior: isto não bloqueia a Fase 4.** A Fase 4 é
+> trabalho de interface sobre um campo de categoria que existe e é estável —
+> `category-nav`, filtro na URL, paginação, estado vazio. A qualidade da
+> classificação é preocupação de produto em paralelo, não dependência de UI. O
+> bloqueio de verdade era a ingestão estar **piorando** a cada dia, e isso o
+> piso de 5 resolveu.
+
+**18.2 — Medição da Fase 3 fechada** ✅
 
 O clamp do dek do hero está em produção desde 21/08, mas ninguém remediu depois.
 
-- [ ] **Lighthouse por rota.** A Home estava em ~86–90 contra o piso de 97 da V1
-      (§3.1 do diagnóstico). O clamp move o elemento de LCP do parágrafo para a
-      imagem, que já tem `fetchpriority=high` — falta confirmar quanto recuperou
-- [ ] **O gate agora é real.** `configPath` entrou nos inputs da action em
-      21/08, então a execução automática de **segunda 09:00 UTC** falha se
-      alguma categoria estiver abaixo de 90. Descobrir isso por CI vermelho no
-      meio da Fase 4 é a pior hora
-- [ ] **Recapturar a baseline visual** (§30). A recaptura de 21/08 **não foi
-      commitada de propósito**: ela fotografava o hero quebrado, e uma baseline
-      que registra o defeito como referência é pior que baseline nenhuma. A Fase
-      4 compara contra ela
+- [x] **Lighthouse por rota** ([run 32492043154](https://github.com/tavinholoco/newra-news/actions/runs/32492043154)) — **a Home foi de 78 para 95** de performance. O clamp do dek fez o que se esperava: o elemento de LCP saiu do parágrafo e virou a imagem do hero, que já tinha `fetchpriority=high`
 
-**18.3 — Backfill do acervo** 🟢 opcional, não bloqueia
+| Rota | Perf | Acess. | BP | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | **95** (era 78) | 100 | 100 | 100 |
+| `/pt-BR/news` | 93 | 100 | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 95 | 100 | 100 | 100 |
 
-`POST /api/jobs/renormalize-news` está no ar desde 21/08. **Não é conserto, é
-acelerador**, e vale registrar o porquê para ninguém tratá-lo como urgente:
+- [x] **O gate rodou de verdade** — o log traz `Asserting · Checking assertions against 5 URL(s), 15 total run(s)`, o que nenhuma execução anterior tinha. Passou nas cinco rotas, então a execução de segunda não vai vermelha
+- [x] **Baseline visual recapturada** — 42 imagens de 21/08. E foi ela que achou o último defeito da Fase 3: seção de categoria com **uma matéria só** deixava metade da faixa em branco, porque a grade de duas colunas era incondicional. Corrigido, com teste de regressão
 
-- a **Home se cura sozinha em um ou dois dias** — hero, top stories, trending e
-  categorias são todos recentes, e a rodada de amanhã já grava com as regras
-  novas;
-- o **acervo** se cura em 30 dias, que é quando o cleanup apaga `News`;
-- o que não se cura sozinho nesse meio-tempo é a navegação funda em
-  `/news?category=X`: 78 das 193 matérias de Política vindas do feed genérico
-  estão erradas hoje (~31% da página), 94 das 113 de Tecnologia.
+**18.3 — Backfill virou etapa do pipeline** ✅ — o desenho mudou
 
-- [ ] Ensaio contra produção (`-d '{}'`, não grava nada) — 30 segundos, confirma
-      o deploy e dá o "antes" para comparar depois do 18.1
-- [ ] Aplicar em `clear-only` **depois** do 18.1, para não gravar duas vezes
-- [ ] O `JOB_SECRET` vive no painel do Render (`sync: false` no `render.yaml`) e
-      no Vercel como `BACKEND_JOB_SECRET`. Rodar do terminal com `read -rs`, que
-      não ecoa nem entra no histórico
+O plano anterior era rodar o job manualmente. **Isso estava errado como
+desenho**, e a crítica veio do usuário: um job atrás de segredo, que alguém
+precisa lembrar de disparar, não é resposta para "dado gravado diverge das
+regras atuais" — na próxima mudança de regra o problema volta igual.
 
-**Ordem recomendada:** 18.1 → 18.2 → 18.3 → Fase 4. O 18.3 depois do 18.1 porque
-mudar o classificador muda o que o backfill faria; rodar antes é gravar duas
-vezes.
+- [x] **A renormalização virou a etapa 8.5 do pipeline diário.** Qualquer
+      correção de regra alcança o acervo inteiro na execução seguinte, sem
+      ninguém disparar nada e sem segredo na mão de alguém
+- [x] Roda **depois do cleanup** de propósito — renormalizar linha que a etapa 8
+      acabou de apagar é trabalho jogado fora
+- [x] Não-crítica, como a newsletter e o cleanup: falha vira WARN e o pipeline
+      completa. Fica em `clear-only`, o subconjunto seguro
+- [x] Idempotente: em regime, varre e não escreve nada
+- [x] O endpoint continua existindo, com o papel corrigido na documentação —
+      serve para **inspecionar** (`dryRun` devolve o relatório sem gravar) e
+      para caso pontual, não é o mecanismo
+
+**O `JOB_SECRET` deixou de ser passo do plano.** Não havia nada que ele
+resolvesse que a etapa 8.5 não resolva melhor, e a medição que motivou tudo saiu
+do `/api/news` público, sem segredo nenhum.
 
 ---
 

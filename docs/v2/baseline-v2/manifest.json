@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-20T23:05:28.282Z",
+  "capturedAt": "2026-08-21T14:26:42.343Z",
   "baseUrl": "https://newra-news-web.vercel.app",
   "format": "jpeg",
   "viewports": [
@@ -70,19 +70,19 @@
     },
     {
       "file": "news-detail--375.jpg",
-      "route": "/pt-BR/news/e0382c70-1f35-49a0-ad02-87ab92cb6047",
+      "route": "/pt-BR/news/253ee67a-dcc0-4e76-9695-fa83f9072c65",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--768.jpg",
-      "route": "/pt-BR/news/e0382c70-1f35-49a0-ad02-87ab92cb6047",
+      "route": "/pt-BR/news/253ee67a-dcc0-4e76-9695-fa83f9072c65",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--1440.jpg",
-      "route": "/pt-BR/news/e0382c70-1f35-49a0-ad02-87ab92cb6047",
+      "route": "/pt-BR/news/253ee67a-dcc0-4e76-9695-fa83f9072c65",
       "status": 200,
       "ok": true
     },
@@ -232,31 +232,31 @@
     },
     {
       "file": "article-detail--375.jpg",
-      "route": "/pt-BR/article/2026-08-20",
+      "route": "/pt-BR/article/2026-08-21",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--375-dark.jpg",
-      "route": "/pt-BR/article/2026-08-20",
+      "route": "/pt-BR/article/2026-08-21",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--768.jpg",
-      "route": "/pt-BR/article/2026-08-20",
+      "route": "/pt-BR/article/2026-08-21",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--1440.jpg",
-      "route": "/pt-BR/article/2026-08-20",
+      "route": "/pt-BR/article/2026-08-21",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--1440-dark.jpg",
-      "route": "/pt-BR/article/2026-08-20",
+      "route": "/pt-BR/article/2026-08-21",
       "status": 200,
       "ok": true
     }
