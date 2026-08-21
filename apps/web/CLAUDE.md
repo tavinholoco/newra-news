@@ -74,7 +74,9 @@ Regras que não são óbvias no código:
 
 ## Páginas
 - / → redireciona (307) para /pt-BR ou /en (middleware)
-- /[locale]/ → Home com feed de notícias (SSG + ISR)
+- /[locale]/ → Home editorial (SSG + ISR) — **uma** chamada, `GET /api/home`,
+  que já devolve hero, briefing, top stories, trending, categorias e latest sem
+  repetir matéria entre blocos. Não montar a Home bloco a bloco
 - /[locale]/news → Listagem com filtros (CSR para filtros)
 - /[locale]/news/[id] → Notícia individual (dinâmica)
 - /[locale]/article → Histórico de artigos
@@ -151,6 +153,21 @@ Ao introduzir combinação de cor nova, rode `pnpm --filter @newranews/web
 contrast:check` — ele lê o `tokens.css` e mede, inclusive as composições de
 opacidade.
 
+> ⚠️ **`cn` precisa conhecer a escala tipográfica — e conhece.** O
+> `tailwind-merge` resolve `text-<valor>` por heurística: sabe que `text-sm` é
+> tamanho e `text-red-500` é cor, e joga **todo o resto num grupo só**. Como a
+> V2 nomeia a escala por papel, `cn('text-meta', 'text-ink-muted')` devolvia só
+> `text-meta` — a cor sumia do HTML sem erro de build, lint ou tipo, e o
+> elemento herdava a cor do pai. Foi assim que a metadata dos cards renderizou
+> em `--ink` cheio da Fase 1 até a Fase 3 (passava no contraste, então o
+> Lighthouse nunca reclamou; o que se perdia era hierarquia). `lib/utils.ts`
+> declara a escala como `font-size` e `tests/lib/cn.test.ts` é a guarda —
+> **ao acrescentar um nome novo à escala em `tokens.css`, acrescente também
+> em `TYPOGRAPHY_SCALE`.**
+>
+> Efeito colateral correto disso: `leading-*` junto de um tamanho nomeado
+> dentro de `cn` é descartado, porque a escala já carrega a própria entrelinha.
+
 ### Tipografia, forma e ritmo
 
 - `font-display` = **Newsreader** (serif, manchetes) · `font-sans` = **Inter**
@@ -176,8 +193,51 @@ opacidade.
 ### Componentes editoriais
 
 `components/editorial/` é a camada acima dos primitivos do shadcn (§11 do
-plano). Hoje tem `article-meta`, `source-badge` e `reading-time`. **Não passe
-`sourceHref` dentro de um card que já é um link** — âncora aninhada.
+plano).
+
+| Peça | Papel |
+|---|---|
+| `article-meta` · `source-badge` · `reading-time` | a linha de metadata (Fase 1) |
+| `story-card` · `story-card-horizontal` · `story-card-compact` | vertical com imagem · miniatura + manchete · só manchete |
+| `story-image` | caixa de imagem + placeholder de marca |
+| `section-heading` | filete + título + "ver tudo" |
+| `hero-story` · `briefing-card` · `top-stories` · `trending-list` · `latest-stories` · `category-section` | os blocos da Home (Fase 3) |
+
+Regras que não são óbvias no código:
+
+- **Os cards são client components de propósito.** Precisam de
+  `useTranslations` para o rótulo da categoria, e um server component
+  assíncrono **não pode** ser renderizado de dentro de um client component —
+  o que quebraria o reuso na listagem CSR de `/news`. Continuam renderizando
+  no servidor: a Home é SSG/ISR.
+- **Não passe `sourceHref` dentro de um card que já é um link** — âncora
+  aninhada.
+- **Bloco sem dado devolve `null`, e o wrapper do grid também sai.** Um grid
+  vazio tem altura zero mas ainda consome o `gap-section` do pai, e o buraco no
+  meio da página não tem explicação para quem olha. `hero` nulo, `briefing`
+  nulo, `trending` vazio e categoria sem matéria são estados **normais** — o
+  endpoint está certo, a tela é que precisa desenhar sem eles.
+- **`heading-level` é prop, não valor fixo.** O mesmo card é `h3` na Home
+  (abaixo do `h2` da seção) e pode ser `h2` numa listagem. Heading fixo foi o
+  que deixou `heading-order` reprovando em `/news` e `/article`.
+- **O numeral do ranking é `aria-hidden`** — a posição já é semântica pelo
+  `<ol>`, e ouvir "3" antes da manchete é a mesma informação duas vezes.
+- **A Home tem `h1` `sr-only`.** Não há título visível próprio (quem abre vê a
+  manchete do dia), mas página sem `h1` reprova `heading-order`.
+
+### Monetização
+
+`monetization/` tem `newsletter-cta` (Fase 2) e `ad-slot` (Fase 3). O inventário
+— placements, formatos e alturas da §9 de `docs/v2/04-analytics-e-slots.md` —
+vive em `lib/ads.ts`.
+
+- **Sem inventário o `AdSlot` não renderiza nada**: nem caixa vazia, nem a
+  palavra "Publicidade". Hoje é sempre esse o caso (`NEXT_PUBLIC_ADS_ENABLED`).
+- **A altura é reservada antes de o criativo chegar**, e vai em `style` porque
+  é dado: uma classe `min-h-[90px]` teria de existir literal no código para o
+  Tailwind emitir a regra, o que duplicaria a tabela de alturas.
+- `ad_view`/`ad_click` entram com o `track()` da Fase 8 — medir impressão sem
+  ter onde gravar o evento seria código morto.
 
 ### Outras regras de estilo
 - Mobile-first com Tailwind

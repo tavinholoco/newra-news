@@ -49,9 +49,10 @@ Fase 2 e vale para todas as telas.
 Blocos, na ordem da §6.1: `hero-story` → `briefing-card` → `top-stories` →
 `trending-list` → `category-section` (× N) → `newsletter-cta` → `ad-slot`.
 
-Hoje: `ArticleCard` (faixa de altura fixa) + `NewsGrid` de 12 cards idênticos.
-**Dos blocos acima só o `newsletter-cta` existe** — entregue na Fase 2, é para
-reusar, não reconstruir. Os outros seis nascem aqui. É a fase mais pesada.
+Era: `ArticleCard` (faixa de altura fixa) + `NewsGrid` de 12 cards idênticos.
+Dos blocos acima só o `newsletter-cta` existia — entregue na Fase 2. Os outros
+seis nasceram na Fase 3, junto da camada de cards da §11 que os alimenta, e o
+`ArticleCard` saiu do repositório por ficar sem consumidor. ✅ **21/08/2026**
 
 > **`trending` vem vazia quando nada foi publicado nas últimas 24h.** É
 > comportamento correto do endpoint, não defeito: o bloco deve ser **omitido**,
