@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CATEGORY_LABELS,
   formatDate,
+  formatDateTime,
   formatArticleDate,
   toDateSlug,
   formatPercent,
@@ -116,5 +117,18 @@ describe('readingTimeFromText', () => {
 
   it('should accept another reading rate', () => {
     expect(readingTimeFromText(Array(600).fill('palavra').join(' '), 300)).toBe(2);
+  });
+});
+
+describe('formatDateTime', () => {
+  it('should carry the time, which is the point of "generated at"', () => {
+    // Só a data repetiria a data do briefing e não diria nada — a §8 pede o
+    // horário da geração.
+    const formatted = formatDateTime('2026-08-21T11:00:10.888Z', 'pt-BR');
+    expect(formatted).toMatch(/\d{2}:\d{2}/);
+  });
+
+  it('should keep the date alongside the time', () => {
+    expect(formatDateTime('2026-08-21T11:00:10.888Z', 'pt-BR')).toContain('2026');
   });
 });

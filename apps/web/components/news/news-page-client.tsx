@@ -14,7 +14,7 @@ import { NewsEmptyState } from './news-empty-state';
 import { NewsFilterBar } from './news-filter-bar';
 import { NewsList } from './news-list';
 import { NewsListSkeleton } from './news-list-skeleton';
-import { NewsPagination } from './news-pagination';
+import { Pagination } from '@/components/editorial/pagination';
 import { NewsSearch } from './news-search';
 
 interface NewsPageClientProps {
@@ -45,6 +45,7 @@ export function NewsPageClient({
   initialFacets,
 }: NewsPageClientProps) {
   const t = useTranslations('news');
+  const tPagination = useTranslations('pagination');
   const { state, setFilters, setPage, clearFilters } = useNewsFilters();
 
   const activeFilters = countActiveFilters(state);
@@ -169,10 +170,11 @@ export function NewsPageClient({
         />
       )}
 
-      <NewsPagination
+      <Pagination
         page={meta.page}
         totalPages={meta.totalPages}
         disabled={isFetching}
+        label={tPagination('label')}
         onChange={setPage}
       />
     </div>

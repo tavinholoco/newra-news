@@ -3,10 +3,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import { Category, type NewsFacets } from '@newranews/types';
 import { CategoryNav } from '@/components/news/category-nav';
 import { NewsFilterBar } from '@/components/news/news-filter-bar';
-import {
-  NewsPagination,
-  paginationRange,
-} from '@/components/news/news-pagination';
+import { Pagination, paginationRange } from '@/components/editorial/pagination';
 import { HighlightTerm } from '@/components/editorial/highlight-term';
 import { renderWithIntl } from '@/tests/utils';
 
@@ -175,10 +172,10 @@ describe('paginationRange', () => {
   });
 });
 
-describe('NewsPagination', () => {
+describe('Pagination', () => {
   it('should render nothing for a single page', () => {
     const { container } = renderWithIntl(
-      <NewsPagination page={1} totalPages={1} onChange={vi.fn()} />,
+      <Pagination page={1} totalPages={1} label='Paginação' onChange={vi.fn()} />,
     );
 
     expect(container).toBeEmptyDOMElement();
@@ -186,7 +183,7 @@ describe('NewsPagination', () => {
 
   it('should mark the current page for assistive tech', () => {
     renderWithIntl(
-      <NewsPagination page={2} totalPages={4} onChange={vi.fn()} />,
+      <Pagination page={2} totalPages={4} label='Paginação' onChange={vi.fn()} />,
     );
 
     expect(
@@ -196,11 +193,13 @@ describe('NewsPagination', () => {
 
   it('should disable the arrows at the ends', () => {
     const { rerender } = renderWithIntl(
-      <NewsPagination page={1} totalPages={4} onChange={vi.fn()} />,
+      <Pagination page={1} totalPages={4} label='Paginação' onChange={vi.fn()} />,
     );
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
 
-    rerender(<NewsPagination page={4} totalPages={4} onChange={vi.fn()} />);
+    rerender(
+      <Pagination page={4} totalPages={4} label='Paginação' onChange={vi.fn()} />,
+    );
     expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
   });
 });
