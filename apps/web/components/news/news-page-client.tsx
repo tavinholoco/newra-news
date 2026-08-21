@@ -18,8 +18,14 @@ import { NewsPagination } from './news-pagination';
 import { NewsSearch } from './news-search';
 
 interface NewsPageClientProps {
-  /** Primeira página sem filtro, renderizada no servidor (ISR). */
-  initialData: PaginatedResponse<News>;
+  /**
+   * Primeira página sem filtro, resolvida no servidor (ISR).
+   *
+   * Opcional porque o prefetch pode falhar, e nesse caso o valor é `undefined`
+   * e não uma lista vazia — que a query trataria como resposta boa e não
+   * buscaria de novo. Ver `prefetch` em `app/[locale]/news/page.tsx`.
+   */
+  initialData?: PaginatedResponse<News>;
   initialFacets?: NewsFacets;
 }
 

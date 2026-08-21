@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { ArticleGrid } from './article-grid';
 
 interface ArticlePageClientProps {
-  initialData: PaginatedResponse<Article>;
+  /** Opcional: prefetch que falha devolve `undefined`, não lista vazia. */
+  initialData?: PaginatedResponse<Article>;
 }
 
 export function ArticlePageClient({ initialData }: ArticlePageClientProps) {

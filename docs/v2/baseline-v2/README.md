@@ -1,8 +1,8 @@
 # Baseline visual da V2 — estado corrente
 
-42 capturas de `https://newra-news-web.vercel.app`, **21/08/2026**, depois de a
-Fase 3 (Home) entrar em produção. É a referência contra a qual as fases
-seguintes se comparam.
+42 capturas de `https://newra-news-web.vercel.app`, **21/08/2026 (20:5x UTC)**,
+depois de a Fase 4 (News / Category) entrar em produção. É a referência contra a
+qual as fases seguintes se comparam.
 
 ```bash
 BASE_URL=https://newra-news-web.vercel.app \
@@ -28,16 +28,22 @@ o antes e o depois no próprio diff das imagens.
 
 | Captura | Estado |
 |---|---|
-| 21/08 | **atual** — Fase 3 fechada: Home editorial, dek do hero com clamp, Lighthouse 95·100·100·100 |
+| 21/08, 20:5x | **atual** — Fase 4 fechada: `/news` como acervo, Lighthouse 97 na rota |
+| 21/08, 14:26 | Fase 3: Home editorial, dek do hero com clamp |
 | 20/08, 23:05 | Fase 2: masthead de três linhas, faixa de categorias, rodapé no ritmo dos tokens |
 | 20/08, 21:29 | Fase 1: tokens novos, shell ainda o da V1 |
 
-> **Duas coisas ainda vão mexer nestas imagens, e é esperado.** A captura é de
-> antes da primeira execução da etapa 8.5 do pipeline, que higieniza o texto já
-> gravado — hoje o dek do hero em produção ainda abre repetindo a manchete e
-> mostrando o crédito da foto, e isso some na próxima rodada. E a seção de
-> categoria com uma matéria só ainda aparece com metade da faixa vazia, o que
-> foi corrigido depois desta captura. Recapturar quando as duas tiverem subido.
+> **`news--*.jpg` fotografou um defeito, e foi a recaptura que o encontrou.**
+> Nas três larguras as oito pílulas de categoria aparecem com **0** ao lado do
+> nome, logo acima de "5.783 notícias". Não é erro de captura: o build da Vercel
+> correu antes de o deploy da API subir a rota de facetas, o `catch` da página
+> transformou a falha num resultado vazio, e o `staleTime` de 5 minutos do
+> TanStack Query fez a query considerá-lo fresco e nunca buscar de novo.
+>
+> Corrigido no PR que fecha a Fase 4 (`prefetch` em `lib/api.ts`: falha vira
+> `undefined`, que a tela sabe desenhar, e não um resultado vazio, que ela
+> apresenta como verdade). **Recapturar `news--*` depois que o deploy subir** —
+> o resto do conjunto está correto e não precisa de nova rodada.
 
 ## Diferenças em relação à `baseline-v1/`
 
@@ -66,6 +72,18 @@ diário, então recapturar em outra data produz imagens diferentes por natureza.
 - **1024 e 1920.** A §30 lista cinco larguras de verificação; o conjunto
   versionado usa três, pelo mesmo motivo da V1: peso no git. Rodar sem
   `WIDTHS=` captura as cinco.
+
+## O que estas imagens confirmam da Fase 4
+
+- `/news` abre com **título e descrição da editoria** ("Acervo" + a linha de
+  apoio), não mais com um `h1` solto sobre uma grade;
+- hero da categoria à esquerda e três matérias na coluna da direita, com
+  "ÚLTIMAS" em duas colunas abaixo — a composição da §7, não a grade uniforme;
+- pílulas de categoria com estado preenchido, distintas do sublinhado da
+  `editorial-nav` logo acima;
+- período e ordenação como `<select>` nativo, no raio e na borda dos tokens;
+- paginação numerada com corte (`1 2 … 290`);
+- o coração de favoritar sobreposto no hero e à direita de cada item da lista.
 
 ## O que estas imagens confirmam das Fases 1 e 2
 

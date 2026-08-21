@@ -1238,9 +1238,9 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 [x] tipos compartilhados + docs/api.md
 
     -- durante as Fases 1–2, em branch própria; mergeado antes da Fase 3 --
-[ ] GET /api/home            (agregado da Home — §18.1)
-[ ] GET /api/trending        (etapa 1: recência + favoritos — §18.2)
-[ ] GET /api/news/:id/related                              (§18.3)
+[x] GET /api/home            (agregado da Home — §18.1)
+[x] GET /api/trending        (etapa 1: recência + favoritos — §18.2)
+[x] GET /api/news/:id/related                              (§18.3)
 ```
 
 > **Por que a migration saiu antes da Fase 1.** Nada registrava quais notícias
@@ -1269,9 +1269,9 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 [x] article metadata                (components/editorial/article-meta)
 [x] card primitives                 (ring --line, sem hover lift)
 
-    -- fica em aberto, sem bloquear a Fase 2 --
-[ ] Lighthouse por rota contra a tabela do 00-diagnostico.md §3.1
-[ ] baseline visual da V2 (docs/v2/baseline-v2/)
+    -- ficou em aberto na época; fechado depois --
+[x] Lighthouse por rota contra a tabela do 00-diagnostico.md §3.1  (Fase 3)
+[x] baseline visual da V2 (docs/v2/baseline-v2/)                   (Fase 2)
 ```
 
 > Detalhe do que a fase encontrou no caminho — as renomeações forçadas pelo
@@ -1430,9 +1430,34 @@ outros cards já clampavam; o hero era o único que não.
                                      usuário, e portanto sem cache de CDN)
 
     -- ao fechar a fase, contra produção --
-[ ] Lighthouse por rota (§26)
-[ ] recapturar a baseline visual (§30)
+[x] Lighthouse por rota (§26) — 21/08, /news de 93 para 97
+[x] recapturar a baseline visual (§30) — 42 imagens; e foi ela que achou o
+    defeito de produção descrito abaixo
 ```
+
+### Medição de 21/08, 20:53 ([run 32525537279](https://github.com/tavinholoco/newra-news/actions/runs/32525537279))
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 95 | 100 | 100 | 100 |
+| `/pt-BR/news` | **97** (era 93) | **100** | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 94 | 100 | 100 | 100 |
+
+Acessibilidade **100 nas cinco rotas**, com a `/news` reescrita — a hierarquia
+`h1 → h2 → h3` segurou o `heading-order` que a ficha da tela mandava corrigir. O
+gate rodou (`Asserting`) e passou.
+
+> **A baseline achou o que o Lighthouse não veria.** Nas três larguras, as oito
+> pílulas de categoria apareceram com **0** ao lado do nome, logo acima de
+> "5.783 notícias" — e a página pontuou 97 assim, porque zero é tão rápido de
+> renderizar quanto qualquer número. O build da Vercel correu antes de o deploy
+> da API subir `/api/news/facets`; o `catch` da página transformou a falha num
+> resultado vazio, e o `staleTime` de 5 minutos do TanStack Query fez a query
+> tratá-lo como fresco e **nunca buscar de novo**. Resultado vazio é uma
+> afirmação; falha é ausência. Corrigido com `prefetch` em `lib/api.ts`, que
+> falha em `undefined` — e a `/article` tinha o mesmo padrão.
 
 > **A contagem exigiu um endpoint.** O `category-nav` mostra quantas matérias
 > cada categoria tem, e nada expunha isso — o frontend teria de disparar oito
