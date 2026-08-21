@@ -41,9 +41,11 @@
 
 > A Home editorial da §6: `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos, mais a camada de cards da §11 que os alimenta. **Uma chamada de rede** (`GET /api/home`) no lugar de duas que montavam bem menos página. 625 testes verdes. Ver **item 17**.
 
-**Próximo ciclo — V2.0 Fase 4 (News / Category)** 📋 **Desbloqueada**
+**Próximo ciclo — V2.0 Fase 4 (News / Category)** 📋 **Depende do item 18**
 
 > `category-nav`, busca, `filter state` (escrever a URL a cada clique — hoje `/news` só **lê** o parâmetro), paginação, estados vazios e skeletons. Os cards de `components/editorial/` são para reusar, não reconstruir.
+>
+> **Não abrir antes de fechar o item 18.** A Fase 4 é a experiência de navegar por categoria, e hoje a categoria que o pipeline grava ainda não é confiável — ver o item para o que falta e por quê.
 
 ---
 
@@ -407,6 +409,81 @@ As três execuções de `/pt-BR` deram 78 · 86 · 94, e `/en` — a mesma pági
 
   **Sobre acrescentar `CRIME`/`GENERAL` ao enum: fica de fora, por ora.** Não é o que corrige o erro — o mecanismo é —, custa migration mais rótulos nos dois JSONs, schemas Zod e a faixa de categorias; e só depois desta correção dá para *medir* que fatia do acervo realmente cai em `WORLD` e decidir com dado. `WORLD` já é o balde genérico e é onde esse gênero deve ficar até lá
 - [x] **`description` do feed vinha suja** — o `dek` do hero em produção começava repetindo o `title`, seguido do crédito da foto ("Divulgação/Polícia Civil do Maranhão"), e só então o corpo; um título começava com quebra de linha literal. `providers/news/feed-text.ts` apara o título e remove a linha duplicada e a de crédito na ingestão, que é o único lugar onde se conserta uma vez. O casamento de crédito é conservador de propósito — curta **e** sem pontuação final **e** (com barra ou palavra de crédito) —, porque só "curta e sem ponto" comeria a abertura legítima de uma matéria. O classificador também passou a ler o texto limpo: antes recebia `item.title` cru, com entidade e quebra de linha, enquanto o título gravado era o decodificado
+
+---
+
+### 18. Pendências antes de abrir a Fase 4 📋 aberto em 2026-08-21
+
+> Saiu da medição da Fase 3 contra produção. Três frentes, e só **uma** delas é
+> bloqueio de verdade — as outras duas são dívida que fica cara se ficar.
+
+**18.1 — O classificador ainda promove demais** 🔴 **bloqueia a Fase 4**
+
+O conserto de 21/08 tirou o vocabulário ambiente e acabou com a matéria policial
+dentro de "Tecnologia". Mas ele destravou o problema simétrico: agora que a
+ingestão classifica texto **limpo** (antes classificava com entidades, e era
+cega a toda palavra acentuada), o piso de 3 palavras distintas fica frouxo para
+um corpo de milhares de caracteres.
+
+Medido no acervo: **remover** rótulo acerta sempre (320 demoções, amostra 20/20),
+**atribuir** rótulo erra perto de metade (1.240 promoções — "Carnaval 2027" →
+Política, "Festival da Juventude oferece 118 vagas de estágio" → Entretenimento).
+
+É bloqueio porque a Fase 4 **é** a navegação por categoria: `category-nav`,
+filtro por categoria na URL, estado vazio por categoria. Polir essa tela sobre
+categoria não confiável é construir sobre areia — e cada dia de pipeline grava
+mais linhas com a fraqueza.
+
+- [ ] Hipótese a medir: classificar pelo **lide** (os primeiros ~600–800
+      caracteres) em vez do corpo inteiro. Um lide diz do que a matéria trata; o
+      parágrafo 14 divaga
+- [ ] Comparar 2–3 regras candidatas contra as 3.688 linhas do acervo **antes**
+      de mudar código — o corpus já está baixado por `/api/news`, que devolve o
+      acervo inteiro sem filtro
+- [ ] Critério de aceite: precisão das promoções numa amostra conferida à mão,
+      e as demoções continuando em 100%
+- [ ] Se a precisão subir o bastante, `categoryMode: 'all'` deixa de ser risco e
+      o backfill completo passa a valer
+
+**18.2 — Fechar a medição da Fase 3** 🟡 vira ruído se ficar
+
+O clamp do dek do hero está em produção desde 21/08, mas ninguém remediu depois.
+
+- [ ] **Lighthouse por rota.** A Home estava em ~86–90 contra o piso de 97 da V1
+      (§3.1 do diagnóstico). O clamp move o elemento de LCP do parágrafo para a
+      imagem, que já tem `fetchpriority=high` — falta confirmar quanto recuperou
+- [ ] **O gate agora é real.** `configPath` entrou nos inputs da action em
+      21/08, então a execução automática de **segunda 09:00 UTC** falha se
+      alguma categoria estiver abaixo de 90. Descobrir isso por CI vermelho no
+      meio da Fase 4 é a pior hora
+- [ ] **Recapturar a baseline visual** (§30). A recaptura de 21/08 **não foi
+      commitada de propósito**: ela fotografava o hero quebrado, e uma baseline
+      que registra o defeito como referência é pior que baseline nenhuma. A Fase
+      4 compara contra ela
+
+**18.3 — Backfill do acervo** 🟢 opcional, não bloqueia
+
+`POST /api/jobs/renormalize-news` está no ar desde 21/08. **Não é conserto, é
+acelerador**, e vale registrar o porquê para ninguém tratá-lo como urgente:
+
+- a **Home se cura sozinha em um ou dois dias** — hero, top stories, trending e
+  categorias são todos recentes, e a rodada de amanhã já grava com as regras
+  novas;
+- o **acervo** se cura em 30 dias, que é quando o cleanup apaga `News`;
+- o que não se cura sozinho nesse meio-tempo é a navegação funda em
+  `/news?category=X`: 78 das 193 matérias de Política vindas do feed genérico
+  estão erradas hoje (~31% da página), 94 das 113 de Tecnologia.
+
+- [ ] Ensaio contra produção (`-d '{}'`, não grava nada) — 30 segundos, confirma
+      o deploy e dá o "antes" para comparar depois do 18.1
+- [ ] Aplicar em `clear-only` **depois** do 18.1, para não gravar duas vezes
+- [ ] O `JOB_SECRET` vive no painel do Render (`sync: false` no `render.yaml`) e
+      no Vercel como `BACKEND_JOB_SECRET`. Rodar do terminal com `read -rs`, que
+      não ecoa nem entra no histórico
+
+**Ordem recomendada:** 18.1 → 18.2 → 18.3 → Fase 4. O 18.3 depois do 18.1 porque
+mudar o classificador muda o que o backfill faria; rodar antes é gravar duas
+vezes.
 
 ---
 
