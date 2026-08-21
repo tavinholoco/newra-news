@@ -2,7 +2,9 @@ name: Lighthouse CI
 
 # Auditoria de performance/acessibilidade/best-practices/SEO contra a produção
 # (critério do PRD §18: Lighthouse >90). Roda semanalmente e sob demanda.
-# O workflow falha se alguma categoria cair abaixo de 90 (ver .lighthouserc.json).
+# O workflow falha se alguma categoria cair abaixo de 90 (ver .lighthouserc.json)
+# — o que passou a ser verdade em 21/08, quando `configPath` entrou nos inputs
+# da action e a fase de assert começou a rodar de fato. Ver o comentário lá.
 #
 # As rotas auditadas são apenas as de URL estável. As páginas de detalhe
 # (`/news/[id]` e `/article/[date]`) ficam de fora de propósito: os ids de
@@ -30,6 +32,16 @@ jobs:
           # numberOfRuns do .lighthouserc.json. Três execuções por URL para o
           # score reportado ser a mediana, não uma amostra só.
           runs: 3
+          # `configPath` é o que liga a fase de **assert**. A action lê o
+          # `.lighthouserc.json` sozinha para descobrir as URLs do collect, mas
+          # só executa `lhci assert` quando recebe `configPath` ou `budgetPath`
+          # como input — sem isto o bloco `assert` do rc é decorativo.
+          #
+          # Ele era. O log da execução de 21/08 tem os grupos "Collecting" e
+          # "Uploading" e nenhum "Asserting", e a execução passou com a home em
+          # 78 de performance, 12 pontos abaixo do piso de 90 que este arquivo
+          # dizia impor desde que foi escrito.
+          configPath: ./.lighthouserc.json
           temporaryPublicStorage: false
 
       # Os scores não aparecem em nenhum lugar do log da action — sem este passo

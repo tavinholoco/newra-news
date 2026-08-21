@@ -57,9 +57,15 @@ export async function generateMetadata({
  * dentro é pior que seção nenhuma.
  *
  * O `h1` é `sr-only` de propósito. A Home não tem um título visível próprio —
- * quem abre a página vê a manchete do dia, não a palavra "Home" — mas uma
- * página sem `h1` reprova `heading-order` no Lighthouse, que é exatamente a
- * auditoria que sobrou de pé nas medições da Fase 1.
+ * quem abre a página vê a manchete do dia, não a palavra "Home" — mas o
+ * documento precisa de uma raiz de outline para quem navega por heading, e sem
+ * ela a página abriria direto num `h2`.
+ *
+ * **Não é o Lighthouse que pede isto.** O `heading-order` reprova salto de
+ * nível, não ausência de `h1`, e `page-has-heading-one` não existe no conjunto
+ * auditado — conferido no relatório de 21/08. É acessibilidade real, não
+ * pontuação: é a WCAG 2.4.6 e o modo de navegação por headings do leitor de
+ * tela.
  */
 export default async function HomePage({ params }: Props) {
   const { locale } = params;
