@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import type { News, NewsFacets } from '@newranews/types';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getNews, getNewsFacets } from '@/lib/api';
+import { getNews, getNewsFacets, prefetch } from '@/lib/api';
 import { NewsArchiveHeader } from '@/components/news/news-archive-header';
 import { NewsListSkeleton } from '@/components/news/news-list-skeleton';
 import { NewsPageClient } from '@/components/news/news-page-client';
@@ -38,13 +37,6 @@ export async function generateMetadata({
   };
 }
 
-const EMPTY_LIST = {
-  data: [] as News[],
-  meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
-};
-
-const EMPTY_FACETS: NewsFacets = { categories: [], sources: [] };
-
 export default async function NewsPage({ params }: Props) {
   const { locale } = params;
   setRequestLocale(locale);
@@ -54,8 +46,8 @@ export default async function NewsPage({ params }: Props) {
   // contagem e ganhariam o número só depois da hidratação — a barra inteira
   // mudaria de largura na frente do leitor.
   const [initialData, initialFacets] = await Promise.all([
-    getNews(1, 20).catch(() => EMPTY_LIST),
-    getNewsFacets().catch(() => EMPTY_FACETS),
+    prefetch(getNews(1, 20)),
+    prefetch(getNewsFacets()),
   ]);
 
   return (

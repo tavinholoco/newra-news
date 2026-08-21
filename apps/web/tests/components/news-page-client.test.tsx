@@ -230,6 +230,15 @@ describe('NewsPageClient', () => {
       expect(useNewsListMock.mock.calls[0]![1]).toBeUndefined();
     });
 
+    it('should ask the query to fetch when the server prefetch failed', () => {
+      // `undefined` e não uma lista vazia: vazia seria resposta boa para a
+      // query, que com `staleTime` de 5 minutos não buscaria de novo.
+      renderWithIntl(<NewsPageClient />);
+
+      expect(useNewsListMock.mock.calls[0]![1]).toBeUndefined();
+      expect(useNewsFacetsMock.mock.calls[0]![1]).toBeUndefined();
+    });
+
     it('should announce how many stories the filters returned', () => {
       useNewsListMock.mockReturnValue({
         data: listOf(3),

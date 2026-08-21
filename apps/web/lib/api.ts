@@ -56,6 +56,29 @@ function newsFilterParams(filters: NewsFilters = {}): URLSearchParams {
   return params;
 }
 
+/**
+ * Prefetch de server component que **falha em `undefined`, nunca em um
+ * resultado vazio**.
+ *
+ * Isto custou uma tela errada em produção. O build da Vercel correu antes de o
+ * deploy da API subir a rota de facetas; o `.catch(() => ({ ... vazio }))` da
+ * `/news` devolveu `{ categories: [], sources: [] }`, e essa é uma **afirmação**
+ * — "o acervo tem zero matérias em cada categoria" — que foi ao ar como
+ * `initialData` de uma query com `staleTime` de 5 minutos. O TanStack Query a
+ * considerou fresca e nunca buscou de novo: todo visitante via as oito pílulas
+ * zeradas ao lado de "5.783 notícias".
+ *
+ * `undefined` é a outra coisa: "não medido". A query busca no cliente, e a tela
+ * desenha o esqueleto até chegar — que é o que ela já sabe fazer.
+ *
+ * Vale para todo prefetch cujo resultado vira `initialData`. Onde o valor é só
+ * renderizado no servidor, sem query atrás, `.catch(() => null)` continua certo:
+ * ali `null` já significa ausência e a tela desenha o estado vazio.
+ */
+export async function prefetch<T>(promise: Promise<T>): Promise<T | undefined> {
+  return promise.catch(() => undefined);
+}
+
 export async function getNews(
   page = 1,
   limit = 12,

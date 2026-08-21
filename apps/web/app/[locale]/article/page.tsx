@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
-import type { Article } from '@newranews/types';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getArticles } from '@/lib/api';
+import { getArticles, prefetch } from '@/lib/api';
 import { ArticlePageClient } from '@/components/article/article-page-client';
 
 export const revalidate = 3600;
@@ -40,10 +39,10 @@ export default async function ArticleHistoryPage({ params }: Props) {
   setRequestLocale(locale);
 
   const t = await getTranslations('article');
-  const initialData = await getArticles(1, 9).catch(() => ({
-    data: [] as Article[],
-    meta: { total: 0, page: 1, limit: 9, totalPages: 0 },
-  }));
+  // `prefetch` e não um `catch` com lista vazia: vazio é uma afirmação, e ela
+  // iria para o `initialData` de uma query com `staleTime` de 5 minutos — que
+  // não buscaria de novo. Ver o comentário em `lib/api.ts`.
+  const initialData = await prefetch(getArticles(1, 9));
 
   return (
     <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>

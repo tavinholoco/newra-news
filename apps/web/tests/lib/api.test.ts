@@ -3,6 +3,7 @@ import { Category } from '@newranews/types';
 import {
   getNews,
   getNewsFacets,
+  prefetch,
   getNewsById,
   getLatestArticle,
   getDashboardMetrics,
@@ -354,5 +355,22 @@ describe('getTrending', () => {
       expect.stringContaining('/trending?limit=3&window=7d'),
       expect.anything(),
     );
+  });
+});
+
+describe('prefetch', () => {
+  it('should pass a successful result through untouched', async () => {
+    await expect(prefetch(Promise.resolve({ data: [1] }))).resolves.toEqual({
+      data: [1],
+    });
+  });
+
+  it('should turn a failure into undefined, not an empty result', async () => {
+    // O `.catch(() => ({ categories: [], sources: [] }))` que isto substituiu
+    // pôs uma **afirmação** no ar — "zero matérias em cada categoria" — como
+    // `initialData` de uma query com `staleTime` de 5 minutos. O TanStack Query
+    // a considerou fresca e nunca buscou de novo: em produção as oito pílulas
+    // ficaram zeradas ao lado de "5.783 notícias".
+    await expect(prefetch(Promise.reject(new Error('502')))).resolves.toBeUndefined();
   });
 });
