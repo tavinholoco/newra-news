@@ -371,3 +371,47 @@ notícia inteira só para montar uma atribuição de fonte.
 - **`aiDisclosure` é constante `true`, não coluna.** Todo briefing é gerado por
   IA e a §8 do plano exige declará-lo; uma coluna sugeriria que existe briefing
   sem IA — e daria a alguém a chance de gravar `false`.
+
+---
+
+## 9. Smoke test contra Postgres real (20/08/2026)
+
+Os testes das rotas usam `fastify.inject()` com o Prisma mockado — validam a
+forma da consulta, não a consulta. Este é o registro da execução contra o banco
+de verdade, com 2.373 notícias de seed.
+
+**Os três endpoints respondem, com `Cache-Control` e nos códigos certos:**
+`/api/home` 200, `/api/trending` 200, `/api/news/:id/related` 200, `404` para id
+inexistente e `400` para uuid malformado.
+
+**As duas correções da revisão foram confirmadas em dado real**, e é o que este
+teste tinha de provar:
+
+- **O score alcança a matéria antiga e favoritada.** Com 20 notícias frescas
+  inseridas e 5 favoritos na **18ª mais recente**, ela saiu em **1º** no
+  trending — 5 × 2 = 10 pontos contra no máximo 1,0 de recência. Era exatamente
+  a matéria que o corte por recência descartava antes de pontuar.
+- **O bloco de trending enche mesmo com `topStories` levando as mais recentes.**
+  A Home devolveu 5 itens em trending, descendo o próprio ranking para além das
+  que os blocos anteriores reservaram.
+
+**A regra de não repetição vale em dado real:** 39 peças na resposta da Home, 39
+ids distintos.
+
+`/api/trending` devolve lista vazia quando nada foi publicado nas últimas 24h —
+o seed local é de 4 dias atrás. **Isso é comportamento correto, não defeito**, e
+a Fase 3 deve omitir o bloco nesse caso, como já faz com categoria vazia.
+
+### Um achado que não é destes endpoints
+
+O banco local tinha **548 títulos duplicados em 2.373 linhas**, 546 deles da
+mesma fonte e com `sourceUrl` idêntico. A causa é que **falta o índice único de
+`News.sourceUrl`** nesse banco: ele nasceu de um `db push` anterior à constraint,
+e o baseline por `migrate resolve --applied 0_init` marca a migration como
+aplicada **sem executar o SQL** — então o índice nunca foi criado ali.
+
+Não afeta os endpoints (que de-duplicam por id) nem indica problema em produção,
+onde o drift foi conferido vazio em 19/08. Mas vale saber de duas coisas: a
+deduplicação do pipeline depende dessa constraint, e um banco baselinado por
+`resolve` não ganha nada que o `db push` anterior não tenha criado. O repo já
+tem `pnpm --filter @newranews/database db:cleanup-news-duplicates` para o caso.
