@@ -103,8 +103,6 @@ export async function listNews(
 }
 
 export interface NewsFacetsResult {
-  /** Total do acervo com **todos** os filtros aplicados. */
-  total: number;
   categories: Array<{ category: Category; count: number }>;
   sources: Array<{ source: string; count: number }>;
 }
@@ -121,12 +119,17 @@ const SOURCE_FACET_LIMIT = 30;
  * que o faz trocar de categoria. O mesmo vale para fonte. As demais dimensões
  * (busca, período) valem para as duas, porque elas restringem o universo do
  * qual se está escolhendo.
+ *
+ * **Não devolve um total do recorte.** Esse número é o `meta.total` da
+ * listagem, que vem da mesma query que trouxe as matérias na tela. Um segundo
+ * total, calculado por outro caminho e com outro tempo de chegada, é duas
+ * respostas para a mesma pergunta — e elas discordam enquanto uma das duas
+ * ainda está no ar.
  */
 export async function getNewsFacets(
   filters: ListNewsFilters,
 ): Promise<NewsFacetsResult> {
-  const [total, categories, sources] = await Promise.all([
-    prisma.news.count({ where: buildNewsWhere(filters) }),
+  const [categories, sources] = await Promise.all([
     prisma.news.groupBy({
       by: ['category'],
       where: buildNewsWhere(filters, 'category'),
@@ -142,7 +145,6 @@ export async function getNewsFacets(
   ]);
 
   return {
-    total,
     categories: categories
       .map((row) => ({ category: row.category, count: row._count._all }))
       .sort((a, b) => b.count - a.count),

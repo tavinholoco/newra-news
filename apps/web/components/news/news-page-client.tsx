@@ -124,15 +124,21 @@ export function NewsPageClient({
       />
 
       {/* A contagem é `aria-live`: quem filtra por teclado precisa ouvir que o
-          resultado mudou de tamanho sem ter de sair procurando pela lista. */}
-      <p
-        aria-live='polite'
-        className='border-t border-line pt-4 text-body-sm text-ink-secondary'
-      >
-        {activeFilters > 0
-          ? t('resultCountFiltered', { count: meta.total })
-          : t('resultCount', { count: meta.total })}
-      </p>
+          resultado mudou de tamanho sem ter de sair procurando pela lista.
+
+          Fica de fora enquanto o esqueleto está no ar. Sem resposta ainda,
+          `meta.total` é zero, e a linha anunciaria "Nenhuma notícia encontrada"
+          logo acima de uma lista que está justamente carregando. */}
+      {showSkeleton ? null : (
+        <p
+          aria-live='polite'
+          className='border-t border-line pt-4 text-body-sm text-ink-secondary'
+        >
+          {activeFilters > 0
+            ? t('resultCountFiltered', { count: meta.total })
+            : t('resultCount', { count: meta.total })}
+        </p>
+      )}
 
       {isError ? (
         <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>

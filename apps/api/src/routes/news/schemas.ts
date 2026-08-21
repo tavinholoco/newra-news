@@ -74,12 +74,11 @@ export const getNewsByIdResponseSchema = z.object({
  * **dentro do recorte atual**.
  *
  * É o que permite ao `category-nav` mostrar contagem sem disparar uma consulta
- * por categoria. `total` já leva todos os filtros; as duas listas ignoram a
- * própria dimensão — ver `getNewsFacets`.
+ * por categoria. Cada lista ignora a própria dimensão — ver `getNewsFacets`. O
+ * total do recorte não vem aqui: é o `meta.total` da listagem.
  */
 export const newsFacetsResponseSchema = z.object({
   data: z.object({
-    total: z.number().int(),
     categories: z.array(
       z.object({
         category: z.enum(CATEGORIES),

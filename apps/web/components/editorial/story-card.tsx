@@ -6,7 +6,6 @@ import { Link } from '@/i18n/navigation';
 import { Badge } from '@/components/ui/badge';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { StoryImage } from '@/components/editorial/story-image';
-import { HighlightTerm } from '@/components/editorial/highlight-term';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
 import { cn } from '@/lib/utils';
 
@@ -18,8 +17,6 @@ interface StoryCardProps {
   size?: 'default' | 'lead';
   /** Esconde o dek onde a coluna é estreita demais para três linhas de resumo. */
   showDek?: boolean;
-  /** Termo buscado, para destacar na manchete e no dek (§7). Vazio não destaca nada. */
-  highlight?: string;
   sizes?: string;
   priority?: boolean;
   className?: string;
@@ -39,7 +36,6 @@ export function StoryCard({
   headingLevel: Heading = 'h3',
   size = 'default',
   showDek = true,
-  highlight = '',
   sizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw',
   priority = false,
   className,
@@ -78,7 +74,7 @@ export function StoryCard({
               isLead ? 'text-h3 line-clamp-3' : 'text-h4 line-clamp-3',
             )}
           >
-            <HighlightTerm text={story.title} term={highlight} />
+            {story.title}
           </Heading>
 
           {showDek && story.dek ? (
@@ -88,7 +84,7 @@ export function StoryCard({
                 isLead ? 'text-body line-clamp-3' : 'text-body-sm line-clamp-2',
               )}
             >
-              <HighlightTerm text={story.dek} term={highlight} />
+              {story.dek}
             </p>
           ) : null}
 

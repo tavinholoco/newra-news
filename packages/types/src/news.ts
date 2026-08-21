@@ -48,11 +48,13 @@ export interface NewsFilters {
  * Contagem do acervo por dimensão, para os controles de filtro.
  *
  * `categories` e `sources` **ignoram cada uma o seu próprio filtro**: com uma
- * categoria selecionada, as outras ainda reportam quantas matérias têm. `total`
- * aplica todos os filtros — é o "N resultados" da tela.
+ * categoria selecionada, as outras ainda reportam quantas matérias têm — que é
+ * a informação que faz alguém trocar de categoria.
+ *
+ * Não há um total do recorte: esse número é o `meta.total` da listagem, que sai
+ * da mesma consulta que trouxe as matérias visíveis.
  */
 export interface NewsFacets {
-  total: number;
   categories: Array<{ category: Category; count: number }>;
   sources: Array<{ source: string; count: number }>;
 }

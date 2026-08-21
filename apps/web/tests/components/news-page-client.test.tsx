@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
-import type { News, PaginatedResponse } from '@newranews/types';
+import { Category, type News, type PaginatedResponse } from '@newranews/types';
 import { NewsPageClient } from '@/components/news/news-page-client';
 import { renderWithIntl } from '@/tests/utils';
 
@@ -47,7 +47,7 @@ function makeNews(index: number): News {
     source: 'G1',
     sourceUrl: 'https://g1.globo.com/teste',
     imageUrl: null,
-    category: 'SPORTS',
+    category: Category.SPORTS,
     publishedAt: '2024-01-01T12:00:00.000Z',
     createdAt: '2024-01-01T12:00:00.000Z',
     updatedAt: '2024-01-01T12:00:00.000Z',
@@ -98,11 +98,7 @@ describe('NewsPageClient', () => {
       isError: false,
     });
     useNewsFacetsMock.mockReturnValue({
-      data: {
-        total: 12,
-        categories: [{ category: 'SPORTS', count: 5 }],
-        sources: [],
-      },
+      data: { categories: [{ category: 'SPORTS', count: 5 }], sources: [] },
     });
     setUrl('');
   });
@@ -219,7 +215,7 @@ describe('NewsPageClient', () => {
   describe('resultado', () => {
     it('should seed the list from the server only on the pristine view', () => {
       renderWithIntl(<NewsPageClient initialData={emptyList} />);
-      expect(useNewsListMock.mock.calls[0][1]).toBe(emptyList);
+      expect(useNewsListMock.mock.calls[0]![1]).toBe(emptyList);
 
       vi.clearAllMocks();
       useNewsListMock.mockReturnValue({
@@ -231,7 +227,7 @@ describe('NewsPageClient', () => {
       setUrl('category=SPORTS');
       renderWithIntl(<NewsPageClient initialData={emptyList} />);
 
-      expect(useNewsListMock.mock.calls[0][1]).toBeUndefined();
+      expect(useNewsListMock.mock.calls[0]![1]).toBeUndefined();
     });
 
     it('should announce how many stories the filters returned', () => {

@@ -43,7 +43,7 @@ const EMPTY_LIST = {
   meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
 };
 
-const EMPTY_FACETS: NewsFacets = { total: 0, categories: [], sources: [] };
+const EMPTY_FACETS: NewsFacets = { categories: [], sources: [] };
 
 export default async function NewsPage({ params }: Props) {
   const { locale } = params;

@@ -38,8 +38,18 @@ export function CategoryNav({
     facets?.categories.map((row) => [row.category, row.count]),
   );
 
+  // A soma das facetas, e **não** `facets.total`: cada pílula promete quantas
+  // matérias o clique dela devolve, e o clique em "Todas" tira o filtro de
+  // categoria. `total` já o aplica — com Mundo selecionado, "Todas" mostraria
+  // o número de Mundo e depois abriria o acervo inteiro. Os demais filtros
+  // (busca, fonte, período) continuam valendo nos dois, porque o clique não
+  // mexe neles.
+  const allCount = facets
+    ? facets.categories.reduce((sum, row) => sum + row.count, 0)
+    : undefined;
+
   const items: Array<{ key: Category | null; label: string; count?: number }> = [
-    { key: null, label: tCommon('all'), count: facets?.total },
+    { key: null, label: tCommon('all'), count: allCount },
     ...Object.values(Category).map((category) => ({
       key: category,
       label: t(category),

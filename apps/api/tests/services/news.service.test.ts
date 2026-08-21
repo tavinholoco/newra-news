@@ -252,15 +252,13 @@ describe('getNewsFacets', () => {
     expect(where.category).toBe('SPORTS');
   });
 
-  it('should apply every filter to the total', async () => {
-    await getNewsFacets({ category: 'SPORTS' as const, source: 'G1' });
+  it('should not count the slice a second time', async () => {
+    // Esse número é o `meta.total` da listagem. Um segundo total por outro
+    // caminho são duas respostas para a mesma pergunta.
+    vi.mocked(prisma.news.count).mockClear();
+    await getNewsFacets({ category: 'SPORTS' as const });
 
-    expect(prisma.news.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        category: 'SPORTS',
-        source: { equals: 'G1', mode: 'insensitive' },
-      }),
-    });
+    expect(prisma.news.count).not.toHaveBeenCalled();
   });
 
   it('should return categories sorted by count, descending', async () => {
@@ -275,11 +273,9 @@ describe('getNewsFacets', () => {
       }
       return [{ source: 'G1', _count: { _all: 7 } }];
     }) as never);
-    vi.mocked(prisma.news.count).mockResolvedValue(14);
 
     const facets = await getNewsFacets({});
 
-    expect(facets.total).toBe(14);
     expect(facets.categories).toEqual([
       { category: 'SPORTS', count: 11 },
       { category: 'WORLD', count: 3 },

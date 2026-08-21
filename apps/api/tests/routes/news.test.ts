@@ -7,9 +7,7 @@ import { getNewsById, listNews, getNewsFacets } from '../../src/services/news.se
 vi.mock('../../src/services/news.service', () => ({
   listNews: vi.fn().mockResolvedValue({ data: [], total: 0 }),
   getNewsById: vi.fn().mockResolvedValue(null),
-  getNewsFacets: vi
-    .fn()
-    .mockResolvedValue({ total: 0, categories: [], sources: [] }),
+  getNewsFacets: vi.fn().mockResolvedValue({ categories: [], sources: [] }),
 }));
 
 describe('GET /api/news', () => {
@@ -198,7 +196,6 @@ describe('GET /api/news/facets', () => {
 
   it('should return the facets envelope', async () => {
     vi.mocked(getNewsFacets).mockResolvedValueOnce({
-      total: 5,
       categories: [{ category: 'SPORTS', count: 5 }],
       sources: [{ source: 'G1', count: 5 }],
     } as never);
@@ -207,7 +204,6 @@ describe('GET /api/news/facets', () => {
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.data.total).toBe(5);
     expect(body.data.categories[0]).toEqual({ category: 'SPORTS', count: 5 });
     expect(body.data.sources[0]).toEqual({ source: 'G1', count: 5 });
   });

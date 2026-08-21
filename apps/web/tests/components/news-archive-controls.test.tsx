@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
-import type { NewsFacets } from '@newranews/types';
+import { Category, type NewsFacets } from '@newranews/types';
 import { CategoryNav } from '@/components/news/category-nav';
 import { NewsFilterBar } from '@/components/news/news-filter-bar';
 import {
@@ -11,10 +11,9 @@ import { HighlightTerm } from '@/components/editorial/highlight-term';
 import { renderWithIntl } from '@/tests/utils';
 
 const facets: NewsFacets = {
-  total: 48,
   categories: [
-    { category: 'SPORTS', count: 21 },
-    { category: 'WORLD', count: 9 },
+    { category: Category.SPORTS, count: 21 },
+    { category: Category.WORLD, count: 9 },
   ],
   sources: [
     { source: 'G1', count: 30 },
@@ -43,12 +42,14 @@ describe('CategoryNav', () => {
     expect(screen.getByRole('button', { name: /Saúde/ })).toHaveTextContent('0');
   });
 
-  it('should put the total on the "all" chip', () => {
+  it('should count "all" as what removing the category filter returns', () => {
+    // As 21 de Esportes mais as 9 de Mundo: é o que o clique devolve. O
+    // `meta.total` da listagem, com a categoria aplicada, seria 21.
     renderWithIntl(
-      <CategoryNav selected={null} facets={facets} onChange={vi.fn()} />,
+      <CategoryNav selected={Category.SPORTS} facets={facets} onChange={vi.fn()} />,
     );
 
-    expect(screen.getByRole('button', { name: /Todas/ })).toHaveTextContent('48');
+    expect(screen.getByRole('button', { name: /Todas/ })).toHaveTextContent('30');
   });
 
   it('should render without counts while the facets have not arrived', () => {
@@ -62,7 +63,7 @@ describe('CategoryNav', () => {
 
   it('should mark the selected category as pressed', () => {
     renderWithIntl(
-      <CategoryNav selected={'SPORTS' as never} facets={facets} onChange={vi.fn()} />,
+      <CategoryNav selected={Category.SPORTS} facets={facets} onChange={vi.fn()} />,
     );
 
     expect(screen.getByRole('button', { name: /Esportes/ })).toHaveAttribute(
@@ -78,7 +79,7 @@ describe('CategoryNav', () => {
   it('should report null when "all" is picked', () => {
     const onChange = vi.fn();
     renderWithIntl(
-      <CategoryNav selected={'SPORTS' as never} facets={facets} onChange={onChange} />,
+      <CategoryNav selected={Category.SPORTS} facets={facets} onChange={onChange} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Todas/ }));

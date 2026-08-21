@@ -72,8 +72,12 @@ e não uma página dele.
 
 **Cada lista ignora a própria dimensão.** Com `?category=SPORTS`, `categories`
 ainda traz as outras sete com os seus números — do contrário o leitor não teria
-como saber para onde trocar. `sources` idem em relação a `?source=`. `total`,
-esse sim, aplica todos os filtros: é o "N resultados" da tela.
+como saber para onde trocar. `sources` idem em relação a `?source=`.
+
+**Não há um total do recorte.** Esse número é o `meta.total` do `GET /api/news`,
+que sai da mesma consulta que trouxe as matérias visíveis; um segundo total, por
+outro caminho e com outro tempo de chegada, discordaria do primeiro enquanto um
+dos dois ainda estivesse no ar.
 
 `Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`.
 
@@ -81,7 +85,6 @@ esse sim, aplica todos os filtros: é o "N resultados" da tela.
 ```json
 {
   "data": {
-    "total": 148,
     "categories": [
       { "category": "WORLD", "count": 41 },
       { "category": "ECONOMY", "count": 33 }
