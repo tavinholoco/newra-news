@@ -1,66 +1,105 @@
 import { getLocale, getTranslations } from 'next-intl/server';
+import { ArrowLeft, Sparkles } from 'lucide-react';
+import type { ArticleWithSources } from '@newranews/types';
 import { Link } from '@/i18n/navigation';
-import type { Article } from '@newranews/types';
-import { ArrowLeft, Calendar, Newspaper } from 'lucide-react';
+import { AiDisclosure } from '@/components/editorial/ai-disclosure';
+import { ArticleBody } from '@/components/editorial/article-body';
+import { ArticleHero } from '@/components/editorial/article-hero';
+import { ReadingTime } from '@/components/editorial/reading-time';
+import { ShareButton } from '@/components/editorial/share-button';
+import { SourceList } from '@/components/editorial/source-list';
+import { NewsletterCta } from '@/components/monetization/newsletter-cta';
+import { formatArticleDate, readingTimeFromText } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
-import { formatArticleDate } from '@/lib/format';
 
 interface ArticleDetailProps {
-  article: Article;
+  article: ArticleWithSources;
 }
 
+/**
+ * O briefing do dia (§8).
+ *
+ * **É a tela onde a transparência de IA acontece.** Ao contrário de
+ * `/news/[id]`, este texto foi mesmo escrito por um modelo — e a §8 é explícita:
+ * um produto jornalístico com IA precisa dizer como o texto foi produzido, com
+ * quantas fontes, quando e por qual modelo. Daí a `AiDisclosure` vir **antes**
+ * da lista de fontes: primeiro a declaração, depois a evidência.
+ *
+ * **Sem imagem de hero.** O briefing não tem uma para chamar de sua — as fotos
+ * pertencem às matérias que o originaram. Pegar a imagem de uma delas
+ * atribuiria ao briefing uma foto de terceiro e sugeriria que ele é sobre
+ * aquele assunto.
+ *
+ * `sources` vazio e os campos de auditoria nulos são o estado normal dos
+ * briefings anteriores a 20/08/2026: nada os registrava e não houve backfill
+ * possível. A `SourceList` se omite sozinha; a declaração de IA fica, porque
+ * vale para todo briefing.
+ */
 export async function ArticleDetail({ article }: ArticleDetailProps) {
   const t = await getTranslations('article');
   const tCommon = await getTranslations('common');
   const locale = await getLocale();
 
+  const sourceCount = article.sources.length || article.newsCount;
+
   return (
-    <article>
-      {/* Back link */}
-      <div className='mb-6'>
+    <div className='flex flex-col gap-section'>
+      <div className='mx-auto w-full max-w-narrow'>
         <Link
           href='/article'
-          className='flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground'
+          className='inline-flex items-center gap-1.5 text-body-sm font-medium text-ink-secondary transition-colors duration-fast hover:text-link'
         >
-          <ArrowLeft className='h-4 w-4' />
+          <ArrowLeft className='size-4' aria-hidden='true' />
           {t('backTo')}
         </Link>
-      </div>
 
-      {/* Title */}
-      <h1 className='font-display mb-4 text-3xl font-bold leading-tight text-foreground sm:text-4xl'>
-        {article.title}
-      </h1>
-
-      {/* Meta */}
-      <div className='mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground'>
-        <span className='flex items-center gap-1.5'>
-          <Calendar className='h-4 w-4' />
-          {formatArticleDate(article.date, toDateFormatLocale(locale))}
-        </span>
-        <span className='flex items-center gap-1.5'>
-          <Newspaper className='h-4 w-4' />
-          {tCommon('sourcesConsulted', { count: article.newsCount })}
-        </span>
-      </div>
-
-      <hr className='mb-6 border-border' />
-
-      {/* Summary */}
-      <p className='mb-6 text-lg leading-relaxed text-muted-foreground'>
-        {article.summary}
-      </p>
-
-      {/* Content */}
-      <div className='break-words text-foreground'>
-        {article.content.split('\n').map((paragraph, index) =>
-          paragraph.trim() ? (
-            <p key={index} className='mb-4 leading-relaxed'>
-              {paragraph}
+        <ArticleHero
+          className='mt-6'
+          kicker={
+            // `text-link` e não `text-brand-accent`: a linha tem texto, e
+            // laranja em texto é `brand-700` (§4 dos tokens).
+            <p className='inline-flex items-center gap-2 text-link'>
+              <Sparkles className='size-4 shrink-0' aria-hidden='true' />
+              <span className='font-display text-overline font-semibold uppercase'>
+                {t('briefKicker')}
+              </span>
             </p>
-          ) : null,
-        )}
+          }
+          title={article.title}
+          dek={article.summary}
+          meta={
+            <div className='flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-body-sm text-ink-muted'>
+              <time dateTime={article.date}>
+                {formatArticleDate(article.date, toDateFormatLocale(locale))}
+              </time>
+              <span>{tCommon('sourcesConsulted', { count: sourceCount })}</span>
+              <ReadingTime
+                minutes={readingTimeFromText(article.content) ?? 1}
+              />
+            </div>
+          }
+          actions={
+            <ShareButton title={article.title} text={article.summary} />
+          }
+        />
       </div>
-    </article>
+
+      <div className='mx-auto w-full max-w-narrow'>
+        <ArticleBody content={article.content} />
+      </div>
+
+      <div className='mx-auto flex w-full max-w-narrow flex-col gap-block'>
+        <AiDisclosure
+          sourceCount={sourceCount}
+          generatedAt={article.generatedAt}
+          modelVersion={article.modelVersion}
+          promptVersion={article.promptVersion}
+        />
+
+        <SourceList sources={article.sources} />
+      </div>
+
+      <NewsletterCta />
+    </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Article, PaginatedResponse } from '@newranews/types';
 import { useArticleList } from '@/lib/queries';
-import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/editorial/pagination';
 import { ArticleGrid } from './article-grid';
 
 interface ArticlePageClientProps {
@@ -14,7 +14,11 @@ interface ArticlePageClientProps {
 
 export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
   const t = useTranslations('article');
-  const tCommon = useTranslations('common');
+  const tPagination = useTranslations('pagination');
+  // Página em estado local, não na URL: a ficha da tela escopa `/article` a
+  // ritmo visual, e ler a query string aqui exigiria uma fronteira de Suspense
+  // numa página que não precisa de nenhuma. Diverge de `/news`, que **é**
+  // compartilhável por contrato — anotado como dívida consciente.
   const [page, setPage] = useState(1);
 
   const { data, isFetching, isError } = useArticleList(
@@ -32,38 +36,22 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
 
   return (
     <div className='flex flex-col gap-6'>
-      {isError && (
-        <p className='rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
+      {isError ? (
+        <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
           {t('loadError')}
         </p>
-      )}
+      ) : null}
       <ArticleGrid
         articles={articles}
         isLoading={isFetching && articles.length === 0}
       />
-      {meta.totalPages > 1 && (
-        <div className='flex items-center justify-center gap-4'>
-          <Button
-            variant='outline'
-            size='lg'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isFetching}
-          >
-            {tCommon('previous')}
-          </Button>
-          <span className='text-sm text-muted-foreground'>
-            {tCommon('pageXOfY', { page, total: meta.totalPages })}
-          </span>
-          <Button
-            variant='outline'
-            size='lg'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= meta.totalPages || isFetching}
-          >
-            {tCommon('next')}
-          </Button>
-        </div>
-      )}
+      <Pagination
+        page={meta.page}
+        totalPages={meta.totalPages}
+        disabled={isFetching}
+        label={tPagination('historyLabel')}
+        onChange={handlePageChange}
+      />
     </div>
   );
 }

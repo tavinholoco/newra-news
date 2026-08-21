@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getNewsById } from '@/lib/api';
+import { getNewsById, getRelatedNews } from '@/lib/api';
 import { NewsDetail } from '@/components/news/news-detail';
 
 export const revalidate = 3600;
@@ -48,9 +48,14 @@ export default async function NewsDetailPage({ params }: Props) {
 
   if (!news) notFound();
 
+  // Em sequência, e não em `Promise.all` com o anterior: as relacionadas
+  // dependem de a notícia existir, e disparar as duas juntas gastaria uma
+  // consulta toda vez que o id não existe.
+  const related = await getRelatedNews(id);
+
   return (
-    <div className='mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8'>
-      <NewsDetail news={news} />
+    <div className='container-editorial py-section'>
+      <NewsDetail news={news} related={related} />
     </div>
   );
 }
