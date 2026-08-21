@@ -1,10 +1,12 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import type { EditorialStory } from '@newranews/types';
 import { Link } from '@/i18n/navigation';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { StoryImage } from '@/components/editorial/story-image';
+import { HighlightTerm } from '@/components/editorial/highlight-term';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +15,15 @@ interface StoryCardHorizontalProps {
   headingLevel?: HeadingLevel;
   /** Omite a miniatura — usado quando a coluna é estreita demais. */
   showImage?: boolean;
+  /** Termo buscado, para destacar na manchete (§7). Vazio não destaca nada. */
+  highlight?: string;
+  /**
+   * Controle solto no canto do item — hoje só o favoritar da listagem.
+   *
+   * Fica **fora** da âncora, como irmão dela: dentro seria botão aninhado em
+   * link, e o clique dispararia os dois.
+   */
+  action?: ReactNode;
   className?: string;
 }
 
@@ -28,13 +39,18 @@ export function StoryCardHorizontal({
   story,
   headingLevel: Heading = 'h3',
   showImage = true,
+  highlight = '',
+  action,
   className,
 }: StoryCardHorizontalProps) {
   const t = useTranslations('categories');
 
   return (
-    <article className={cn('group', className)}>
-      <Link href={`/news/${story.id}`} className='flex items-start gap-3'>
+    <article className={cn('group flex items-start gap-2', className)}>
+      <Link
+        href={`/news/${story.id}`}
+        className='flex min-w-0 flex-1 items-start gap-3'
+      >
         {showImage ? (
           <StoryImage
             src={story.imageUrl}
@@ -51,7 +67,7 @@ export function StoryCardHorizontal({
             {t(story.category)}
           </p>
           <Heading className='mt-1 font-display text-body font-bold leading-snug text-ink transition-colors duration-base line-clamp-3 group-hover:text-link'>
-            {story.title}
+            <HighlightTerm text={story.title} term={highlight} />
           </Heading>
           {/* Sem `sourceHref`: o item inteiro já é um link. */}
           <ArticleMeta
@@ -61,6 +77,8 @@ export function StoryCardHorizontal({
           />
         </div>
       </Link>
+
+      {action ? <div className='shrink-0'>{action}</div> : null}
     </article>
   );
 }

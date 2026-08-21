@@ -1,38 +1,33 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import { NewsListSkeleton } from '@/components/news/news-list-skeleton';
 
+/**
+ * Espera da navegação para `/news`.
+ *
+ * Reusa o `NewsListSkeleton` — o mesmo que o Suspense da página usa — para que
+ * a forma da espera seja a mesma nas duas fronteiras. Duas versões do esqueleto
+ * é como uma delas para de acompanhar a tela e ninguém percebe.
+ */
 export default function NewsLoading() {
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
-      {/* Cabeçalho */}
-      <div className='mb-8'>
-        <Skeleton className='h-9 w-44' />
-        <Skeleton className='mt-3 h-5 w-72' />
-      </div>
+    <div className='container-editorial py-section'>
+      <div className='flex flex-col gap-6'>
+        <div className='border-b border-line-strong pb-6'>
+          <Skeleton className='h-10 w-56' />
+          <Skeleton className='mt-3 h-6 w-full max-w-prose' />
+        </div>
 
-      {/* Busca */}
-      <Skeleton className='mb-4 h-10 w-full rounded-lg' />
+        {/* Busca */}
+        <Skeleton className='h-11 w-full rounded-md' />
 
-      {/* Filtros por categoria */}
-      <div className='mb-6 flex flex-wrap gap-2'>
-        <Skeleton className='h-8 w-20 rounded-full' />
-        <Skeleton className='h-8 w-24 rounded-full' />
-        <Skeleton className='h-8 w-28 rounded-full' />
-        <Skeleton className='h-8 w-20 rounded-full' />
-        <Skeleton className='h-8 w-24 rounded-full' />
-        <Skeleton className='h-8 w-28 rounded-full' />
-      </div>
+        {/* Filtro por categoria */}
+        <div className='flex gap-2 overflow-hidden'>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className='h-8 w-24 shrink-0 rounded-full' />
+          ))}
+        </div>
 
-      {/* Grid de notícias */}
-      <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className='flex flex-col gap-3'>
-            <Skeleton className='aspect-video w-full rounded-lg' />
-            <Skeleton className='h-4 w-1/4' />
-            <Skeleton className='h-5 w-full' />
-            <Skeleton className='h-5 w-3/4' />
-            <Skeleton className='h-4 w-1/2' />
-          </div>
-        ))}
+        <NewsListSkeleton />
       </div>
     </div>
   );

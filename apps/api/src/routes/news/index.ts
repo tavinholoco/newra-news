@@ -13,8 +13,8 @@ export async function newsRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      const { page, limit, category, search, date } = request.query;
-      const { data, total } = await listNews({ category, search, date }, { page, limit });
+      const { page, limit, sort, ...filters } = request.query;
+      const { data, total } = await listNews(filters, { page, limit, sort });
 
       return {
         data: data.map((item) => ({

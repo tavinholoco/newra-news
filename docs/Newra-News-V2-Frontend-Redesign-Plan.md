@@ -1409,16 +1409,57 @@ outros cards já clampavam; o hero era o único que não.
 > `lib/utils.ts`, declarando a escala tipográfica como `font-size` para o
 > `tailwind-merge`, com `tests/lib/cn.test.ts` de guarda.
 
-## Fase 4 — News / Category
+## Fase 4 — News / Category ✅ 21/08/2026 — branch `feat/v2-news-category`
 
 ```text
-[ ] category landing
-[ ] search UI
-[ ] filter state
-[ ] pagination
-[ ] empty states
-[ ] skeletons
+[x] category landing   (título + descrição curta por categoria — §7)
+[x] search UI          (URL, histórico local, vazio útil, destaque do termo)
+[x] filter state       (a URL passa a ser escrita, não só lida)
+[x] pagination         (numerada, na URL — não "carregar mais")
+[x] empty states       (três, e cada um com a saída que cabe)
+[x] skeletons          (com a forma da tela que antecedem)
+
+    -- o que a §7 pede e o §28 não listava --
+[x] category-nav com contagem       (a ficha da tela em docs/v2/02 §, não o §28)
+[x] filtro de fonte                 (a lista vem das facetas, não de constante)
+[x] filtro de período               (rótulo na URL, data derivada na consulta)
+[x] ordenação                       (recent | oldest)
+
+    -- fica para a Fase 6, com o resto do ecossistema de conta --
+[ ] "somente salvos"                (§7 — junta Favorite e News, resposta por
+                                     usuário, e portanto sem cache de CDN)
+
+    -- ao fechar a fase, contra produção --
+[ ] Lighthouse por rota (§26)
+[ ] recapturar a baseline visual (§30)
 ```
+
+> **A contagem exigiu um endpoint.** O `category-nav` mostra quantas matérias
+> cada categoria tem, e nada expunha isso — o frontend teria de disparar oito
+> requisições para desenhar oito pílulas. `GET /api/news/facets` é **aditivo**:
+> a forma do `GET /api/news` que a admin e os favoritos consomem não mudou.
+> Cada faceta ignora a própria dimensão, senão a categoria escolhida mostraria
+> o seu número e as outras sete zerariam — perdendo justamente a informação que
+> faz alguém trocar de categoria.
+
+> **A URL passou a ser escrita.** Era a dívida que a Fase 2 registrou ao criar
+> `…/news?category=X`: a tela **lia** o parâmetro, mas clicar num filtro mudava
+> `useState` e a URL passava a mentir. Agora não há segunda cópia do estado.
+> Escolha escreve com `push`, para o botão Voltar funcionar; a busca, debounced,
+> escreve com `replace` — senão "copa do mundo" deixaria quatro entradas de
+> histórico.
+
+> **Nada nesta fase desenha um card.** A lista compõe `hero-story` e
+> `story-card-horizontal`, os mesmos da Home. Eles ganharam duas props
+> opcionais: o termo a destacar, e um slot de ação — que é como a listagem
+> manteve o botão de favoritar da V1 sem aninhar `<button>` dentro da âncora do
+> card.
+
+> **Quatro defeitos vieram da revisão da própria fase**, três contra o app
+> rodando e um pelo teste. O maior: a pílula "Todas" mostrava `facets.total`,
+> que já aplica o filtro de categoria — com Mundo selecionado ela lia 594 e
+> depois abria 2.373. Cada pílula promete o que o próprio clique devolve.
+> Detalhe em `docs/progress.md`, item 19.
 
 ## Fase 5 — Article
 

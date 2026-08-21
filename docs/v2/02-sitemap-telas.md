@@ -60,19 +60,25 @@ seis nasceram na Fase 3, junto da camada de cards da §11 que os alimenta, e o
 > nada dentro é pior que não renderizar. O mesmo vale para `hero` e `briefing`
 > nulos — a Home precisa desenhar sem eles.
 
-### `/[locale]/news` — Feed, busca e filtros
+### `/[locale]/news` — Feed, busca e filtros ✅ entregue (Fase 4)
 
 | | |
 |---|---|
 | Propósito | navegação por categoria e busca no acervo |
-| Render | ISR 3600s (manter) |
+| Render | ISR 3600s (mantido) |
 | Auth | pública |
 | Indexação | sim |
-| Dados | `GET /api/news` (existe, sem mudança) |
+| Dados | `GET /api/news` (forma inalterada; ganhou `source`, `from`/`to`, `sort`) + **`GET /api/news/facets`** |
 | Fase | 4 |
 
-Componentes: `category-nav` + `story-card` / `story-card-horizontal` +
+Componentes: `category-nav` + `hero-story` / `story-card-horizontal` +
 paginação + estados vazio e skeleton.
+
+> **A previsão de "sem mudança" no dado não se sustentou — e o motivo está uma
+> linha abaixo, nesta mesma ficha.** O `category-nav` pede **contagem**, e nada
+> a expunha: seriam oito requisições para desenhar oito pílulas. `/api/news/facets`
+> é aditivo — a forma do `GET /api/news`, que a admin e os favoritos consomem,
+> continua a mesma.
 
 > **`category-nav` não é `editorial-nav`.** O `editorial-nav` da Fase 2 é a
 > linha 3 do masthead (§10): a faixa horizontal de categorias que aparece em
@@ -80,11 +86,17 @@ paginação + estados vazio e skeleton.
 > acervo, com estado de categoria selecionada e contagem. A §28 chama o
 > primeiro de "category navigation" na Fase 2 — é o do masthead, não este.
 
-Reaproveita: `news-search`, `news-filters` e `news-page-client` já resolvem
-estado de busca e filtro — a Fase 4 troca a apresentação, não a lógica.
+> **"Reaproveita `news-filters` e `news-page-client`" era otimista.** A previsão
+> era trocar a apresentação e manter a lógica; o que aconteceu foi o contrário —
+> a apresentação foi reescrita **e** a lógica saiu de `useState` para a URL.
+> `news-filters` e `news-grid` foram removidos; `news-card` ficou só para os
+> favoritos. O que se reaproveitou de verdade foram os cards editoriais, que era
+> o ponto.
 
-**Correção obrigatória:** o grid emite `h3` sem `h2` na sequência
-(`heading-order` reprovado — `00-diagnostico.md` §3.3).
+**Correção obrigatória:** o grid emitia `h3` sem `h2` na sequência
+(`heading-order` reprovado — `00-diagnostico.md` §3.3). ✅ Corrigida: `h1` é o
+título da página, `h2` o hero e o "Últimas", `h3` os cards, com teste que
+percorre os headings e falha em qualquer salto de nível.
 
 ### `/[locale]/news/[id]` — Notícia
 

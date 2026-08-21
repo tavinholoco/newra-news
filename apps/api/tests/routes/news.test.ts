@@ -2,11 +2,12 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { buildTestApp } from '../helpers/test-server';
 import type { FastifyInstance } from 'fastify';
 import type { LightMyRequestResponse } from 'fastify';
-import { getNewsById } from '../../src/services/news.service';
+import { getNewsById, listNews, getNewsFacets } from '../../src/services/news.service';
 
 vi.mock('../../src/services/news.service', () => ({
   listNews: vi.fn().mockResolvedValue({ data: [], total: 0 }),
   getNewsById: vi.fn().mockResolvedValue(null),
+  getNewsFacets: vi.fn().mockResolvedValue({ categories: [], sources: [] }),
 }));
 
 describe('GET /api/news', () => {
@@ -131,5 +132,110 @@ describe('GET /api/news/:id', () => {
     const res = await app.inject({ method: 'GET', url: '/api/docs/json' });
     const spec = JSON.parse(res.body);
     expect(spec.paths['/api/news/{id}']).toBeDefined();
+  });
+});
+
+describe('GET /api/news — filtros da Fase 4', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('should default sort to recent', async () => {
+    vi.mocked(listNews).mockClear();
+    await app.inject({ method: 'GET', url: '/api/news' });
+
+    expect(vi.mocked(listNews).mock.calls[0][1]).toMatchObject({
+      sort: 'recent',
+    });
+  });
+
+  it('should pass source, period and sort through to the service', async () => {
+    vi.mocked(listNews).mockClear();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/news?source=G1&from=2024-01-01T00:00:00.000Z&to=2024-01-31T00:00:00.000Z&sort=oldest',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [filters, pagination] = vi.mocked(listNews).mock.calls[0];
+    expect(filters).toMatchObject({
+      source: 'G1',
+      from: '2024-01-01T00:00:00.000Z',
+      to: '2024-01-31T00:00:00.000Z',
+    });
+    expect(pagination).toMatchObject({ sort: 'oldest' });
+  });
+
+  it('should return 400 for an unknown sort value', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/news?sort=random' });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('should return 400 for a period that is not a datetime', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/news?from=yesterday' });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('GET /api/news/facets', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('should return the facets envelope', async () => {
+    vi.mocked(getNewsFacets).mockResolvedValueOnce({
+      categories: [{ category: 'SPORTS', count: 5 }],
+      sources: [{ source: 'G1', count: 5 }],
+    } as never);
+
+    const res = await app.inject({ method: 'GET', url: '/api/news/facets' });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.data.categories[0]).toEqual({ category: 'SPORTS', count: 5 });
+    expect(body.data.sources[0]).toEqual({ source: 'G1', count: 5 });
+  });
+
+  it('should not be swallowed by the /:id route', async () => {
+    // `/:id` exige UUID: se o roteador casasse `facets` com ele, a resposta
+    // seria 400 e o `category-nav` ficaria sem contagem sem dizer por quê.
+    const res = await app.inject({ method: 'GET', url: '/api/news/facets' });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('should forward the filters that narrow the archive', async () => {
+    vi.mocked(getNewsFacets).mockClear();
+    await app.inject({
+      method: 'GET',
+      url: '/api/news/facets?search=copa&category=SPORTS',
+    });
+
+    expect(vi.mocked(getNewsFacets).mock.calls[0][0]).toMatchObject({
+      search: 'copa',
+      category: 'SPORTS',
+    });
+  });
+
+  it('should be cacheable at the CDN', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/news/facets' });
+    expect(res.headers['cache-control']).toContain('s-maxage');
+  });
+
+  it('should be documented in OpenAPI spec', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/docs/json' });
+    const spec = JSON.parse(res.body);
+    expect(spec.paths['/api/news/facets']).toBeDefined();
   });
 });

@@ -187,6 +187,58 @@ de estado da arte.
 
 ---
 
+## 5b. `GET /api/news/facets` — contagem por dimensão
+
+> **Acrescentado na Fase 4 (21/08/2026).** Não estava previsto: a ficha da
+> `/news` em `02-sitemap-telas.md` dizia "`GET /api/news` (existe, sem
+> mudança)", mas a mesma ficha pede um `category-nav` **com contagem**, e nada
+> a expunha. Sem este endpoint seriam oito requisições para desenhar oito
+> pílulas.
+
+```http
+GET /api/news/facets?category=&search=&date=&from=&to=&source=
+```
+
+Aceita as mesmas dimensões de filtro do `GET /api/news`. **Não** aceita
+paginação: descreve o acervo, não uma página dele.
+
+Resposta:
+
+```jsonc
+{
+  "data": {
+    "categories": [{ "category": "WORLD", "count": 594 }],  // desc por count
+    "sources":    [{ "source": "G1", "count": 401 }]        // no máx. 30
+  }
+}
+```
+
+**Cada lista ignora a própria dimensão.** Com `?category=SPORTS`, `categories`
+ainda traz as outras sete com os seus números — do contrário o leitor não teria
+como saber para onde trocar, que é a razão de a contagem existir. `sources` idem
+em relação a `?source=`.
+
+**Não há total do recorte, de propósito.** Esse número é o `meta.total` do
+`GET /api/news`, que sai da mesma consulta que trouxe as matérias visíveis. Um
+segundo total, por outro caminho e com outro tempo de chegada, discorda do
+primeiro enquanto um dos dois ainda está no ar. A primeira versão tinha o campo
+e a `/news` o usava na pílula "Todas" — que passou a prometer um número que o
+clique não entregava.
+
+Cache editorial (`s-maxage=300`), como os demais desta lista. Fica **fora** da
+listagem porque as facetas não mudam ao virar a página: juntas, dois `groupBy`
+seriam recalculados a cada paginação.
+
+### O `GET /api/news` também mudou — só nos filtros
+
+A forma da resposta é a mesma (a admin e os favoritos a consomem). Entraram
+`source`, `from`/`to` e `sort` (`recent` | `oldest`). O `date` de dia exato
+continua valendo; quando `date` e `from`/`to` chegam juntos, **o período ganha**
+— é o controle que o leitor acabou de mexer, e `date` costuma ser sobra de uma
+URL anterior.
+
+---
+
 ## 6. Auditoria do briefing — a única migration obrigatória
 
 > **✅ Implementada em 20/08/2026**, antes da Fase 1 e não entre as Fases 2 e 3

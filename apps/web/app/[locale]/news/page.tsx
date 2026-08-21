@@ -1,10 +1,11 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import type { News } from '@newranews/types';
+import type { News, NewsFacets } from '@newranews/types';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getNews } from '@/lib/api';
+import { getNews, getNewsFacets } from '@/lib/api';
+import { NewsArchiveHeader } from '@/components/news/news-archive-header';
+import { NewsListSkeleton } from '@/components/news/news-list-skeleton';
 import { NewsPageClient } from '@/components/news/news-page-client';
-import { NewsGrid } from '@/components/news/news-grid';
 
 export const revalidate = 3600;
 
@@ -37,30 +38,44 @@ export async function generateMetadata({
   };
 }
 
+const EMPTY_LIST = {
+  data: [] as News[],
+  meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+};
+
+const EMPTY_FACETS: NewsFacets = { categories: [], sources: [] };
+
 export default async function NewsPage({ params }: Props) {
   const { locale } = params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('news');
-  const initialData = await getNews(1, 20).catch(() => ({
-    data: [] as News[],
-    meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
-  }));
+  // A primeira página sem filtro e as facetas dela vão no HTML estático: é o
+  // que a maioria abre, e sem as facetas os chips de categoria nasceriam sem
+  // contagem e ganhariam o número só depois da hidratação — a barra inteira
+  // mudaria de largura na frente do leitor.
+  const [initialData, initialFacets] = await Promise.all([
+    getNews(1, 20).catch(() => EMPTY_LIST),
+    getNewsFacets().catch(() => EMPTY_FACETS),
+  ]);
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
-      <div className='mb-8'>
-        <h1 className='font-display text-2xl font-bold text-foreground sm:text-3xl'>
-          {t('title')}
-        </h1>
-        <p className='mt-2 text-muted-foreground'>
-          {t('pageDescription')}
-        </p>
-      </div>
-      {/* `NewsPageClient` lê `?category=` e `?search=` da URL; numa página
-          estática isso exige fronteira de Suspense. */}
-      <Suspense fallback={<NewsGrid news={[]} isLoading />}>
-        <NewsPageClient initialData={initialData} />
+    <div className='container-editorial py-section'>
+      {/* `NewsPageClient` lê a URL inteira (`?category=`, `?search=`, `?page=`…),
+          e numa página estática isso exige fronteira de Suspense. O fallback
+          repete o cabeçalho de propósito: assim o HTML pré-renderizado sai com
+          um `h1` de verdade, e não com um retângulo cinza. */}
+      <Suspense
+        fallback={
+          <div className='flex flex-col gap-6'>
+            <NewsArchiveHeader category={null} />
+            <NewsListSkeleton />
+          </div>
+        }
+      >
+        <NewsPageClient
+          initialData={initialData}
+          initialFacets={initialFacets}
+        />
       </Suspense>
     </div>
   );

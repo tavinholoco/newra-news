@@ -50,37 +50,28 @@
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2 e 3 concluídas e verificadas
-  contra produção. **O próximo ciclo é a Fase 4 (News / Category).** O PRD da V1
-  foi fechado em 2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-21):** Fase 3 (Home editorial) fechada contra
-  produção — Lighthouse **95·100·100·100** na Home, acessibilidade 100 nas cinco
-  rotas medidas com zero auditorias reprovando, baseline visual recapturada (42
-  imagens em `docs/v2/baseline-v2/`) e as pendências do item 18 encerradas.
-- **Testes:** 684 em 71 suites (478 API em 40 + 206 web em 31 — todos passando).
+- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3 e 4 concluídas. **O
+  próximo ciclo é a Fase 5 (Article).** O PRD da V1 foi fechado em 2026-08-15;
+  a V2 é o redesign editorial em cima dele.
+- **Última entrega (2026-08-21):** Fase 4 (News / Category) — a `/news` virou o
+  acervo da §7, com `category-nav` e contagem, busca com histórico local e
+  destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e
+  paginação numerada. O **estado da tela saiu do componente e foi para a URL**.
+- **Testes:** 783 em 75 suites (497 API em 40 + 286 web em 35 — todos passando).
 
-### O que a Fase 4 precisa saber antes de começar
+### O que a Fase 5 precisa saber antes de começar
 
-- **Escopo:** `category-nav`, busca, `filter state`, paginação, estados vazios e
-  skeletons. Especificação na **§7 e §28 do plano V2**, e a ficha da tela em
+- **Escopo:** `article hero`, tipografia do corpo, lista de fontes,
+  transparência de IA, share/save, relacionadas e o CTA da newsletter.
+  Especificação nas **§8 e §9 do plano V2**, e as fichas das telas em
   `docs/v2/02-sitemap-telas.md`.
-- **Os cards de `components/editorial/` são para reusar, não reconstruir.** Eles
-  já nasceram client components de propósito exatamente para servirem à
-  listagem CSR de `/news` — ver `apps/web/CLAUDE.md`.
-- **`/news` hoje só *lê* `?category=` e `?search=` da URL.** *Escrever* a URL a
-  cada clique de filtro e de página é o "filter state" da Fase 4.
-- **`editorial-nav` ≠ `category-nav`.** O primeiro é a faixa de navegação do
-  shell, entregue na Fase 2, e leva a `/news?category=X`. O segundo é o filtro
-  do acervo dentro de `/news`, com estado selecionado — e é da Fase 4.
-- **A categoria gravada acerta ~67%**, e isso é o teto do classificador por
-  palavra-chave (medido em 21/08 com dez regras candidatas contra 3.688 linhas
-  do acervo). A Fase 4 é interface sobre um campo que existe e é estável, então
-  isso **não a bloqueia** — mas evita a surpresa de ver matéria fora de lugar
-  navegando por categoria. Passar de 67% pede classificação por IA, que é
-  trabalho próprio e ainda não foi feito.
-- **O acervo se renormaliza sozinho** na etapa 8.5 do pipeline diário: qualquer
-  correção nas regras de ingestão alcança as linhas já gravadas na execução
-  seguinte. Não existe job manual a disparar.
+- **`GET /api/news/:id/related` já existe** desde a Fase 0.5 e nunca foi
+  consumido — a tela de notícia ainda não mostra relacionadas.
+- **Duas telas, não uma.** `/news/[id]` é a notícia coletada; `/article/[date]`
+  é o briefing diário gerado por IA. A §8 fala das duas, e a transparência de
+  IA (`sources`, `generatedAt`) só existe na segunda.
+- **Os cards editoriais continuam sendo para reusar.** Depois da Fase 4 eles
+  aceitam `highlight` e um slot `action` — ver `apps/web/CLAUDE.md`.
 
 ### Armadilhas que já custaram caro
 
@@ -92,6 +83,10 @@
   tem altura zero mas ainda consome o `gap-section` do pai.
 - **Nível de heading é prop, não valor fixo** nos cards editoriais. Heading fixo
   foi o que deixou `heading-order` reprovando em `/news` e `/article`.
+- **Número em controle de filtro tem de prometer o que o próprio clique
+  devolve.** A pílula "Todas" da Fase 4 mostrava o total **já filtrado** por
+  categoria: lia 594 e abria 2.373. Contagem de faceta ignora a própria
+  dimensão; o total do recorte é o `meta.total` da listagem, e só ele.
 - **O cache de `fetch` do Next (`.next/cache/fetch-cache`) sobrevive entre
   builds e serve dado velho.** Limpar antes de recapturar a baseline depois de
   mexer no seed ou nos dados.
@@ -103,10 +98,24 @@
   action): a execução semanal de segunda 09:00 UTC falha se alguma categoria
   cair abaixo de 90.
 
+### O que ficou em aberto na Fase 4
+
+- **"Somente salvos" da §7** — filtrar por favoritos exige juntar `Favorite` e
+  `News` e uma resposta por usuário, que não pode ser cacheada no CDN como o
+  resto da rota é. É trabalho da **Fase 6**.
+- **Lighthouse por rota e recaptura da baseline visual** rodam contra produção,
+  depois do merge.
+- **A categoria gravada acerta ~67%**, e isso é o teto do classificador por
+  palavra-chave. A Fase 4 é interface sobre um campo que existe e é estável, mas
+  evita a surpresa de ver matéria fora de lugar navegando por categoria. Passar
+  de 67% pede classificação por IA, que é trabalho próprio e ainda não foi
+  feito. O acervo se renormaliza sozinho na etapa 8.5 do pipeline diário — não
+  existe job manual a disparar.
+
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 18. É lá que mora o detalhe — este bloco é orientação, não
+  itens 11 a 19. É lá que mora o detalhe — este bloco é orientação, não
   changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,

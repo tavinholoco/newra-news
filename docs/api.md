@@ -19,7 +19,15 @@ Lista notícias com paginação e filtros.
 | `limit` | number | 20 | Itens por página (máx: 100) |
 | `category` | Category | — | Filtro por categoria |
 | `search` | string | — | Busca no título/descrição |
-| `date` | string (ISO) | — | Filtro por data de publicação |
+| `date` | string (ISO) | — | Um dia exato de publicação |
+| `from` | string (ISO) | — | Início do período, inclusivo |
+| `to` | string (ISO) | — | Fim do período, inclusivo |
+| `source` | string | — | Fonte exata, sem diferenciar maiúsculas |
+| `sort` | `recent` \| `oldest` | `recent` | Ordem por data de publicação |
+
+> `date` e `from`/`to` cobrem a mesma coluna. Quando os dois chegam, o período
+> ganha — é o controle que o leitor acabou de mexer, e `date` costuma ser
+> sobra de uma URL anterior.
 
 **Categorias:** `TECHNOLOGY`, `POLITICS`, `ECONOMY`, `SPORTS`, `SCIENCE`, `ENTERTAINMENT`, `WORLD`, `HEALTH`
 
@@ -49,6 +57,47 @@ Lista notícias com paginação e filtros.
   }
 }
 ```
+
+---
+
+### GET /api/news/facets
+
+Contagem por categoria e por fonte do acervo **sob o recorte atual** — é o que
+o `category-nav` da `/news` usa para mostrar o número ao lado de cada categoria
+sem disparar uma consulta por categoria.
+
+Aceita as mesmas dimensões de filtro do `GET /api/news` (`category`, `search`,
+`date`, `from`, `to`, `source`); não aceita paginação, porque descreve o acervo
+e não uma página dele.
+
+**Cada lista ignora a própria dimensão.** Com `?category=SPORTS`, `categories`
+ainda traz as outras sete com os seus números — do contrário o leitor não teria
+como saber para onde trocar. `sources` idem em relação a `?source=`.
+
+**Não há um total do recorte.** Esse número é o `meta.total` do `GET /api/news`,
+que sai da mesma consulta que trouxe as matérias visíveis; um segundo total, por
+outro caminho e com outro tempo de chegada, discordaria do primeiro enquanto um
+dos dois ainda estivesse no ar.
+
+`Cache-Control: public, s-maxage=300, stale-while-revalidate=3600`.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "categories": [
+      { "category": "WORLD", "count": 41 },
+      { "category": "ECONOMY", "count": 33 }
+    ],
+    "sources": [
+      { "source": "G1", "count": 52 }
+    ]
+  }
+}
+```
+
+`categories` vem ordenada por contagem decrescente e omite categoria sem
+matéria. `sources` traz no máximo 30 fontes, as mais frequentes primeiro.
 
 ---
 

@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowRight } from 'lucide-react';
 import type { EditorialStory } from '@newranews/types';
@@ -11,6 +12,13 @@ import { cn } from '@/lib/utils';
 
 interface HeroStoryProps {
   story: EditorialStory;
+  /**
+   * Controle sobreposto à imagem — hoje só o favoritar da listagem.
+   *
+   * Fica **fora** da âncora, como irmão dela: dentro seria botão aninhado em
+   * link, e o clique dispararia os dois.
+   */
+  action?: ReactNode;
   className?: string;
 }
 
@@ -32,15 +40,17 @@ interface HeroStoryProps {
  * a categoria. Rotular isso como "atualizado" mentiria em praticamente toda
  * matéria.
  */
-export function HeroStory({ story, className }: HeroStoryProps) {
+export function HeroStory({ story, action, className }: HeroStoryProps) {
   const t = useTranslations('categories');
   const tHome = useTranslations('home');
 
   return (
     <article
       aria-label={tHome('leadStory')}
-      className={cn('group flex flex-col', className)}
+      className={cn('group relative flex flex-col', className)}
     >
+      {action ? <div className='absolute right-4 top-4 z-10'>{action}</div> : null}
+
       <Link href={`/news/${story.id}`} className='flex flex-col'>
         <div className='relative overflow-hidden rounded-lg'>
           <StoryImage
