@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import type {
-  Category,
   News,
   Article,
   PaginatedResponse,
@@ -8,9 +7,12 @@ import type {
   FavoriteWithNews,
   RunPipelineResult,
   DeleteNewsResult,
+  NewsFilters,
+  NewsFacets,
 } from '@newranews/types';
 import {
   getNews,
+  getNewsFacets,
   getNewsById,
   getArticles,
   getArticleByDate,
@@ -25,11 +27,9 @@ import {
 
 // ── Query Key Factories ──────────────────────────────────────────────
 
-interface NewsListFilters {
+interface NewsListFilters extends NewsFilters {
   page: number;
   limit: number;
-  category?: Category;
-  search?: string;
 }
 
 interface ArticleListFilters {
@@ -43,6 +43,9 @@ export const newsKeys = {
   list: (filters: NewsListFilters) => [...newsKeys.lists(), filters] as const,
   details: () => [...newsKeys.all, 'detail'] as const,
   detail: (id: string) => [...newsKeys.details(), id] as const,
+  // As facetas ficam fora de `lists()`: elas não mudam ao virar a página, e
+  // pendurá-las na chave da lista as recarregaria a cada paginação.
+  facets: (filters: NewsFilters) => [...newsKeys.all, 'facets', filters] as const,
 };
 
 export const articleKeys = {
@@ -76,10 +79,27 @@ export function useNewsList(
   filters: NewsListFilters,
   initialData?: PaginatedResponse<News>,
 ) {
+  const { page, limit, ...rest } = filters;
+
   return useQuery({
     queryKey: newsKeys.list(filters),
-    queryFn: () =>
-      getNews(filters.page, filters.limit, filters.category, filters.search),
+    queryFn: () => getNews(page, limit, rest),
+    initialData,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Contagem por categoria e por fonte para os controles de filtro de `/news`.
+ *
+ * `placeholderData` segura os números anteriores enquanto a nova contagem
+ * chega: sem ele o chip pisca de "41" para nada e volta, e a barra inteira
+ * muda de largura no meio do clique.
+ */
+export function useNewsFacets(filters: NewsFilters, initialData?: NewsFacets) {
+  return useQuery({
+    queryKey: newsKeys.facets(filters),
+    queryFn: () => getNewsFacets(filters),
     initialData,
     placeholderData: keepPreviousData,
   });

@@ -1,7 +1,6 @@
 import type {
   News,
   Article,
-  Category,
   PaginatedResponse,
   ApiResponse,
   DashboardMetrics,
@@ -13,6 +12,8 @@ import type {
   HomeResponse,
   EditorialStory,
   TrendingWindow,
+  NewsFilters,
+  NewsFacets,
 } from '@newranews/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -33,20 +34,54 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
   return response.json() as Promise<T>;
 }
 
+/**
+ * Query string das dimensões de filtro, sem paginação.
+ *
+ * A listagem e as facetas mandam exatamente os mesmos parâmetros — é o que faz
+ * a contagem do chip bater com a lista que ele abre. Campo vazio some da URL em
+ * vez de virar `&search=`: string vazia é filtro, e filtrar por nada devolveria
+ * o acervo inteiro sob uma chave de cache diferente.
+ */
+function newsFilterParams(filters: NewsFilters = {}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.category) params.set('category', filters.category);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.source) params.set('source', filters.source);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  // `recent` é o default do backend: mandá-lo explicitamente só criaria duas
+  // chaves de cache para a mesma resposta.
+  if (filters.sort && filters.sort !== 'recent') params.set('sort', filters.sort);
+
+  return params;
+}
+
 export async function getNews(
   page = 1,
   limit = 12,
-  category?: Category,
-  search?: string,
+  filters: NewsFilters = {},
 ): Promise<PaginatedResponse<News>> {
-  const params = new URLSearchParams({
-    page: String(page),
-    limit: String(limit),
-  });
-  if (category) params.set('category', category);
-  if (search) params.set('search', search);
+  const params = newsFilterParams(filters);
+  params.set('page', String(page));
+  params.set('limit', String(limit));
 
   return fetchApi<PaginatedResponse<News>>(`/news?${params.toString()}`);
+}
+
+/**
+ * Contagem por categoria e por fonte do acervo sob o recorte atual.
+ *
+ * Chamada à parte da listagem de propósito: as facetas não mudam ao virar a
+ * página, e juntas na mesma resposta seriam recalculadas a cada paginação.
+ */
+export async function getNewsFacets(
+  filters: NewsFilters = {},
+): Promise<NewsFacets> {
+  const query = newsFilterParams(filters).toString();
+  const res = await fetchApi<ApiResponse<NewsFacets>>(
+    `/news/facets${query ? `?${query}` : ''}`,
+  );
+  return res.data;
 }
 
 export async function getNewsById(id: string): Promise<News> {

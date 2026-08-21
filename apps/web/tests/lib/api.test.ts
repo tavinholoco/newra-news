@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Category } from '@newranews/types';
 import {
   getNews,
+  getNewsFacets,
   getNewsById,
   getLatestArticle,
   getDashboardMetrics,
@@ -53,14 +54,73 @@ describe('getNews', () => {
     expect(url).toContain('/news?page=1&limit=12');
   });
 
-  it('should include category and search params when provided', async () => {
+  it('should include every filter dimension when provided', async () => {
     mockFetchJson({ data: [mockNews], meta: { total: 1 } });
-    await getNews(2, 20, Category.SPORTS, 'futebol');
+    await getNews(2, 20, {
+      category: Category.SPORTS,
+      search: 'futebol',
+      source: 'G1',
+      from: '2024-01-01T00:00:00.000Z',
+      sort: 'oldest',
+    });
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
-    expect(url).toContain('/news?page=2&limit=20');
+    expect(url).toContain('page=2&limit=20');
     expect(url).toContain('category=SPORTS');
     expect(url).toContain('search=futebol');
+    expect(url).toContain('source=G1');
+    expect(url).toContain('from=2024-01-01');
+    expect(url).toContain('sort=oldest');
+  });
+
+  it('should leave the default sort out of the URL', async () => {
+    // `recent` já é o default do backend: mandá-lo criaria uma segunda chave
+    // de cache para a mesma resposta.
+    mockFetchJson({ data: [mockNews], meta: { total: 1 } });
+    await getNews(1, 12, { sort: 'recent' });
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).not.toContain('sort=');
+  });
+
+  it('should leave an empty search out of the URL', async () => {
+    mockFetchJson({ data: [mockNews], meta: { total: 1 } });
+    await getNews(1, 12, { search: '' });
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).not.toContain('search=');
+  });
+});
+
+describe('getNewsFacets', () => {
+  it('should unwrap the data envelope', async () => {
+    const facets = {
+      total: 3,
+      categories: [{ category: 'SPORTS', count: 3 }],
+      sources: [{ source: 'G1', count: 3 }],
+    };
+    mockFetchJson({ data: facets });
+
+    const result = await getNewsFacets({ category: Category.SPORTS });
+
+    expect(result).toEqual(facets);
+  });
+
+  it('should request facets without pagination params', async () => {
+    mockFetchJson({ data: { total: 0, categories: [], sources: [] } });
+    await getNewsFacets({ search: 'copa' });
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toContain('/news/facets?search=copa');
+    expect(url).not.toContain('page=');
+  });
+
+  it('should request facets with no query string when there are no filters', async () => {
+    mockFetchJson({ data: { total: 0, categories: [], sources: [] } });
+    await getNewsFacets();
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toMatch(/\/news\/facets$/);
   });
 });
 
