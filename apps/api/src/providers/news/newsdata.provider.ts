@@ -92,9 +92,15 @@ async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
         article.content && !PAID_CONTENT_PLACEHOLDER.test(article.content)
           ? decodeEntities(article.content)
           : null,
-      // source_name pode vir ausente na API; nunca deixar source indefinido
+      // `decodeEntities` também aqui: o acervo tem "Jornal Do Com&eacute;rcio"
+      // porque só título e descrição eram decodificados, e o nome do veículo
+      // aparece cru no crédito de toda matéria dessa fonte.
+      //
+      // `source_name` pode vir ausente na API; nunca deixar source indefinido
       // (Prisma rejeita createMany com campo ausente).
-      source: article.source_name || article.source_id || 'Unknown source',
+      source: decodeEntities(
+        article.source_name || article.source_id || 'Unknown source',
+      ),
       sourceUrl: article.link,
       imageUrl: article.image_url,
       category,
