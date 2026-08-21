@@ -87,6 +87,9 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   const messages = await getMessages();
+  const skipLabel = (await getTranslations({ locale, namespace: 'shell' }))(
+    'skipToContent',
+  );
 
   return (
     <html lang={locale} suppressHydrationWarning className={cn(inter.variable, newsreader.variable)}>
@@ -103,8 +106,32 @@ export default async function LocaleLayout({
         <ThemeInit />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>
+            {/* Bypass block (WCAG 2.4.1). O shell tem três linhas e a faixa
+                de assuntos: são doze paradas de tabulação antes do conteúdo, e
+                em toda página. Visível só no foco — é o padrão, e é o que faz
+                ele não ocupar espaço para quem usa mouse.
+
+                A string existia desde a Fase 2; o link, não. */}
+            <a
+              href='#conteudo'
+              // `top` negativo, e não o par `sr-only` / `focus:not-sr-only`:
+              // aquele par disputa `position`, `width` e `height` entre duas
+              // utilities de mesma especificidade, e quem vence depende da
+              // ordem no CSS gerado. Aqui `.focus\:top-4:focus` é classe mais
+              // pseudo-classe (0,2,0) contra `.-top-24` (0,1,0), então o foco
+              // vence por **especificidade** — que não depende de ordem.
+              //
+              // `focus:` e não `focus-visible:`: o link fica fora da viewport e
+              // não há como clicá-lo, então todo foco que ele recebe é de
+              // teclado.
+              className='fixed left-4 -top-24 z-overlay rounded-md border border-line-strong bg-surface-raised px-4 py-2 text-body-sm font-semibold text-link focus:top-4 focus:outline-2 focus:outline-offset-2 focus:outline-focus'
+            >
+              {skipLabel}
+            </a>
             <Header />
-            <main className='flex-1'>{children}</main>
+            <main id='conteudo' className='flex-1'>
+              {children}
+            </main>
             <Footer />
           </Providers>
         </NextIntlClientProvider>
