@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { classifyCategory } from '../../services/category-classifier.service';
 import { decodeEntities } from '../ai/ai-utils';
+import { sanitizeDescription, sanitizeTitle } from './feed-text';
 import type { RawNewsItem } from '../types';
 import { rssSources, type RssSource } from '../../config/rss-sources';
 
@@ -59,15 +60,24 @@ async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
   return feed.items
     .filter((item) => item.title && (item.contentSnippet || item.content))
     .map((item) => {
-      const description = (item.contentSnippet || item.content) as string;
+      // Decodificar **antes** de higienizar e classificar: o título repetido no
+      // topo da descrição chega com entidades, e sem decodificar antes ele não
+      // casa com o título e a linha duplicada sobrevive. Pelo mesmo motivo o
+      // classificador passou a ver o texto limpo — antes ele recebia o título
+      // cru, com entidade e quebra de linha.
+      const title = sanitizeTitle(decodeEntities(item.title as string));
+      const description = sanitizeDescription(
+        decodeEntities((item.contentSnippet || item.content) as string),
+        title,
+      );
       return {
-        title: decodeEntities(item.title as string),
-        description: decodeEntities(description),
+        title,
+        description,
         content: item.content ? decodeEntities(item.content) : null,
         source: source.name,
         sourceUrl: item.link ?? source.url,
         imageUrl: extractImageUrl(item),
-        category: source.category ?? classifyCategory(item.title as string, description),
+        category: source.category ?? classifyCategory(title, description),
         publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
       };
     });

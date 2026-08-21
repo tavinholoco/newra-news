@@ -97,6 +97,48 @@ describe('fetchFromRss', () => {
     expect(result[0].category).toBe(Category.TECHNOLOGY);
   });
 
+  // A higiene do texto vive em `feed-text.ts` e é testada lá; estes dois
+  // garantem que ela está **ligada** no provider — que foi o que faltou até
+  // 21/08, quando o dek do hero chegou a produção repetindo o título.
+  it('should sanitize the title and the description on the way in', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [
+        {
+          ...mockItem,
+          title: '\nNotícia de Teste',
+          contentSnippet:
+            'Notícia de Teste\nDivulgação/Polícia Civil\nO corpo da matéria.',
+        },
+      ],
+    });
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    expect(result[0].title).toBe('Notícia de Teste');
+    expect(result[0].description).toBe('O corpo da matéria.');
+  });
+
+  // O classificador recebia `item.title` cru — com entidade e quebra de linha —
+  // enquanto o título gravado era o decodificado. Duas versões do mesmo campo.
+  it('should classify from the sanitized text, not the raw feed title', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [
+        {
+          ...mockItem,
+          title: '\nBolsa &amp; dólar: juros do Banco Central',
+          contentSnippet: 'resumo',
+        },
+      ],
+    });
+
+    const result = await fetchFromRss([sourceWithoutCategory]);
+
+    expect(result[0].title).toBe('Bolsa & dólar: juros do Banco Central');
+    expect(result[0].category).toBe(Category.ECONOMY);
+  });
+
   it('should filter out items without a title', async () => {
     mockParseString.mockResolvedValue({
       title: 'Test Feed',
