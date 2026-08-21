@@ -55,6 +55,16 @@ describe('HeroStory', () => {
 
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });
+
+  // O `dek` do contrato é a `description` da News, e boa parte dos feeds põe
+  // ali a matéria inteira — 1.876 caracteres no hero de produção. Sem clamp o
+  // parágrafo vira o elemento de LCP da Home.
+  it('should clamp the dek, however long the feed made it', () => {
+    renderWithIntl(<HeroStory story={makeStory({ dek: 'palavra '.repeat(400) })} />);
+
+    const dek = screen.getByText(/palavra/);
+    expect(dek.className).toMatch(/\bline-clamp-\d\b/);
+  });
 });
 
 describe('BriefingCard', () => {

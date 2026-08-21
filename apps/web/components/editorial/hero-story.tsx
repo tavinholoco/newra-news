@@ -59,8 +59,15 @@ export function HeroStory({ story, className }: HeroStoryProps) {
           {story.title}
         </h2>
 
+        {/* `line-clamp-3` não é estética, é contenção. O `dek` do contrato é a
+            `description` da News, e boa parte dos feeds põe ali a matéria
+            inteira — em produção o hero chegou com 1.876 caracteres, e o
+            `latest` tem deks de 6.381. Sem o clamp o hero vira uma tela e meia
+            de texto corrido, e o parágrafo passa a ser o **elemento de LCP** da
+            Home, medido em 2,8–3,9s. Todos os outros cards já clampavam; este
+            era o único que não. */}
         {story.dek ? (
-          <p className='mt-3 max-w-prose text-body-lg text-ink-secondary'>
+          <p className='mt-3 max-w-prose text-body-lg text-ink-secondary line-clamp-3'>
             {story.dek}
           </p>
         ) : null}

@@ -362,7 +362,7 @@
 
 **Decisões que valem registro**
 
-- [x] **O `h1` da Home é `sr-only`.** Quem abre a página vê a manchete do dia, não a palavra "Home" — mas página sem `h1` reprova `heading-order`, a única auditoria ainda de pé nas medições da Fase 1. A hierarquia ficou `h1` (oculto) → `h2` de hero e de seção → `h3` de card, conferida no DOM renderizado
+- [x] **O `h1` da Home é `sr-only`.** Quem abre a página vê a manchete do dia, não a palavra "Home", mas quem navega por heading precisa de uma raiz de outline. **Não é o Lighthouse que pede isto**, ao contrário do que a primeira redação deste item dizia: o `heading-order` reprova salto de nível, não ausência de `h1`, e `page-has-heading-one` não existe no conjunto auditado — conferido no relatório de 21/08. A hierarquia ficou `h1` (oculto) → `h2` de hero e de seção → `h3` de card, conferida no DOM de produção
 - [x] **Sem o indicador "Atualizado"** que a §6.2 previa como opcional — o `updatedAt` do contrato é o `@updatedAt` do Prisma e muda quando o pipeline reclassifica a categoria, não quando alguém revisa o texto
 - [x] **Todo bloco se omite sozinho, e o wrapper também.** Um grid vazio tem altura zero mas ainda consome o `gap-section` do pai; sem o guard, acervo sem imagem abria um buraco sem explicação no meio da página
 - [x] **`ArticleCard` removido** — era o hero da V1, ficou sem nenhum consumidor quando o `briefing-card` entrou
@@ -378,10 +378,25 @@
 - [x] **49 testes novos (154 → 203 no web; 625 no total)** em 5 suites: `story-card`, `home-blocks`, `ad-slot`, `ads` e `cn`, mais os de `getHome`/`getTrending` em `api.test.ts`. Fixtures dos blocos em `tests/fixtures/editorial.ts` e um mock de `next/image` compartilhado em `tests/mocks/` — `fill` e `priority` são props do componente, não atributos de DOM, e repassá-las cruas fazia o React descartá-las, o que deixaria qualquer asserção sobre elas passando por engano
 - [x] **4 pares novos no `check-contrast.mjs`** (58 no total, 0 reprovando) — a Fase 3 é a primeira a pôr texto de marca e metadata sobre `surface`, que é a superfície do card e não a da página
 
-**Ao fechar a fase (depois do merge, contra produção)**
+**Fechamento contra produção — 21/08**
 
-- [ ] **Lighthouse por rota** (§26) — em especial se `heading-order` finalmente sai de `/news` e `/article`
-- [ ] **Recapturar a baseline visual** (§30)
+- [x] **Lighthouse por rota** (§26) — [run 32477242736](https://github.com/tavinholoco/newra-news/actions/runs/32477242736). **Acessibilidade 100 nas cinco rotas, zero auditorias reprovando** — o alvo da fase. Atribuição honesta, porém: o `heading-order` que sobrava em `/news` e `/article` era o `h3` "NAVEGAÇÃO" do rodapé, que virou `h2` no commit `523ee90`, **da Fase 2**, uma hora depois da medição de 20/08. Esta é a primeira medição depois de aquilo chegar em produção — a Fase 3 não o corrigiu
+- [x] **Recapturar a baseline visual** (§30) — 42 capturas, e foi a captura da home que tornou óbvio o hero sem clamp. Nenhum teste da suíte pergunta "que altura isto ficou"
+- [x] **Contrato conferido em produção** — 36 matérias na resposta de `/api/home`, **36 distintas, zero repetidas**: a regra de "sem repetição entre blocos" da §3 vale no ar, não só no teste
+
+**Dois defeitos que a medição de produção achou** (PR #105)
+
+- [x] **O `dek` do hero não tinha clamp.** `dek` é a `description` da News, e boa parte dos feeds põe a matéria inteira ali — 1.876 caracteres no hero de produção, e o `latest` tem deks de 6.381. Todos os outros cards clampavam; o hero era o único que não, e renderizava 704px de texto corrido onde cabe um resumo de duas linhas. **É também a causa da queda de performance:** medido no browser, o parágrafo sem clamp ocupa 519.618 px² contra 350.815 px² da imagem do hero, ou seja, era **ele** o elemento de LCP (2,8–3,9s) — um bloco de texto que ninguém pré-carrega. Com o clamp o LCP passa a ser a imagem, que já tem `priority`/`fetchpriority=high`, e a página encolhe 612px
+- [x] **O gate do Lighthouse nunca tinha rodado.** A execução de 21/08 **passou** com a home em 78 de performance, doze pontos abaixo do piso de 90 do `.lighthouserc.json`. A action só executa `lhci assert` quando recebe `configPath` ou `budgetPath` — ela lê o rc para as URLs do collect de qualquer jeito, que é exatamente por que ninguém notou. O log tem "Collecting" e "Uploading" e nenhum "Asserting". O cabeçalho do workflow prometia esse gate desde o dia em que foi escrito
+
+**Performance da home: 97 → ~90, e o número publicado enganava**
+
+As três execuções de `/pt-BR` deram 78 · 86 · 94, e `/en` — a mesma página — deu 85 · 94 · 95. O resumo do workflow estampou **78** porque publica a "execução representativa", que o lhci escolhe pela mediana de FCP e interactive, **não do score de performance**. Somando as seis amostras da mesma página, a mediana real é ~90, contra 97 da V1 (§3.1 do diagnóstico). O clamp do hero ataca a causa; remedir depois do deploy do PR #105.
+
+**Fica em aberto**
+
+- [ ] **Classificação de categoria errada, agora na primeira dobra.** Produção mostra crime sob `TECHNOLOGY`, acidente de trânsito sob `ECONOMY` e violência doméstica sob `SPORTS`. É o `category-classifier.service.ts` do pipeline, não a Fase 3 — mas a Home passou a **agrupar por categoria**, e o grid indiferenciado da V1 escondia isso
+- [ ] **`description` do feed vem suja** — o `dek` do hero em produção começa repetindo o `title`, seguido do crédito da foto, e só então o corpo. Um título em produção começa com quebra de linha literal. Higiene de dado do pipeline
 
 ---
 
