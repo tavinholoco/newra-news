@@ -17,7 +17,10 @@
 
 ## Rotas
 - GET /api/health — healthcheck (keep-alive)
-- GET /api/news — listar notícias (paginado, filtro por categoria, busca, data)
+- GET /api/news — listar notícias (paginado; filtros: categoria, busca, dia
+  exato, período `from`/`to`, fonte; `sort` = `recent` | `oldest`)
+- GET /api/news/facets — contagem por categoria e por fonte do recorte atual,
+  para o `category-nav` e o filtro de fonte da `/news` (§7 do plano V2)
 - GET /api/news/:id — notícia por ID
 - GET /api/news/:id/related — relacionadas (mesma categoria em ±72h, com 2 níveis de fallback)
 - GET /api/home — resposta agregada da Home da V2 (hero, briefing, top, trending, categorias, latest)
@@ -51,6 +54,24 @@
   sessões
 - `getHome` não repete notícia entre blocos — a precedência resolve a disputa e
   o bloco perdedor desce o próprio ranking até preencher
+
+## Facetas do acervo (Fase 4)
+
+- **Cada faceta ignora a própria dimensão.** A contagem por categoria não aplica
+  o filtro de categoria — senão a escolhida mostraria o seu número e as outras
+  sete zerariam, que é justamente a informação que faz alguém trocar. O mesmo
+  vale para fonte. Busca e período valem para as duas: restringem o universo do
+  qual se escolhe.
+- **`buildNewsWhere` é compartilhado** entre listagem e facetas, com um `omit`
+  para a dimensão contada. Montar o predicado duas vezes daria números que não
+  batem com a lista logo abaixo deles, e os dois lados renderizam sem reclamar.
+- **A rota não devolve um total do recorte.** Esse número é o `meta.total` da
+  listagem, da mesma consulta que trouxe as matérias visíveis; um segundo total
+  por outro caminho discorda do primeiro enquanto um dos dois está no ar.
+- `/facets` é segmento literal e o roteador do Fastify o prioriza sobre `/:id`,
+  que exige UUID e devolveria 400.
+- Tem `Cache-Control` editorial: as facetas não mudam ao virar a página, então
+  ficam fora da listagem para não recalcular dois `groupBy` a cada paginação.
 
 ## Pipeline Diário (10 etapas)
 Coleta → Normalização → Deduplicação → Persistência →

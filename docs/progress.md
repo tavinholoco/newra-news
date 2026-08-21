@@ -41,11 +41,13 @@
 
 > A Home editorial da §6: `HeroStory`, `DailyBrief`, `TopStories`, `TrendingList`, `CategorySections`, `AdSlot` e os layouts responsivos, mais a camada de cards da §11 que os alimenta. **Uma chamada de rede** (`GET /api/home`) no lugar de duas que montavam bem menos página. 625 testes verdes. Ver **item 17**.
 
-**Próximo ciclo — V2.0 Fase 4 (News / Category)** 📋 **Desbloqueada** — item 18 fechado
+**Newra News V2.0 — Fase 4 (News / Category)** ✅ Concluída em 2026-08-21 — **checklist da §28 fechado**
 
-> `category-nav`, busca, `filter state` (escrever a URL a cada clique — hoje `/news` só **lê** o parâmetro), paginação, estados vazios e skeletons. Os cards de `components/editorial/` são para reusar, não reconstruir.
->
-> O item 18 fechou: classificador medido e apertado, acervo se renormalizando sozinho na etapa 8.5 do pipeline, Lighthouse de volta a 95 na Home e baseline recapturada.
+> A `/news` virou o acervo da §7: `category-nav` com contagem, busca com histórico local e destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e paginação numerada. O **estado saiu do componente e foi para a URL** — até a Fase 3 ela só era lida. A contagem por categoria pediu um endpoint aditivo, `GET /api/news/facets`. 783 testes verdes. Ver **item 19**.
+
+**Próximo ciclo — V2.0 Fase 5 (Article)** 📋
+
+> `article hero`, tipografia do corpo, lista de fontes, transparência de IA, share/save, relacionadas e o CTA da newsletter — §8 e §9 do plano. O `GET /api/news/:id/related` já existe desde a Fase 0.5.
 
 ---
 
@@ -502,6 +504,136 @@ regras atuais" — na próxima mudança de regra o problema volta igual.
 **O `JOB_SECRET` deixou de ser passo do plano.** Não havia nada que ele
 resolvesse que a etapa 8.5 não resolva melhor, e a medição que motivou tudo saiu
 do `/api/news` público, sem segredo nenhum.
+
+---
+
+### 19. V2.0 Fase 4 — News / Category ✅ Concluída em 2026-08-21
+
+> Branch `feat/v2-news-category`. A `/news` deixa de ser uma grade uniforme de
+> cards e vira o **acervo**: título e descrição por categoria, `category-nav`
+> com contagem, filtros de fonte, período e ordem, hero, lista editorial e
+> paginação numerada. Checklist da §28 fechado.
+
+```text
+[x] category landing   (título + descrição curta por categoria — §7)
+[x] search UI          (URL, histórico local, vazio útil, destaque do termo)
+[x] filter state       (a URL passa a ser escrita, não só lida)
+[x] pagination         (numerada, na URL)
+[x] empty states       (três, e cada um com a saída que cabe)
+[x] skeletons          (com a forma da tela que antecedem)
+```
+
+**A ficha da tela pedia uma coisa que o §28 não deixa explícita: contagem.** O
+`category-nav` mostra quantas matérias cada categoria tem, e nada expunha isso —
+o frontend teria de disparar oito requisições para desenhar oito pílulas. Daí
+`GET /api/news/facets`, **aditivo**: o contrato do `GET /api/news` que a admin e
+os favoritos consomem não mudou de forma. De quebra, ele entrega a lista de
+fontes que o filtro da §7 pede, sem uma constante que envelhece quando o
+pipeline troca de feed.
+
+**Cada faceta ignora a própria dimensão.** Com Esportes selecionado, as outras
+sete continuam reportando os seus números — é justamente a informação que faz
+alguém trocar de categoria. Foi a regra que o `buildNewsWhere` compartilhado
+existe para garantir: contagem e lista saem do mesmo predicado, menos a dimensão
+contada.
+
+**O `GET /api/news` ganhou o resto dos filtros da §7** — `source`, `sort`
+(`recent`/`oldest`) e o período por `from`/`to`. O `date` de dia exato continua
+valendo; quando os dois chegam, o período ganha, porque é o controle que o
+leitor acabou de mexer e `date` costuma ser sobra de URL anterior.
+
+**O estado saiu do componente e foi para a URL.** Até a Fase 3 havia três
+`useState` ressincronizados por efeito: a URL era **entrada**, e clicar num
+filtro a deixava mentindo. Agora `useNewsFilters` lê e escreve, e não há segunda
+cópia para divergir. Escolha (categoria, fonte, período, ordem, página) escreve
+com `push`, para o botão Voltar funcionar; a busca, que é debounced, escreve com
+`replace` — senão "copa do mundo" deixaria quatro entradas de histórico.
+
+**Período viaja como rótulo (`?period=7d`), não como data.** `?from=2026-08-14`
+deixa de significar "os últimos sete dias" amanhã. A data é derivada na hora da
+consulta e **ancorada na meia-noite UTC**: ancorada no instante, o `from` mudaria
+a cada milissegundo, e ele entra na chave de cache do TanStack Query e na URL da
+API — cada render viraria uma consulta nova e o CDN nunca acertaria.
+
+**Nada aqui desenha um card.** A lista compõe `hero-story` e
+`story-card-horizontal`, os mesmos da Home — era esse o ponto de eles terem
+nascido client components na Fase 3. Ganharam duas props opcionais: o termo a
+destacar e um slot de ação, que é como a listagem **manteve o botão de
+favoritar** que a V1 tinha sem aninhar `<button>` dentro da âncora do card.
+`news-grid` e `news-filters` saíram; `news-card` fica só para os favoritos, que
+são da Fase 6.
+
+**A hierarquia de heading é a correção obrigatória da ficha da tela.** O grid
+antigo emitia `h3` sem `h2` antes (`heading-order` reprovado, §3.3 do
+diagnóstico). Agora `h1` é o título da página, `h2` o hero e o "Últimas", `h3` os
+cards — com teste que percorre os headings e falha em qualquer salto de nível.
+
+**O estado vazio diz qual das três razões vale.** Busca sem resultado cita o
+termo que falhou; combinação de filtros que não fecha diz que é a combinação;
+acervo vazio diz que a coleta ainda não rodou — e **não** oferece "limpar
+filtros", que mandaria o leitor limpar o que já está limpo. O terceiro é o que
+costuma faltar.
+
+**O histórico de busca é `localStorage`, não conta.** A `/news` é pública e não
+exige sessão; o que alguém procurou não vira registro no projeto. Toda leitura é
+defensiva — `localStorage` lança em modo privativo de alguns navegadores e o
+conteúdo é editável à mão. Histórico corrompido volta vazio e nunca derruba a
+busca.
+
+**`<select>` nativo para fonte, período e ordem.** Teclado, leitor de tela e o
+seletor do sistema no mobile vêm corretos de graça; um popover próprio seria
+reimplementar o que o navegador faz, e a §15 cobra exatamente esse
+comportamento. A coerência visual vem dos tokens de borda, superfície e raio.
+
+#### O que a revisão da própria fase encontrou
+
+Quatro defeitos, todos achados depois de o código estar escrito — três contra o
+app rodando, um pelo teste.
+
+- **A pílula "Todas" prometia um número que o clique não entregava.** Ela
+  mostrava `facets.total`, que já aplica o filtro de categoria: com Mundo
+  selecionado lia **594** e depois abria **2.373**. Cada pílula promete o que o
+  próprio clique devolve, então ela passou a somar as facetas de categoria — que
+  são as contagens com a categoria suspensa.
+- **`facets.total` saiu do contrato.** O `meta.total` da listagem é o mesmo
+  número, vindo da mesma consulta que trouxe as matérias visíveis. Dois totais
+  por caminhos diferentes discordam enquanto um dos dois está no ar. Tirar
+  também tirou uma consulta `count` por requisição.
+- **A linha de contagem anunciava "Nenhuma notícia encontrada" durante o
+  carregamento.** Sem resposta ainda, `meta.total` é zero — e a frase aparecia
+  logo acima do esqueleto. Agora ela só entra quando há resposta.
+- **A paginação cortava uma faixa de cinco páginas com reticências.** Foi o
+  teste que pegou: `paginationRange(1, 5)` devolvia `[1, 2, …, 5]`. Abaixo de
+  oito páginas a faixa inteira cabe, e cortar é esconder o que já era visível.
+
+Uma prop que ninguém passa também saiu: `StoryCard` tinha ganhado `highlight`,
+mas o hero do acervo é `HeroStory` e a lista é de cards horizontais.
+
+#### Verificação
+
+- **Contra o app rodando** (API + web local, 2.373 notícias no acervo): URL
+  escrita e lida nas seis dimensões; `h1` e descrição trocando com a categoria;
+  facetas corretas sob filtro combinado (`?category=SPORTS&source=ESPN Brasil`
+  zera as outras sete categorias, porque a ESPN só publica esporte); destaque do
+  termo com `<mark>`; estado vazio de busca citando o termo; sem erro no
+  console; sem overflow horizontal a 375px.
+- **`/news` continua SSG** (`●` no relatório de build) — o Suspense repete o
+  cabeçalho no fallback, então o HTML pré-renderizado sai com um `h1` de
+  verdade, e não com um retângulo cinza.
+- **783 testes verdes** (497 API em 40 suites + 286 web em 35). `pnpm lint`,
+  `pnpm typecheck` e `pnpm build` limpos; `contrast:check` em 60 pares, zero
+  reprovando — o par novo é o texto principal sobre `surface-accent`, que é o
+  `<mark>` do destaque (17,25:1 no claro, 15,50:1 no escuro).
+
+#### O que **não** entrou
+
+- **"Somente salvos" da §7.** Filtrar a listagem por favoritos exige juntar
+  `Favorite` e `News` na consulta do acervo e uma resposta por usuário — que não
+  pode ser cacheada no CDN como o resto da rota é. É trabalho da **Fase 6**, com
+  o resto do ecossistema de conta.
+- **Autocomplete da busca**, que a própria §7 marca como futuro.
+- **Recaptura da baseline visual** (§30) e **Lighthouse por rota**: rodam contra
+  produção, depois do merge.
 
 ---
 

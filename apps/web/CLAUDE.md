@@ -60,11 +60,12 @@ Regras que não são óbvias no código:
   reintroduza `h-16`/`top-16`/`calc(100vh-…)` — era assim antes, e um masthead
   de três linhas quebrava os três de uma vez.
 - **`editorial-nav` ≠ `category-nav`.** Este é navegação e leva a
-  `/news?category=X`; o `category-nav` da Fase 4 é o filtro do acervo dentro de
-  `/news`, com estado selecionado e contagem.
-- **`/news` lê `?category=` e `?search=` da URL e ressincroniza quando eles
-  mudam.** Navegar dentro da mesma rota não remonta o componente, então um
-  `useState(inicial)` sozinho deixa o filtro velho e a URL passa a mentir.
+  `/news?category=X`; o `category-nav` (Fase 4) é o filtro do acervo dentro de
+  `/news`, com estado selecionado e contagem. São componentes diferentes de
+  propósito: um sublinha, o outro preenche.
+- **O `MastheadSearch` submete para `/news?search=…` e descarta os demais
+  filtros.** É busca nova a partir do shell, não refinamento da tela — quem
+  refina usa o campo da própria `/news`.
 - **Componentes do shell aparecem duas vezes** (desktop e dentro do menu). Se
   algum precisar de `id`, use `useId()`.
 - **`Logo`** tem a marca em SVG inline com `currentColor` — é o que a deixa
@@ -72,12 +73,56 @@ Regras que não são óbvias no código:
   texto (§40.3-A); trocar pelo lockup desenhado é substituir um `<span>` ali
   dentro e em mais lugar nenhum.
 
+## Acervo — `/news` (Fase 4)
+
+O estado da tela **mora na URL**, não em `useState`. `lib/news-filters.ts` é a
+parte pura (ler, escrever, contar filtros ativos, resolver o período em data) e
+`lib/use-news-filters.ts` é o hook que navega.
+
+| Peça | Papel |
+|---|---|
+| `news-archive-header` | `h1` + descrição curta, genérica ou da categoria |
+| `news-search` | campo, debounce e histórico local |
+| `category-nav` | pílulas com estado e contagem |
+| `news-filter-bar` | fonte, período, ordem e "limpar filtros" |
+| `news-list` | hero + lista, compondo os cards editoriais |
+| `news-pagination` · `news-empty-state` · `news-list-skeleton` | os três estados da lista |
+
+Regras que não são óbvias no código:
+
+- **Escolha escreve com `push`; a busca, com `replace`.** Cada clique é uma
+  decisão que o botão Voltar deve desfazer. A busca é debounced e escreveria uma
+  entrada de histórico por pausa de digitação.
+- **Qualquer filtro zera a página.** Ficar na página 7 de uma busca que agora
+  tem duas devolve uma tela vazia que parece defeito.
+- **Valor desconhecido na URL cai no default em silêncio.** A query string é
+  editável por qualquer um: `?category=BANANA` mostra o acervo, não uma tela
+  quebrada.
+- **`/news` limpa tem de ser `/news`.** `writeNewsFilters` omite tudo que é
+  default — é a URL que a `editorial-nav` aponta e a que entra no sitemap.
+- **O período viaja como rótulo (`?period=7d`) e vira data na consulta,
+  ancorada na meia-noite UTC.** Ancorado no instante, o `from` mudaria a cada
+  render — e ele entra na chave do TanStack Query e na URL da API.
+- **A contagem da pílula é o que o clique dela devolve.** As facetas ignoram a
+  própria dimensão, e a pílula "Todas" soma as facetas de categoria. **Não use
+  um total do recorte ali** — foi o defeito que a revisão da Fase 4 achou.
+- **O `Suspense` da página repete o `NewsArchiveHeader` no fallback.** A rota é
+  estática: sem isso o HTML pré-renderizado sairia com um retângulo cinza no
+  lugar do `h1`.
+- **O histórico de busca é `localStorage`**, e toda leitura é defensiva —
+  `localStorage` lança em modo privativo e o conteúdo é editável à mão.
+  Histórico corrompido volta vazio e nunca derruba a busca.
+- **`newsToStory` (`lib/story.ts`) é a ponte** entre o `News` que `/api/news`
+  devolve e o `EditorialStory` que os cards falam. É a contraparte de
+  `toEditorialStory` do backend, com a mesma regra de tempo de leitura.
+
 ## Páginas
 - / → redireciona (307) para /pt-BR ou /en (middleware)
 - /[locale]/ → Home editorial (SSG + ISR) — **uma** chamada, `GET /api/home`,
   que já devolve hero, briefing, top stories, trending, categorias e latest sem
   repetir matéria entre blocos. Não montar a Home bloco a bloco
-- /[locale]/news → Listagem com filtros (CSR para filtros)
+- /[locale]/news → Acervo: busca, filtros e paginação (SSG + ISR; o estado
+  vive na query string e a listagem filtrada é CSR)
 - /[locale]/news/[id] → Notícia individual (dinâmica)
 - /[locale]/article → Histórico de artigos
 - /[locale]/article/[date] → Artigo diário (dinâmica)
@@ -202,6 +247,7 @@ plano).
 | `story-image` | caixa de imagem + placeholder de marca |
 | `section-heading` | filete + título + "ver tudo" |
 | `hero-story` · `briefing-card` · `top-stories` · `trending-list` · `latest-stories` · `category-section` | os blocos da Home (Fase 3) |
+| `highlight-term` | envolve em `<mark>` o termo buscado (Fase 4) |
 
 Regras que não são óbvias no código:
 
@@ -224,6 +270,14 @@ Regras que não são óbvias no código:
   `<ol>`, e ouvir "3" antes da manchete é a mesma informação duas vezes.
 - **A Home tem `h1` `sr-only`.** Não há título visível próprio (quem abre vê a
   manchete do dia), mas página sem `h1` reprova `heading-order`.
+- **`action` é slot, e fica fora da âncora.** `hero-story` e
+  `story-card-horizontal` aceitam um `ReactNode` no canto — hoje só o favoritar
+  da `/news`. Dentro do `<Link>` seria botão aninhado em link, e um clique
+  dispararia os dois.
+- **`highlight` é opcional e vazio não faz nada.** `HighlightTerm` casa pelo
+  literal, com escape de regex: `C++` como padrão é quantificador inválido, e
+  casar de forma mais esperta destacaria trecho que não foi o motivo do
+  resultado.
 
 ### Monetização
 
