@@ -158,6 +158,13 @@ describe('CategorySection', () => {
     stories: makeStories(3),
   };
 
+  /** O wrapper das colunas — o único `grid` que a seção emite. */
+  function gridOf(container: HTMLElement): HTMLElement {
+    const grid = container.querySelector('section > div[class*="grid"]');
+    if (!grid) throw new Error('grid da CategorySection não encontrado');
+    return grid as HTMLElement;
+  }
+
   it('should point "view all" at the URL the editorial nav already uses', () => {
     renderWithIntl(<CategorySection section={section} />);
 
@@ -182,6 +189,25 @@ describe('CategorySection', () => {
     expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(
       'Matéria 1',
     );
+  });
+
+  // A baseline visual de 21/08 flagrou "Esportes" com uma matéria só: a grade
+  // de duas colunas deixava metade da faixa em branco, o que lê como bloco
+  // quebrado. Sem segunda coluna, não há grade de duas colunas.
+  it('should not split into two columns when there is nothing for the second', () => {
+    const { container } = renderWithIntl(
+      <CategorySection section={{ ...section, stories: makeStories(1) }} />,
+    );
+
+    expect(gridOf(container).className).not.toMatch(/grid-cols-2/);
+  });
+
+  it('should split into two columns as soon as there is a second story', () => {
+    const { container } = renderWithIntl(
+      <CategorySection section={{ ...section, stories: makeStories(2) }} />,
+    );
+
+    expect(gridOf(container).className).toMatch(/grid-cols-2/);
   });
 
   it('should render nothing when the category has no stories', () => {

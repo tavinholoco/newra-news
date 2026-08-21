@@ -341,9 +341,11 @@ Reaplica as regras de ingestão às notícias **já gravadas**: decodifica
 entidades, higieniza título e descrição, e reclassifica a categoria — nesta
 ordem, porque a classificação lê o texto higienizado.
 
-Existe porque corrigir a ingestão só conserta o que entra daqui pra frente. O
-acervo vive 30 dias antes do cleanup, então uma correção nas regras leva um mês
-para aparecer inteira sem este job.
+**O pipeline já faz isso sozinho, todo dia, na etapa 8.5.** Esta rota é para
+*inspecionar* — `dryRun` é o padrão e devolve o relatório sem gravar nada — e
+para casos pontuais em que não se quer esperar a próxima execução. Ela não é o
+mecanismo: mecanismo que depende de alguém lembrar de rodar volta a divergir na
+primeira mudança de regra.
 
 **Rate limit:** 20 req/min
 **Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`

@@ -6,6 +6,7 @@ import type { HomeCategorySection } from '@newranews/types';
 import { SectionHeading } from '@/components/editorial/section-heading';
 import { StoryCard } from '@/components/editorial/story-card';
 import { StoryCardHorizontal } from '@/components/editorial/story-card-horizontal';
+import { cn } from '@/lib/utils';
 
 interface CategorySectionProps {
   section: HomeCategorySection;
@@ -39,11 +40,17 @@ export function CategorySection({ section, className }: CategorySectionProps) {
         linkLabel={tHome('categoryViewAll', { category: categoryLabel })}
       />
 
-      <div className='grid gap-block md:grid-cols-2'>
+      {/* Duas colunas só quando há o que pôr na segunda. Uma categoria com uma
+          matéria só — acontece, e a baseline de 21/08 flagrou "Esportes" assim
+          — deixava metade da faixa em branco, o que lê como bloco quebrado e
+          não como categoria magra. Sozinho, o lead ocupa a largura toda. */}
+      <div className={cn('grid gap-block', rest.length > 0 && 'md:grid-cols-2')}>
         <StoryCard
           story={lead}
           size='lead'
-          sizes='(max-width: 768px) 100vw, 50vw'
+          sizes={
+            rest.length > 0 ? '(max-width: 768px) 100vw, 50vw' : '100vw'
+          }
         />
 
         {rest.length > 0 ? (

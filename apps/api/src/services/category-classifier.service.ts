@@ -118,12 +118,30 @@ const TITLE_WEIGHT = 3;
 /**
  * Quantas palavras **distintas** a descrição precisa casar para decidir sozinha.
  *
- * Três, e não uma. Uma agenda cultural com "música", "show", "festival",
- * "banda", "cantor" e "artistas" é entretenimento mesmo com o título genérico
- * ("Agenda cultural tem…"), e continua classificada. Uma matéria policial que
- * cita "empresa" uma vez, não.
+ * Cinco, e o número saiu de medição. Contra as 3.688 linhas do acervo de
+ * produção, com um gabarito de 24 decisões conferidas à mão, dez regras
+ * candidatas foram comparadas em 21/08:
+ *
+ * | regra | acerto |
+ * |---|---|
+ * | corpo inteiro, piso 3 (a anterior) | 54% |
+ * | lide de 600 ou 800 caracteres, piso 3 | 63% |
+ * | **corpo inteiro, piso 5** | **67%** |
+ * | lide de 600, piso 5 | 58% |
+ * | só o título classifica | 54% |
+ *
+ * A hipótese de partida era o **lide** — ler só os primeiros 600–800
+ * caracteres, porque um lide diz do que a matéria trata e o parágrafo 14
+ * divaga. Ela perdeu: cortar o texto tira tanto sinal bom quanto ruim, e o
+ * ganho veio de exigir mais evidência, não de ler menos. A maquinaria do lide
+ * saiu do código — não se guarda o que a medição rejeitou.
+ *
+ * **67% é o teto deste método.** Dez regras, intervalo de 54% a 67%: não é
+ * falta de ajuste fino, é o limite de casar palavra-chave em corpo de notícia.
+ * Subir disso pede classificação por IA — o pipeline já fala com Gemini e Groq
+ * —, e isso é trabalho próprio, não mais uma volta no piso.
  */
-const MIN_DESCRIPTION_SIGNALS = 3;
+const MIN_DESCRIPTION_SIGNALS = 5;
 
 /**
  * Quantas vezes a **mesma** palavra ainda conta.

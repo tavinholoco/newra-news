@@ -26,9 +26,10 @@
 - GET /api/articles/:date — artigo por data (YYYY-MM-DD)
 - GET /api/articles/latest — artigo mais recente
 - POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min)
-- POST /api/jobs/renormalize-news — reaplica as regras de ingestão ao acervo já
-  gravado (Bearer `JOB_SECRET`). **`dryRun` é o padrão** — gravar exige
-  `{"dryRun": false}` explícito. Corpo: `dryRun`, `limit`, `sources`,
+- POST /api/jobs/renormalize-news — a mesma renormalização da etapa 8.5, sob
+  demanda (Bearer `JOB_SECRET`). **O pipeline já faz isso todo dia** — esta rota
+  serve para *inspecionar* (`dryRun`, o padrão, devolve o relatório sem gravar)
+  e para casos pontuais, não é o mecanismo. Corpo: `dryRun`, `limit`, `sources`,
   `categoryMode` (`clear-only` por padrão)
 - GET /api/jobs/:pipelineId — status de execução do pipeline
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
@@ -51,11 +52,21 @@
 - `getHome` não repete notícia entre blocos — a precedência resolve a disputa e
   o bloco perdedor desce o próprio ranking até preencher
 
-## Pipeline Diário (9 etapas)
+## Pipeline Diário (10 etapas)
 Coleta → Normalização → Deduplicação → Persistência →
-Seleção → Geração IA → Persistência Artigo → Cleanup → Métricas
+Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup →
+**Renormalização** → Métricas
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias
+
+**A etapa 8.5 (renormalização) é o que faz uma correção de regra alcançar o que
+já está gravado.** Consertar a ingestão só conserta o que entra; sem ela, uma
+regra corrigida hoje levaria 30 dias para aparecer inteira, porque é quando o
+cleanup apaga as linhas antigas. Rodando todo dia, o acervo converge sozinho no
+dia seguinte a qualquer mudança de regra — sem ninguém lembrar de disparar nada.
+Vem **depois** do cleanup de propósito: renormalizar linha que acabou de ser
+apagada é trabalho jogado fora. É idempotente, então em regime ela varre e não
+escreve nada.
 
 ## Ingestão: higiene de texto e categoria
 
@@ -75,12 +86,18 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
   ocorrências por palavra, piso de 3 palavras **distintas** para a descrição
   decidir sozinha, e **título vence corpo em empate** — a ordem de
   `CATEGORY_PRIORITY` só decide entre iguais.
-- **Corrigir a ingestão só conserta o que entra.** O acervo vive 30 dias, então
-  a Home continuaria mostrando a categoria errada por um mês. Quem repara o que
-  já está gravado é `services/news-renormalizer.service.ts`, e ele faz as três
-  coisas **na mesma ordem da ingestão** — decodifica, higieniza, e só então
-  classifica. Reclassificar sobre a descrição suja daria um resultado diferente
-  do que a mesma matéria teria se entrasse hoje.
+- **Corrigir a ingestão só conserta o que entra.** Quem repara o que já está
+  gravado é `services/news-renormalizer.service.ts`, chamado pela etapa 8.5 do
+  pipeline, e ele faz as três coisas **na mesma ordem da ingestão** —
+  decodifica, higieniza, e só então classifica. Reclassificar sobre a descrição
+  suja daria um resultado diferente do que a mesma matéria teria se entrasse
+  hoje.
+- **O teto do classificador por palavra-chave é ~67%.** Medido em 21/08 com dez
+  regras candidatas contra 3.688 linhas e um gabarito de 24 decisões conferidas
+  à mão. O piso de 5 palavras distintas é o melhor desse conjunto (o anterior,
+  de 3, dava 54%). A hipótese do "lide" — ler só os primeiros 600–800
+  caracteres — foi medida e **perdeu**. Passar de 67% pede classificação por IA,
+  não mais ajuste de piso.
 - **O recorte é `CLASSIFIER_OWNED_SOURCES`**, derivado das fontes sem
   `category` fixa em `rss-sources.ts`. Fonte com categoria fixa teve a
   categoria escolhida pela configuração; recalcular ali destrói dado correto.

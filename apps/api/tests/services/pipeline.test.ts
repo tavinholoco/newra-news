@@ -39,6 +39,9 @@ vi.mock('@newranews/database', async (importOriginal) => {
 
 vi.mock('../../src/services/news-fetcher.service');
 vi.mock('../../src/services/ai.service');
+vi.mock('../../src/services/news-renormalizer.service', () => ({
+  renormalizeStoredNews: vi.fn(),
+}));
 vi.mock('../../src/services/newsletter.service', () => ({
   sendDailyNewsletter: vi.fn(),
 }));
@@ -47,6 +50,7 @@ import { prisma } from '@newranews/database';
 import { fetchAll } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
+import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
 
 const mockFetchResult = {
   newsDataItems: [
@@ -129,6 +133,15 @@ beforeEach(() => {
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
   vi.mocked(fetchAll).mockResolvedValue(mockFetchResult);
   vi.mocked(generateArticle).mockResolvedValue(mockGeneratedArticle);
+  vi.mocked(renormalizeStoredNews).mockReset().mockResolvedValue({
+    dryRun: false,
+    scanned: 0,
+    textChanged: 0,
+    categoryChanged: 0,
+    categorySkipped: 0,
+    transitions: [],
+    sample: [],
+  });
   vi.mocked(sendDailyNewsletter).mockResolvedValue({
     total: 0,
     sent: 0,
@@ -231,7 +244,16 @@ describe('PipelineService', () => {
   });
 
   it('should send the daily newsletter after persisting the article', async () => {
-    vi.mocked(sendDailyNewsletter).mockResolvedValue({
+    vi.mocked(renormalizeStoredNews).mockReset().mockResolvedValue({
+    dryRun: false,
+    scanned: 0,
+    textChanged: 0,
+    categoryChanged: 0,
+    categorySkipped: 0,
+    transitions: [],
+    sample: [],
+  });
+  vi.mocked(sendDailyNewsletter).mockResolvedValue({
       total: 3,
       sent: 3,
       failed: 0,
@@ -498,5 +520,48 @@ describe('PipelineService', () => {
     // As duas operações vão juntas numa transação para não existir um instante
     // em que o briefing fique sem nenhuma fonte.
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A etapa 8.5 é o que faz uma correção de regra alcançar o que já está gravado.
+ *
+ * Sem ela, consertar a ingestão só conserta o que entra, e as linhas antigas
+ * seguem servidas até o cleanup — 30 dias em que a Home mostra a categoria
+ * velha. Com ela, o acervo converge sozinho no dia seguinte, sem ninguém
+ * precisar lembrar de disparar nada.
+ */
+describe('PipelineService — renormalização do acervo (etapa 8.5)', () => {
+  it('should renormalize stored news on every run, writing for real', async () => {
+    await triggerPipeline();
+    await vi.waitFor(() =>
+      expect(renormalizeStoredNews).toHaveBeenCalledWith({ dryRun: false }),
+    );
+  });
+
+  // Depois do cleanup: renormalizar linha que a etapa 8 acabou de apagar é
+  // trabalho jogado fora.
+  it('should run after the cleanup, not before', async () => {
+    await triggerPipeline();
+    await vi.waitFor(() => expect(renormalizeStoredNews).toHaveBeenCalled());
+
+    const cleanupAt = vi.mocked(prisma.news.deleteMany).mock.invocationCallOrder[0];
+    const renormalizeAt = vi.mocked(renormalizeStoredNews).mock.invocationCallOrder[0];
+
+    expect(cleanupAt).toBeDefined();
+    expect(renormalizeAt).toBeGreaterThan(cleanupAt as number);
+  });
+
+  it('should not abort the pipeline when renormalization fails', async () => {
+    vi.mocked(renormalizeStoredNews).mockRejectedValue(new Error('db down'));
+
+    await triggerPipeline();
+
+    await vi.waitFor(() => {
+      const successUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+        (call) => (call[0] as { data?: { status?: string } })?.data?.status === 'SUCCESS',
+      );
+      expect(successUpdate).toBeDefined();
+    });
   });
 });

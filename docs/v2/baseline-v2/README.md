@@ -1,8 +1,8 @@
 # Baseline visual da V2 — estado corrente
 
-42 capturas de `https://newra-news-web.vercel.app`, **20/08/2026 às 23:05**,
-depois de a Fase 2 (Shell) entrar em produção. É a referência contra a qual as
-fases seguintes se comparam.
+42 capturas de `https://newra-news-web.vercel.app`, **21/08/2026**, depois de a
+Fase 3 (Home) entrar em produção. É a referência contra a qual as fases
+seguintes se comparam.
 
 ```bash
 BASE_URL=https://newra-news-web.vercel.app \
@@ -28,8 +28,16 @@ o antes e o depois no próprio diff das imagens.
 
 | Captura | Estado |
 |---|---|
-| 20/08, 23:05 | **atual** — Fase 2: masthead de três linhas, faixa de categorias, rodapé no ritmo dos tokens, landing da newsletter |
+| 21/08 | **atual** — Fase 3 fechada: Home editorial, dek do hero com clamp, Lighthouse 95·100·100·100 |
+| 20/08, 23:05 | Fase 2: masthead de três linhas, faixa de categorias, rodapé no ritmo dos tokens |
 | 20/08, 21:29 | Fase 1: tokens novos, shell ainda o da V1 |
+
+> **Duas coisas ainda vão mexer nestas imagens, e é esperado.** A captura é de
+> antes da primeira execução da etapa 8.5 do pipeline, que higieniza o texto já
+> gravado — hoje o dek do hero em produção ainda abre repetindo a manchete e
+> mostrando o crédito da foto, e isso some na próxima rodada. E a seção de
+> categoria com uma matéria só ainda aparece com metade da faixa vazia, o que
+> foi corrigido depois desta captura. Recapturar quando as duas tiverem subido.
 
 ## Diferenças em relação à `baseline-v1/`
 
