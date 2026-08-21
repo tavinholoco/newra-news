@@ -53,6 +53,28 @@ Seleção → Geração IA → Persistência Artigo → Cleanup → Métricas
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias
 
+## Ingestão: higiene de texto e categoria
+
+Duas regras que não são óbvias no código e custaram uma Home errada em produção:
+
+- **O texto do feed é limpo na entrada, em `providers/news/feed-text.ts`.** O
+  que chega em `title`/`description` não é o que os nomes sugerem: título com
+  quebra de linha literal, e `description` que abre repetindo o título, depois
+  o crédito da foto, e só então o corpo. Limpar na ingestão é o único lugar
+  onde se conserta uma vez — o campo alimenta o `dek` do contrato editorial, o
+  resumo dos cards e o texto que o classificador lê.
+- **Palavra-chave de categoria tem de dizer do que a matéria _trata_, não como
+  ela foi apurada.** `redes sociais`, `celular`, `internet`, `programacao`
+  (grade de atrações!), `empresa`, `fundo`, `clube` e `ia` (`ia` casa o
+  imperfeito de "ir") aparecem em qualquer pauta e classificaram matéria
+  policial como Tecnologia. O classificador tem três defesas: teto de 2
+  ocorrências por palavra, piso de 3 palavras **distintas** para a descrição
+  decidir sozinha, e **título vence corpo em empate** — a ordem de
+  `CATEGORY_PRIORITY` só decide entre iguais.
+- **`WORLD` é o balde genérico, e é onde matéria de polícia e trânsito deve
+  cair.** Não há categoria para esse gênero no enum, e forçá-lo em outra é
+  exatamente o defeito que foi corrigido.
+
 ## Providers
 ```
 providers/
