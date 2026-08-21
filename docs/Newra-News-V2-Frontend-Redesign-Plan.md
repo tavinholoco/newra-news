@@ -1336,9 +1336,45 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 [x] latest-stories                  (a grade cronológica de "mais notícias")
 
     -- ao fechar a fase --
-[ ] Lighthouse por rota contra produção (§26)
-[ ] recapturar a baseline visual (§30)
+[x] Lighthouse por rota contra produção (§26) — 21/08, ver tabela abaixo
+[x] recapturar a baseline visual (§30) — e foi ela que achou o hero sem clamp
 ```
+
+### Medição de 21/08 ([run 32477242736](https://github.com/tavinholoco/newra-news/actions/runs/32477242736))
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 78 · 86 · 94 | **100** | 100 | 100 |
+| `/pt-BR/news` | 95 | **100** | 100 | 100 |
+| `/pt-BR/article` | 95 | **100** | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 85 · 94 · 95 | 100 | 100 | 100 |
+
+**Acessibilidade 100 nas cinco rotas, zero auditorias reprovando.** É o alvo da
+fase, atingido. Mas a atribuição precisa ficar certa: o `heading-order` que
+sobrava em `/news` e `/article` era o `h3` "NAVEGAÇÃO" do rodapé, e ele virou
+`h2` no commit `523ee90` — **da Fase 2**, uma hora depois da medição de 20/08.
+Esta é só a primeira medição depois de aquilo chegar em produção; a Fase 3 não
+o corrigiu.
+
+**Performance da home caiu.** A linha da home traz as três execuções porque a
+variação foi grande demais para um número só, e porque o resumo do workflow
+publica a "execução representativa" — que o lhci escolhe pela mediana de FCP e
+interactive, não do score — e por isso estampou 78. Somando `/en`, que é a mesma
+página, a mediana real é ~90, contra 97 da V1 (§3.1 do diagnóstico).
+
+A causa foi achada e corrigida: **o `dek` do hero não tinha clamp**. Com 1.876
+caracteres em produção, o parágrafo ocupava 704px e 519.618 px² — área maior que
+a imagem do hero (350.815 px²) —, o que fazia dele o **elemento de LCP** da
+página, medido em 2,8–3,9s. Um bloco de texto que ninguém pré-carrega. Todos os
+outros cards já clampavam; o hero era o único que não.
+
+> **O gate do Lighthouse nunca tinha rodado.** A execução de 21/08 passou com a
+> home em 78, doze pontos abaixo do piso de 90 que o `.lighthouserc.json`
+> define. A action só executa `lhci assert` quando recebe `configPath` ou
+> `budgetPath`; ela lê o rc para as URLs do collect de qualquer jeito, e é por
+> isso que a configuração parecia ligada. O log tem "Collecting" e "Uploading" e
+> nenhum "Asserting". Corrigido junto do clamp.
 
 > **Uma chamada de rede, não seis.** A Home consome só `GET /api/home`, e é o
 > servidor que garante que nenhuma matéria aparece em dois blocos. A Home da V1
@@ -1352,8 +1388,11 @@ inexistentes. Contratos fechados em `docs/v2/03-contratos-api.md`.
 > quem olha.
 >
 > **O `h1` da Home é `sr-only`.** Quem abre a página vê a manchete do dia, não a
-> palavra "Home" — mas página sem `h1` reprova `heading-order`, que era a única
-> auditoria ainda de pé nas medições da Fase 1.
+> palavra "Home", mas quem navega por heading precisa de uma raiz de outline —
+> sem ela a página abriria direto num `h2`. **Não é o Lighthouse que pede
+> isto**, ao contrário do que a primeira redação desta seção dizia: o
+> `heading-order` reprova salto de nível, não ausência de `h1`, e
+> `page-has-heading-one` não está no conjunto auditado.
 >
 > **Sem o indicador "Atualizado" que a §6.2 previa como opcional.** O `updatedAt`
 > do contrato é o `@updatedAt` do Prisma: muda quando o pipeline reclassifica a
