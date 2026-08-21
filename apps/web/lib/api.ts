@@ -268,6 +268,27 @@ export async function getHome(categories?: number): Promise<HomeResponse> {
 }
 
 /**
+ * Relacionadas de uma notícia (§5 dos contratos, §9 do plano).
+ *
+ * Devolve lista vazia em qualquer falha, e **não** lança: a seção "leia
+ * também" é complementar ao artigo. Derrubar a página inteira porque o bloco do
+ * rodapé não carregou trocaria um problema pequeno por um grande.
+ */
+export async function getRelatedNews(
+  id: string,
+  limit = 4,
+): Promise<EditorialStory[]> {
+  try {
+    const res = await fetchApi<ApiResponse<EditorialStory[]>>(
+      `/news/${id}/related?limit=${limit}`,
+    );
+    return res.data;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Ranking de alta (§4 dos contratos). A Home **não** chama isto — o bloco dela
  * sai de `getHome().trending`, que já respeita a precedência entre blocos.
  * Existe para telas que mostram o ranking isolado.

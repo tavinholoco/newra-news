@@ -45,16 +45,17 @@ export default async function ArticleHistoryPage({ params }: Props) {
   const initialData = await prefetch(getArticles(1, 9));
 
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
-      <div className='mb-8'>
-        <h1 className='font-display text-2xl font-bold text-foreground sm:text-3xl'>
-          {t('title')}
-        </h1>
-        <p className='mt-2 text-muted-foreground'>
-          {t('pageDescription')}
+    <div className='container-editorial py-section'>
+      <header className='border-b border-line-strong pb-6'>
+        <h1 className='font-display text-h1 font-bold text-ink'>{t('title')}</h1>
+        <p className='mt-2 max-w-prose text-body-lg text-ink-secondary'>
+          {t('historyIntro')}
         </p>
+      </header>
+
+      <div className='mt-8'>
+        <ArticlePageClient initialData={initialData} />
       </div>
-      <ArticlePageClient initialData={initialData} />
     </div>
   );
 }

@@ -98,18 +98,34 @@ paginação + estados vazio e skeleton.
 título da página, `h2` o hero e o "Últimas", `h3` os cards, com teste que
 percorre os headings e falha em qualquer salto de nível.
 
-### `/[locale]/news/[id]` — Notícia
+### `/[locale]/news/[id]` — Notícia ✅ entregue (Fase 5)
 
 | | |
 |---|---|
 | Render | dinâmica |
-| Dados | `GET /api/news/:id` + **`GET /api/news/:id/related`** (§18.3, não existe) |
-| Fase | 4 |
+| Dados | `GET /api/news/:id` + `GET /api/news/:id/related` |
+| Fase | **5** (esta ficha dizia 4 — ver nota) |
 
-Componentes: hero de imagem, `source-list`, `reading-time`, `favorite-button`,
-`related-stories`, `ad-slot`.
+Componentes: `article-hero`, `article-body`, `article-meta`, `favorite-button`,
+`share-button`, `related-stories`, `newsletter-cta`.
 
-### `/[locale]/article` — Histórico de briefings
+> **A fase estava errada aqui.** A §28 põe `article hero`, `source list`,
+> `share/save`, `related stories` e `newsletter CTA` na Fase 5, e os cinco são
+> exatamente os componentes desta tela. A Fase 4 seguiu a §28 e deixou a tela de
+> fora; a Fase 5 a entregou. Separá-la de `/article/[date]` teria duplicado
+> `source-list` e `related-stories`.
+
+> **Sem `source-list` e sem transparência de IA.** Esta matéria tem **uma**
+> fonte, e ela cabe na linha de metadata; a lista de fontes é do briefing, que
+> tem quinze. E o texto aqui foi escrito por uma redação — declarar IA seria
+> mentira. O que a tela declara é que o texto é do veículo e que o Newra News
+> coletou.
+
+> **Sem `ad-slot`.** Sem inventário o componente não renderiza nada
+> (`NEXT_PUBLIC_ADS_ENABLED`), e hoje é sempre esse o caso — o placement entra
+> na Fase 8, com o resto da monetização.
+
+### `/[locale]/article` — Histórico de briefings ✅ entregue (Fase 5)
 
 | | |
 |---|---|
@@ -117,25 +133,46 @@ Componentes: hero de imagem, `source-list`, `reading-time`, `favorite-button`,
 | Dados | `GET /api/articles` |
 | Fase | 5 |
 
-Lista cronológica de briefings. `article-history-card` continua sendo o
-primitivo; muda o ritmo visual (agrupar por mês, marcar o de hoje).
+Lista cronológica de briefings, agrupada por mês e com o do dia marcado. O
+`article-history-card` deixou de ser cartão e virou **item de lista**: data à
+esquerda, manchete à direita, régua entre os dias. Uma grade de cartões fazia
+cada dia parecer um produto separado.
 
-### `/[locale]/article/[date]` — Briefing do dia
+> **Página em estado local, não na URL** — ao contrário de `/news`. A ficha
+> escopa esta tela a ritmo visual, e ler a query string aqui exigiria uma
+> fronteira de Suspense numa página que não precisa de nenhuma. Dívida
+> consciente, anotada no componente.
+
+### `/[locale]/article/[date]` — Briefing do dia ✅ entregue (Fase 5)
 
 | | |
 |---|---|
 | Render | dinâmica |
-| Dados | `GET /api/articles/:date` + campos de auditoria (§18.4, **não existem**) |
+| Dados | `GET /api/articles/:date`, **com** auditoria e fontes |
 | Fase | 5 |
 
-É a tela mais afetada pela lacuna de dados: a §8 pede transparência de IA
-(modelo, versão do prompt, fontes consultadas, horário de geração) e o modelo
-`Article` só tem `title`, `content`, `summary`, `date` e `newsCount`. Sem a
-migration da §37-E, a seção de transparência não tem o que exibir.
+Componentes: `article-hero`, `article-body`, `ai-disclosure`, `source-list`,
+`share-button`, `newsletter-cta`.
 
-Componentes: hero do briefing, corpo em serif com medida de 68ch,
-`source-list`, bloco de divulgação de IA, `share`/`save`, `related-stories`,
-`newsletter-cta`.
+> **A lacuna de dados fechou em duas etapas, e a segunda quase passou.** A
+> migration `add_daily_briefing_metadata` entrou na Fase 0.5, mas o schema de
+> resposta continuou sendo o da V1 até 21/08 — o serviço lia os campos e o
+> `fastify-type-provider-zod` os descartava na serialização. Ver item 20 do
+> `progress.md`.
+
+> **A declaração de IA vem antes da lista de fontes**: primeiro a afirmação,
+> depois a evidência. E cada linha de auditoria se omite sozinha quando nula, o
+> que é o estado normal dos briefings anteriores a 20/08 — a declaração fica, e
+> ela não depende de coluna nenhuma.
+
+> **Sem `related-stories` e sem `save`.** As relacionadas do briefing seriam as
+> matérias que o originaram, e essas já estão na `source-list` — uma segunda
+> lista seria a mesma informação duas vezes. O `save` não existe porque
+> `Favorite` referencia `newsId`: favoritar um `Article` é trabalho da Fase 6.
+
+> **Sem imagem de hero.** O briefing não tem uma para chamar de sua — as fotos
+> pertencem às matérias que o originaram, e pegar uma delas atribuiria ao
+> briefing a foto de um terceiro.
 
 ### `/[locale]/newsletter` — Landing ✅ entregue
 

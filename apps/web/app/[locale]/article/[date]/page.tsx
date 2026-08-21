@@ -52,7 +52,7 @@ export default async function ArticleDatePage({ params }: Props) {
   if (!article) notFound();
 
   return (
-    <div className='mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8'>
+    <div className='container-editorial py-section'>
       <ArticleDetail article={article} />
     </div>
   );

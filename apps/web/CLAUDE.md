@@ -34,6 +34,11 @@
   `formatCount` via `toDateFormatLocale()` de `lib/i18n.ts`
 - Adicionar/renomear chaves exige atualizar **os dois** JSONs — o teste
   `tests/lib/i18n-messages.test.ts` falha se houver divergência
+- **Chave que ninguém lê também falha o teste.** Reescrever uma tela leva o
+  `t('...')` embora e deixa a string para trás; a Fase 5 achou sete de uma vez.
+  Namespaces resolvidos dinamicamente (`categories`, `categoryDescriptions`,
+  `newsPeriod`, `newsSort`) e `metadata` estão isentos — os filhos deste último
+  são namespaces, não chaves
 
 ## Padrões
 - Componentes em components/ organizados por domínio
@@ -68,6 +73,11 @@ Regras que não são óbvias no código:
   refina usa o campo da própria `/news`.
 - **Componentes do shell aparecem duas vezes** (desktop e dentro do menu). Se
   algum precisar de `id`, use `useId()`.
+- **O skip link é o primeiro filho dentro dos providers**, e aponta para
+  `main#conteudo`. Ele se desloca por `top` negativo, não pelo par `sr-only` /
+  `focus:not-sr-only`: aquele par põe duas utilities de mesma especificidade
+  disputando `position`/`width`/`height`, decidido pela ordem no CSS gerado.
+  Com `top`, o `:focus` vence por especificidade.
 - **`Logo`** tem a marca em SVG inline com `currentColor` — é o que a deixa
   herdar a cor no rodapé escuro, coisa que um `<img>` não faz. O wordmark é
   texto (§40.3-A); trocar pelo lockup desenhado é substituir um `<span>` ali
@@ -116,6 +126,37 @@ Regras que não são óbvias no código:
   devolve e o `EditorialStory` que os cards falam. É a contraparte de
   `toEditorialStory` do backend, com a mesma regra de tempo de leitura.
 
+## Telas de leitura (Fase 5)
+
+São **três**, e as diferenças entre elas não são cosméticas.
+
+| Tela | O texto é | Tem `ai-disclosure` | Tem `source-list` | Tem `related-stories` |
+|---|---|---|---|---|
+| `/news/[id]` | de uma redação, coletado por RSS | **não** | não (a fonte é uma só, e cabe na metadata) | sim |
+| `/article/[date]` | escrito por um modelo | **sim** | sim (quinze fontes) | não (as relacionadas *são* as fontes) |
+| `/article` | — | — | — | — |
+
+Regras que não são óbvias no código:
+
+- **Transparência de IA só no briefing.** A notícia foi escrita por uma redação;
+  carimbá-la como produzida por IA mentiria na direção que mais custa aqui. O
+  que ela declara é a outra coisa — que o texto é do veículo.
+- **`source-list` leva ao `sourceUrl` externo, nunca a `/news/[id]`.** `newsId`
+  é ponteiro fraco: o cleanup apaga `News` aos 30 dias e o briefing vive 90.
+- **`article-body` não é renderizador de Markdown, e não deve virar um.** O
+  corpo de produção foi medido: só `###`, sem negrito nem listas. Os `###` saem
+  como **`h2`** — o nível é decisão da página, e o `h1` é o título.
+- **`article-hero` é casca com encaixes**, não um componente com `variant`. As
+  duas telas compartilham a composição da §8 e quase nada do conteúdo.
+- **A imagem vem depois da metadata** (ordem da §8): numa tela de leitura entra-se
+  pelo título e pela procedência, e a imagem antes empurraria o `h1` para fora
+  da dobra no mobile.
+- **Hero e corpo ficam em `max-w-narrow`; relacionadas e CTA usam o contêiner
+  cheio.** Uma grade de quatro colunas dentro de 720px vira quatro tiras.
+- **`ShareButton` tem um rótulo só para os dois caminhos.** `navigator.share` só
+  existe depois da hidratação; trocar o texto a partir dele daria markup
+  diferente no servidor e no cliente.
+
 ## Páginas
 - / → redireciona (307) para /pt-BR ou /en (middleware)
 - /[locale]/ → Home editorial (SSG + ISR) — **uma** chamada, `GET /api/home`,
@@ -123,9 +164,12 @@ Regras que não são óbvias no código:
   repetir matéria entre blocos. Não montar a Home bloco a bloco
 - /[locale]/news → Acervo: busca, filtros e paginação (SSG + ISR; o estado
   vive na query string e a listagem filtrada é CSR)
-- /[locale]/news/[id] → Notícia individual (dinâmica)
-- /[locale]/article → Histórico de artigos
-- /[locale]/article/[date] → Artigo diário (dinâmica)
+- /[locale]/news/[id] → Notícia individual (dinâmica) — hero, corpo,
+  relacionadas, favoritar e compartilhar
+- /[locale]/article → Histórico de briefings, agrupado por mês (o do dia
+  marcado); página em estado local, não na URL
+- /[locale]/article/[date] → Briefing do dia (dinâmica) — é a tela da
+  transparência de IA: declaração, depois a lista de fontes
 - /[locale]/newsletter → Landing de aquisição (estática, no sitemap)
 - /[locale]/about → Sobre o projeto
 - /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN)
@@ -248,6 +292,9 @@ plano).
 | `section-heading` | filete + título + "ver tudo" |
 | `hero-story` · `briefing-card` · `top-stories` · `trending-list` · `latest-stories` · `category-section` | os blocos da Home (Fase 3) |
 | `highlight-term` | envolve em `<mark>` o termo buscado (Fase 4) |
+| `pagination` | paginação numerada — do acervo **e** do histórico (Fase 4/5) |
+| `article-hero` · `article-body` · `article-skeleton` | a abertura, o corpo e a espera das telas de leitura (Fase 5) |
+| `ai-disclosure` · `source-list` · `share-button` · `related-stories` | as peças da §8 e §9 (Fase 5) |
 
 Regras que não são óbvias no código:
 

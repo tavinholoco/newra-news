@@ -1486,17 +1486,57 @@ gate rodou (`Asserting`) e passou.
 > depois abria 2.373. Cada pílula promete o que o próprio clique devolve.
 > Detalhe em `docs/progress.md`, item 19.
 
-## Fase 5 — Article
+## Fase 5 — Article ✅ 21/08/2026 — branch `feat/v2-article`
 
 ```text
-[ ] article hero
-[ ] body typography
-[ ] source list
-[ ] AI disclosure
-[ ] share/save
-[ ] related stories
-[ ] newsletter CTA
+[x] article hero        (casca com encaixes: as duas telas, uma composição)
+[x] body typography     (medida de leitura; `###` da IA vira `h2`)
+[x] source list         (só no briefing — leva à fonte, não a /news/[id])
+[x] AI disclosure       (só no briefing — a notícia não é gerada por IA)
+[x] share/save          (share nas duas; save só onde `Favorite` alcança)
+[x] related stories     (só na notícia — o briefing já lista as suas fontes)
+[x] newsletter CTA      (fim das duas telas)
+
+    -- a terceira tela, que a ficha põe nesta fase --
+[x] /article no ritmo dos tokens   (agrupado por mês, o do dia marcado)
+
+    -- pré-requisito, entregue antes (PR #112) --
+[x] payload do artigo com auditoria e fontes
+
+    -- ao fechar a fase, contra produção --
+[ ] Lighthouse por rota (§26)
+[ ] recapturar a baseline visual (§30)
 ```
+
+> **`/news/[id]` era da Fase 5, não da 4.** A ficha da tela em
+> `docs/v2/02-sitemap-telas.md` a marcava como Fase 4, mas os cinco itens do
+> checklist acima mapeiam nela um a um — e separar as duas telas de artigo em
+> fases diferentes duplicaria `source-list` e `related-stories`. A ficha foi
+> corrigida.
+
+> **A transparência de IA é só do briefing.** `/news/[id]` é matéria escrita por
+> uma redação e coletada por RSS; carimbá-la como produzida por IA mentiria na
+> direção que mais custa a um produto jornalístico. O que aquela tela declara é
+> a outra coisa: que o texto é do veículo e que o Newra News coletou.
+
+> **A "leia também" do briefing são as próprias fontes.** Ele já lista as
+> matérias que o originaram; uma segunda lista de relacionadas seria a mesma
+> informação duas vezes. `related-stories` fica em `/news/[id]`, que é onde o
+> `GET /api/news/:id/related` — entregue na Fase 0.5 e até aqui **sem
+> consumidor** — faz sentido.
+
+> **Nada de renderizador de Markdown.** O corpo de produção foi medido: cinco
+> subtítulos, todos `###`, sem negrito nem listas. Trazer `react-markdown` seria
+> ~40 kB para reconhecer sintaxe que o modelo não produz. Os `###` saem como
+> `h2`, porque o nível é decisão da página — o `h1` é o título, e `h3` abriria
+> salto de nível.
+
+> **Duas coisas da §8 não entraram, e o motivo está registrado.** "Salvar" no
+> briefing: `Favorite` referencia `newsId` e um `Article` não pode ser
+> favoritado — é Fase 6. E "horário da coleta": não há coluna, e o mais próximo
+> (`createdAt` do artigo) fica a segundos da geração, redundante com
+> `generatedAt`. Melhor omitir do que rotular um número como coisa que ele não
+> é — o mesmo critério que barrou o indicador "Atualizado" na Home.
 
 ## Fase 6 — Account ecosystem
 

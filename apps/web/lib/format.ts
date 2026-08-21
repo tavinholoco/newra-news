@@ -21,6 +21,24 @@ export function formatDate(dateString: string, locale = 'pt-BR'): string {
   });
 }
 
+/**
+ * Data **e hora**, para o "gerado em" da transparência de IA (§8).
+ *
+ * Existe separado de `formatDate` porque ali a hora seria ruído — a data já
+ * responde "quando saiu". Aqui é o contrário: o briefing é do dia inteiro, então
+ * um "gerado em 21 de ago." repete a data do artigo e não diz nada. O que a §8
+ * pede é o **horário** da geração.
+ */
+export function formatDateTime(dateString: string, locale = 'pt-BR'): string {
+  return new Date(dateString).toLocaleString(locale, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function formatArticleDate(dateString: string, locale = 'pt-BR'): string {
   return new Date(dateString).toLocaleDateString(locale, {
     weekday: 'long',

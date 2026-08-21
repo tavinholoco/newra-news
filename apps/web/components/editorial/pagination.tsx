@@ -4,11 +4,13 @@ import { useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface NewsPaginationProps {
+interface PaginationProps {
   page: number;
   totalPages: number;
   /** Desabilita os controles enquanto a página seguinte está a caminho. */
   disabled?: boolean;
+  /** Nome da região para o leitor de tela. A tela sabe do que é a lista. */
+  label: string;
   onChange: (page: number) => void;
 }
 
@@ -54,18 +56,23 @@ export function paginationRange(
 }
 
 /**
- * Paginação do acervo (§7).
+ * Paginação numerada, usada pelo acervo (§7) e pelo histórico de briefings.
  *
- * Numerada e não "carregar mais": a página está na URL, então um resultado é
- * compartilhável e o botão Voltar devolve a página certa. Rolagem infinita
- * fecharia as duas coisas e ainda deixaria o rodapé inalcançável.
+ * Numerada e não "carregar mais": em `/news` a página está na URL, então um
+ * resultado é compartilhável e o botão Voltar devolve a página certa. Rolagem
+ * infinita fecharia as duas coisas e ainda deixaria o rodapé inalcançável.
+ *
+ * Vive em `editorial/` e não em `news/` porque não sabe nada sobre notícia — as
+ * duas listas do produto paginam igual, e duas cópias divergiriam na primeira
+ * correção de acessibilidade.
  */
-export function NewsPagination({
+export function Pagination({
   page,
   totalPages,
   disabled = false,
+  label,
   onChange,
-}: NewsPaginationProps) {
+}: PaginationProps) {
   const t = useTranslations('pagination');
   const tCommon = useTranslations('common');
 
@@ -75,7 +82,7 @@ export function NewsPagination({
     'inline-flex size-9 items-center justify-center rounded-md border border-line text-ink-secondary transition-colors duration-fast hover:border-line-strong hover:text-link disabled:pointer-events-none disabled:opacity-50';
 
   return (
-    <nav aria-label={t('label')} className='flex items-center justify-center gap-1.5'>
+    <nav aria-label={label} className='flex items-center justify-center gap-1.5'>
       <button
         type='button'
         onClick={() => onChange(page - 1)}

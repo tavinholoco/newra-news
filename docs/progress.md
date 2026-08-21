@@ -45,13 +45,17 @@
 
 > A `/news` virou o acervo da §7: `category-nav` com contagem, busca com histórico local e destaque do termo, filtros de fonte/período/ordem, hero, lista editorial e paginação numerada. O **estado saiu do componente e foi para a URL** — até a Fase 3 ela só era lida. A contagem por categoria pediu um endpoint aditivo, `GET /api/news/facets`. Lighthouse **97·100·100·100** na rota (era 93), baseline recapturada, 786 testes verdes. Ver **item 19**.
 
-**Pré-requisitos da Fase 5** 🔶 em andamento em 2026-08-21
+**Pré-requisitos da Fase 5** ✅ Concluídos em 2026-08-21
 
-> O artigo era buscado com a auditoria e as fontes e **servido sem elas** — o schema de resposta era o da V1 e o `fastify-type-provider-zod` serializa pelo schema. Corrigido; três itens do checklist da Fase 5 dependiam disso. Falta decidir de quem é a `/news/[id]`. Ver **item 20**.
+> O artigo era buscado com a auditoria e as fontes e **servido sem elas** — o schema de resposta era o da V1 e o `fastify-type-provider-zod` serializa pelo schema. Corrigido; três itens do checklist da Fase 5 dependiam disso. Ver **item 20**.
 
-**Próximo ciclo — V2.0 Fase 5 (Article)** 📋
+**Newra News V2.0 — Fase 5 (Article)** ✅ Concluída em 2026-08-21 — **checklist da §28 fechado**
 
-> `article hero`, tipografia do corpo, lista de fontes, transparência de IA, share/save, relacionadas e o CTA da newsletter — §8 e §9 do plano. O `GET /api/news/:id/related` já existe desde a Fase 0.5 e nunca foi consumido.
+> As três telas de leitura: `/news/[id]`, `/article/[date]` e o histórico `/article`. Camada editorial nova (`article-hero`, `article-body`, `ai-disclosure`, `source-list`, `share-button`, `related-stories`) e a `pagination` promovida de `news/` para `editorial/`. A transparência de IA fica **só** no briefing; a notícia coletada declara a outra coisa. 820 testes verdes. Ver **item 21**.
+
+**Próximo ciclo — V2.0 Fase 6 (Account ecosystem)** 📋
+
+> `favorites`, `profile`, `preferences` e `newsletter settings` — §19 e §23 do plano. É lá que entram os dois pontos que a Fase 5 registrou como fora de alcance: favoritar um briefing (hoje `Favorite` só referencia `newsId`) e o filtro "somente salvos" da §7 em `/news`.
 
 ---
 
@@ -693,7 +697,7 @@ apareceu.
 
 ---
 
-### 20. Pré-requisitos da Fase 5 🔶 em andamento (2026-08-21)
+### 20. Pré-requisitos da Fase 5 ✅ Concluídos em 2026-08-21
 
 > Mesma forma que a Fase 0.5 teve para a Fase 3: backend pequeno que precisa
 > entrar **antes**, não trabalho concorrente. A Fase 5 é a tela de artigo (§8 e
@@ -741,7 +745,7 @@ briefing de 21/08 com `generatedAt: 2026-08-21T11:00:10.888Z` e **15 fontes**.
 `promptVersion` e `modelVersion` são gravados no mesmo objeto `auditFields` que
 `generatedAt`, então preenchem juntos.
 
-**20.2 — `/news/[id]` precisa de dono** ⏳ decisão pendente
+**20.2 — `/news/[id]` precisa de dono** ✅ resolvida na Fase 5 — é dela
 
 A ficha da tela em `docs/v2/02-sitemap-telas.md` a marca como **Fase 4**; o §28
 põe os componentes dela (`article hero`, `source list`, `related stories`,
@@ -750,9 +754,10 @@ tela continua com o visual da V1 — `text-sm`, `text-6xl`, `mb-8`, fora da esca
 nomeada e do ritmo dos tokens — e o `GET /api/news/:id/related`, entregue na
 Fase 0.5, **nunca foi consumido**.
 
-Recomendação: tratar como Fase 5. Os cinco itens mapeiam nela um a um, e separar
-as duas telas de artigo em fases diferentes duplicaria `source-list` e
-`related-stories`.
+Recomendação, aceita: tratar como Fase 5. Os cinco itens mapeiam nela um a um, e
+separar as duas telas de artigo em fases diferentes duplicaria `source-list` e
+`related-stories`. A ficha da tela foi corrigida, e o `related` ganhou o primeiro
+consumidor. Ver **item 21**.
 
 **20.3 — O que a Fase 5 não terá** 📋
 
@@ -764,6 +769,137 @@ as duas telas de artigo em fases diferentes duplicaria `source-list` e
   linha foi escrita — a poucos segundos da geração, e portanto redundante com
   `generatedAt`. Melhor omitir do que rotular um número como coisa que ele não
   é, como já foi decidido para o indicador "Atualizado" da Home.
+
+---
+
+### 21. V2.0 Fase 5 — Article ✅ Concluída em 2026-08-21
+
+> Branch `feat/v2-article`. **Três telas, não uma:** `/news/[id]` (notícia
+> coletada), `/article/[date]` (briefing de IA) e `/article` (histórico).
+> Checklist da §28 fechado.
+
+```text
+[x] article hero        (casca com encaixes: as duas telas, uma composição)
+[x] body typography     (medida de leitura; `###` da IA vira `h2`)
+[x] source list         (só no briefing — leva à fonte, não a /news/[id])
+[x] AI disclosure       (só no briefing — a notícia não é gerada por IA)
+[x] share/save          (share nas duas; save só onde `Favorite` alcança)
+[x] related stories     (só na notícia — o briefing já lista as suas fontes)
+[x] newsletter CTA      (fim das duas telas)
+[x] /article no ritmo dos tokens   (agrupado por mês, o do dia marcado)
+```
+
+**`/news/[id]` era da Fase 5, e a ficha dizia 4.** A decisão ficou registrada
+como pendente no item 20.2 e foi resolvida aqui: os cinco itens do checklist
+mapeiam nela um a um, e separar as duas telas de artigo em fases diferentes
+duplicaria `source-list` e `related-stories`. A ficha foi corrigida. Efeito
+colateral: o `GET /api/news/:id/related`, entregue na Fase 0.5, **ganhou seu
+primeiro consumidor** depois de um dia sem nenhum.
+
+#### As três decisões que mudaram o que se construiu
+
+**A transparência de IA é só do briefing.** `/news/[id]` é matéria escrita por
+uma redação e coletada por RSS. Carimbá-la como produzida por IA mentiria na
+direção que mais custa a um produto jornalístico — é justamente a confiança que
+a §8 quer construir. O que aquela tela declara é a outra coisa: que o texto e a
+apuração são do veículo, e que o Newra News coletou e organizou.
+
+**A "leia também" do briefing são as próprias fontes.** Ele já lista as quinze
+matérias que o originaram; uma segunda lista de relacionadas seria a mesma
+informação duas vezes na mesma tela. `related-stories` ficou em `/news/[id]`.
+
+**Nada de renderizador de Markdown.** O corpo de produção foi medido antes de
+decidir: 7.604 caracteres, cinco subtítulos, **todos `###`**, zero negrito, zero
+listas. `react-markdown` seriam ~40 kB no bundle para reconhecer sintaxe que o
+modelo não produz. `parseArticleBody` faz o que o texto real pede, com o
+comentário dizendo em que condição a decisão se revê — nova medição, não
+precaução.
+
+#### O nível do heading é da página, não do texto
+
+A IA escreve `###`, mas o `h1` é o título do artigo, então o subtítulo é `h2`.
+Emitir `h3` abriria salto de nível — o mesmo defeito que reprovou `heading-order`
+em `/news` e `/article` na Fase 1. Há teste que falha se o `ArticleBody` voltar
+a emitir `h3`.
+
+#### `source-list` leva à fonte, nunca a `/news/[id]`
+
+Duas razões, e a segunda é decisiva: a §8 pede explicitamente que o leitor
+alcance a matéria original, e **`newsId` é ponteiro fraco** — o cleanup apaga
+`News` aos 30 dias e o briefing vive 90, então em dois terços dos artigos
+retidos o link interno daria 404, vindo justamente da seção cuja função é
+sustentar confiança.
+
+#### A `pagination` saiu de `news/` para `editorial/`
+
+Ela nunca soube nada sobre notícia, e o histórico estava prestes a ganhar uma
+cópia — que divergiria na primeira correção de acessibilidade. Agora recebe o
+nome da região por prop, porque quem sabe do que é a lista é a tela. Os dois
+botões "Anterior/Próxima" do histórico sumiram junto.
+
+#### O que a revisão da própria fase encontrou
+
+**O link "pular para o conteúdo" não existia.** A string `shell.skipToContent`
+está no repositório desde a Fase 2 e **nada a renderizava** — apareceu na
+varredura por chaves órfãs. Não havia bypass block nenhum (WCAG 2.4.1), e o
+shell tem três linhas mais a faixa de assuntos: cerca de doze paradas de
+tabulação antes do conteúdo, em toda página. Agora existe.
+
+Ele se desloca por `top` negativo, e não pelo par usual `sr-only` /
+`focus:not-sr-only`: aquele par põe duas utilities de **mesma especificidade**
+disputando `position`, `width` e `height`, e quem vence depende da ordem no CSS
+gerado. Com `top`, `.focus\:top-4:focus` é classe + pseudo-classe (0,2,0) contra
+`.-top-24` (0,1,0) — o foco vence por especificidade, que ordem nenhuma desfaz.
+
+> **Uma medição minha estava errada, e vale registrar.** Cheguei a concluir que
+> o `focus:not-sr-only` "não funcionava" porque o link media 1px com foco. O
+> `document.hasFocus()` do painel era `false` — sem o documento focado, `:focus`
+> não casa com nada, e a medição não dizia o que eu li nela. A regra de CSS
+> estava correta o tempo todo. A escolha por `top` continua sendo a certa, mas
+> pelo argumento de especificidade, não por aquela medição.
+
+**Sete chaves de mensagem que ninguém lê** — quatro nascidas na Fase 4
+(`news.highlightLabel`, `news.clearSearchTerm`, `common.resultsFor`,
+`pagination.ellipsis`) e três órfãs desta (`article.readFull`,
+`news.originalSource`, `common.pageXOfY`), mais `newsletter.sampleTitle`.
+Removidas, e agora há teste que falha na próxima. Namespaces resolvidos
+dinamicamente (`categories`, `categoryDescriptions`, `newsPeriod`, `newsSort`)
+ficam de fora, e `metadata` também — os filhos dele são namespaces, não chaves.
+
+**"Gerado em" mostrava só a data**, que é a mesma data do briefing e portanto não
+dizia nada. A §8 pede o **horário** da geração. `formatDateTime` existe para
+isso, separado de `formatDate`, onde a hora seria ruído.
+
+#### Verificação
+
+- **Contra o app rodando** (API + web local): hierarquia `h1 → h2 → h3` limpa
+  nas três telas; 12 fontes numeradas de 1 com `position` 0-based; os quatro
+  campos de auditoria renderizando (`gemini-2.5-flash`, `v1-ebb73b75`, "21 de
+  ago. de 2026, 08:00", "12 fontes"); declaração de IA **antes** da lista;
+  4 relacionadas em `/news/[id]` e nenhuma declaração de IA ali; histórico
+  agrupado em "agosto de 2026" com o selo "Hoje" numa única linha; sem erro no
+  console; sem overflow horizontal a 375px; medida de leitura em 689px.
+- O banco local só tinha briefings anteriores à migration, então a auditoria foi
+  semeada localmente para conseguir ver o caminho completo. O caminho degradado
+  (tudo nulo) é o que o banco tinha e está coberto por teste.
+- **820 testes verdes** (502 API em 40 suites + 318 web em 38). `pnpm lint`,
+  `pnpm turbo typecheck` e `pnpm build` limpos; `contrast:check` em 60 pares,
+  zero reprovando.
+
+#### O que **não** entrou
+
+- **"Salvar" no briefing.** `Favorite` referencia `newsId`; um `Article` não pode
+  ser favoritado. É Fase 6, com o resto do ecossistema de conta.
+- **"Horário da coleta"** que a §8 lista ao lado do de geração: não há coluna, e
+  o mais próximo (`createdAt` do artigo) fica a segundos da geração — redundante
+  com `generatedAt`. Melhor omitir do que rotular um número como coisa que ele
+  não é, pelo mesmo critério que barrou o indicador "Atualizado" na Home.
+- **Página na URL em `/article`.** A ficha escopa a tela a ritmo visual, e ler a
+  query string exigiria uma fronteira de Suspense numa página que não precisa de
+  nenhuma. Diverge de `/news`, que é compartilhável por contrato — dívida
+  consciente, anotada no componente.
+- **Lighthouse por rota e recaptura da baseline visual**: rodam contra produção,
+  depois do merge.
 
 ---
 
