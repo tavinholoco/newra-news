@@ -121,11 +121,12 @@ describe('classifyCategory', () => {
   });
 
   it('should not let one keyword repeated many times outweigh a broader match', () => {
-    // 'show' nove vezes (teto 2 → 2 pontos) contra quatro palavras distintas
-    // de saúde no corpo. A abrangência ganha da repetição.
+    // 'show' nove vezes (teto 2 → 2 pontos) contra cinco palavras distintas de
+    // saúde no corpo. A abrangência ganha da repetição — e cinco é o piso
+    // medido para a descrição decidir sozinha.
     const category = classifyCategory(
       'Balanço da semana',
-      `${'show '.repeat(9)} doença tratamento diagnóstico hospital`,
+      `${'show '.repeat(9)} doença tratamento diagnóstico hospital vacina`,
     );
 
     expect(category).toBe(Category.HEALTH);
@@ -233,8 +234,8 @@ describe('classifyCategory — evidência de título vence evidência de corpo',
     expect(category).toBe(Category.ENTERTAINMENT);
   });
 
-  // O piso: uma palavra solta no corpo não classifica. Duas também não.
-  it('should fall back to WORLD when the description offers fewer than three signals', () => {
+  // O piso medido: cinco palavras distintas. Duas não classificam.
+  it('should fall back to WORLD when the description is below the measured floor', () => {
     const category = classifyCategory(
       'Incêndio atinge área de mata no parque',
       'A secretaria de saúde acompanha o caso e cita risco de tratamento.',
