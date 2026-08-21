@@ -9,13 +9,19 @@ vi.mock('@newranews/database', async (importOriginal) => {
         findMany: vi.fn(),
         count: vi.fn(),
         findUnique: vi.fn(),
+        groupBy: vi.fn(),
       },
     },
   };
 });
 
 import { prisma } from '@newranews/database';
-import { listNews, getNewsById } from '../../src/services/news.service';
+import {
+  listNews,
+  getNewsById,
+  getNewsFacets,
+  buildNewsWhere,
+} from '../../src/services/news.service';
 
 const mockNewsItem = {
   id: 'news-uuid-1',
@@ -34,6 +40,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prisma.news.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.news.count).mockResolvedValue(0);
+  vi.mocked(prisma.news.groupBy).mockResolvedValue([] as never);
 });
 
 describe('listNews', () => {
@@ -138,5 +145,145 @@ describe('getNewsById', () => {
     const result = await getNewsById('nonexistent-id');
 
     expect(result).toBeNull();
+  });
+});
+
+describe('listNews — filtros e ordenação da Fase 4', () => {
+  it('should order by publishedAt desc by default', async () => {
+    await listNews({}, { page: 1, limit: 10 });
+
+    expect(prisma.news.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { publishedAt: 'desc' } }),
+    );
+  });
+
+  it('should order by publishedAt asc when sort is oldest', async () => {
+    await listNews({}, { page: 1, limit: 10, sort: 'oldest' });
+
+    expect(prisma.news.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { publishedAt: 'asc' } }),
+    );
+  });
+
+  it('should filter by source, case-insensitively', async () => {
+    await listNews({ source: 'g1' }, { page: 1, limit: 10 });
+
+    expect(prisma.news.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          source: { equals: 'g1', mode: 'insensitive' },
+        }),
+      }),
+    );
+  });
+
+  it('should filter by an open-ended period', async () => {
+    await listNews({ from: '2024-01-15T00:00:00.000Z' }, { page: 1, limit: 10 });
+
+    expect(prisma.news.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          publishedAt: { gte: new Date('2024-01-15T00:00:00.000Z') },
+        }),
+      }),
+    );
+  });
+
+  it('should let the period win over the single-day filter', async () => {
+    // Os dois chegam juntos quando `?date=` sobrou na URL e o leitor mexeu no
+    // controle de período. O controle que ele acabou de usar é que vale.
+    await listNews(
+      { date: '2024-01-15T00:00:00.000Z', from: '2024-02-01T00:00:00.000Z' },
+      { page: 1, limit: 10 },
+    );
+
+    expect(prisma.news.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          publishedAt: { gte: new Date('2024-02-01T00:00:00.000Z') },
+        }),
+      }),
+    );
+  });
+});
+
+describe('buildNewsWhere', () => {
+  it('should drop the omitted dimension and keep the others', () => {
+    const where = buildNewsWhere(
+      { category: 'SPORTS' as const, source: 'G1', search: 'copa' },
+      'category',
+    );
+
+    expect(where.category).toBeUndefined();
+    expect(where.source).toEqual({ equals: 'G1', mode: 'insensitive' });
+    expect(where.OR).toBeDefined();
+  });
+});
+
+describe('getNewsFacets', () => {
+  it('should count categories ignoring the category filter', async () => {
+    // O ponto da faceta: com SPORTS selecionado, as outras sete categorias
+    // ainda precisam mostrar quantas matérias têm — senão o leitor não tem
+    // como saber para onde trocar.
+    await getNewsFacets({ category: 'SPORTS' as const, search: 'copa' });
+
+    const [categoryCall] = vi
+      .mocked(prisma.news.groupBy)
+      .mock.calls.filter(
+        (call) => (call[0] as { by: string[] }).by[0] === 'category',
+      );
+
+    const where = (categoryCall[0] as { where: Record<string, unknown> }).where;
+    expect(where.category).toBeUndefined();
+    expect(where.OR).toBeDefined();
+  });
+
+  it('should count sources ignoring the source filter but keeping the category', async () => {
+    await getNewsFacets({ category: 'SPORTS' as const, source: 'G1' });
+
+    const [sourceCall] = vi
+      .mocked(prisma.news.groupBy)
+      .mock.calls.filter(
+        (call) => (call[0] as { by: string[] }).by[0] === 'source',
+      );
+
+    const where = (sourceCall[0] as { where: Record<string, unknown> }).where;
+    expect(where.source).toBeUndefined();
+    expect(where.category).toBe('SPORTS');
+  });
+
+  it('should apply every filter to the total', async () => {
+    await getNewsFacets({ category: 'SPORTS' as const, source: 'G1' });
+
+    expect(prisma.news.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        category: 'SPORTS',
+        source: { equals: 'G1', mode: 'insensitive' },
+      }),
+    });
+  });
+
+  it('should return categories sorted by count, descending', async () => {
+    vi.mocked(prisma.news.groupBy).mockImplementation((async (args: {
+      by: string[];
+    }) => {
+      if (args.by[0] === 'category') {
+        return [
+          { category: 'WORLD', _count: { _all: 3 } },
+          { category: 'SPORTS', _count: { _all: 11 } },
+        ];
+      }
+      return [{ source: 'G1', _count: { _all: 7 } }];
+    }) as never);
+    vi.mocked(prisma.news.count).mockResolvedValue(14);
+
+    const facets = await getNewsFacets({});
+
+    expect(facets.total).toBe(14);
+    expect(facets.categories).toEqual([
+      { category: 'SPORTS', count: 11 },
+      { category: 'WORLD', count: 3 },
+    ]);
+    expect(facets.sources).toEqual([{ source: 'G1', count: 7 }]);
   });
 });

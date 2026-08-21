@@ -10,6 +10,7 @@ import { rateLimitPlugin } from './plugins/rate-limit';
 import { swaggerPlugin } from './plugins/swagger';
 import { healthRoutes } from './routes/health';
 import { newsRoutes } from './routes/news';
+import { newsFacetsRoutes } from './routes/news/facets';
 import { newsDetailRoutes } from './routes/news/[id]';
 import { newsAdminRoutes } from './routes/news/admin';
 import { newsRelatedRoutes } from './routes/news/related';
@@ -54,6 +55,7 @@ export async function buildApp() {
   await app.register(healthRoutes, { prefix: '/api/health' });
 
   await app.register(newsRoutes, { prefix: '/api/news' });
+  await app.register(newsFacetsRoutes, { prefix: '/api/news' });
   await app.register(newsDetailRoutes, { prefix: '/api/news' });
   await app.register(newsAdminRoutes, { prefix: '/api/news' });
   await app.register(newsRelatedRoutes, { prefix: '/api/news' });
