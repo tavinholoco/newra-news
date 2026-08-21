@@ -43,14 +43,21 @@ Fase 2 e vale para todas as telas.
 | Render | ISR 3600s (manter) |
 | Auth | pública |
 | Indexação | sim |
-| Dados | `GET /api/home` (§18.1) — hoje são 2 chamadas separadas |
+| Dados | `GET /api/home` — ✅ **existe** desde 20/08/2026 |
 | Fase | 3 |
 
 Blocos, na ordem da §6.1: `hero-story` → `briefing-card` → `top-stories` →
 `trending-list` → `category-section` (× N) → `newsletter-cta` → `ad-slot`.
 
-Hoje: `ArticleCard` (faixa `brand-100` de altura fixa) + `NewsGrid` de 12 cards
-idênticos. **Nenhum dos componentes da V2 existe.** É a fase mais pesada.
+Hoje: `ArticleCard` (faixa de altura fixa) + `NewsGrid` de 12 cards idênticos.
+**Dos blocos acima só o `newsletter-cta` existe** — entregue na Fase 2, é para
+reusar, não reconstruir. Os outros seis nascem aqui. É a fase mais pesada.
+
+> **`trending` vem vazia quando nada foi publicado nas últimas 24h.** É
+> comportamento correto do endpoint, não defeito: o bloco deve ser **omitido**,
+> como já se faz com categoria sem matéria. Renderizar uma seção com título e
+> nada dentro é pior que não renderizar. O mesmo vale para `hero` e `briefing`
+> nulos — a Home precisa desenhar sem eles.
 
 ### `/[locale]/news` — Feed, busca e filtros
 
