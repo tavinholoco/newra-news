@@ -39,18 +39,19 @@
     "sourceLabel": "Ler em {source}"
   },
   "common": {
+    "all": "Todas",
+    "backToHome": "Voltar para a Home",
+    "categories": "Categorias",
+    "clearSearch": "Limpar busca",
     "loading": "Carregando...",
-    "retry": "Tentar novamente",
-    "previous": "Anterior",
     "next": "Próxima",
     "pageXOfY": "Página {page} de {total}",
-    "all": "Todas",
+    "previous": "Anterior",
+    "resultsFor": "Resultados para “{term}”",
+    "retry": "Tentar novamente",
     "searchPlaceholder": "Buscar notícias...",
-    "clearSearch": "Limpar busca",
-    "backToHome": "Voltar para a Home",
-    "sourcesConsulted": "{count, plural, one {# fonte consultada} other {# fontes consultadas}}",
     "sources": "{count, plural, one {# fonte} other {# fontes}}",
-    "categories": "Categorias"
+    "sourcesConsulted": "{count, plural, one {# fonte consultada} other {# fontes consultadas}}"
   },
   "home": {
     "latestNews": "Mais notícias",
@@ -68,18 +69,40 @@
     "readStory": "Ler a matéria"
   },
   "news": {
-    "title": "Notícias",
-    "pageDescription": "Fique por dentro das últimas notícias do mundo.",
+    "archiveDescription": "Todas as notícias coletadas pelo Newra News, por categoria, fonte e período.",
+    "archiveTitle": "Acervo",
     "backTo": "Voltar para Notícias",
-    "emptyTitle": "Nenhuma notícia encontrada",
+    "browseAll": "Ver o acervo inteiro",
+    "clearFilters": "Limpar filtros",
+    "clearSearchTerm": "Limpar a busca",
+    "emptyArchiveDesc": "As notícias aparecem aqui assim que a primeira coleta do dia rodar.",
+    "emptyArchiveTitle": "O acervo ainda está vazio",
     "emptyDesc": "Tente ajustar os filtros ou o termo de busca.",
-    "loadError": "Não foi possível carregar as notícias. Tente novamente.",
-    "notFoundTitle": "Notícia não encontrada",
-    "notFoundDesc": "Esta notícia não existe ou foi removida.",
-    "viewAll": "Ver todas as notícias",
-    "originalSource": "Fonte original",
+    "emptyFilterDesc": "Nenhuma matéria do acervo atende a esses filtros ao mesmo tempo.",
+    "emptySearchDesc": "Verifique a grafia ou tente uma palavra mais geral.",
+    "emptySearchTitle": "Nada encontrado para “{term}”",
+    "emptyTitle": "Nenhuma notícia encontrada",
+    "filtersLabel": "Filtros do acervo",
     "fullContentHint": "Conteúdo completo disponível na fonte original.",
-    "readAtSource": "Leia na fonte"
+    "highlightLabel": "Destaque",
+    "latestLabel": "Últimas",
+    "loadError": "Não foi possível carregar as notícias. Tente novamente.",
+    "notFoundDesc": "Esta notícia não existe ou foi removida.",
+    "notFoundTitle": "Notícia não encontrada",
+    "originalSource": "Fonte original",
+    "pageDescription": "Fique por dentro das últimas notícias do mundo.",
+    "periodLabel": "Período",
+    "readAtSource": "Leia na fonte",
+    "resultCount": "{count, plural, =0 {Nenhuma notícia} one {# notícia} other {# notícias}}",
+    "resultCountFiltered": "{count, plural, =0 {Nenhuma notícia encontrada} one {# notícia encontrada} other {# notícias encontradas}}",
+    "searchHistory": "Buscas recentes",
+    "searchHistoryClear": "Limpar histórico",
+    "searchHistoryRemove": "Remover “{term}” do histórico",
+    "sortLabel": "Ordenar",
+    "sourceAll": "Todas as fontes",
+    "sourceLabel": "Fonte",
+    "title": "Notícias",
+    "viewAll": "Ver todas as notícias"
   },
   "article": {
     "title": "Histórico de Artigos",
@@ -285,5 +308,31 @@
   },
   "ads": {
     "label": "Publicidade"
+  },
+  "newsPeriod": {
+    "30d": "30 dias",
+    "7d": "7 dias",
+    "all": "Qualquer data",
+    "today": "Hoje"
+  },
+  "newsSort": {
+    "oldest": "Mais antigas",
+    "recent": "Mais recentes"
+  },
+  "categoryDescriptions": {
+    "ECONOMY": "Mercados, inflação, emprego e as decisões que mexem no seu bolso.",
+    "ENTERTAINMENT": "Cultura, streaming, música e o que as pessoas estão assistindo.",
+    "HEALTH": "Saúde pública, medicina, bem-estar e prevenção.",
+    "POLITICS": "Governo, eleições, políticas públicas e a disputa por poder.",
+    "SCIENCE": "Pesquisa, descobertas e o que a ciência mudou de ideia esta semana.",
+    "SPORTS": "Competições, resultados e os bastidores do esporte.",
+    "TECHNOLOGY": "Inovação, software, dispositivos e o efeito da tecnologia no dia a dia.",
+    "WORLD": "Conflitos, diplomacia e o que acontece fora do Brasil."
+  },
+  "pagination": {
+    "currentPage": "Página {page}, página atual",
+    "ellipsis": "Mais páginas",
+    "goToPage": "Ir para a página {page}",
+    "label": "Paginação do acervo"
   }
 }

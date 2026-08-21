@@ -104,6 +104,12 @@ const CASES = [
   ['ink-500 sobre surface (metadata do card)', P['ink-500'], P.white, 'normal'],
   ['mist-400 sobre night-800 (metadata do card)', P['mist-400'], P['night-800'], 'normal'],
 
+  // --- o destaque do termo buscado em /news (Fase 4) ---
+  // `<mark>` põe texto principal sobre `surface-accent`, e o par não existia:
+  // até a Fase 3 nada escrevia texto de leitura sobre essa superfície.
+  ['ink-950 sobre brand-50 (termo destacado)', P['ink-950'], P['brand-50'], 'normal'],
+  ['mist-100 sobre night-800 (termo destacado)', P['mist-100'], P['night-800'], 'normal'],
+
   // --- o "404": ornamento, não texto. Só precisa existir. ---
   ['line-500 sobre paper (ornamento)', P['line-500'], P.paper, 'large'],
   ['night-500 sobre night-900 (ornamento)', P['night-500'], P['night-900'], 'large'],

@@ -1,110 +1,168 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Category, type News, type PaginatedResponse } from '@newranews/types';
-import { useNewsList } from '@/lib/queries';
-import { Button } from '@/components/ui/button';
-import { NewsFilters } from './news-filters';
-import { NewsGrid } from './news-grid';
+import type { News, NewsFacets, PaginatedResponse } from '@newranews/types';
+import { useNewsFacets, useNewsList } from '@/lib/queries';
+import { useNewsFilters } from '@/lib/use-news-filters';
+import { countActiveFilters, toApiFilters } from '@/lib/news-filters';
+import { newsToStory } from '@/lib/story';
+import { FavoriteButton } from '@/components/news/favorite-button';
+import { CategoryNav } from './category-nav';
+import { NewsArchiveHeader } from './news-archive-header';
+import { NewsEmptyState } from './news-empty-state';
+import { NewsFilterBar } from './news-filter-bar';
+import { NewsList } from './news-list';
+import { NewsListSkeleton } from './news-list-skeleton';
+import { NewsPagination } from './news-pagination';
 import { NewsSearch } from './news-search';
 
 interface NewsPageClientProps {
+  /** Primeira página sem filtro, renderizada no servidor (ISR). */
   initialData: PaginatedResponse<News>;
+  initialFacets?: NewsFacets;
 }
 
-export function NewsPageClient({ initialData }: NewsPageClientProps) {
+const PAGE_SIZE = 20;
+
+/**
+ * O acervo: busca, filtros, lista e paginação (§7, Fase 4).
+ *
+ * **Nenhum `useState` de filtro.** O estado mora na URL (`useNewsFilters`), e é
+ * isso que faz a tela ser compartilhável, responder ao botão Voltar e nunca
+ * divergir do que a `editorial-nav` aponta. Até a Fase 3 aqui havia três
+ * `useState` ressincronizados por efeito — a fonte dupla que a Fase 2 registrou
+ * como dívida.
+ */
+export function NewsPageClient({
+  initialData,
+  initialFacets,
+}: NewsPageClientProps) {
   const t = useTranslations('news');
-  const tCommon = useTranslations('common');
-  // A faixa de categorias do masthead e a busca do header chegam por query
-  // string, e é o que torna `/news?category=…` compartilhável. Ainda é só a
-  // **entrada**: escrever a URL a cada clique de filtro e de página é trabalho
-  // da Fase 4 ("filter state" na §28).
-  const searchParams = useSearchParams();
-  const categoryParam = searchParams.get('category');
-  const urlCategory =
-    categoryParam && categoryParam in Category
-      ? (categoryParam as Category)
-      : null;
-  const urlSearch = searchParams.get('search') ?? '';
+  const { state, setFilters, setPage, clearFilters } = useNewsFilters();
 
-  const [category, setCategory] = useState<Category | null>(urlCategory);
-  const [search, setSearch] = useState(urlSearch);
-  const [page, setPage] = useState(1);
+  const activeFilters = countActiveFilters(state);
+  const isPristine = activeFilters === 0 && state.page === 1;
 
-  // Navegar de `/news?category=A` para `?category=B` não remonta o componente,
-  // então o inicializador do `useState` não roda de novo — sem isto a URL
-  // mudava e a lista ficava na categoria anterior.
-  useEffect(() => {
-    setCategory(urlCategory);
-    setSearch(urlSearch);
-    setPage(1);
-  }, [urlCategory, urlSearch]);
+  // `state` muda de identidade a cada leitura da URL; sem o memo, o objeto de
+  // filtros seria novo a cada render e viraria uma chave de query diferente.
+  const apiFilters = useMemo(() => toApiFilters(state), [state]);
 
   const { data, isFetching, isError } = useNewsList(
-    {
-      page,
-      limit: 20,
-      category: category ?? undefined,
-      search: search || undefined,
-    },
-    // O `initialData` do servidor é a primeira página sem filtro; com
-    // categoria ou busca na URL ele não corresponde ao que se pede.
-    page === 1 && !category && !search ? initialData : undefined,
+    { ...apiFilters, page: state.page, limit: PAGE_SIZE },
+    // O dado do servidor é a primeira página sem filtro; com qualquer recorte
+    // na URL ele não corresponde ao que se está pedindo.
+    isPristine ? initialData : undefined,
   );
 
-  const news = data?.data ?? [];
-  const meta = data?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 0 };
+  const { data: facets } = useNewsFacets(
+    apiFilters,
+    isPristine ? initialFacets : undefined,
+  );
 
-  function handleCategoryChange(newCategory: Category | null) {
-    setCategory(newCategory);
-    setPage(1);
-  }
+  // Memo e não `data?.data ?? []`: o literal vazio é um array novo a cada
+  // render enquanto a consulta não resolve, e ele é dependência dos dois memos
+  // abaixo — que passariam a recalcular sempre.
+  const news = useMemo(() => data?.data ?? [], [data]);
+  const meta = data?.meta ?? {
+    total: 0,
+    page: state.page,
+    limit: PAGE_SIZE,
+    totalPages: 0,
+  };
 
-  function handleSearchChange(newSearch: string) {
-    setSearch(newSearch);
-    setPage(1);
-  }
+  const stories = useMemo(() => news.map(newsToStory), [news]);
 
-  function handlePageChange(newPage: number) {
-    setPage(newPage);
+  // O favoritar da listagem, que a V1 já tinha. Chega por prop para o
+  // `NewsList` não passar a depender de sessão e de favoritos; o `News` cru vai
+  // junto porque é ele que semeia o cache otimista da tela de favoritos.
+  const byId = useMemo(() => new Map(news.map((item) => [item.id, item])), [news]);
+  const renderAction = useCallback(
+    (storyId: string) => (
+      <FavoriteButton newsId={storyId} news={byId.get(storyId)} />
+    ),
+    [byId],
+  );
+
+  // Virar a página sem rolar deixa o leitor no meio de uma lista nova, olhando
+  // para a matéria número 12 de outro conjunto. A primeira renderização não
+  // rola: ninguém pediu.
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  }, [state.page]);
+
+  const showSkeleton = isFetching && news.length === 0;
 
   return (
     <div className='flex flex-col gap-6'>
-      <NewsSearch value={search} onChange={handleSearchChange} />
-      <NewsFilters selected={category} onChange={handleCategoryChange} />
-      {isError && (
-        <p className='rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive'>
+      <NewsArchiveHeader category={state.category} />
+
+      <NewsSearch
+        value={state.search}
+        onChange={(search) => setFilters({ search })}
+      />
+
+      <CategoryNav
+        selected={state.category}
+        facets={facets}
+        onChange={(category) => setFilters({ category })}
+      />
+
+      <NewsFilterBar
+        source={state.source}
+        period={state.period}
+        sort={state.sort}
+        facets={facets}
+        activeFilters={activeFilters}
+        onChange={setFilters}
+        onClear={clearFilters}
+      />
+
+      {/* A contagem é `aria-live`: quem filtra por teclado precisa ouvir que o
+          resultado mudou de tamanho sem ter de sair procurando pela lista. */}
+      <p
+        aria-live='polite'
+        className='border-t border-line pt-4 text-body-sm text-ink-secondary'
+      >
+        {activeFilters > 0
+          ? t('resultCountFiltered', { count: meta.total })
+          : t('resultCount', { count: meta.total })}
+      </p>
+
+      {isError ? (
+        <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
           {t('loadError')}
         </p>
+      ) : showSkeleton ? (
+        <NewsListSkeleton showLead={isPristine} />
+      ) : stories.length === 0 ? (
+        <NewsEmptyState
+          search={state.search}
+          activeFilters={activeFilters}
+          onClear={clearFilters}
+        />
+      ) : (
+        <NewsList
+          stories={stories}
+          highlight={state.search}
+          // Sem hero na busca nem em página interna: eleger um destaque ali
+          // seria a tela inventando uma edição que ninguém fez.
+          showLead={state.page === 1 && !state.search}
+          renderAction={renderAction}
+        />
       )}
-      <NewsGrid news={news} isLoading={isFetching && news.length === 0} />
-      {meta.totalPages > 1 && (
-        <div className='flex items-center justify-center gap-4'>
-          <Button
-            variant='outline'
-            size='lg'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isFetching}
-          >
-            {tCommon('previous')}
-          </Button>
-          <span className='text-sm text-muted-foreground'>
-            {tCommon('pageXOfY', { page, total: meta.totalPages })}
-          </span>
-          <Button
-            variant='outline'
-            size='lg'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= meta.totalPages || isFetching}
-          >
-            {tCommon('next')}
-          </Button>
-        </div>
-      )}
+
+      <NewsPagination
+        page={meta.page}
+        totalPages={meta.totalPages}
+        disabled={isFetching}
+        onChange={setPage}
+      />
     </div>
   );
 }

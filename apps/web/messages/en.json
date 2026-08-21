@@ -39,18 +39,19 @@
     "sourceLabel": "Read at {source}"
   },
   "common": {
+    "all": "All",
+    "backToHome": "Back to Home",
+    "categories": "Categories",
+    "clearSearch": "Clear search",
     "loading": "Loading...",
-    "retry": "Try again",
-    "previous": "Previous",
     "next": "Next",
     "pageXOfY": "Page {page} of {total}",
-    "all": "All",
+    "previous": "Previous",
+    "resultsFor": "Results for “{term}”",
+    "retry": "Try again",
     "searchPlaceholder": "Search news...",
-    "clearSearch": "Clear search",
-    "backToHome": "Back to Home",
-    "sourcesConsulted": "{count, plural, one {# source consulted} other {# sources consulted}}",
     "sources": "{count, plural, one {# source} other {# sources}}",
-    "categories": "Categories"
+    "sourcesConsulted": "{count, plural, one {# source consulted} other {# sources consulted}}"
   },
   "home": {
     "latestNews": "More news",
@@ -68,18 +69,40 @@
     "readStory": "Read the story"
   },
   "news": {
-    "title": "News",
-    "pageDescription": "Stay up to date with the latest news from around the world.",
+    "archiveDescription": "Every story Newra News has collected, by category, source and period.",
+    "archiveTitle": "Archive",
     "backTo": "Back to News",
-    "emptyTitle": "No news found",
+    "browseAll": "Browse the whole archive",
+    "clearFilters": "Clear filters",
+    "clearSearchTerm": "Clear the search",
+    "emptyArchiveDesc": "Stories show up here as soon as the first collection of the day runs.",
+    "emptyArchiveTitle": "The archive is still empty",
     "emptyDesc": "Try adjusting the filters or the search term.",
-    "loadError": "Couldn't load the news. Please try again.",
-    "notFoundTitle": "News not found",
-    "notFoundDesc": "This news item doesn't exist or has been removed.",
-    "viewAll": "View all news",
-    "originalSource": "Original source",
+    "emptyFilterDesc": "No story in the archive matches all of these filters at once.",
+    "emptySearchDesc": "Check the spelling, or try a broader word.",
+    "emptySearchTitle": "Nothing found for “{term}”",
+    "emptyTitle": "No news found",
+    "filtersLabel": "Archive filters",
     "fullContentHint": "Full content is available on the original source.",
-    "readAtSource": "Read at source"
+    "highlightLabel": "Highlight",
+    "latestLabel": "Latest",
+    "loadError": "Couldn't load the news. Please try again.",
+    "notFoundDesc": "This news item doesn't exist or has been removed.",
+    "notFoundTitle": "News not found",
+    "originalSource": "Original source",
+    "pageDescription": "Stay up to date with the latest news from around the world.",
+    "periodLabel": "Period",
+    "readAtSource": "Read at source",
+    "resultCount": "{count, plural, =0 {No stories} one {# story} other {# stories}}",
+    "resultCountFiltered": "{count, plural, =0 {No stories found} one {# story found} other {# stories found}}",
+    "searchHistory": "Recent searches",
+    "searchHistoryClear": "Clear history",
+    "searchHistoryRemove": "Remove “{term}” from history",
+    "sortLabel": "Sort",
+    "sourceAll": "All sources",
+    "sourceLabel": "Source",
+    "title": "News",
+    "viewAll": "View all news"
   },
   "article": {
     "title": "Article Archive",
@@ -285,5 +308,31 @@
   },
   "ads": {
     "label": "Advertisement"
+  },
+  "newsPeriod": {
+    "30d": "30 days",
+    "7d": "7 days",
+    "all": "Any date",
+    "today": "Today"
+  },
+  "newsSort": {
+    "oldest": "Oldest first",
+    "recent": "Newest first"
+  },
+  "categoryDescriptions": {
+    "ECONOMY": "Markets, inflation, jobs and the decisions that reach your wallet.",
+    "ENTERTAINMENT": "Culture, streaming, music and what people are watching.",
+    "HEALTH": "Public health, medicine, wellbeing and prevention.",
+    "POLITICS": "Government, elections, public policy and the contest for power.",
+    "SCIENCE": "Research, discoveries and what science changed its mind about this week.",
+    "SPORTS": "Competitions, results and what happens off the field.",
+    "TECHNOLOGY": "Innovation, software, devices and how technology lands in daily life.",
+    "WORLD": "Conflict, diplomacy and what is happening abroad."
+  },
+  "pagination": {
+    "currentPage": "Page {page}, current page",
+    "ellipsis": "More pages",
+    "goToPage": "Go to page {page}",
+    "label": "Archive pagination"
   }
 }
