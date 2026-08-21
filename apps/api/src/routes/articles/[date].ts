@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getArticleByDate } from '../../services/article.service';
 import { articleDateParamsSchema, getArticleResponseSchema, errorResponseSchema } from './schemas';
 import { NotFoundError } from '../../utils/errors';
+import { serializeArticle } from './serialize';
 
 export async function articleDateRoutes(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().get(
@@ -16,14 +17,7 @@ export async function articleDateRoutes(app: FastifyInstance) {
     async (request) => {
       const article = await getArticleByDate(request.params.date);
       if (!article) throw new NotFoundError('Article');
-      return {
-        data: {
-          ...article,
-          date: article.date.toISOString(),
-          createdAt: article.createdAt.toISOString(),
-          updatedAt: article.updatedAt.toISOString(),
-        },
-      };
+      return { data: serializeArticle(article) };
     },
   );
 }

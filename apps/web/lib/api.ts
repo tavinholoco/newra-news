@@ -1,6 +1,7 @@
 import type {
   News,
   Article,
+  ArticleWithSources,
   PaginatedResponse,
   ApiResponse,
   DashboardMetrics,
@@ -112,9 +113,15 @@ export async function getNewsById(id: string): Promise<News> {
   return res.data;
 }
 
-export async function getLatestArticle(): Promise<Article | null> {
+/**
+ * Os endpoints de **detalhe** devolvem `ArticleWithSources`: o artigo mais a
+ * lista de notícias que entraram no briefing, que é o que a §8 exibe na área
+ * "como este briefing foi produzido". A listagem paginada devolve `Article`
+ * puro — ~15 fontes por artigo × 10 por página seria peso morto.
+ */
+export async function getLatestArticle(): Promise<ArticleWithSources | null> {
   try {
-    const res = await fetchApi<ApiResponse<Article>>('/articles/latest');
+    const res = await fetchApi<ApiResponse<ArticleWithSources>>('/articles/latest');
     return res.data;
   } catch {
     return null;
@@ -130,8 +137,8 @@ export async function getArticles(
   );
 }
 
-export async function getArticleByDate(date: string): Promise<Article> {
-  const res = await fetchApi<ApiResponse<Article>>(`/articles/${date}`);
+export async function getArticleByDate(date: string): Promise<ArticleWithSources> {
+  const res = await fetchApi<ApiResponse<ArticleWithSources>>(`/articles/${date}`);
   return res.data;
 }
 

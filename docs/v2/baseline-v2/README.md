@@ -33,17 +33,18 @@ o antes e o depois no próprio diff das imagens.
 | 20/08, 23:05 | Fase 2: masthead de três linhas, faixa de categorias, rodapé no ritmo dos tokens |
 | 20/08, 21:29 | Fase 1: tokens novos, shell ainda o da V1 |
 
-> **`news--*.jpg` fotografou um defeito, e foi a recaptura que o encontrou.**
-> Nas três larguras as oito pílulas de categoria aparecem com **0** ao lado do
-> nome, logo acima de "5.783 notícias". Não é erro de captura: o build da Vercel
-> correu antes de o deploy da API subir a rota de facetas, o `catch` da página
-> transformou a falha num resultado vazio, e o `staleTime` de 5 minutos do
-> TanStack Query fez a query considerá-lo fresco e nunca buscar de novo.
+> **Foi esta recaptura que achou um defeito em produção**, e vale saber disso ao
+> comparar com o histórico do git. A primeira rodada de 21/08 fotografou as oito
+> pílulas de categoria com **0** ao lado do nome, logo acima de "5.783
+> notícias": o build da Vercel correu antes de o deploy da API subir a rota de
+> facetas, o `catch` da página transformou a falha num resultado vazio, e o
+> `staleTime` de 5 minutos do TanStack Query fez a query considerá-lo fresco e
+> nunca buscar de novo.
 >
-> Corrigido no PR que fecha a Fase 4 (`prefetch` em `lib/api.ts`: falha vira
-> `undefined`, que a tela sabe desenhar, e não um resultado vazio, que ela
-> apresenta como verdade). **Recapturar `news--*` depois que o deploy subir** —
-> o resto do conjunto está correto e não precisa de nova rodada.
+> Corrigido (`prefetch` em `lib/api.ts`: falha vira `undefined`, que a tela sabe
+> desenhar, e não um resultado vazio, que ela apresenta como verdade) e as cinco
+> `news--*` foram recapturadas depois do deploy. As contagens agora somam o
+> total: 639 + 248 + 838 + 331 + 243 + 119 + 3.106 + 259 = 5.783.
 
 ## Diferenças em relação à `baseline-v1/`
 
@@ -83,6 +84,7 @@ diário, então recapturar em outra data produz imagens diferentes por natureza.
   `editorial-nav` logo acima;
 - período e ordenação como `<select>` nativo, no raio e na borda dos tokens;
 - paginação numerada com corte (`1 2 … 290`);
+- contagem em cada pílula, e o seletor de **Fonte** ao lado de período e ordem;
 - o coração de favoritar sobreposto no hero e à direita de cada item da lista.
 
 ## O que estas imagens confirmam das Fases 1 e 2

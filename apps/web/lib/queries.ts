@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import type {
   News,
   Article,
+  ArticleWithSources,
   PaginatedResponse,
   DashboardMetrics,
   FavoriteWithNews,
@@ -127,7 +128,10 @@ export function useArticleList(
   });
 }
 
-export function useArticleByDate(date: string, initialData?: Article) {
+export function useArticleByDate(
+  date: string,
+  initialData?: ArticleWithSources,
+) {
   return useQuery({
     queryKey: articleKeys.detail(date),
     queryFn: () => getArticleByDate(date),
@@ -135,7 +139,7 @@ export function useArticleByDate(date: string, initialData?: Article) {
   });
 }
 
-export function useLatestArticle(initialData?: Article | null) {
+export function useLatestArticle(initialData?: ArticleWithSources | null) {
   return useQuery({
     queryKey: articleKeys.latest(),
     queryFn: () => getLatestArticle(),

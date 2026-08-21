@@ -25,9 +25,9 @@
 - GET /api/news/:id/related — relacionadas (mesma categoria em ±72h, com 2 níveis de fallback)
 - GET /api/home — resposta agregada da Home da V2 (hero, briefing, top, trending, categorias, latest)
 - GET /api/trending — etapa 1: recência (meia-vida 12h) + favoritos × 2
-- GET /api/articles — listar artigos
-- GET /api/articles/:date — artigo por data (YYYY-MM-DD)
-- GET /api/articles/latest — artigo mais recente
+- GET /api/articles — listar artigos (com os campos de auditoria, sem `sources`)
+- GET /api/articles/:date — artigo por data (YYYY-MM-DD) + `sources`
+- GET /api/articles/latest — artigo mais recente + `sources`
 - POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min)
 - POST /api/jobs/renormalize-news — a mesma renormalização da etapa 8.5, sob
   demanda (Bearer `JOB_SECRET`). **O pipeline já faz isso todo dia** — esta rota
@@ -54,6 +54,26 @@
   sessões
 - `getHome` não repete notícia entre blocos — a precedência resolve a disputa e
   o bloco perdedor desce o próprio ranking até preencher
+
+## Artigo: o schema de resposta é o contrato
+
+**O que não está no schema Zod não existe para quem consome**, por mais que o
+serviço o carregue. O `article.service` lia os campos de auditoria e a lista de
+fontes desde a Fase 0.5, mas `articleItemSchema` era o da V1 e o
+`fastify-type-provider-zod` serializa pelo schema: `generatedAt`,
+`promptVersion`, `modelVersion`, `status` e `sources` iam do banco para o lixo
+na saída. A `docs/api.md` já descrevia o comportamento certo, então nada
+denunciava a divergência. Ao mexer no `select` de um serviço, confira o schema.
+
+- **`sources` só nos endpoints de detalhe** (`/:date` e `/latest`). Na listagem
+  seriam ~15 linhas por artigo × 10 por página, sem nada as exibindo.
+- **`position` é 0-based** — é o índice do `map` sobre as selecionadas. Numerar
+  a lista na tela pede `position + 1`.
+- **Os campos de fonte são cópias, não join.** O cleanup apaga `News` aos 30
+  dias e o artigo vive 90; um join deixaria dois terços dos briefings retidos
+  sem lista de fontes. Daí `newsId` ser ponteiro fraco.
+- **Nulo é o estado normal** dos três campos de auditoria nos artigos anteriores
+  à migration de 20/08 — a tela precisa desenhar sem a seção de transparência.
 
 ## Facetas do acervo (Fase 4)
 
