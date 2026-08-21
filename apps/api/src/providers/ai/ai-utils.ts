@@ -31,13 +31,39 @@ const NAMED_ENTITIES: Record<string, string> = {
   euro: '\u20AC', pound: '\u00A3',
 };
 
-export function decodeEntities(text: string): string {
+/**
+ * Quantas vezes decodificar antes de desistir.
+ *
+ * Uma passada só não basta: o acervo tem texto **duplamente escapado**, em que
+ * `&amp;eacute;` vira `&eacute;` na primeira volta e só então `é`. Enquanto
+ * isso não convergia, o job de renormalização reescrevia as mesmas linhas em
+ * toda execução — foi assim que este defeito apareceu.
+ *
+ * O teto existe porque a decodificação é um ponto fixo: sem ele, um texto
+ * patológico faria o laço girar. Três passadas cobrem escape duplo e triplo,
+ * que é mais do que qualquer feed produz.
+ */
+const MAX_DECODE_PASSES = 3;
+
+function decodeOnce(text: string): string {
   return text
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
       String.fromCharCode(parseInt(hex, 16)),
     )
     .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_ENTITIES[name] ?? match);
+}
+
+export function decodeEntities(text: string): string {
+  let decoded = text;
+
+  for (let pass = 0; pass < MAX_DECODE_PASSES; pass++) {
+    const next = decodeOnce(decoded);
+    if (next === decoded) break;
+    decoded = next;
+  }
+
+  return decoded;
 }
 
 function stripHtml(html: string): string {

@@ -6,7 +6,7 @@ import {
   getDevLogs,
 } from '../../services/pipeline-event.service';
 import { NotFoundError } from '../../utils/errors';
-import { assertJobSecret } from './auth';
+import { assertJobSecret } from '../../utils/job-secret';
 import {
   devLogDetailResponseSchema,
   devLogsQuerySchema,

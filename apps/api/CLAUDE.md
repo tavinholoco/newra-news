@@ -26,6 +26,10 @@
 - GET /api/articles/:date — artigo por data (YYYY-MM-DD)
 - GET /api/articles/latest — artigo mais recente
 - POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min)
+- POST /api/jobs/renormalize-news — reaplica as regras de ingestão ao acervo já
+  gravado (Bearer `JOB_SECRET`). **`dryRun` é o padrão** — gravar exige
+  `{"dryRun": false}` explícito. Corpo: `dryRun`, `limit`, `sources`,
+  `categoryMode` (`clear-only` por padrão)
 - GET /api/jobs/:pipelineId — status de execução do pipeline
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
@@ -52,6 +56,55 @@ Coleta → Normalização → Deduplicação → Persistência →
 Seleção → Geração IA → Persistência Artigo → Cleanup → Métricas
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias
+
+## Ingestão: higiene de texto e categoria
+
+Duas regras que não são óbvias no código e custaram uma Home errada em produção:
+
+- **O texto do feed é limpo na entrada, em `providers/news/feed-text.ts`.** O
+  que chega em `title`/`description` não é o que os nomes sugerem: título com
+  quebra de linha literal, e `description` que abre repetindo o título, depois
+  o crédito da foto, e só então o corpo. Limpar na ingestão é o único lugar
+  onde se conserta uma vez — o campo alimenta o `dek` do contrato editorial, o
+  resumo dos cards e o texto que o classificador lê.
+- **Palavra-chave de categoria tem de dizer do que a matéria _trata_, não como
+  ela foi apurada.** `redes sociais`, `celular`, `internet`, `programacao`
+  (grade de atrações!), `empresa`, `fundo`, `clube` e `ia` (`ia` casa o
+  imperfeito de "ir") aparecem em qualquer pauta e classificaram matéria
+  policial como Tecnologia. O classificador tem três defesas: teto de 2
+  ocorrências por palavra, piso de 3 palavras **distintas** para a descrição
+  decidir sozinha, e **título vence corpo em empate** — a ordem de
+  `CATEGORY_PRIORITY` só decide entre iguais.
+- **Corrigir a ingestão só conserta o que entra.** O acervo vive 30 dias, então
+  a Home continuaria mostrando a categoria errada por um mês. Quem repara o que
+  já está gravado é `services/news-renormalizer.service.ts`, e ele faz as três
+  coisas **na mesma ordem da ingestão** — decodifica, higieniza, e só então
+  classifica. Reclassificar sobre a descrição suja daria um resultado diferente
+  do que a mesma matéria teria se entrasse hoje.
+- **O recorte é `CLASSIFIER_OWNED_SOURCES`**, derivado das fontes sem
+  `category` fixa em `rss-sources.ts`. Fonte com categoria fixa teve a
+  categoria escolhida pela configuração; recalcular ali destrói dado correto.
+- **Tirar rótulo é seguro; pôr rótulo, não.** Medido contra as 3.688 linhas do
+  acervo de produção: 320 demoções (rótulo → `WORLD`), todas certas na amostra,
+  e 1.240 promoções, erradas perto de metade das vezes — corpo de milhares de
+  caracteres cita "prefeitura" ou "festival" de passagem e limpa o piso de 3
+  palavras distintas. Por isso `categoryMode` é `clear-only` por padrão. Subir
+  para `all` só faz sentido depois de o classificador ficar mais exigente com
+  texto longo.
+- **A categoria gravada no acervo não é o que nenhum dos dois classificadores
+  produz.** O antigo, rodado hoje sobre o texto gravado, concorda com o banco em
+  38% dos casos, e 83% do acervo está em `WORLD`. A ingestão classificava o
+  texto **antes** de decodificar entidades, então o classificador era cego a
+  toda palavra acentuada (`pol&iacute;tica`, `sa&uacute;de`). É por isso que
+  comparar o classificador novo com o que está gravado mede dois bugs de uma
+  vez, e não só a mudança de regra.
+- **A normalização precisa ser ponto fixo.** `decodeEntities` decodifica até
+  convergir (teto de 3 passadas) porque o acervo tem escape duplo
+  (`&amp;eacute;`); enquanto parava na primeira, o job reescrevia as mesmas
+  linhas em toda execução.
+- **`WORLD` é o balde genérico, e é onde matéria de polícia e trânsito deve
+  cair.** Não há categoria para esse gênero no enum, e forçá-lo em outra é
+  exatamente o defeito que foi corrigido.
 
 ## Providers
 ```

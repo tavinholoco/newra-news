@@ -3,7 +3,7 @@ import { checkAllProviders } from '../../services/health.service';
 import type { ProvidersHealth } from '../../services/health.service';
 import { getDevLogs } from '../../services/pipeline-event.service';
 import type { DevLogSummary, DevLogsResult } from '../../services/pipeline-event.service';
-import { assertJobSecret } from './auth';
+import { assertJobSecret } from '../../utils/job-secret';
 
 function escapeHtml(value: unknown): string {
   return String(value)

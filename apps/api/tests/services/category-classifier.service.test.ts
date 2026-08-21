@@ -108,10 +108,24 @@ describe('classifyCategory', () => {
     expect(category).toBe(Category.SCIENCE);
   });
 
-  it('should count multiple occurrences of the same keyword', () => {
+  // Repetição conta, mas até um teto de 2 por palavra. Somar toda ocorrência
+  // era o que deixava uma palavra citada nove vezes num texto longo decidir a
+  // categoria sozinha.
+  it('should count repeated keywords only up to the cap', () => {
     const category = classifyCategory(
       'Saúde pública: saúde em primeiro lugar na saúde da população',
       'resumo',
+    );
+
+    expect(category).toBe(Category.HEALTH);
+  });
+
+  it('should not let one keyword repeated many times outweigh a broader match', () => {
+    // 'show' nove vezes (teto 2 → 2 pontos) contra quatro palavras distintas
+    // de saúde no corpo. A abrangência ganha da repetição.
+    const category = classifyCategory(
+      'Balanço da semana',
+      `${'show '.repeat(9)} doença tratamento diagnóstico hospital`,
     );
 
     expect(category).toBe(Category.HEALTH);
@@ -123,5 +137,129 @@ describe('classifyCategory', () => {
     const category = classifyCategory('Pesquisa sobre tratamento', 'resumo');
 
     expect(category).toBe(Category.SCIENCE);
+  });
+});
+
+/**
+ * Regressões medidas contra a resposta de `/api/home` de produção em
+ * 21/08/2026, quando a Home da V2 passou a agrupar por categoria e o erro saiu
+ * da grade indiferenciada da V1 para a primeira dobra.
+ *
+ * Os textos abaixo são recortes das matérias reais, preservando as palavras que
+ * disparavam a classificação errada.
+ */
+describe('classifyCategory — vocabulário ambiente não decide categoria', () => {
+  it('should not file a police story under TECHNOLOGY for saying "redes sociais"', () => {
+    const category = classifyCategory(
+      'Primas desaparecidas no PR: principal suspeito é morto em abordagem',
+      'A família usou as redes sociais para pedir informações. As redes sociais ' +
+        'foram usadas na divulgação e a polícia analisou o celular e a internet.',
+    );
+
+    expect(category).toBe(Category.WORLD);
+  });
+
+  it('should not file a homicide story under TECHNOLOGY for mentioning a phone chip', () => {
+    const category = classifyCategory(
+      'Justiça converte em preventiva prisão de suspeito de matar esposa',
+      'O celular da vítima teve o chip retirado, e as redes sociais foram apagadas.',
+    );
+
+    expect(category).toBe(Category.WORLD);
+  });
+
+  // "poço sem fundo" é um buraco no chão, não um fundo de investimento — e a
+  // palavra estava no **título**, então nem o piso de descrição a segurava.
+  it('should not file a car recovery under ECONOMY for the homonym "fundo"', () => {
+    const category = classifyCategory(
+      'Mergulhadores encontram em ‘poço sem fundo’ carro intacto roubado',
+      'O carro estava no fundo do poço. O fundo tem mais de 30 metros.',
+    );
+
+    expect(category).toBe(Category.WORLD);
+  });
+
+  it('should not file a traffic crash under ECONOMY for naming the bus company', () => {
+    const category = classifyCategory(
+      'Roda se solta de ônibus em movimento e atinge carro estacionado',
+      'A empresa de ônibus informou que vai apurar o caso.',
+    );
+
+    expect(category).toBe(Category.WORLD);
+  });
+
+  it('should not file a domestic violence story under SPORTS for saying "clube"', () => {
+    const category = classifyCategory(
+      'Piauí tem mais de 200 agressores de mulheres monitorados por tornozeleira',
+      'O agressor foi flagrado perto do clube onde a vítima estava. ' +
+        'O clube acionou a polícia e o clube reforçou a segurança.',
+    );
+
+    expect(category).toBe(Category.WORLD);
+  });
+
+  // "programação" quer dizer grade de atrações muito mais vezes do que código.
+  it('should not file a cultural listing under TECHNOLOGY for "programação"', () => {
+    const category = classifyCategory(
+      'Conheça a festa que fez São Tomé das Letras trocar o silêncio pela música',
+      'A programação tem shows, música e banda. A programação segue no domingo ' +
+        'com artistas locais e um festival de rua.',
+    );
+
+    expect(category).toBe(Category.ENTERTAINMENT);
+  });
+});
+
+describe('classifyCategory — evidência de título vence evidência de corpo', () => {
+  // Caso real: Entretenimento pelo título ("influenciador") empatava com
+  // Política por quatro palavras soltas no corpo, e a ordem de prioridade
+  // entregava a matéria para Política.
+  it('should prefer the category the title points at when scores tie', () => {
+    const category = classifyCategory(
+      'Justiça concede habeas corpus a influenciador e impõe medidas cautelares',
+      'O caso passou pela câmara, e um deputado, um vereador e dois candidatos ' +
+        'comentaram a decisão.',
+    );
+
+    expect(category).toBe(Category.ENTERTAINMENT);
+  });
+
+  it('should still classify from the description when the title says nothing', () => {
+    const category = classifyCategory(
+      'Agenda cultural do fim de semana',
+      'Tem música, show, festival, banda e cantor na cidade.',
+    );
+
+    expect(category).toBe(Category.ENTERTAINMENT);
+  });
+
+  // O piso: uma palavra solta no corpo não classifica. Duas também não.
+  it('should fall back to WORLD when the description offers fewer than three signals', () => {
+    const category = classifyCategory(
+      'Incêndio atinge área de mata no parque',
+      'A secretaria de saúde acompanha o caso e cita risco de tratamento.',
+    );
+
+    expect(category).toBe(Category.WORLD);
+  });
+});
+
+describe('classifyCategory — negócios continuam sendo economia', () => {
+  it('should classify a debt negotiation by its business vocabulary', () => {
+    const category = classifyCategory(
+      'Braskem diz que negociações com credores se intensificaram',
+      'A companhia informou que segue em conversas com os credores.',
+    );
+
+    expect(category).toBe(Category.ECONOMY);
+  });
+
+  it('should classify a dividend announcement', () => {
+    const category = classifyCategory(
+      'Ser Educacional aprova dividendos intermediários; veja o valor',
+      'O pagamento foi aprovado pelo conselho.',
+    );
+
+    expect(category).toBe(Category.ECONOMY);
   });
 });

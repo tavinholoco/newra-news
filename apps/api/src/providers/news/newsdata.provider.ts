@@ -1,6 +1,7 @@
 import { Category } from '@newranews/database';
 import { env } from '../../config/env';
 import { decodeEntities } from '../ai/ai-utils';
+import { sanitizeDescription, sanitizeTitle } from './feed-text';
 import type { RawNewsItem } from '../types';
 
 const API_URL = 'https://newsdata.io/api/1/news';
@@ -82,19 +83,28 @@ async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
         Boolean(article.title && article.description && article.link) &&
         !article.duplicate,
     )
-    .map((article): RawNewsItem => ({
-      title: decodeEntities(article.title),
-      description: decodeEntities(article.description),
+    .map((article): RawNewsItem => {
+      const title = sanitizeTitle(decodeEntities(article.title));
+      return {
+      title,
+      description: sanitizeDescription(decodeEntities(article.description), title),
       content:
         article.content && !PAID_CONTENT_PLACEHOLDER.test(article.content)
           ? decodeEntities(article.content)
           : null,
-      // source_name pode vir ausente na API; nunca deixar source indefinido
+      // `decodeEntities` também aqui: o acervo tem "Jornal Do Com&eacute;rcio"
+      // porque só título e descrição eram decodificados, e o nome do veículo
+      // aparece cru no crédito de toda matéria dessa fonte.
+      //
+      // `source_name` pode vir ausente na API; nunca deixar source indefinido
       // (Prisma rejeita createMany com campo ausente).
-      source: article.source_name || article.source_id || 'Unknown source',
+      source: decodeEntities(
+        article.source_name || article.source_id || 'Unknown source',
+      ),
       sourceUrl: article.link,
       imageUrl: article.image_url,
       category,
       publishedAt: new Date(article.pubDate),
-    }));
+      };
+    });
 }

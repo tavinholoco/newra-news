@@ -332,3 +332,39 @@ describe('attachRetryAfter', () => {
     expect((err as Error & { retryAfterMs?: number }).retryAfterMs).toBeUndefined();
   });
 });
+
+/**
+ * Escape duplo: `&amp;eacute;` só vira `é` na segunda passada.
+ *
+ * Enquanto a decodificação parava na primeira, o job de renormalização
+ * reescrevia as mesmas linhas em toda execução — a normalização não era um
+ * ponto fixo, e é assim que um backfill vira trabalho perpétuo.
+ */
+describe('decodeEntities — convergência', () => {
+  it('should decode a doubly escaped entity all the way', () => {
+    expect(decodeEntities('Jornal Do Com&amp;eacute;rcio')).toBe(
+      'Jornal Do Comércio',
+    );
+  });
+
+  it('should be idempotent: decoding twice equals decoding once', () => {
+    const inputs = [
+      'Jornal Do Com&amp;eacute;rcio',
+      'Bolsa &amp; d&oacute;lar',
+      'A&ccedil;&atilde;o &#233; assim',
+      'texto sem entidade nenhuma',
+    ];
+
+    for (const input of inputs) {
+      const once = decodeEntities(input);
+      expect(decodeEntities(once)).toBe(once);
+    }
+  });
+
+  it('should stop at the pass cap instead of looping forever', () => {
+    // Quatro níveis de escape: o teto de 3 passadas resolve três e para.
+    const result = decodeEntities('&amp;amp;amp;amp;');
+
+    expect(result).toBe('&amp;');
+  });
+});

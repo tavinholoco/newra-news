@@ -335,6 +335,96 @@ O processamento é assíncrono — o endpoint retorna imediatamente com o ID do 
 
 ---
 
+### POST /api/jobs/renormalize-news
+
+Reaplica as regras de ingestão às notícias **já gravadas**: decodifica
+entidades, higieniza título e descrição, e reclassifica a categoria — nesta
+ordem, porque a classificação lê o texto higienizado.
+
+Existe porque corrigir a ingestão só conserta o que entra daqui pra frente. O
+acervo vive 30 dias antes do cleanup, então uma correção nas regras leva um mês
+para aparecer inteira sem este job.
+
+**Rate limit:** 20 req/min
+**Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`
+
+**Corpo (todos opcionais):**
+
+| Campo | Tipo | Default | Descrição |
+|---|---|---|---|
+| `dryRun` | boolean | **`true`** | Sem `false` explícito, nada é gravado |
+| `limit` | number | — | Teto de linhas examinadas, das mais recentes para as mais antigas |
+| `sources` | string[] | fontes sem categoria fixa | Sobrescreve o recorte |
+| `categoryMode` | `clear-only` \| `all` | **`clear-only`** | Quais mudanças de categoria aplicar |
+
+> **`dryRun` é o padrão de propósito.** É mutação em massa de conteúdo
+> publicado; a resposta do ensaio traz `transitions` e uma amostra de até 25
+> reclassificações justamente para ser lida antes de aplicar.
+
+> **`categoryMode` também tem o padrão conservador, e por medição.** O ensaio
+> contra as 3.688 linhas do acervo em 21/08 deu **320 demoções** (rótulo →
+> `WORLD`) e **1.240 promoções** (`WORLD` → rótulo), e a qualidade das duas
+> metades não é a mesma: as demoções conferidas na amostra estavam todas certas
+> — matéria policial, trânsito, obituário e loteria saindo de "Tecnologia" e
+> "Economia" —, enquanto as promoções erravam perto de metade das vezes, porque
+> um corpo de milhares de caracteres cita "prefeitura" ou "festival" de
+> passagem e limpa o piso de 3 palavras distintas do classificador. "Carnaval
+> 2027" virava Política; "Festival da Juventude oferece vagas de estágio"
+> virava Entretenimento.
+>
+> `clear-only` aplica só as demoções: remover um rótulo que a evidência não
+> sustenta. `all` aplica tudo, e hoje isso consertaria 320 erros para criar
+> perto de 500. O que precisa melhorar antes é o piso do classificador para
+> texto longo — e isso é mudança de regra, não de backfill.
+>
+> `categorySkipped` na resposta conta o que o modo corrente **não** aplicou.
+> Reparo de texto acontece nos dois modos: são independentes.
+
+O recorte padrão são as fontes **sem `category` fixa** em `rss-sources.ts` — as
+únicas cuja categoria o classificador decidiu. Fonte especializada (TechCrunch,
+InfoMoney, ESPN…) teve a categoria escolhida pela configuração, e recalcular
+ali destruiria dado correto.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "dryRun": true,
+    "scanned": 3688,
+    "textChanged": 1974,
+    "categoryChanged": 320,
+    "categorySkipped": 1272,
+    "transitions": [
+      { "from": "TECHNOLOGY", "to": "WORLD", "count": 94 },
+      { "from": "POLITICS", "to": "WORLD", "count": 78 }
+    ],
+    "sample": [
+      {
+        "id": "uuid",
+        "title": "Primas desaparecidas no PR: principal suspeito é morto",
+        "from": "TECHNOLOGY",
+        "to": "WORLD"
+      }
+    ]
+  }
+}
+```
+
+**Resposta 401:** `{ "error": "Invalid or missing token" }`
+
+**Ensaio, depois aplicação:**
+```bash
+# 1. ensaio — lê `transitions` e `sample`, não grava nada
+curl -X POST "$API/api/jobs/renormalize-news" -H "Authorization: Bearer $JOB_SECRET" -H 'Content-Type: application/json' -d '{}'
+
+# 2. aplicação — só depois de conferir a amostra acima
+curl -X POST "$API/api/jobs/renormalize-news" -H "Authorization: Bearer $JOB_SECRET" -H 'Content-Type: application/json' -d '{"dryRun": false}'
+```
+
+É idempotente: a segunda execução sobre o mesmo acervo relata zero mudanças.
+
+---
+
 ### GET /api/jobs/:pipelineId
 
 Consulta o status de execução de um pipeline.

@@ -393,10 +393,20 @@
 
 As três execuções de `/pt-BR` deram 78 · 86 · 94, e `/en` — a mesma página — deu 85 · 94 · 95. O resumo do workflow estampou **78** porque publica a "execução representativa", que o lhci escolhe pela mediana de FCP e interactive, **não do score de performance**. Somando as seis amostras da mesma página, a mediana real é ~90, contra 97 da V1 (§3.1 do diagnóstico). O clamp do hero ataca a causa; remedir depois do deploy do PR #105.
 
-**Fica em aberto**
+**Achados do pipeline que a Home expôs — corrigidos em 21/08**
 
-- [ ] **Classificação de categoria errada, agora na primeira dobra.** Produção mostra crime sob `TECHNOLOGY`, acidente de trânsito sob `ECONOMY` e violência doméstica sob `SPORTS`. É o `category-classifier.service.ts` do pipeline, não a Fase 3 — mas a Home passou a **agrupar por categoria**, e o grid indiferenciado da V1 escondia isso
-- [ ] **`description` do feed vem suja** — o `dek` do hero em produção começa repetindo o `title`, seguido do crédito da foto, e só então o corpo. Um título em produção começa com quebra de linha literal. Higiene de dado do pipeline
+- [x] **Classificação de categoria errada, na primeira dobra.** Produção mostrava crime sob `TECHNOLOGY`, acidente de trânsito sob `ECONOMY` e violência doméstica sob `SPORTS`. É o `category-classifier.service.ts`, não a Fase 3 — mas a Home passou a **agrupar por categoria**, e o grid indiferenciado da V1 escondia isso.
+
+  **O mecanismo:** o score somava toda ocorrência de toda palavra-chave, título com peso 2 e descrição com peso 1, sem piso nenhum. Como a descrição é o corpo da matéria — até 14.429 caracteres no acervo —, uma palavra ambiente citada de passagem decidia a categoria sozinha. Medido contra as 36 matérias da Home de produção: **toda** classificação errada tinha pontuação zero no título e vinha de uma ou duas palavras soltas no corpo; **toda** classificação certa tinha o título pontuando.
+
+  Os piores casos eram palavras que dizem *como* a matéria foi apurada, não do que ela trata: `redes sociais` sozinha classificou 5 matérias policiais como Tecnologia; `programacao` (grade de atrações, não código) deu 7 e 8 pontos a duas agendas culturais; `fundo` casou com "poço sem fundo"; `empresa` com "a empresa de ônibus informou"; `clube` com "clube de tiro"; e o regex de palavra inteira para `ia` casa com o imperfeito de "ir".
+
+  **A correção tem três partes:** (a) ocorrência da mesma palavra conta até um teto de 2, então repetir "redes sociais" nove vezes não decide nada; (b) a descrição só classifica sozinha com **3 palavras distintas** — o que preserva a agenda cultural com música/show/festival/banda e derruba a matéria policial que cita "empresa" uma vez; (c) as palavras ambiente saíram das listas, e entrou vocabulário de negócios que faltava (`credores`, `dividendos`, `acionistas`, `recuperacao judicial`), sem o qual matéria real de empresa passou a cair em WORLD. Um quarto ajuste veio da revisão: **empate entre evidência de título e evidência de corpo não é empate** — sem isso "Justiça concede habeas corpus a influenciador" empatava 5 a 5 e a ordem de prioridade entregava a matéria para Política.
+
+  **Resultado nas 29 matérias do feed genérico: 16 mudaram de categoria, todas para melhor** — 14 matérias de polícia, trânsito e obituário foram para `WORLD`, uma pauta de moda saiu de Tecnologia para Entretenimento, e uma de política externa foi para `WORLD`. As 13 restantes já estavam certas e continuaram.
+
+  **Sobre acrescentar `CRIME`/`GENERAL` ao enum: fica de fora, por ora.** Não é o que corrige o erro — o mecanismo é —, custa migration mais rótulos nos dois JSONs, schemas Zod e a faixa de categorias; e só depois desta correção dá para *medir* que fatia do acervo realmente cai em `WORLD` e decidir com dado. `WORLD` já é o balde genérico e é onde esse gênero deve ficar até lá
+- [x] **`description` do feed vinha suja** — o `dek` do hero em produção começava repetindo o `title`, seguido do crédito da foto ("Divulgação/Polícia Civil do Maranhão"), e só então o corpo; um título começava com quebra de linha literal. `providers/news/feed-text.ts` apara o título e remove a linha duplicada e a de crédito na ingestão, que é o único lugar onde se conserta uma vez. O casamento de crédito é conservador de propósito — curta **e** sem pontuação final **e** (com barra ou palavra de crédito) —, porque só "curta e sem ponto" comeria a abertura legítima de uma matéria. O classificador também passou a ler o texto limpo: antes recebia `item.title` cru, com entidade e quebra de linha, enquanto o título gravado era o decodificado
 
 ---
 
