@@ -26,6 +26,9 @@
 - GET /api/articles/:date — artigo por data (YYYY-MM-DD)
 - GET /api/articles/latest — artigo mais recente
 - POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min)
+- POST /api/jobs/renormalize-news — reaplica as regras de ingestão ao acervo já
+  gravado (Bearer `JOB_SECRET`). **`dryRun` é o padrão** — gravar exige
+  `{"dryRun": false}` explícito. Corpo: `dryRun`, `limit`, `sources`
 - GET /api/jobs/:pipelineId — status de execução do pipeline
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
@@ -71,6 +74,19 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
   ocorrências por palavra, piso de 3 palavras **distintas** para a descrição
   decidir sozinha, e **título vence corpo em empate** — a ordem de
   `CATEGORY_PRIORITY` só decide entre iguais.
+- **Corrigir a ingestão só conserta o que entra.** O acervo vive 30 dias, então
+  a Home continuaria mostrando a categoria errada por um mês. Quem repara o que
+  já está gravado é `services/news-renormalizer.service.ts`, e ele faz as três
+  coisas **na mesma ordem da ingestão** — decodifica, higieniza, e só então
+  classifica. Reclassificar sobre a descrição suja daria um resultado diferente
+  do que a mesma matéria teria se entrasse hoje.
+- **O recorte é `CLASSIFIER_OWNED_SOURCES`**, derivado das fontes sem
+  `category` fixa em `rss-sources.ts`. Fonte com categoria fixa teve a
+  categoria escolhida pela configuração; recalcular ali destrói dado correto.
+- **A normalização precisa ser ponto fixo.** `decodeEntities` decodifica até
+  convergir (teto de 3 passadas) porque o acervo tem escape duplo
+  (`&amp;eacute;`); enquanto parava na primeira, o job reescrevia as mesmas
+  linhas em toda execução.
 - **`WORLD` é o balde genérico, e é onde matéria de polícia e trânsito deve
   cair.** Não há categoria para esse gênero no enum, e forçá-lo em outra é
   exatamente o defeito que foi corrigido.

@@ -335,6 +335,75 @@ O processamento é assíncrono — o endpoint retorna imediatamente com o ID do 
 
 ---
 
+### POST /api/jobs/renormalize-news
+
+Reaplica as regras de ingestão às notícias **já gravadas**: decodifica
+entidades, higieniza título e descrição, e reclassifica a categoria — nesta
+ordem, porque a classificação lê o texto higienizado.
+
+Existe porque corrigir a ingestão só conserta o que entra daqui pra frente. O
+acervo vive 30 dias antes do cleanup, então uma correção nas regras leva um mês
+para aparecer inteira sem este job.
+
+**Rate limit:** 20 req/min
+**Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`
+
+**Corpo (todos opcionais):**
+
+| Campo | Tipo | Default | Descrição |
+|---|---|---|---|
+| `dryRun` | boolean | **`true`** | Sem `false` explícito, nada é gravado |
+| `limit` | number | — | Teto de linhas examinadas, das mais recentes para as mais antigas |
+| `sources` | string[] | fontes sem categoria fixa | Sobrescreve o recorte |
+
+> **`dryRun` é o padrão de propósito.** É mutação em massa de conteúdo
+> publicado; a resposta do ensaio traz `transitions` e uma amostra de até 25
+> reclassificações justamente para ser lida antes de aplicar.
+
+O recorte padrão são as fontes **sem `category` fixa** em `rss-sources.ts` — as
+únicas cuja categoria o classificador decidiu. Fonte especializada (TechCrunch,
+InfoMoney, ESPN…) teve a categoria escolhida pela configuração, e recalcular
+ali destruiria dado correto.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "dryRun": true,
+    "scanned": 910,
+    "textChanged": 255,
+    "categoryChanged": 279,
+    "transitions": [
+      { "from": "POLITICS", "to": "WORLD", "count": 118 },
+      { "from": "TECHNOLOGY", "to": "WORLD", "count": 54 }
+    ],
+    "sample": [
+      {
+        "id": "uuid",
+        "title": "Receita Nosso Campo: aprenda a fazer uma broa de fubá",
+        "from": "TECHNOLOGY",
+        "to": "WORLD"
+      }
+    ]
+  }
+}
+```
+
+**Resposta 401:** `{ "error": "Invalid or missing token" }`
+
+**Ensaio, depois aplicação:**
+```bash
+# 1. ensaio — lê `transitions` e `sample`, não grava nada
+curl -X POST "$API/api/jobs/renormalize-news" -H "Authorization: Bearer $JOB_SECRET" -H 'Content-Type: application/json' -d '{}'
+
+# 2. aplicação — só depois de conferir a amostra acima
+curl -X POST "$API/api/jobs/renormalize-news" -H "Authorization: Bearer $JOB_SECRET" -H 'Content-Type: application/json' -d '{"dryRun": false}'
+```
+
+É idempotente: a segunda execução sobre o mesmo acervo relata zero mudanças.
+
+---
+
 ### GET /api/jobs/:pipelineId
 
 Consulta o status de execução de um pipeline.
