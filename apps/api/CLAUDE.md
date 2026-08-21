@@ -83,9 +83,10 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
   (grade de atrações!), `empresa`, `fundo`, `clube` e `ia` (`ia` casa o
   imperfeito de "ir") aparecem em qualquer pauta e classificaram matéria
   policial como Tecnologia. O classificador tem três defesas: teto de 2
-  ocorrências por palavra, piso de 3 palavras **distintas** para a descrição
-  decidir sozinha, e **título vence corpo em empate** — a ordem de
-  `CATEGORY_PRIORITY` só decide entre iguais.
+  ocorrências por palavra, piso de **5 palavras distintas** para a descrição
+  decidir sozinha (o número saiu de medição — ver abaixo), e **título vence
+  corpo em empate**, porque a ordem de `CATEGORY_PRIORITY` só decide entre
+  iguais.
 - **Corrigir a ingestão só conserta o que entra.** Quem repara o que já está
   gravado é `services/news-renormalizer.service.ts`, chamado pela etapa 8.5 do
   pipeline, e ele faz as três coisas **na mesma ordem da ingestão** —
@@ -104,10 +105,10 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
 - **Tirar rótulo é seguro; pôr rótulo, não.** Medido contra as 3.688 linhas do
   acervo de produção: 320 demoções (rótulo → `WORLD`), todas certas na amostra,
   e 1.240 promoções, erradas perto de metade das vezes — corpo de milhares de
-  caracteres cita "prefeitura" ou "festival" de passagem e limpa o piso de 3
-  palavras distintas. Por isso `categoryMode` é `clear-only` por padrão. Subir
-  para `all` só faz sentido depois de o classificador ficar mais exigente com
-  texto longo.
+  caracteres cita "prefeitura" ou "festival" de passagem e limpa o piso. Por
+  isso `categoryMode` é `clear-only` por padrão. Subir para `all` só faz sentido
+  quando a classificação passar do teto de ~67%, o que pede IA e não mais ajuste
+  de piso.
 - **A categoria gravada no acervo não é o que nenhum dos dois classificadores
   produz.** O antigo, rodado hoje sobre o texto gravado, concorda com o banco em
   38% dos casos, e 83% do acervo está em `WORLD`. A ingestão classificava o
