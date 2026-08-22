@@ -198,22 +198,13 @@ describe('POST /api/events', () => {
     expect(res.statusCode).toBe(201);
   });
 
-  it('accepts every ad placement and format of the inventory', async () => {
-    const res = await post(app, [
-      {
-        ...base,
-        type: 'ad_view',
-        placement: 'article-in-content',
-        format: 'in-article',
-      },
-      {
-        ...base,
-        type: 'ad_click',
-        placement: 'home-after-hero',
-        format: 'leaderboard',
-      },
-    ]);
-
-    expect(res.statusCode).toBe(201);
+  it('rejects an ad event — the catalogue no longer has one', () => {
+    // `ad_view`/`ad_click` saíram com a decisão de não exibir anúncio. O schema
+    // é o contrato: um cliente antigo que ainda os mandasse recebe 400.
+    return post(app, [
+      { ...base, type: 'ad_view', placement: 'home-after-hero', format: 'leaderboard' },
+    ]).then((res) => {
+      expect(res.statusCode).toBe(400);
+    });
   });
 });

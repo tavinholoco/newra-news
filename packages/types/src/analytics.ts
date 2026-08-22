@@ -6,6 +6,11 @@ import type { Category } from './news';
  * **Vive aqui e não no web porque a API valida o mesmo vocabulário.** Um
  * `source` novo escrito só de um lado passaria pelo build dos dois e seria
  * rejeitado em runtime, na produção, sem ninguém ver.
+ *
+ * **São doze, e eram catorze.** `ad_view` e `ad_click` saíram em 22/08/2026,
+ * junto com a decisão de não exibir anúncio no site — evento sem emissor é a
+ * mesma armadilha da tabela sem leitor. Histórico no item 29 do
+ * `docs/progress.md`.
  */
 export const PRODUCT_EVENT_TYPES = [
   'homepage_view',
@@ -19,8 +24,6 @@ export const PRODUCT_EVENT_TYPES = [
   'favorite_add',
   'share',
   'newsletter_signup',
-  'ad_view',
-  'ad_click',
   'subscription_intent',
 ] as const;
 
@@ -55,30 +58,6 @@ export const SHARE_CHANNELS = [
   'native-share',
 ] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
-
-/**
- * As cinco posições de anúncio da §9 e os quatro formatos.
- *
- * **O vocabulário mora aqui; a tabela de alturas continua em
- * `apps/web/lib/ads.ts`.** A altura é decisão de layout e só o web a usa; o
- * nome da posição, não — ele viaja no payload de `ad_view` e a API o valida.
- */
-export const AD_PLACEMENTS = [
-  'home-after-hero',
-  'home-between-sections',
-  'news-list-inline',
-  'article-in-content',
-  'article-after-content',
-] as const;
-export type AdPlacement = (typeof AD_PLACEMENTS)[number];
-
-export const AD_FORMATS = [
-  'leaderboard',
-  'rectangle',
-  'in-article',
-  'mobile-banner',
-] as const;
-export type AdFormat = (typeof AD_FORMATS)[number];
 
 /**
  * O que `track()` anexa a todo evento — **nunca o componente**.
@@ -141,8 +120,8 @@ export type ProductEventPayload =
       channel: ShareChannel;
     }
   | { type: 'newsletter_signup'; origin: EventSource }
-  | { type: 'ad_view'; placement: AdPlacement; format: AdFormat }
-  | { type: 'ad_click'; placement: AdPlacement; format: AdFormat }
+  // Continua sem call site: medir intenção por um plano que não existe seria
+  // evento morto. Fica no catálogo para o dia em que o Newra Plus existir.
   | { type: 'subscription_intent'; origin: EventSource; plan: string };
 
 /** Um evento completo, na forma em que viaja para `POST /api/events`. */

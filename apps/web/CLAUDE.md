@@ -292,12 +292,13 @@ Regras que não são óbvias no código:
 - **O `sessionId` mora em `sessionStorage`, nunca em `localStorage`.** Em
   `localStorage` ele viraria identificador estável entre visitas, e é essa linha
   que separa medição anônima de dado pessoal.
-- **Sem decisão de consentimento, mede.** É legítimo interesse enquanto o
-  tratamento for este: sem cookie, sem identificador persistente, sem terceiro.
-  DNT e GPC são respeitados mesmo assim, e um `denied` gravado vale mesmo antes
-  de existir banner. **O banner entra no PR 3, com o anúncio personalizado** —
-  que é o primeiro uso que exige consentimento de verdade. Quando entrar, só
-  precisa gravar a decisão: `track()` já obedece.
+- **Mede por padrão, e o único opt-out é o do navegador.** A camada é
+  *cookieless*, sem identificador entre sessões e sem terceiro: o tratamento se
+  apoia em legítimo interesse, não em consentimento. `isTrackingAllowed()`
+  respeita **DNT e Global Privacy Control**, e mais nada — a máquina de decisão
+  (`granted`/`denied`) existiu para o banner que foi removido com os anúncios, e
+  sem quem escrevesse a decisão ela lia uma chave que ninguém gravava. Controle
+  explícito de opt-out na interface é item em aberto.
 - **`source` e `position` são props obrigatórias nos cards.** Opcionais, um uso
   novo nasceria sem atribuição e a falta só apareceria na hora de ler a métrica.
   O compilador é quem cobra.
@@ -478,51 +479,17 @@ Regras que não são óbvias no código:
   casar de forma mais esperta destacaria trecho que não foi o motivo do
   resultado.
 
-### Monetização
+### Monetização — **o site não exibe anúncio**
 
-`monetization/` tem `newsletter-cta` (Fase 2) e `ad-slot` (Fase 3). O inventário
-— placements, formatos e alturas da §9 de `docs/v2/04-analytics-e-slots.md` —
-vive em `lib/ads.ts`.
+Decisão de 22/08/2026. `AdSlot`, `lib/ads.ts`, o banner de consentimento e o hook
+de viewability **foram removidos** — ~750 linhas que nunca iriam ao ar. O que
+resta em `editorial/newsletter-cta.tsx` é CTA da própria newsletter, que é
+conteúdo, não inventário (por isso saiu de `monetization/`, pasta que deixou de
+existir).
 
-- **Sem inventário o `AdSlot` não renderiza nada**: nem caixa vazia, nem a
-  palavra "Publicidade" (`NEXT_PUBLIC_ADS_ENABLED`).
-- **A altura é reservada antes de o criativo chegar**, e vai em `style` porque
-  é dado: uma classe `min-h-[90px]` teria de existir literal no código para o
-  Tailwind emitir a regra, o que duplicaria a tabela de alturas.
-- **São três estados, não dois** (Fase 8, PR 3):
-
-  | `NEXT_PUBLIC_AD_NETWORK` | Consentimento | O que renderiza |
-  |---|---|---|
-  | ausente | irrelevante | inventário **de casa** — a newsletter |
-  | presente | `granted` | o espaço de terceiro, rotulado "Publicidade" |
-  | presente | qualquer outro | **nada** |
-
-- **Inventário de casa não se chama "Publicidade".** Carimbar assim a promoção
-  da própria newsletter seria mentir sobre a natureza do espaço — mesma regra
-  que impede a matéria coletada de ser carimbada como escrita por IA.
-- **Rede sem consentimento não cai no criativo de casa.** A posição foi
-  vendida; preenchê-la com outra coisa entregaria ao anunciante um espaço que
-  ele pagou e não teve.
-- **`ad_view` é metade do elemento por um segundo** (`useInView`), não "apareceu
-  na tela". Sem a permanência, uma rolagem rápida contaria impressão em todos os
-  slots de uma vez, e a viewability medida seria a de quem não viu nada.
-
-### Consentimento (Fase 8, PR 3)
-
-- **O banner só existe quando há terceiro.** Quem exige consentimento prévio
-  não é "ter anúncio" — é carregar script que grava cookie e cruza comportamento
-  entre sites. Sem rede configurada não há tratamento a consentir, e perguntar
-  seria interromper a leitura de toda página sem portar decisão nenhuma.
-- **`isTrackingAllowed` e `isThirdPartyAllowed` discordam de propósito.** Para a
-  medição anônima, `unset` **permite** (legítimo interesse); para script de
-  terceiro, `unset` **nega** (consentimento prévio e expresso). É a diferença
-  entre os dois tratamentos, e está em duas funções para não virar um `if` que
-  alguém simplifica.
-- **Recusar vem primeiro e tem o mesmo peso visual.** Botão de recusa
-  escondido, apagado ou depois do aceite é consentimento obtido por desenho.
-- **`dialog` com `aria-modal='false'`, não `alertdialog`.** Ele não interrompe
-  tarefa em curso, e `alertdialog` moveria o foco à força — tirando do lugar
-  quem está lendo.
+**Ao considerar reintroduzir espaço pago**, leia primeiro a §21 do plano e o item
+29 do `docs/progress.md`: patrocínio de newsletter e Newra Plus estão adiados com
+gatilho num número, não numa data, e publicidade está **cancelada por decisão**.
 
 ### Outras regras de estilo
 - Mobile-first com Tailwind

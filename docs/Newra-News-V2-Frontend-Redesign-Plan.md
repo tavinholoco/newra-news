@@ -848,44 +848,57 @@ Pesquisas recentes do setor mostram que publishers seguem tratando newsletters c
 
 ---
 
-# 21. Monetização: estratégia proposta
+# 21. Monetização: o que fica planejado
 
-Não iniciar a V2.0 com paywall agressivo.
+> **Reescrita em 22/08/2026.** A estratégia original tinha quatro fases:
+> publicidade leve, newsletter patrocinada, Newra Plus e API B2B. A primeira foi
+> **cancelada por decisão** e as outras tês estão **adiadas para lançamento
+> futuro e indeterminado**. Nada disso está em desenvolvimento.
 
-O Newra ainda precisa fortalecer sua proposta de valor e provar retenção. O próprio Reuters Institute aponta que o pagamento por notícias continua concentrado em uma faixa relativamente limitada de mercados e que o deslocamento de audiência para plataformas externas dificulta o funil de assinaturas. Fonte: https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/dnr-executive-summary.
+Não iniciar a V2.0 com paywall agressivo continua valendo, e a razão também: o
+Newra ainda precisa fortalecer sua proposta de valor e provar retenção. O Reuters
+Institute aponta que o pagamento por notícias segue concentrado numa faixa
+relativamente limitada de mercados e que o deslocamento de audiência para
+plataformas externas dificulta o funil de assinaturas. Fonte:
+https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/dnr-executive-summary.
 
-## Fase 1: publicidade leve
+## O gatilho é um número, não uma data
 
-Implementar poucos espaços de anúncio:
+Nenhum dos itens abaixo se retoma por calendário. Todos dependem de **base de
+usuários recorrentes**, e quem vai dizer se ela existe é a tela de métricas de
+produto da Fase 8. Enquanto o `ProductEvent` não mostrar sessões recorrentes e
+assinantes de newsletter em volume, tudo aqui é planejamento.
 
-- 1 slot no desktop abaixo do primeiro bloco editorial;
-- 1 slot entre grandes seções;
-- 1 slot contextual dentro/ao redor do artigo;
-- formatos mobile cuidadosamente dimensionados.
+## ~~Fase 1: publicidade leve~~ — **CANCELADA** (22/08/2026)
 
-Nunca:
+**Decisão: o site não exibe anúncio.** O código que existia (slots com altura
+reservada, inventário de casa, banner de consentimento, viewability) foi
+removido — ver a Fase 8 da §28 e o item 29 do `docs/progress.md`.
 
-- anúncio cobrindo conteúdo;
-- pop-up instantâneo;
-- excesso de anúncios no topo;
-- falso conteúdo patrocinado;
-- layout que muda enquanto o usuário lê.
+Se um dia for reconsiderada, o registro do que existiu está no PR #124, e a
+lição de desenho continua válida: **altura reservada antes do criativo**, senão
+o anúncio empurra a página depois que o leitor começou a ler.
 
-As boas práticas do Google AdSense recomendam organizar o conteúdo pensando no usuário, não sobrecarregar a página e manter anúncios claramente identificados. Fonte: https://support.google.com/adsense/answer/1282097?hl=en.
-
-A própria documentação também reforça que experiência, velocidade e posicionamento afetam a viewability. Fonte: https://support.google.com/adsense/answer/6219980?hl=en.
-
-## Fase 2: Newsletter patrocinada
+## Fase 2: Newsletter patrocinada — **ADIADA** (indeterminado)
 
 Possibilidades:
 
-- “Newra Daily apresentado por ...”;
+- "Newra Daily apresentado por ...";
 - patrocínio por categoria;
 - slots patrocinados claramente marcados.
 
-Isso tende a combinar melhor com uma publicação de nicho do que encher o site de banners.
+Isso tende a combinar melhor com uma publicação de nicho do que encher o site de
+banners — e, com a publicidade cancelada, passou a ser **o primeiro caminho de
+receita**, não o segundo.
 
-## Fase 3: Newra Plus
+**O que falta antes:** número de assinantes para pôr numa proposta. É o que a
+métrica de `newsletter_signup` e de sessões recorrentes vai dizer.
+
+**O que já existe:** a landing `/newsletter`, o `Subscriber` no banco, o envio
+diário pela etapa 7.5 do pipeline, e o evento `newsletter_signup` medindo a
+conversão por origem (rodapé × CTA editorial).
+
+## Fase 3: Newra Plus — **ADIADA** (indeterminado)
 
 Quando houver base de usuários recorrentes, testar assinatura:
 
@@ -897,7 +910,6 @@ FREE
 • newsletter básica
 
 PLUS
-• experiência sem anúncios
 • briefing premium
 • personalização por tema
 • newsletters especiais
@@ -906,56 +918,41 @@ PLUS
 • histórico completo
 ```
 
-A intenção inicial deve ser vender **conveniência e personalização**, não simplesmente “acesso a notícias”.
+> **"Experiência sem anúncios" saiu da lista**, e por um motivo simples: não há
+> anúncio para remover. Era o item mais fácil de vender e o menos honesto —
+> cobrar para tirar um incômodo que o próprio site cria.
 
-## Fase 4: B2B / API
+A intenção deve ser vender **conveniência e personalização**, não "acesso a
+notícias".
 
-Em uma fase posterior, o motor de agregação e briefing pode ser transformado em produto:
+**O que falta antes:** gente voltando. E, do lado do produto, decidir se existe
+plano — `subscription_intent` está no catálogo de eventos **sem call site**, e um
+`premium-cta` que não leva a lugar nenhum mede clique em botão, não intenção de
+compra.
 
-- API de briefings;
-- widgets para sites;
-- resumos para empresas;
-- newsletter white-label;
-- monitoramento por tópico.
+**O que já existe:** `UserPreference` com assuntos e tema (Fase 6), que é a base
+da personalização, e as telas de conta.
 
-Essa pode se tornar uma linha de receita mais escalável que publicidade, mas exige evolução de backend e produto além da V2.0 visual.
+## Fase 4: B2B / API — **ADIADA** (indeterminado)
 
----
+O motor de agregação e briefing pode virar produto: API de briefings, widgets,
+resumos para empresas, newsletter white-label, monitoramento por tópico.
 
-# 22. Como monetização deve influenciar o design
-
-Isso precisa ser definido **antes** de finalizar o layout.
-
-Exemplo:
-
-```text
-Content width
-      ↓
-Editorial modules
-      ↓
-Ad slots reservados
-      ↓
-Newsletter CTA
-      ↓
-Subscription CTA
-```
-
-Não deixar para “colocar Adsense depois”.
-
-O melhor caminho é reservar espaços de anúncio no design system desde a V2.0, mas mantê-los invisíveis quando não existir inventário.
-
-Criar:
-
-```tsx
-<AdSlot
-  placement="home-after-hero"
-  format="leaderboard"
-/>
-```
-
-Isso evita refatorações futuras.
+Pode se tornar uma linha de receita mais escalável que publicidade — e, com a
+publicidade cancelada, é a alternativa de teto mais alto. Mas exige evolução de
+backend e de produto muito além da V2.0 visual.
 
 ---
+
+# 22. ~~Como monetização deve influenciar o design~~ — histórico
+
+> **Seção histórica desde 22/08/2026.** Ela existia para uma regra: decidir onde
+> o anúncio entra **antes** de fechar o layout, para ele não empurrar conteúdo
+> depois. Com a publicidade cancelada, a regra não tem mais objeto.
+>
+> **O que ela ensinou continua valendo** e está aplicado: espaço reservado antes
+> do conteúdo chegar é o que protege o CLS — e é por isso que o `story-image`
+> reserva proporção e o `story-card` reserva altura, mesmo sem anúncio nenhum.
 
 # 23. Arquitetura de componentes da V2.0
 
@@ -1660,15 +1657,71 @@ medição.
 > BCP-47 da rota. As duas URLs continuam no `sitemap.xml` geral, com o `hreflang`
 > dizendo o que elas são.
 
-## Fase 8 — Monetização
+## Fase 8 — Medição de produto 🔶 em andamento
+
+> **Esta fase se chamava "Monetização" e foi reescrita em 22/08/2026.** A
+> decisão: **não exibir anúncio no site**. O que sobra de monetização é
+> planejamento, e está na §21 — aqui ficou o que de fato há para construir.
 
 ```text
-[ ] AdSlot abstraction
-[ ] reserved inventory
-[ ] privacy/consent layer
-[ ] newsletter sponsorship placement
-[ ] pricing experiment framework
+[x] camada de analytics             (track(), sessão, DNT/GPC — item 27)
+[x] ingestão e retenção             (ProductEvent, POST /api/events — item 26)
+[x] instrumentação                  (12 eventos com call site — itens 27 e 28)
+[ ] tela de métricas de produto     (ler o que a camada mede)
 ```
+
+### Por que a fase mudou de nome
+
+O trabalho que sobrou não é monetização: é **ler o que a camada mede**. Hoje o
+`ProductEvent` recebe evento e **ninguém o lê** — uma tabela sem leitor, que é a
+armadilha que este projeto evita em toda fase.
+
+E não é medição por medição. **É a tela de métricas que produz o número que
+destrava patrocínio e Newra Plus** (§21): sem ela, "retomar quando houver base de
+usuários recorrentes" fica sem como ser verificado — esperar-se-ia um número que
+ninguém calcula.
+
+### A tela de métricas de produto
+
+**Versão mínima, decidida em 22/08/2026:** consulta o `ProductEvent` cru,
+agrupado por tipo e por dia, numa aba nova de `/admin/metrics`. Sem migration.
+
+Não confundir com o que já existe ali: o painel atual mede o **pipeline**
+(notícias coletadas, artigo gerado, duração, erros) — saúde de máquina. Este mede
+**comportamento de gente**.
+
+| Pergunta | De onde sai |
+|---|---|
+| O hero funciona, ou é enfeite? | CTR de `story_open` por `source` |
+| O briefing é lido ou só aberto? | `article_scroll_90` ÷ `briefing_open` |
+| O que procuram e não acham? | `search` com `resultCount: 0` |
+| Que editoria puxa audiência? | `category_view` |
+| **Tem gente voltando?** | sessões por dia |
+
+> **A tabela de agregado diário ficou de fora, e tem data para ser reavaliada.**
+> Ela serve para uma coisa: comparar meses **depois** que a retenção de 90 dias
+> apagar o evento cru. Como a ingestão começou agora, o problema aparece daqui a
+> três meses — e o agregado entra sem retrabalho, porque o expurgo e a etapa 8 do
+> pipeline já existem.
+
+### Anúncio: **cancelado por decisão**, não esquecido
+
+Em 22/08/2026 decidiu-se **não exibir anúncio no site**, e o código foi removido
+— `AdSlot`, o inventário, o banner de consentimento, o hook de viewability, os
+eventos `ad_view`/`ad_click` e o vocabulário de placements. São ~750 linhas e
+três suítes que **nunca iriam ao ar**, e código que ninguém executa é a mesma
+armadilha do controle que não muda nada: cada mudança de token, de i18n ou do
+`cn` teria de mantê-lo verde para sempre.
+
+A engenharia continua legível onde importa — itens **28 e 29** do
+`docs/progress.md` narram o que existiu e por quê, e o PR #124 tem o código.
+
+**Consequência direta no consentimento:** sem terceiro, não há tratamento que
+exija consentimento prévio. A máquina de decisão (`granted`/`denied`/`unset`)
+saiu junto, porque sem banner **ninguém escrevia a decisão** — `readConsent` lia
+uma chave que nada gravava. O direito de oposição fica com **DNT e Global
+Privacy Control**, que é o mecanismo padrão para medição anônima de primeira
+parte. Um controle explícito de opt-out na interface é item em aberto.
 
 ## Fase 9 — Release
 

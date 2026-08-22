@@ -47,7 +47,10 @@ Fase 2 e vale para todas as telas.
 | Fase | 3 |
 
 Blocos, na ordem da §6.1: `hero-story` → `briefing-card` → `top-stories` →
-`trending-list` → `category-section` (× N) → `newsletter-cta` → `ad-slot`.
+`trending-list` → `category-section` (× N) → `newsletter-cta`.
+
+> **O `ad-slot` fechava esta lista e foi removido em 22/08/2026**, com a
+> decisão de o site não exibir anúncio. Ver a §21 do plano.
 
 Era: `ArticleCard` (faixa de altura fixa) + `NewsGrid` de 12 cards idênticos.
 Dos blocos acima só o `newsletter-cta` existia — entregue na Fase 2. Os outros
@@ -121,9 +124,8 @@ Componentes: `article-hero`, `article-body`, `article-meta`, `favorite-button`,
 > mentira. O que a tela declara é que o texto é do veículo e que o Newra News
 > coletou.
 
-> **Sem `ad-slot`.** Sem inventário o componente não renderiza nada
-> (`NEXT_PUBLIC_ADS_ENABLED`), e hoje é sempre esse o caso — o placement entra
-> na Fase 8, com o resto da monetização.
+> **Sem `ad-slot`, e agora definitivamente.** O componente existiu e foi
+> removido em 22/08/2026: o site não exibe anúncio. Ver a §21 do plano.
 
 ### `/[locale]/article` — Histórico de briefings ✅ entregue (Fase 5)
 
@@ -325,9 +327,8 @@ de tokens.
 | `category-nav` | `editorial/` | 4 |
 | `source-list` | `editorial/` | 5 |
 | `related-stories` | `editorial/` | 5 |
-| `ad-slot` | `monetization/` | 3 |
-| `newsletter-cta` | `monetization/` | **2 — entregue** |
-| `premium-cta` | `monetization/` | 8 |
+| `newsletter-cta` | `editorial/` | **2 — entregue** (saiu de `monetization/` em 22/08) |
+| ~~`premium-cta`~~ | — | **não será construído** enquanto não houver plano pago (§21) |
 | landing `/newsletter` | `app/` | **2 — entregue** |
 
 ### Renomeados a partir do que existe
@@ -363,7 +364,7 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | 5 — Article | `/article`, `/article/[date]` |
 | 6 — Account | `/favorites`, `/signin`, `/account`, `/account/preferences`, `/account/newsletter` |
 | 7 — SEO/perf/a11y | todas (auditoria) |
-| 8 — Monetização | `ad-slot` nas telas da 3, 4 e 5 |
+| 8 — Medição de produto | `/admin/metrics` (aba nova) — anúncio foi cancelado, ver §21 |
 
 ---
 

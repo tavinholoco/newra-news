@@ -7,13 +7,7 @@ import {
 import { isTrackingAllowed } from './consent';
 import { getSessionId } from './session';
 
-export {
-  isTrackingAllowed,
-  isThirdPartyAllowed,
-  readConsent,
-  writeConsent,
-} from './consent';
-export type { ConsentDecision } from './consent';
+export { isTrackingAllowed } from './consent';
 export { sanitizeSearchQuery } from './sanitize';
 
 /** O payload de um tipo, sem o próprio `type` — o que o componente escreve. */

@@ -329,11 +329,6 @@
       "title": "Newsletter"
     }
   },
-  "ads": {
-    "houseCta": "Get the daily briefing by email",
-    "houseLabel": "From Newra News",
-    "label": "Advertisement"
-  },
   "newsPeriod": {
     "30d": "30 days",
     "7d": "7 days",
@@ -405,12 +400,5 @@
       "unsubscribe": "Unsubscribe",
       "error": "We could not update your subscription. Please try again."
     }
-  },
-  "consent": {
-    "accept": "Accept",
-    "body": "We use partner cookies to show ads. Site usage measurement is anonymous and does not depend on this choice.",
-    "decline": "Decline",
-    "learnMore": "Learn more",
-    "title": "Advertising cookies"
   }
 }

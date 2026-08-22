@@ -18,7 +18,6 @@ import { SITE_URL, SITE_NAME, toOgLocale } from '@/lib/seo';
 import { organizationJsonLd, webSiteJsonLd } from '@/lib/json-ld';
 import { routing } from '@/i18n/routing';
 import type { Locale } from '@/lib/i18n';
-import { ConsentBanner } from '@/components/consent/consent-banner';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -145,7 +144,6 @@ export default async function LocaleLayout({
               {children}
             </main>
             <Footer />
-            <ConsentBanner />
           </Providers>
         </NextIntlClientProvider>
       </body>

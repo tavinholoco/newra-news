@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { FileText, Quote, CalendarClock } from 'lucide-react';
-import { NewsletterCta } from '@/components/monetization/newsletter-cta';
+import { NewsletterCta } from '@/components/editorial/newsletter-cta';
 import { pageMetadata } from '@/lib/seo';
 
 interface Props {

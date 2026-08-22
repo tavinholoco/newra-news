@@ -5,12 +5,7 @@ import {
   flushEvents,
   __resetAnalyticsForTests,
 } from '@/lib/analytics';
-import {
-  CONSENT_STORAGE_KEY,
-  isTrackingAllowed,
-  readConsent,
-  writeConsent,
-} from '@/lib/analytics/consent';
+import { isTrackingAllowed } from '@/lib/analytics/consent';
 import { SESSION_STORAGE_KEY, getSessionId } from '@/lib/analytics/session';
 import { sanitizeSearchQuery } from '@/lib/analytics/sanitize';
 
@@ -73,17 +68,11 @@ describe('sessão', () => {
   });
 });
 
-describe('consentimento', () => {
-  it('sem decisão, mede — é o legítimo interesse desta fase', () => {
-    expect(readConsent()).toBe('unset');
+describe('oposição pelo navegador', () => {
+  it('mede por padrão — é o legítimo interesse desta camada', () => {
+    // Cookieless, sem identificador entre sessões e sem terceiro: não há
+    // consentimento a pedir, e por isso não há banner nem decisão guardada.
     expect(isTrackingAllowed()).toBe(true);
-  });
-
-  it('decisão negativa vale mesmo antes de existir banner', () => {
-    writeConsent('denied');
-
-    expect(readConsent()).toBe('denied');
-    expect(isTrackingAllowed()).toBe(false);
   });
 
   it('respeita Do Not Track', () => {
@@ -102,12 +91,6 @@ describe('consentimento', () => {
     } as unknown as Navigator);
 
     expect(isTrackingAllowed()).toBe(false);
-  });
-
-  it('valor corrompido no storage vira `unset`, nunca exceção', () => {
-    window.localStorage.setItem(CONSENT_STORAGE_KEY, '{"nope":1}');
-
-    expect(readConsent()).toBe('unset');
   });
 });
 
@@ -178,8 +161,12 @@ describe('track', () => {
     expect(String(sentBatch()[0]?.path)).not.toContain('?');
   });
 
-  it('não mede quando o consentimento foi negado', () => {
-    writeConsent('denied');
+  it('não mede quando o navegador pediu para não medir', () => {
+    vi.stubGlobal('navigator', {
+      sendBeacon: beacon,
+      globalPrivacyControl: true,
+    } as unknown as Navigator);
+
     track('homepage_view');
     flushEvents();
 
