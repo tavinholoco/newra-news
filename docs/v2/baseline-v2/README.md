@@ -1,8 +1,8 @@
 # Baseline visual da V2 — estado corrente
 
-42 capturas de `https://newra-news-web.vercel.app`, **21/08/2026 (20:5x UTC)**,
-depois de a Fase 4 (News / Category) entrar em produção. É a referência contra a
-qual as fases seguintes se comparam.
+42 capturas de `https://newra-news-web.vercel.app`, **22/08/2026 (00:0x UTC)**,
+depois de a Fase 5 (Article) entrar em produção. É a referência contra a qual as
+fases seguintes se comparam.
 
 ```bash
 BASE_URL=https://newra-news-web.vercel.app \
@@ -28,7 +28,8 @@ o antes e o depois no próprio diff das imagens.
 
 | Captura | Estado |
 |---|---|
-| 21/08, 20:5x | **atual** — Fase 4 fechada: `/news` como acervo, Lighthouse 97 na rota |
+| 22/08, 00:0x | **atual** — Fase 5 fechada: as três telas de leitura |
+| 21/08, 20:5x | Fase 4: `/news` como acervo, Lighthouse 97 na rota |
 | 21/08, 14:26 | Fase 3: Home editorial, dek do hero com clamp |
 | 20/08, 23:05 | Fase 2: masthead de três linhas, faixa de categorias, rodapé no ritmo dos tokens |
 | 20/08, 21:29 | Fase 1: tokens novos, shell ainda o da V1 |
@@ -73,6 +74,26 @@ diário, então recapturar em outra data produz imagens diferentes por natureza.
 - **1024 e 1920.** A §30 lista cinco larguras de verificação; o conjunto
   versionado usa três, pelo mesmo motivo da V1: peso no git. Rodar sem
   `WIDTHS=` captura as cinco.
+
+## O que estas imagens confirmam da Fase 5
+
+Onze imagens mudaram — as das três telas reconstruídas. As outras 31 são byte a
+byte idênticas, o que é a captura sendo determinística o bastante para o diff ser
+exatamente o que se mexeu.
+
+- `/article/[date]`: selo de IA, manchete em escala de display, subtítulos do
+  corpo como `h2`, a caixa "como este briefing foi produzido" em
+  `surface-accent` com os quatro campos de auditoria, e as 15 fontes numeradas;
+- `/news/[id]`: hero com imagem depois da metadata, favoritar e compartilhar
+  lado a lado, o corpo rotulado como trecho, a nota de que o texto é do veículo,
+  e quatro relacionadas — **sem** seção de IA, que é o ponto;
+- `/article`: agrupado por mês, com data à esquerda e manchete à direita.
+
+> **`article-detail--*` fotografou um defeito, e foi esta recaptura que o
+> achou.** O dek e o primeiro parágrafo do corpo são o mesmo texto, um embaixo
+> do outro: `summary` é definido como a primeira linha do conteúdo, então os dois
+> são iguais por construção. Corrigido depois desta captura —
+> **recapturar `article-detail--*`** quando o conserto subir.
 
 ## O que estas imagens confirmam da Fase 4
 

@@ -3,6 +3,20 @@ import { cn } from '@/lib/utils';
 interface ArticleBodyProps {
   /** Corpo do texto. `###` vira subtítulo; o resto vira parágrafo. */
   content: string;
+  /**
+   * O dek já exibido acima. Quando o corpo **abre com ele**, o parágrafo sai.
+   *
+   * Não é defensividade: no briefing acontece **sempre**. O `summary` não é um
+   * resumo escrito à parte — o `parseMarkdownResponse` o define como a primeira
+   * linha não-vazia do conteúdo, então dek e lide são o mesmo texto por
+   * construção, e a tela mostrava o parágrafo duas vezes seguidas. Nas notícias
+   * de RSS acontece em parte do acervo (1 em 8, medido em produção).
+   *
+   * O conserto fica aqui e não na ingestão porque alcança **o acervo inteiro**:
+   * corrigir o `parseMarkdownResponse` só arrumaria os briefings seguintes, e
+   * os 90 dias retidos continuariam repetindo.
+   */
+  lede?: string | null;
   className?: string;
 }
 
@@ -22,8 +36,8 @@ type Block =
  * Se o prompt passar a pedir listas ou destaques, é aqui que se decide de novo
  * — com a mesma medição, não por precaução.
  */
-export function parseArticleBody(content: string): Block[] {
-  return content
+export function parseArticleBody(content: string, lede?: string | null): Block[] {
+  const blocks = content
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
@@ -32,6 +46,14 @@ export function parseArticleBody(content: string): Block[] {
         ? { kind: 'heading' as const, text: line.replace(/^#+\s*/, '') }
         : { kind: 'paragraph' as const, text: line },
     );
+
+  const opening = lede?.trim();
+  const first = blocks[0];
+  if (opening && first?.kind === 'paragraph' && first.text === opening) {
+    return blocks.slice(1);
+  }
+
+  return blocks;
 }
 
 /**
@@ -47,8 +69,8 @@ export function parseArticleBody(content: string): Block[] {
  * nível — o mesmo defeito que reprovou `heading-order` em `/news` e `/article`
  * na Fase 1.
  */
-export function ArticleBody({ content, className }: ArticleBodyProps) {
-  const blocks = parseArticleBody(content);
+export function ArticleBody({ content, lede, className }: ArticleBodyProps) {
+  const blocks = parseArticleBody(content, lede);
 
   return (
     <div className={cn('max-w-prose', className)}>

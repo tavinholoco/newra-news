@@ -53,9 +53,9 @@
 
 > As três telas de leitura: `/news/[id]`, `/article/[date]` e o histórico `/article`. Camada editorial nova (`article-hero`, `article-body`, `ai-disclosure`, `source-list`, `share-button`, `related-stories`) e a `pagination` promovida de `news/` para `editorial/`. A transparência de IA fica **só** no briefing; a notícia coletada declara a outra coisa. 820 testes verdes. Ver **item 21**.
 
-**Próximo ciclo — V2.0 Fase 6 (Account ecosystem)** 📋
+**Próximo ciclo — V2.0 Fase 6 (Account ecosystem)** 📋 **pré-requisitos levantados**
 
-> `favorites`, `profile`, `preferences` e `newsletter settings` — §19 e §23 do plano. É lá que entram os dois pontos que a Fase 5 registrou como fora de alcance: favoritar um briefing (hoje `Favorite` só referencia `newsId`) e o filtro "somente salvos" da §7 em `/news`.
+> `favorites`, `profile`, `preferences` e `newsletter settings` — §19 e §23 do plano. Ao contrário da Fase 5, ela **muda o banco**: `Favorite` só alcança notícia, `User` não tem onde guardar preferência, e `Subscriber` não conhece `User`. Há também uma decisão de cache a tomar antes de desenhar o "somente salvos". Ver **item 22**.
 
 ---
 
@@ -886,6 +886,56 @@ isso, separado de `formatDate`, onde a hora seria ruído.
   `pnpm turbo typecheck` e `pnpm build` limpos; `contrast:check` em 60 pares,
   zero reprovando.
 
+#### Fechamento contra produção (21/08, depois do merge do PR #113)
+
+**Lighthouse por rota** ([run 32538891625](https://github.com/tavinholoco/newra-news/actions/runs/32538891625)):
+
+| Rota | Perf | Acess. | BP | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 93 | 100 | 100 | 100 |
+| `/pt-BR/news` | 95 | 100 | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | **96** | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 94 | 100 | 100 | 100 |
+
+**Acessibilidade 100 nas cinco** — o skip link e a hierarquia de heading
+seguraram. O gate passou (piso 90). Mas `/article` **perdeu 4 pontos de
+best-practices**, e a baseline recapturada achou um segundo defeito. Os dois
+são desta fase.
+
+##### O relógio dentro do render derrubou a hidratação
+
+O relatório aponta `errors-in-console` com dois erros React: **#418** (hydration
+failed) e **#422** (erro ao hidratar Suspense). Só em `/article`, nas três
+execuções; as outras quatro rotas, zero.
+
+O `ArticleGrid` lia `new Date()` durante o render para decidir o selo "Hoje" — e
+a página é **estática**. O HTML guarda o dia do *build* e o cliente compara com o
+dia de *agora*. O build correu às 23:5x UTC e a medição às 00:04: o dia virou no
+meio, o selo existiu de um lado só, e o React derrubou a hidratação da árvore.
+
+Não é acaso de horário — é garantido acontecer toda meia-noite UTC. O relógio
+saiu para um efeito: os dois lados começam sem selo e ele entra depois. Há teste
+com `renderToString` que falha se o selo voltar a alcançar o render do servidor,
+e ele foi conferido contra a versão defeituosa antes de entrar.
+
+##### O briefing imprimia o parágrafo de abertura duas vezes
+
+A captura mostrou o dek e o primeiro parágrafo do corpo **idênticos**, um embaixo
+do outro. `summary` não é um resumo escrito à parte: o `parseMarkdownResponse` o
+define como a primeira linha não-vazia do conteúdo, então dek e lide são o mesmo
+texto **por construção** — verdade nos seis artigos que a API devolve, e em 1 de
+8 notícias de RSS.
+
+O conserto ficou na apresentação e não na ingestão porque alcança **o acervo
+inteiro**: corrigir o parser só arrumaria os briefings seguintes, e os 90 dias
+retidos continuariam repetindo.
+
+**Baseline recapturada** — 42 imagens, e só **onze** diferem: as das três telas
+reconstruídas. As outras 31 são byte a byte idênticas. As imagens de
+`article-detail` são o registro do estado **com** a duplicação; recapturar essas
+depois que o conserto subir.
+
 #### O que **não** entrou
 
 - **"Salvar" no briefing.** `Favorite` referencia `newsId`; um `Article` não pode
@@ -898,8 +948,104 @@ isso, separado de `formatDate`, onde a hora seria ruído.
   query string exigiria uma fronteira de Suspense numa página que não precisa de
   nenhuma. Diverge de `/news`, que é compartilhável por contrato — dívida
   consciente, anotada no componente.
-- **Lighthouse por rota e recaptura da baseline visual**: rodam contra produção,
-  depois do merge.
+- **Recapturar `article-detail--*`** depois que o conserto da duplicação subir;
+  o resto do conjunto está correto.
+
+---
+
+### 22. Pendências e pré-requisitos da Fase 6 📋 levantados em 2026-08-21
+
+> A Fase 6 é o **ecossistema de conta**: `favorites`, `profile`, `preferences` e
+> `newsletter settings` (§28; a visão em §19, "Seu Newra"). Ao contrário da Fase
+> 5, ela **muda o banco** — e é isso que precisa ser decidido antes de a
+> primeira tela ser escrita.
+
+**22.1 — `Favorite` só alcança notícia** 🔴 é o bloqueio real
+
+```prisma
+model Favorite {
+  userId String
+  newsId String   // e nada mais
+  @@unique([userId, newsId])
+}
+```
+
+Duas coisas já registradas como fora de alcance esperam por isto:
+
+- **"Salvar" no briefing** (Fase 5) — `/article/[date]` tem `share` e não tem
+  `save`, porque não há como favoritar um `Article`;
+- **"Somente salvos" da §7** (Fase 4) — o filtro do acervo.
+
+São o mesmo problema com duas caras. O desenho a escolher:
+
+| Opção | O que muda | Custo |
+|---|---|---|
+| `articleId` nullable ao lado de `newsId` | uma coluna, um check | `@@unique` composto vira parcial; toda consulta passa a testar dois campos |
+| Tabela polimórfica (`itemType` + `itemId`) | modelo novo | perde a FK; o dado de exibição vira responsabilidade da leitura |
+| `Favorite` separado por tipo | `ArticleFavorite` próprio | duplica serviço e rota, mas cada um continua simples e com FK |
+
+Não decidir isto antes torna a Fase 6 uma sequência de remendos.
+
+**22.2 — "Somente salvos" quebra o cache da rota** 🔴 decidir antes de desenhar
+
+`GET /api/news` hoje é público e cacheável. Com o filtro de salvos ele passa a
+juntar `Favorite` e `News` e a devolver **resposta por usuário** — e um
+`s-maxage` num proxy compartilhado ali seria vazamento entre sessões, exatamente
+o que `utils/cache.ts` documenta como o motivo de o header ser por rota.
+
+Ou o filtro vira uma rota autenticada própria (`/api/favorites` já é isso, e já
+pagina), ou a `/news` ganha um caminho sem cache quando o parâmetro está
+presente. A primeira reusa o que existe; a segunda mantém uma tela só.
+
+**22.3 — `User` não tem onde guardar preferência** 🟠 migration nova
+
+O modelo tem `email`, `name`, `image`, `role` e os timestamps. A §19 quer
+categorias favoritas, temas, fontes, horário do briefing e tipo de alerta —
+**nenhum deles cabe hoje**. E a §19 é explícita: *"não implementar toda a
+personalização na primeira entrega; primeiro criar a arquitetura visual que
+comporte isso"*.
+
+Vale a mesma lição da Fase 0.5: **preferência é dado que só existe daqui para
+frente**. Se a tela entrar antes da coluna, cada dia é um dia de escolha do
+leitor que não foi guardada.
+
+**22.4 — `Subscriber` e `User` não se conhecem** 🟠 afeta "newsletter settings"
+
+São duas tabelas com `email` e nenhuma relação. Hoje funciona porque o
+cancelamento é por token no e-mail, sem sessão. Mas "newsletter settings" dentro
+do perfil precisa responder "este usuário está inscrito?" — e cruzar por
+`email` em duas tabelas é a resposta frágil: o e-mail do provedor de login pode
+não ser o da inscrição.
+
+**22.5 — `favorites-list` é o último consumidor do `news-card` da V1** 🟡
+
+A tela ainda monta uma grade de cartões da V1: `NewsCard`, `Skeleton` solto,
+`grid-cols-3`. Quando a Fase 6 a migrar para os cards editoriais, **`news-card`
+pode sair do repositório** — é o único lugar que ainda o importa.
+
+**22.6 — Não existem `/profile` nem `/preferences`** 🟡 terreno limpo
+
+As rotas de conta hoje são `/favorites`, `/signin` e o segmento `/admin`. Perfil
+e preferências nascem do zero, e o guard de sessão + role já vive em
+`app/[locale]/admin/layout.tsx` — o mesmo padrão serve para um segmento
+`/account`, e página nova sob ele já nasceria protegida.
+
+**22.7 — Página protegida não pode ser SSG** ⚪ armadilha já paga
+
+`/favorites` é `force-dynamic` com um comentário explicando por quê: o
+`redirect()` de sessão foi "assado" no HTML estático e mandava todo mundo para o
+sign-in, logado ou não. Toda tela de conta nova herda essa restrição.
+
+#### Ordem sugerida
+
+1. **22.1 e 22.2 juntos**, porque são o mesmo problema — e são backend, como a
+   Fase 0.5 foi para a Fase 3;
+2. **22.3**, a migration de preferências, pelo mesmo motivo de "só existe daqui
+   para frente";
+3. as telas, com **22.5** saindo de graça no caminho.
+
+**22.4** só bloqueia "newsletter settings"; dá para adiar se a fase for
+recortada.
 
 ---
 
