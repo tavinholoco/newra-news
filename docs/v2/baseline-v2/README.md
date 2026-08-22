@@ -89,11 +89,13 @@ exatamente o que se mexeu.
   e quatro relacionadas — **sem** seção de IA, que é o ponto;
 - `/article`: agrupado por mês, com data à esquerda e manchete à direita.
 
-> **`article-detail--*` fotografou um defeito, e foi esta recaptura que o
-> achou.** O dek e o primeiro parágrafo do corpo são o mesmo texto, um embaixo
-> do outro: `summary` é definido como a primeira linha do conteúdo, então os dois
-> são iguais por construção. Corrigido depois desta captura —
-> **recapturar `article-detail--*`** quando o conserto subir.
+> **Foi esta recaptura que achou o dek repetido no corpo do briefing**, e vale
+> saber disso ao comparar com o histórico do git. A primeira rodada de 22/08
+> fotografou o dek e o primeiro parágrafo idênticos, um embaixo do outro:
+> `summary` é definido como a primeira linha do conteúdo, então os dois são
+> iguais por construção. Corrigido, e as cinco `article-detail--*` foram
+> recapturadas depois do deploy — o corpo agora abre direto no primeiro
+> subtítulo, e a página encurtou de 7.057px para 6.711px.
 
 ## O que estas imagens confirmam da Fase 4
 
