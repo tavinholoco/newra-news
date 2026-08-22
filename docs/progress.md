@@ -2002,10 +2002,16 @@ processo não abria a porta.
 resolvedor do Vitest, que entende TypeScript; o `tsc` só checa tipo. Quem executa
 o `dist` é o Node puro, e só ele reprova.
 
-`apps/api/tests/build/runtime-deps.test.ts` varre o `dist` atrás de
-`require('@newranews/...')` e exige que o `main` de cada pacote exigido aponte
-para JavaScript **emitido**. Conferido nos dois sentidos: com a configuração
-antiga ela reprova; com a nova, passa.
+`apps/api/tests/build/runtime-deps.test.ts` varre o **fonte** atrás de import
+de **valor** de pacote do workspace e exige que cada um publique JavaScript —
+`main` com extensão `.js` **e** um `build` que não seja `--noEmit`. Conferido
+nos dois sentidos: com a configuração antiga ela reprova; com a nova, passa.
+
+> **A primeira versão varria o `dist` e reprovou no CI** — por um motivo que
+> vale guardar: o job de teste roda `turbo test`, cujo `dependsOn: ["^build"]`
+> constrói as **dependências** do pacote, não o próprio `apps/api`. Guarda que só
+> funciona depois de um build que o CI não faz não guarda nada. A checagem
+> passou a ser estática.
 
 #### Números
 

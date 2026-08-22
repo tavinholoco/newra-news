@@ -242,7 +242,9 @@ Vitest.
   de `type` some na compilação; import de **valor** vira `require()` no `dist`.
   O `@newranews/types` apontava `main` para `./src/index.ts` e o servidor morria
   no boot — com `tsc` verde e a suíte inteira passando. Guarda em
-  `tests/build/runtime-deps.test.ts`.
+  `tests/build/runtime-deps.test.ts`, e ela é **estática**: `turbo test` tem
+  `dependsOn: ["^build"]`, que constrói as dependências e **não** o `apps/api` —
+  uma guarda que dependesse do `dist` nunca rodaria no CI.
 - **Boot quebrado não derruba a API: congela a versão anterior.** O Render
   reprova o health check e mantém a build antiga servindo, então o sintoma é
   "rota nova dá 404" e não "site fora do ar". Para saber o que está no ar,
