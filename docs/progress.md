@@ -67,7 +67,7 @@
 >
 > **Monetização virou planejamento** (§21 do plano): publicidade **cancelada**; newsletter patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e indeterminado. O gatilho para retomá-los é um número — sessões recorrentes —, e é a tela de métricas que o produz.
 >
-> **Pendente e fora do código:** a API de produção ainda não serve `POST /api/events` (deploy do Render), então a camada mede para o vazio.
+> **O 404 do `/api/events` foi diagnosticado e corrigido** — e não era o deploy: o `@newranews/types` não emitia JavaScript, e o servidor morria no boot. Ver o **item 30**.
 
 ---
 
@@ -1949,6 +1949,78 @@ Newra Plus existir, e até lá não finge medir nada.
 cru, agrupado por tipo e por dia, numa aba nova de `/admin/metrics`. Sem
 migration. É ela que produz o número de sessões recorrentes que destrava
 patrocínio e Plus.
+
+### 30. O 404 do `/api/events`: não era o Render ✅ 2026-08-22
+
+> Branch `fix/types-runtime-build`. Três PRs atribuíram este 404 ao deploy do
+> Render. **Estava errado, e a causa era código.**
+
+#### O diagnóstico, em ordem
+
+1. **O build local produz a rota.** `pnpm turbo build --filter @newranews/api`
+   emite `dist/routes/events/` e o `dist/app.js` registra `/api/events`.
+2. **O artefato não sobe.** Rodando o mesmo comando do Render
+   (`node apps/api/dist/server.js`), o processo morre antes de abrir a porta:
+   `ERR_MODULE_NOT_FOUND` resolvendo `@newranews/types`.
+3. **A causa.** O pacote tinha `"main": "./src/index.ts"` — código TypeScript —
+   e um `build` que era `tsc --noEmit`, ou seja, **não emitia JavaScript**.
+4. **Por que só agora.** Até o PR #122 a API só importava `type` desse pacote, e
+   import de tipo **some na compilação**. O `product-event.service.ts` e o
+   `routes/events/schemas.ts` trouxeram o primeiro import de **valor**
+   (`PRODUCT_EVENT_RETENTION_DAYS`, `Category`, `EVENT_SOURCES`), que vira
+   `require('@newranews/types')` no `dist`.
+
+#### Por que o sintoma não parecia com a causa
+
+Boot quebrado **não derruba a API**: o Render reprova o health check e mantém a
+build anterior servindo. Daí o quadro que confundiu três PRs — `/api/health` em
+200, `/api/account` em 401 (a Fase 6 estava lá) e `/api/events` em 404, tudo no
+mesmo serviço.
+
+> **E uma inferência minha estava errada.** Eu disse que o `uptime` da API batia
+> com o merge do #122, logo ela teria reiniciado sem pegar o código. O plano
+> free do Render **hiberna com ~15 min sem tráfego**: quem acordou o serviço
+> naquele instante foi o meu próprio `curl`. `uptime` não diz nada sobre deploy.
+
+#### A correção
+
+`packages/types/package.json` passou a seguir o que o `@newranews/database` já
+fazia: `main` e `types` apontando para `dist`, e `build` emitindo de verdade.
+
+| Antes | Depois |
+|---|---|
+| `"main": "./src/index.ts"` | `"main": "./dist/index.js"` |
+| `"build": "tsc --noEmit"` | `"build": "tsc"` |
+
+Verificado com o artefato real: `POST /api/events` com lote vazio responde
+**400** (o schema rejeitando) e com evento válido chega ao Prisma. Antes, o
+processo não abria a porta.
+
+#### A guarda, e por que ela precisava existir
+
+**Nem o `tsc` nem a suíte veem este defeito.** Os testes rodam o **fonte** pelo
+resolvedor do Vitest, que entende TypeScript; o `tsc` só checa tipo. Quem executa
+o `dist` é o Node puro, e só ele reprova.
+
+`apps/api/tests/build/runtime-deps.test.ts` varre o **fonte** atrás de import
+de **valor** de pacote do workspace e exige que cada um publique JavaScript —
+`main` com extensão `.js` **e** um `build` que não seja `--noEmit`. Conferido
+nos dois sentidos: com a configuração antiga ela reprova; com a nova, passa.
+
+> **A primeira versão varria o `dist` e reprovou no CI** — por um motivo que
+> vale guardar: o job de teste roda `turbo test`, cujo `dependsOn: ["^build"]`
+> constrói as **dependências** do pacote, não o próprio `apps/api`. Guarda que só
+> funciona depois de um build que o CI não faz não guarda nada. A checagem
+> passou a ser estática.
+
+#### Números
+
+- **1.000 testes** (998 → 1.000): 561 na API (+2) e 439 no web, 93 suites.
+
+#### O que conferir no próximo deploy
+
+`POST https://newra-news-api.onrender.com/api/events` com `{"events":[]}` deve
+responder **400**. Se responder 404, a build no ar ainda é a antiga.
 
 ---
 

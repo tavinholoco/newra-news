@@ -232,6 +232,26 @@ providers/
     └── ai-utils.ts   # formatNewsItems, parseMarkdownResponse
 ```
 
+## O artefato que o Render executa
+
+`startCommand: node apps/api/dist/server.js`. **Node puro, sem loader e sem
+resolvedor de TypeScript** — e é isso que separa este ambiente do `tsc` e do
+Vitest.
+
+- **Pacote do workspace importado em runtime precisa emitir JavaScript.** Import
+  de `type` some na compilação; import de **valor** vira `require()` no `dist`.
+  O `@newranews/types` apontava `main` para `./src/index.ts` e o servidor morria
+  no boot — com `tsc` verde e a suíte inteira passando. Guarda em
+  `tests/build/runtime-deps.test.ts`, e ela é **estática**: `turbo test` tem
+  `dependsOn: ["^build"]`, que constrói as dependências e **não** o `apps/api` —
+  uma guarda que dependesse do `dist` nunca rodaria no CI.
+- **Boot quebrado não derruba a API: congela a versão anterior.** O Render
+  reprova o health check e mantém a build antiga servindo, então o sintoma é
+  "rota nova dá 404" e não "site fora do ar". Para saber o que está no ar,
+  probe uma rota que só exista na versão nova.
+- **Plano free hiberna com ~15 min sem tráfego.** O `uptime` do `/api/health`
+  reflete o primeiro acesso depois do sono, não o último deploy.
+
 ## Testes
 - Vitest com fastify.inject() para testes de rota
 - Mocks para providers externos (NewsData, Gemini, Groq)

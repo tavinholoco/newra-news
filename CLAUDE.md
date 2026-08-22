@@ -100,9 +100,7 @@ do dia mudou, ou há algo errado.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e
   indeterminado. **O gatilho é um número, não uma data.**
-- **Testes:** 998 em 92 suites (559 API em 43 + 439 web em 49 — todos passando).
-  O número caiu pela primeira vez, e cair era o certo: 27 casos testavam código
-  removido.
+- **Testes:** 1.000 em 93 suites (561 API em 44 + 439 web em 49 — todos passando).
 
 ### Por onde continuar a Fase 8
 
@@ -127,9 +125,11 @@ e, principalmente, **sessões recorrentes**.
 
 Três coisas a saber antes de mexer:
 
-- **A API de produção ainda não serve `POST /api/events`** (deploy do Render). O
-  `uptime` bate com o merge do #122, então ela **reiniciou** e mesmo assim não
-  tem a rota. Enquanto isso, a camada mede para o vazio — sem quebrar nada.
+- **O 404 do `POST /api/events` em produção foi diagnosticado e corrigido**: não
+  era o painel do Render, era o `@newranews/types` não emitir JavaScript — o
+  servidor morria no boot e o Render mantinha a build anterior no ar. Ver a
+  primeira armadilha abaixo e o item 30 do `docs/progress.md`. **Conferir no
+  próximo deploy** que a rota responde 400 (e não 404) com corpo vazio.
 - **Não reintroduza espaço de anúncio** sem ler a §21 do plano: publicidade está
   **cancelada por decisão**, não esquecida.
 - **`subscription_intent` continua sem call site**, e `premium-cta` **não deve
@@ -137,6 +137,22 @@ Três coisas a saber antes de mexer:
 
 ### Armadilhas que já custaram caro
 
+- **Pacote do workspace importado em *runtime* precisa emitir JavaScript.** O
+  `@newranews/types` tinha `"main": "./src/index.ts"` e `build: tsc --noEmit` —
+  ou seja, **não emitia nada**. Enquanto a API só importava `type` dele, o import
+  sumia na compilação e ninguém percebia. O primeiro import de **valor**
+  (`PRODUCT_EVENT_RETENTION_DAYS`, no PR #122) virou `require()` no `dist`, e o
+  servidor passou a morrer no boot com `ERR_MODULE_NOT_FOUND`. **`tsc` compila,
+  a suíte passa, e nada acusa** — os testes rodam o fonte pelo resolvedor do
+  Vitest, e só o Node puro executa o `dist`. Em produção o sintoma não parecia
+  com a causa: o Render reprovava o health check, mantinha a build anterior no
+  ar, e a rota nova respondia 404 num serviço que respondia 200 em todo o resto.
+  A guarda é `apps/api/tests/build/runtime-deps.test.ts`.
+- **Serviço no plano free do Render dorme, e `uptime` mente sobre deploy.** Ele
+  hiberna com ~15 min sem tráfego; o primeiro `curl` o acorda. Concluir "o
+  processo subiu na hora do merge, logo o deploy rodou" a partir do `uptime` é
+  erro — o que subiu foi a própria sondagem. Para saber o que está no ar,
+  **probe uma rota que só existe na versão nova**.
 - **A metadata do Next não faz merge profundo.** O layout declara
   `openGraph: { type, siteName, locale }` e `twitter: { card }`; a página que
   declara os seus **substitui o objeto inteiro**. Nenhuma página tinha
