@@ -1110,13 +1110,12 @@ site.
 
 ```prisma
 model UserPreference {
-  id         String   @id @default(uuid())
-  userId     String   @unique
-  categories Category[]          // categorias favoritas (§19)
-  theme      String?             // light | dark | system
-  alertOptIn Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id         String          @id @default(uuid())
+  userId     String          @unique
+  categories Category[]      @default([])
+  theme      ThemePreference @default(SYSTEM)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 }
 ```
 
@@ -1124,6 +1123,14 @@ model UserPreference {
 controle que o sistema não honra é o mesmo erro da pílula "Todas" da Fase 4 —
 um número que não promete o que o clique entrega. "Temas" e "fontes" também
 ficam para quando houver quem os consuma.
+
+**E o opt-in de alerta saiu daqui na implementação.** Ele era para ser a
+terceira coluna, mas o único canal de saída que existe é a newsletter, e ela é
+`Subscriber` — o mesmo que a D4 acabou de amarrar ao usuário. Uma coluna
+`alertOptIn` ao lado disso não seria "preferência ainda sem consumidor", seria
+**duas fontes de verdade para a mesma resposta**, com a chance de discordarem no
+dia seguinte. A tela de conta lê e escreve a inscrição, que é quem o envio
+consulta.
 
 Tabela própria, e não colunas em `User`, para o upsert de login não dividir
 espaço com dado de produto (`upsertUser` roda a cada sign-in).
@@ -1161,15 +1168,34 @@ clique criando inscrição duplicada.
 **PR 1 — banco e API** (é a Fase 0.5 desta fase; nenhuma tela antes dele)
 
 ```text
-[ ] migration do Favorite polimórfico, com backfill itemType = NEWS
-[ ] migration do UserPreference
-[ ] migration do Subscriber.userId + backfill por e-mail
-[ ] favorite.service por tipo (list/add/remove) + hidratação por tipo na leitura
-[ ] GET /api/favorites com os filtros da listagem (D2) e GET /api/favorites/ids
-[ ] GET/PUT /api/account/preferences (autenticadas, sem Cache-Control)
-[ ] leitura de inscrição por userId com fallback por e-mail
-[ ] testes de API + docs/api.md + docs/v2/03-contratos-api.md
+[x] migration do Favorite polimórfico, com backfill itemType = NEWS
+[x] migration do UserPreference
+[x] migration do Subscriber.userId + backfill por e-mail
+[x] favorite.service por tipo (list/add/remove) + hidratação por tipo na leitura
+[x] GET /api/favorites com os filtros da listagem (D2) e GET /api/favorites/ids
+[x] GET/PUT /api/account/preferences (autenticadas, sem Cache-Control)
+[x] leitura de inscrição por userId com fallback por e-mail
+[x] testes de API + docs/api.md + docs/v2/03-contratos-api.md
+
+    -- o que o contrato novo obrigou a mexer junto --
+[x] tipos compartilhados (união discriminada por itemType) e o cliente do web
+[x] trending contava favorito: passou a contar só itemType NEWS
+[x] proxy do Next unificado em lib/api-proxy.ts (cinco rotas assinando JWT)
 ```
+
+**Entregue em 21/08 — 869 testes (825 → 869), lint, typecheck e build limpos.**
+Três achados que o plano não previa:
+
+- **O trending contava salvamento.** `getTrending` agrupava `Favorite` por
+  `newsId` sem filtrar tipo; com briefing salvável, salvar o briefing do dia
+  passaria a empurrar uma notícia no ranking. Hoje filtra `itemType: 'NEWS'`.
+- **A migration é escrita à mão**, porque `migrate diff` resolveria o rename de
+  `newsId` como DROP + ADD — apagando os favoritos que já existem em produção.
+  Aplicada no banco local e conferida com `migrate diff` contra o schema: sem
+  drift além do índice de `News.sourceUrl` que já faltava lá.
+- **`meta.total` da lista de salvos passou a contar o que a lista mostra.** A
+  versão anterior contava a linha do favorito, e o cleanup do Stage 8 apaga
+  notícia com mais de 30 dias — o leitor via "12 salvos" e nove cards.
 
 **PR 2 — telas de conta**
 

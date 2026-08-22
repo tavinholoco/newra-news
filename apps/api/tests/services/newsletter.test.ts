@@ -6,6 +6,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
     ...actual,
     prisma: {
       subscriber: {
+        findFirst: vi.fn(),
         findUnique: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
@@ -41,6 +42,9 @@ import {
   buildNewsletterText,
   subscribeToNewsletter,
   unsubscribeFromNewsletter,
+  findSubscriberForUser,
+  subscribeUser,
+  unsubscribeUser,
   sendDailyNewsletter,
 } from '../../src/services/newsletter.service';
 import { sendEmailWithResend } from '../../src/providers/newsletter/resend.provider';
@@ -303,5 +307,106 @@ describe('sendDailyNewsletter', () => {
     expect(emailInput.text).toContain(
       `http://localhost:3000/article/${dateSlug}`,
     );
+  });
+});
+
+describe('newsletter.service — inscrição pela conta', () => {
+  const USER_ID = 'bbbbbbbb-0000-0000-0000-000000000001';
+  const EMAIL = 'assinante@test.com';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.subscriber.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.subscriber.findUnique).mockResolvedValue(null);
+  });
+
+  it('should find the subscription by userId without touching the e-mail', async () => {
+    vi.mocked(prisma.subscriber.findFirst).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID }) as never,
+    );
+
+    const found = await findSubscriberForUser(USER_ID, 'outro@test.com');
+
+    expect(found?.id).toBe('subscriber-uuid-1');
+    expect(prisma.subscriber.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('should claim by e-mail the subscription made before the account existed', async () => {
+    vi.mocked(prisma.subscriber.findUnique).mockResolvedValue(
+      makeSubscriber({ userId: null }) as never,
+    );
+    vi.mocked(prisma.subscriber.update).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID }) as never,
+    );
+
+    const found = await findSubscriberForUser(USER_ID, ' Assinante@Test.com ');
+
+    expect(prisma.subscriber.findUnique).toHaveBeenCalledWith({
+      where: { email: EMAIL },
+    });
+    expect(prisma.subscriber.update).toHaveBeenCalledWith({
+      where: { id: 'subscriber-uuid-1' },
+      data: { userId: USER_ID },
+    });
+    expect(found?.userId).toBe(USER_ID);
+  });
+
+  it('should not claim a subscription that already has an owner', async () => {
+    vi.mocked(prisma.subscriber.findUnique).mockResolvedValue(
+      makeSubscriber({ userId: 'outro-usuario' }) as never,
+    );
+
+    const found = await findSubscriberForUser(USER_ID, EMAIL);
+
+    expect(found?.userId).toBe('outro-usuario');
+    expect(prisma.subscriber.update).not.toHaveBeenCalled();
+  });
+
+  it('should reactivate a cancelled subscription instead of creating a second one', async () => {
+    vi.mocked(prisma.subscriber.findFirst).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID, status: 'UNSUBSCRIBED' }) as never,
+    );
+    vi.mocked(prisma.subscriber.update).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID }) as never,
+    );
+
+    await subscribeUser(USER_ID, EMAIL);
+
+    expect(prisma.subscriber.create).not.toHaveBeenCalled();
+    expect(prisma.subscriber.update).toHaveBeenCalledWith({
+      where: { id: 'subscriber-uuid-1' },
+      data: { status: 'ACTIVE', userId: USER_ID },
+    });
+  });
+
+  it('should be idempotent when the account is already subscribed', async () => {
+    vi.mocked(prisma.subscriber.findFirst).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID }) as never,
+    );
+
+    await subscribeUser(USER_ID, EMAIL);
+
+    expect(prisma.subscriber.update).not.toHaveBeenCalled();
+    expect(prisma.subscriber.create).not.toHaveBeenCalled();
+  });
+
+  it('should report false when there is nothing to cancel', async () => {
+    expect(await unsubscribeUser(USER_ID, EMAIL)).toBe(false);
+    expect(prisma.subscriber.update).not.toHaveBeenCalled();
+  });
+
+  it('should cancel without a token — the token path is the one in the e-mail', async () => {
+    vi.mocked(prisma.subscriber.findFirst).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID }) as never,
+    );
+    vi.mocked(prisma.subscriber.update).mockResolvedValue(
+      makeSubscriber({ userId: USER_ID, status: 'UNSUBSCRIBED' }) as never,
+    );
+
+    expect(await unsubscribeUser(USER_ID, EMAIL)).toBe(true);
+    expect(prisma.subscriber.update).toHaveBeenCalledWith({
+      where: { id: 'subscriber-uuid-1' },
+      data: { status: 'UNSUBSCRIBED' },
+    });
   });
 });

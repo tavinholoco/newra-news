@@ -15,8 +15,8 @@ vi.mock('next-auth/react', () => ({
 }));
 
 vi.mock('@/lib/queries', () => ({
-  useIsFavorite: () => useIsFavoriteMock(),
-  useToggleFavorite: () => useToggleFavoriteMock(),
+  useIsFavorite: (...args: unknown[]) => useIsFavoriteMock(...args),
+  useToggleFavorite: (...args: unknown[]) => useToggleFavoriteMock(...args),
 }));
 
 const NEWS_ID = 'uuid-1';
@@ -39,7 +39,7 @@ describe('FavoriteButton', () => {
     useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
     useIsFavoriteMock.mockReturnValue(false);
     const user = userEvent.setup();
-    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
 
     await user.click(
       screen.getByRole('button', { name: 'Salvar nos favoritos' }),
@@ -53,7 +53,7 @@ describe('FavoriteButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
 
     const button = screen.getByRole('button', { name: 'Salvar nos favoritos' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
@@ -67,7 +67,7 @@ describe('FavoriteButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
 
     const button = screen.getByRole('button', { name: 'Remover dos favoritos' });
     expect(button).toHaveAttribute('aria-pressed', 'true');
@@ -82,10 +82,18 @@ describe('FavoriteButton', () => {
       mutate: vi.fn(),
       isPending: true,
     });
-    renderWithIntl(<FavoriteButton newsId={NEWS_ID} />);
+    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
 
     expect(
       screen.getByRole('button', { name: 'Salvar nos favoritos' }),
     ).toBeDisabled();
+  });
+
+  it('should carry the item type through, so the briefing can be saved too', () => {
+    mockAuthenticated(false);
+    renderWithIntl(<FavoriteButton itemId={NEWS_ID} itemType='ARTICLE' />);
+
+    expect(useIsFavoriteMock).toHaveBeenCalledWith(NEWS_ID, 'ARTICLE', true);
+    expect(useToggleFavoriteMock).toHaveBeenCalledWith(NEWS_ID, 'ARTICLE');
   });
 });

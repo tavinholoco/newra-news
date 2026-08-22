@@ -481,3 +481,37 @@ onde o drift foi conferido vazio em 19/08. Mas vale saber de duas coisas: a
 deduplicação do pipeline depende dessa constraint, e um banco baselinado por
 `resolve` não ganha nada que o `db push` anterior não tenha criado. O repo já
 tem `pnpm --filter @newranews/database db:cleanup-news-duplicates` para o caso.
+
+---
+
+## 10. O que a Fase 6 acrescentou ao contrato (21/08/2026)
+
+A §1 listava `/api/favorites/*` entre "o que já existe e não muda". **Mudou** —
+e a razão é a mesma que fez a Fase 5 deixar o "salvar" do briefing de fora:
+`Favorite` só alcançava notícia.
+
+- **`Favorite` passou a ser identificado por `itemType` + `itemId`**, e a
+  resposta da listagem virou uma **união discriminada**: o item traz `news` ou
+  `article`, nunca os dois. A tela "Salvos" é uma lista só, ordenada por quando
+  o leitor salvou.
+- **`GET /api/favorites` aceita as dimensões de `GET /api/news`** — e não uma
+  cópia delas: as duas rotas leem o mesmo `newsFilterQuerySchema`. É o que faz o
+  "somente salvos" do acervo (§7, adiado na Fase 4) filtrar exatamente como o
+  acervo filtra, em vez de a lista discordar do controle que a abriu.
+  `category` e `source` são dimensões **só da notícia**: com uma delas no
+  recorte, briefing nenhum entra.
+- **`GET /api/favorites/ids`** é novo. O botão de salvar precisa de uma resposta
+  por item, e a tela vinha baixando os 100 primeiros favoritos com conteúdo para
+  procurar no cliente — do 101º em diante o coração mentia.
+- **`/api/account/*`** nasce inteira: `GET /api/account` monta a tela numa
+  chamada (perfil, preferências, inscrição e contagem de salvos), com
+  `GET`/`PUT /api/account/preferences` e `PUT /api/account/newsletter`.
+
+A §8.2 continua valendo, e agora vale para mais rotas: **nenhuma rota de conta
+leva `Cache-Control`**. Há teste de rota para isso nas duas famílias — é o tipo
+de header que ninguém percebe faltar até ele vazar recorte entre sessões.
+
+> **`meta.total` da listagem de salvos conta o que a lista consegue mostrar.**
+> Favorito cujo conteúdo o cleanup do Stage 8 já apagou não entra na conta nem
+> aparece. Contar a linha do favorito seria prometer um card que nunca vem — o
+> mesmo critério da pílula de contagem da Fase 4.

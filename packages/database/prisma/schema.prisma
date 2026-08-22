@@ -116,25 +116,69 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+/// Item salvo pelo leitor. Alcança **duas** coisas — a notícia coletada e o
+/// briefing do dia —, e por isso guarda `itemType` + `itemId` em vez de um
+/// `newsId`.
+///
+/// A alternativa (um `articleId` nullable ao lado do `newsId`) tem um defeito
+/// que só aparece em produção: no Postgres `NULL` nunca colide com `NULL`, e a
+/// unicidade `[userId, newsId]` deixaria o **mesmo briefing ser salvo N vezes**.
+/// Evitá-lo pediria dois índices únicos parciais em SQL cru.
+///
+/// `itemId` é ponteiro fraco, sem FK — o mesmo padrão do resto do schema. A
+/// leitura omite favorito cujo conteúdo já foi apagado (o Stage 8 do pipeline
+/// remove News com mais de 30 dias).
 model Favorite {
-  id        String   @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    String
-  newsId    String
-  createdAt DateTime @default(now())
+  itemType  FavoriteItemType @default(NEWS)
+  itemId    String
+  createdAt DateTime         @default(now())
 
-  @@unique([userId, newsId])
+  @@unique([userId, itemType, itemId])
   @@index([userId, createdAt])
 }
 
+/// Preferências do leitor (§19 do plano V2).
+///
+/// Tabela própria, e não colunas em `User`, porque `upsertUser` roda a cada
+/// sign-in: dado de produto não divide espaço com dado de autenticação.
+///
+/// **Só entra aqui o que a interface consegue honrar hoje.** "Horário do
+/// briefing" ficou de fora — o pipeline roda num cron único, e um controle que
+/// o sistema não honra é o mesmo erro da pílula de contagem da Fase 4. A
+/// preferência de receber o briefing por e-mail mora em `Subscriber`, que é
+/// quem o envio lê; duplicá-la aqui criaria duas fontes de verdade para a
+/// mesma resposta.
+model UserPreference {
+  id         String          @id @default(uuid())
+  userId     String          @unique
+  categories Category[]      @default([])
+  theme      ThemePreference @default(SYSTEM)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
+/// Assinante da newsletter. `userId` é nullable porque a inscrição **não exige
+/// conta**: o formulário do rodapé pede só o e-mail, e o cancelamento é por
+/// token, sem sessão.
+///
+/// Ele existe para a tela de conta responder "este usuário está inscrito?" sem
+/// cruzar por e-mail — que mentiria quando o e-mail do provedor de login não é
+/// o da inscrição, mostrando inscrito como não inscrito e criando inscrição
+/// duplicada no clique seguinte. A leitura ainda cai no e-mail como segunda
+/// tentativa, e amarra o `userId` quando acha.
 model Subscriber {
   id        String           @id @default(uuid())
   email     String           @unique
+  userId    String?
   status    SubscriberStatus @default(ACTIVE)
   token     String           @unique @default(uuid())
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
   @@index([status])
+  @@index([userId])
 }
 
 model NewsletterLog {
@@ -205,4 +249,15 @@ enum SubscriberStatus {
 enum UserRole {
   USER
   ADMIN
+}
+
+enum FavoriteItemType {
+  NEWS
+  ARTICLE
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  SYSTEM
 }

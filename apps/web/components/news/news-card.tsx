@@ -78,8 +78,7 @@ export function NewsCard({ news }: NewsCardProps) {
         </Card>
       </Link>
       <FavoriteButton
-        newsId={news.id}
-        news={news}
+        itemId={news.id}
         overlay
         className='absolute right-3 top-3 z-10'
       />

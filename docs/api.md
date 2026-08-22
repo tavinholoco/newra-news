@@ -691,12 +691,30 @@ Dispara manualmente o envio da newsletter do dia (idempotente — um envio por d
 ## Favoritos
 
 > Requer autenticação: `Authorization: Bearer <jwt>` — JWT assinado pelo frontend com o `AUTH_JWT_SECRET` compartilhado (ver plano de auth). O `sub` do token identifica o usuário.
+>
+> **Nenhuma rota daqui leva `Cache-Control`.** A resposta é por usuário; um `s-maxage` num proxy compartilhado serviria o recorte de um leitor para o próximo.
+
+Um favorito alcança **duas** coisas — a notícia coletada (`NEWS`) e o briefing do dia (`ARTICLE`) —, e por isso o item é identificado por `itemType` + `itemId`.
 
 ### GET /api/favorites
 
-Lista as notícias favoritas do usuário (mais recentes primeiro) com a notícia embutida.
+Lista o que o usuário salvou, mais recentes primeiro. A lista é **única**: notícias e briefings juntos, na ordem em que foram salvos.
 
-**Query Params:** `page` (default: 1), `limit` (default: 20, máx: 100)
+**Query Params:**
+
+| Parâmetro | Valores | Nota |
+|---|---|---|
+| `page` / `limit` | default 1 / 20 (máx 100) | |
+| `type` | `NEWS` \| `ARTICLE` | sem ele, os dois tipos |
+| `category` | as oito categorias | dimensão só da notícia — com ela, briefing nenhum entra |
+| `source` | nome da fonte | idem |
+| `search` | texto | notícia: título/descrição · briefing: título/resumo |
+| `from` / `to` | ISO | notícia: `publishedAt` · briefing: `date` |
+| `sort` | `saved` (default) \| `recent` \| `oldest` | `saved` = quando o leitor salvou; os outros = data do conteúdo |
+
+> São **as mesmas dimensões de `GET /api/news`**, lidas pelo mesmo schema — é o que faz o "somente salvos" do acervo filtrar exatamente como o acervo.
+
+> `meta.total` conta **o que a lista consegue mostrar**. Favorito cujo conteúdo o cleanup do Stage 8 já apagou não entra na conta nem aparece: contar a linha do favorito prometeria um card que nunca vem.
 
 **Resposta 200:**
 ```json
@@ -704,36 +722,128 @@ Lista as notícias favoritas do usuário (mais recentes primeiro) com a notícia
   "data": [
     {
       "id": "uuid (do favorito)",
-      "newsId": "uuid",
+      "itemType": "NEWS",
+      "itemId": "uuid",
       "createdAt": "ISO string",
-      "news": { ...news }
+      "news": { "...": "news" }
+    },
+    {
+      "id": "uuid (do favorito)",
+      "itemType": "ARTICLE",
+      "itemId": "uuid",
+      "createdAt": "ISO string",
+      "article": {
+        "id": "uuid",
+        "title": "string",
+        "summary": "string",
+        "date": "ISO string",
+        "newsCount": 15
+      }
     }
   ],
   "meta": { "total": 3, "page": 1, "limit": 20, "totalPages": 1 }
 }
 ```
 
+> O briefing vem **sem o corpo**: o card de salvos não o usa, e `content` é o campo mais pesado do banco.
+
+### GET /api/favorites/ids
+
+Só os ids do que está salvo, sem conteúdo nenhum. É o que o botão de salvar lê para saber se **este** item já está salvo — uma consulta por sessão, compartilhada por todos os botões da página.
+
+**Resposta 200:**
+```json
+{ "data": { "news": ["uuid"], "articles": ["uuid"] } }
+```
+
 ### POST /api/favorites
 
-Adiciona uma notícia aos favoritos. **Idempotente**: favoritar de novo retorna o mesmo favorito (200).
+Salva um item. **Idempotente**: salvar de novo devolve o mesmo favorito (200).
 
-**Body:** `{ "newsId": "uuid" }`
+**Body:** `{ "itemType": "NEWS" | "ARTICLE", "itemId": "uuid" }` — `itemType` é opcional e vale `NEWS`.
 
 **Resposta 200:**
 ```json
 {
-  "data": { "id": "uuid", "userId": "uuid", "newsId": "uuid", "createdAt": "ISO string" }
+  "data": {
+    "id": "uuid",
+    "userId": "uuid",
+    "itemType": "NEWS",
+    "itemId": "uuid",
+    "createdAt": "ISO string"
+  }
 }
 ```
 
-**Resposta 404:** `{ "error": "News not found" }` — notícia inexistente.
+**Resposta 404:** `{ "error": "News not found" }` ou `{ "error": "Article not found" }` — conteúdo inexistente.
 
-### DELETE /api/favorites/:newsId
+### DELETE /api/favorites/:itemType/:itemId
 
-Remove uma notícia dos favoritos do usuário.
+Remove um item salvo. `itemType` na URL é minúsculo: `news` ou `article`.
 
 **Resposta 200:** `{ "data": { "removed": true } }`  
-**Resposta 404:** `{ "error": "Favorite not found" }` — favorito não existia.
+**Resposta 400:** tipo fora do enum.  
+**Resposta 404:** `{ "error": "Favorite not found" }` — não estava salvo.
+
+**Resposta 401 (todas):** token ausente ou inválido.
+
+---
+
+## Conta
+
+> Requer autenticação, como os favoritos — e, pelo mesmo motivo, **sem `Cache-Control` em nenhuma rota**.
+
+### GET /api/account
+
+Tudo que a tela de conta precisa numa chamada: perfil, preferências, estado da inscrição na newsletter e quantos itens de cada tipo o leitor salvou.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "user": {
+      "id": "uuid",
+      "email": "string",
+      "name": "string | null",
+      "image": "string | null",
+      "role": "USER | ADMIN",
+      "createdAt": "ISO string"
+    },
+    "preferences": { "categories": ["WORLD"], "theme": "SYSTEM" },
+    "newsletter": { "subscribed": true, "email": "string | null" },
+    "saved": { "news": 4, "articles": 1 }
+  }
+}
+```
+
+> `newsletter.email` pode **não ser** o e-mail do login: a inscrição não exige conta. A rota procura por `userId` e, só então, pelo e-mail — amarrando o `userId` quando acha, para a resposta parar de depender de os dois coincidirem.
+
+**Resposta 404:** `{ "error": "User not found" }` — sessão válida apontando para conta removida.
+
+### GET /api/account/preferences
+
+**Resposta 200:** `{ "data": { "categories": [], "theme": "SYSTEM" } }`
+
+> A linha só nasce no primeiro `PUT`. A leitura devolve o padrão em vez de gravar escolha que o leitor não fez.
+
+### PUT /api/account/preferences
+
+**Body:** `{ "categories"?: Category[], "theme"?: "LIGHT" | "DARK" | "SYSTEM" }` — pelo menos um dos dois.
+
+> **Campo ausente não é campo apagado**: a tela salva só o que o leitor mexeu, e a categoria escolhida ontem não some porque hoje ele trocou o tema.
+
+**Resposta 200:** as preferências resultantes.  
+**Resposta 400:** corpo vazio, ou categoria fora do enum.
+
+> A §19 do plano pede mais dimensões (temas, fontes, horário do briefing, tipo de alerta). Só entra aqui o que a interface consegue honrar: o pipeline roda num cron único, então "horário do briefing" seria um controle que o sistema não atende; e "receber por e-mail" é a inscrição da newsletter, que tem tabela própria.
+
+### PUT /api/account/newsletter
+
+Inscreve ou cancela pela sessão — sem o token que vai no e-mail, que continua sendo o caminho de quem cancela sem estar logado.
+
+**Body:** `{ "subscribed": boolean }`
+
+**Resposta 200:** `{ "data": { "subscribed": false, "email": "string | null" } }`
 
 **Resposta 401 (todas):** token ausente ou inválido.
 

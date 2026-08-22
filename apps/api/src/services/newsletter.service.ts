@@ -96,6 +96,65 @@ export async function subscribeToNewsletter(email: string) {
   return prisma.subscriber.create({ data: { email: normalized } });
 }
 
+/**
+ * A inscrição deste usuário, se houver.
+ *
+ * Procura por `userId` e, só então, pelo e-mail da conta — e **amarra** o
+ * `userId` quando acha por e-mail. É o que faz a tela de conta parar de
+ * depender de os dois e-mails coincidirem: a partir da primeira visita, a
+ * inscrição feita antes de existir conta passa a ter dono.
+ */
+export async function findSubscriberForUser(userId: string, email: string) {
+  const byUser = await prisma.subscriber.findFirst({ where: { userId } });
+  if (byUser) return byUser;
+
+  const byEmail = await prisma.subscriber.findUnique({
+    where: { email: normalizeEmail(email) },
+  });
+  if (!byEmail) return null;
+  if (byEmail.userId) return byEmail;
+
+  return prisma.subscriber.update({
+    where: { id: byEmail.id },
+    data: { userId },
+  });
+}
+
+/** Inscreve (ou reativa) a conta, já com o vínculo. */
+export async function subscribeUser(userId: string, email: string) {
+  const existing = await findSubscriberForUser(userId, email);
+
+  if (existing) {
+    if (existing.status === 'ACTIVE' && existing.userId === userId) return existing;
+    return prisma.subscriber.update({
+      where: { id: existing.id },
+      data: { status: 'ACTIVE', userId },
+    });
+  }
+
+  return prisma.subscriber.create({
+    data: { email: normalizeEmail(email), userId },
+  });
+}
+
+/**
+ * Cancela a inscrição pela sessão, sem token.
+ *
+ * O cancelamento por token continua existindo e é o do e-mail — quem clica
+ * naquele link não tem sessão nenhuma. Este é o outro caminho, o da tela de
+ * conta.
+ */
+export async function unsubscribeUser(userId: string, email: string): Promise<boolean> {
+  const existing = await findSubscriberForUser(userId, email);
+  if (!existing || existing.status !== 'ACTIVE') return false;
+
+  await prisma.subscriber.update({
+    where: { id: existing.id },
+    data: { status: 'UNSUBSCRIBED' },
+  });
+  return true;
+}
+
 export async function unsubscribeFromNewsletter(token: string): Promise<boolean> {
   const subscriber = await prisma.subscriber.findUnique({ where: { token } });
 

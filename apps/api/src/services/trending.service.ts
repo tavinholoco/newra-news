@@ -71,9 +71,13 @@ export async function getTrending({
   const publishedInWindow = { gte: since, lte: now };
 
   // Os candidatos vêm de dois lados, porque o score também tem dois lados.
-  // `Favorite.newsId` não tem FK (é ponteiro fraco, como o schema documenta),
+  // `Favorite.itemId` não tem FK (é ponteiro fraco, como o schema documenta),
   // então favoritos de notícias já removidas pelo cleanup existem — o filtro
   // de janela na consulta seguinte os descarta naturalmente.
+  //
+  // O `itemType: 'NEWS'` não é decorativo: desde a Fase 6 o mesmo `Favorite`
+  // guarda briefings salvos, e sem ele o trending contaria salvamento de
+  // briefing como salvamento de notícia.
   const [recent, mostSaved] = await Promise.all([
     prisma.news.findMany({
       where: { publishedAt: publishedInWindow },
@@ -81,16 +85,17 @@ export async function getTrending({
       take: RECENT_CANDIDATES,
     }),
     prisma.favorite.groupBy({
-      by: ['newsId'],
-      _count: { newsId: true },
-      orderBy: { _count: { newsId: 'desc' } },
+      by: ['itemId'],
+      where: { itemType: 'NEWS' },
+      _count: { itemId: true },
+      orderBy: { _count: { itemId: 'desc' } },
       take: SAVED_CANDIDATES,
     }),
   ]);
 
   const recentIds = new Set(recent.map((news) => news.id));
   const savedOutsideRecent = mostSaved
-    .map((row) => row.newsId)
+    .map((row) => row.itemId)
     .filter((id) => !recentIds.has(id));
 
   const extra: News[] = savedOutsideRecent.length
@@ -103,11 +108,11 @@ export async function getTrending({
   if (candidates.length === 0) return [];
 
   const grouped = await prisma.favorite.groupBy({
-    by: ['newsId'],
-    where: { newsId: { in: candidates.map((news) => news.id) } },
-    _count: { newsId: true },
+    by: ['itemId'],
+    where: { itemType: 'NEWS', itemId: { in: candidates.map((news) => news.id) } },
+    _count: { itemId: true },
   });
-  const saves = new Map(grouped.map((row) => [row.newsId, row._count.newsId]));
+  const saves = new Map(grouped.map((row) => [row.itemId, row._count.itemId]));
 
   // O ranking é em memória porque o score mistura uma função do tempo com uma
   // contagem de outra tabela sem FK — não há `orderBy` do Prisma que exprima

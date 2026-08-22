@@ -81,7 +81,7 @@ describe('getTrending', () => {
       makeNews('saved', 24),
     ] as never);
     vi.mocked(prisma.favorite.groupBy).mockResolvedValue([
-      { newsId: 'saved', _count: { newsId: 2 } },
+      { itemId: 'saved', _count: { itemId: 2 } },
     ] as never);
 
     const result = await getTrending({ limit: 5, window: '24h', now: NOW });
@@ -131,8 +131,8 @@ describe('getTrending', () => {
       makeNews('newer', 2),
     ] as never);
     vi.mocked(prisma.favorite.groupBy).mockResolvedValue([
-      { newsId: 'older', _count: { newsId: 1 } },
-      { newsId: 'newer', _count: { newsId: 1 } },
+      { itemId: 'older', _count: { itemId: 1 } },
+      { itemId: 'newer', _count: { itemId: 1 } },
     ] as never);
 
     const first = await getTrending({ limit: 5, window: '24h', now: NOW });
@@ -150,8 +150,8 @@ describe('getTrending', () => {
       .mockResolvedValueOnce([makeNews('recente', 1)] as never) // janela por recência
       .mockResolvedValueOnce([makeNews('antiga-salva', 160)] as never); // resgatada por saves
     vi.mocked(prisma.favorite.groupBy)
-      .mockResolvedValueOnce([{ newsId: 'antiga-salva', _count: { newsId: 5 } }] as never)
-      .mockResolvedValueOnce([{ newsId: 'antiga-salva', _count: { newsId: 5 } }] as never);
+      .mockResolvedValueOnce([{ itemId: 'antiga-salva', _count: { itemId: 5 } }] as never)
+      .mockResolvedValueOnce([{ itemId: 'antiga-salva', _count: { itemId: 5 } }] as never);
 
     const result = await getTrending({ limit: 5, window: '7d', now: NOW });
 

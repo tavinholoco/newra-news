@@ -81,14 +81,10 @@ export function NewsPageClient({
   const stories = useMemo(() => news.map(newsToStory), [news]);
 
   // O favoritar da listagem, que a V1 já tinha. Chega por prop para o
-  // `NewsList` não passar a depender de sessão e de favoritos; o `News` cru vai
-  // junto porque é ele que semeia o cache otimista da tela de favoritos.
-  const byId = useMemo(() => new Map(news.map((item) => [item.id, item])), [news]);
+  // `NewsList` não passar a depender de sessão e de favoritos.
   const renderAction = useCallback(
-    (storyId: string) => (
-      <FavoriteButton newsId={storyId} news={byId.get(storyId)} />
-    ),
-    [byId],
+    (storyId: string) => <FavoriteButton itemId={storyId} />,
+    [],
   );
 
   // Virar a página sem rolar deixa o leitor no meio de uma lista nova, olhando

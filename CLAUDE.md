@@ -93,15 +93,19 @@ do dia mudou, ou há algo errado.
   hidratação quebrada em `/article` e a baseline achou o dek repetido no corpo —
   os dois corrigidos e a baseline recapturada.
 - **Nada pendente do ciclo anterior.** A Fase 6 abre limpa.
-- **Testes:** 825 em 78 suites (502 API em 40 + 323 web em 38 — todos passando).
+- **Testes:** 869 em 80 suites (537 API em 41 + 332 web em 39 — todos passando).
 
 ### Por onde começar a Fase 6
 
-**As quatro decisões de banco já foram tomadas (21/08) — estão no item 23 do
-`docs/progress.md`, com o plano de execução em três PRs.** O item 22 continua
-sendo o levantamento que as motivou; leia o 23 primeiro.
+**As quatro decisões de banco foram tomadas e o PR de backend já está entregue
+(21/08) — item 23 do `docs/progress.md`.** O item 22 continua sendo o
+levantamento que as motivou; leia o 23 primeiro.
 
-O que ficou decidido:
+**O próximo passo são as telas** (`/account/*`, `/favorites` em
+`story-card-compact`, `save-button` editorial, `/signin`), e depois o "somente
+salvos" na `/news` — que a API já serve.
+
+O que ficou decidido, e está no banco e na API:
 
 1. **`Favorite` polimórfico** — `itemType` (`NEWS` | `ARTICLE`) + `itemId`,
    `@@unique([userId, itemType, itemId])`, migration renomeando `newsId` e
@@ -112,9 +116,10 @@ O que ficou decidido:
    listagem (`category`, `search`, `from`/`to`, `source`, `sort`); a `/news`
    troca de fonte de dados quando o filtro está ligado e segue cacheável.
 3. **`UserPreference` (tabela própria) só com o que a tela honra hoje** —
-   categorias favoritas, tema e opt-in de alerta. "Horário do briefing" fica de
-   fora: o cron é único, e controle que o sistema não honra é a armadilha da
-   pílula "Todas".
+   categorias favoritas e tema. "Horário do briefing" ficou de fora (o cron é
+   único, e controle que o sistema não honra é a armadilha da pílula "Todas"), e
+   o opt-in de alerta também: o canal é a newsletter, que é `Subscriber` — duas
+   colunas para a mesma resposta discordariam no dia seguinte.
 4. **`Subscriber.userId` nullable**, preenchido no sign-up logado e com backfill
    por e-mail; leitura por `userId` com fallback por e-mail.
 
@@ -126,8 +131,8 @@ O que vale saber antes de escrever a primeira linha:
 - **O browser nunca fala autenticado com a API.** `lib/api.ts` vai direto ao
   `NEXT_PUBLIC_API_URL` sem token; só as rotas proxy do Next assinam o JWT
   (`app/api/favorites/route.ts`). Toda tela de conta passa por proxy.
-- **`useIsFavorite` baixa 100 favoritos e testa no cliente** — do 101º em diante
-  o coração mente. A fase entrega `GET /api/favorites/ids`.
+- **`GET /api/favorites/ids` existe por causa disto:** o `useIsFavorite` baixava
+  100 favoritos e testava no cliente — do 101º em diante o coração mentia.
 - **`upsertUser` sobrescreve `name` e `image` a cada login**, então nome
   editável no perfil seria desfeito no próximo sign-in. O perfil desta fase é de
   leitura.
