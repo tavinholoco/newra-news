@@ -37,6 +37,12 @@ categoria cair, o relatório completo vem por
 `gh run download <run-id> -D <dir>` e o audit reprovado está em
 `lhr-*.json` → `categories.<cat>.auditRefs` com `score < 1`.
 
+> **Aqueça o site antes de medir, ou você mede o deploy.** Rodado minutos após o
+> merge, o Lighthouse pega a **regeneração da ISR**: na Fase 6 a `/pt-BR` deu 83
+> de performance (execuções 0,64 · 0,83 · 0,83) enquanto a `/en` — a mesma
+> página — deu 94. Dois `curl` na rota e uma segunda execução devolveram 94, sem
+> mudar uma linha. Um `curl` em cada rota medida resolve.
+
 **2. Baseline visual** (§30) — de produção, com as mesmas larguras do conjunto
 versionado, senão o diff vira ruído:
 
@@ -83,81 +89,62 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4 e 5 concluídas. **O
-  próximo ciclo é a Fase 6 (Account ecosystem).** O PRD da V1 foi fechado em
-  2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-21):** Fase 5 (Article) fechada contra produção — as
-  três telas de leitura (`/news/[id]`, `/article/[date]` e o histórico
-  `/article`) sobre uma camada editorial nova, com a transparência de IA **só**
-  no briefing. Acessibilidade **100 nas cinco rotas**; a medição achou uma
-  hidratação quebrada em `/article` e a baseline achou o dek repetido no corpo —
-  os dois corrigidos e a baseline recapturada.
-- **Nada pendente do ciclo anterior.** A Fase 6 abre limpa.
-- **Testes:** 903 em 84 suites (537 API em 41 + 366 web em 43 — todos passando).
+- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4, 5 e **6** concluídas.
+  **O próximo ciclo é a Fase 7 (SEO/performance/acessibilidade).** O PRD da V1
+  foi fechado em 2026-08-15; a V2 é o redesign editorial em cima dele.
+- **Última entrega (2026-08-22):** Fase 6 (Account ecosystem) fechada contra
+  produção, em três PRs — banco e API (#116), telas de conta (#117) e "somente
+  salvos" no acervo (#118). `Favorite` passou a alcançar o briefing
+  (`itemType` + `itemId`), nasceram `/account`, `/account/preferences` e
+  `/account/newsletter`, e o `news-card` da V1 saiu do repositório.
+  Acessibilidade **100 nas cinco rotas**, gate verde.
+- **Nada pendente do ciclo anterior.** Os dois itens que as Fases 4 e 5 adiaram
+  ("somente salvos" e "salvar" no briefing) foram entregues na 6.
+- **Testes:** 905 em 84 suites (537 API em 41 + 368 web em 43 — todos passando).
 
-### Por onde começar a Fase 6
+### Por onde começar a Fase 7
 
-**As quatro decisões de banco foram tomadas, e os dois primeiros PRs da fase
-estão entregues (21/08) — item 23 do `docs/progress.md`.** O item 22 continua
-sendo o levantamento que as motivou; leia o 23 primeiro.
+**Leia o item 24 do `docs/progress.md`** — é o fechamento da Fase 6, com o que
+ficou entregue e o que ela deixou para trás. O checklist da Fase 7 está na §28
+do plano: JSON-LD de `NewsArticle`, `BreadcrumbList`, news sitemap, canonical,
+metadata, e as quatro auditorias (imagem, teclado, contraste, leitor de tela)
+mais Core Web Vitals.
 
-Entregues: o **backend** (migrations, `/api/favorites` com os filtros do acervo,
-`/api/account/*`) e as **telas de conta** (`/account`, `/account/preferences`,
-`/account/newsletter`, `/favorites` na camada editorial, `/signin`), com o
-"salvar" no briefing que a Fase 5 tinha adiado.
+Três coisas que a Fase 6 deixa prontas para ela:
 
-O **PR 3** fechou o "somente salvos" na `/news`: o filtro compõe com categoria,
-busca, fonte, período e ordem, e **desliga a contagem das pílulas** — as facetas
-contam o acervo, e ali a lista vem de outra fonte.
+- **A acessibilidade está em 100 nas cinco rotas medidas**, e o gate do
+  Lighthouse é real desde 21/08. A Fase 7 é para ir além do que a métrica
+  sintética alcança — teclado e leitor de tela de verdade —, não para consertar
+  o que ela já cobre.
+- **Toda tela de conta é `noindex`** e fica fora do `sitemap.ts`. O que a Fase 7
+  audita é o conteúdo público: Home, acervo, notícia, briefing e histórico.
+- **A performance da Home oscila entre 83 e 94 conforme o aquecimento** (ver o
+  aviso no ritual de fechar fase). Antes de tratar isso como regressão, meça com
+  o site quente.
 
-**Falta só o ritual de fechar a fase, contra produção** (Lighthouse por rota e
-baseline visual) — ver "Fechar uma fase" acima.
+O que a Fase 6 entregou, em uma linha cada:
 
-O que ficou decidido, e está no banco e na API:
+1. **`Favorite` polimórfico** — `itemType` (`NEWS` | `ARTICLE`) + `itemId`, com
+   `@@unique([userId, itemType, itemId])`; é o que permite salvar o briefing e
+   ter "Salvos" como **uma** lista.
+2. **`/api/favorites` aceita as dimensões do acervo** (o mesmo schema Zod da
+   `/api/news`), e é a fonte do "somente salvos" — que por isso compõe com
+   categoria, busca, fonte, período e ordem.
+3. **`/api/account/*`** monta a tela de conta numa chamada, e **nenhuma rota de
+   conta leva `Cache-Control`**.
+4. **`UserPreference`** guarda só o que a interface honra: assuntos e tema.
+   "Horário do briefing" ficou de fora (cron único) e "receber por e-mail" é a
+   inscrição, que é `Subscriber`.
+5. **As telas** `/account`, `/account/preferences`, `/account/newsletter` e
+   `/favorites` na camada editorial — e o `news-card` da V1 saiu do repositório.
 
-1. **`Favorite` polimórfico** — `itemType` (`NEWS` | `ARTICLE`) + `itemId`,
-   `@@unique([userId, itemType, itemId])`, migration renomeando `newsId` e
-   fazendo backfill. É o que permite "Salvos" ser **uma** lista ordenada por
-   data de salvamento. (`articleId` nullable caiu: no Postgres `NULL` não colide
-   com `NULL`, e o mesmo briefing poderia ser salvo N vezes.)
-2. **"Somente salvos" mora na `/api/favorites`**, que ganha as dimensões da
-   listagem (`category`, `search`, `from`/`to`, `source`, `sort`); a `/news`
-   troca de fonte de dados quando o filtro está ligado e segue cacheável.
-3. **`UserPreference` (tabela própria) só com o que a tela honra hoje** —
-   categorias favoritas e tema. "Horário do briefing" ficou de fora (o cron é
-   único, e controle que o sistema não honra é a armadilha da pílula "Todas"), e
-   o opt-in de alerta também: o canal é a newsletter, que é `Subscriber` — duas
-   colunas para a mesma resposta discordariam no dia seguinte.
-4. **`Subscriber.userId` nullable**, preenchido no sign-up logado e com backfill
-   por e-mail; leitura por `userId` com fallback por e-mail.
+O que ela **não** fez, de propósito:
 
-A ordem: **um PR de backend** com as três migrations e as rotas (é o papel que a
-Fase 0.5 teve para a Fase 3), depois as telas, depois o "somente salvos".
-
-O que vale saber antes de escrever a primeira linha:
-
-- **O browser nunca fala autenticado com a API.** `lib/api.ts` vai direto ao
-  `NEXT_PUBLIC_API_URL` sem token; só as rotas proxy do Next assinam o JWT
-  (`app/api/favorites/route.ts`). Toda tela de conta passa por proxy.
-- **`GET /api/favorites/ids` existe por causa disto:** o `useIsFavorite` baixava
-  100 favoritos e testava no cliente — do 101º em diante o coração mentia.
-- **`upsertUser` sobrescreve `name` e `image` a cada login**, então nome
-  editável no perfil seria desfeito no próximo sign-in. O perfil desta fase é de
-  leitura.
-- **Resposta por usuário não leva `Cache-Control`** — `utils/cache.ts` diz por
-  quê. `/api/news` não usa o helper; o cache da `/news` vem da ISR da página.
-- **Tela de conta não pode ser SSG.** `/favorites` é `force-dynamic` porque o
-  `redirect()` de sessão foi assado no HTML estático e mandava todo mundo para o
-  sign-in. Toda tela nova herda a restrição, e o guard de sessão do
-  `app/[locale]/admin/layout.tsx` é o padrão a copiar para `/account`.
-- **`favorites-list` é o último consumidor do `news-card` da V1** — migrando
-  para `story-card-compact`, `news-card` (e provavelmente `news-grid`) sai do
-  repositório.
-- **A camada editorial é para reusar.** `article-hero` é casca com encaixes;
-  `pagination`, `story-card*` e `article-meta` não sabem de domínio nenhum.
-- **A migration de produção corre em paralelo com os deploys** (`migrate.yml`
-  dispara no push para `main`): migration só aditiva, e confirmar que terminou
-  antes de medir.
+- **Nome editável no perfil.** `upsertUser` reescreve `name` e `image` a cada
+  sign-in; um campo ali seria desfeito no login seguinte. Pede coluna própria.
+- **Temas, fontes e horário do briefing** (§19) — não há quem os consuma, e
+  controle que o sistema ignora é a armadilha da pílula de contagem da Fase 4.
+- **Excluir a conta.** Ninguém pediu, e é fluxo com consequência jurídica.
 
 ### Armadilhas que já custaram caro
 
@@ -209,24 +196,27 @@ O que vale saber antes de escrever a primeira linha:
   action): a execução semanal de segunda 09:00 UTC falha se alguma categoria
   cair abaixo de 90.
 
-### O que ficou em aberto na Fase 5
+### O que ficou em aberto
 
 - **Página na URL em `/article`** — a lista usa `useState`, ao contrário de
-  `/news`. Dívida consciente: a ficha escopa a tela a ritmo visual, e ler a
-  query string pediria uma fronteira de Suspense que a página não precisa.
-- **"Salvar" no briefing e "somente salvos" no acervo** — os dois esperam a
-  Fase 6, pelo mesmo motivo: `Favorite` referencia `newsId`.
+  `/news` e, desde a Fase 6, de `/favorites`. Dívida consciente: a ficha escopa a
+  tela a ritmo visual, e ler a query string pediria uma fronteira de Suspense que
+  a página estática precisa e a de conta não.
 - **A categoria gravada acerta ~67%**, teto do classificador por palavra-chave.
   Não bloqueia tela nenhuma — o campo existe e é estável —, mas evita a surpresa
   de ver matéria fora de lugar navegando por categoria. Passar disso pede
   classificação por IA, que é trabalho próprio e ainda não foi feito. O acervo se
   renormaliza sozinho na etapa 8.5 do pipeline diário: não há job manual a
   disparar.
+- **A `/api/favorites` resolve os salvos do usuário inteiros antes de paginar.**
+  É o que faz o `meta.total` prometer o que a lista mostra, e o conjunto é
+  limitado pela conta. Com dezenas de milhares de salvos por pessoa, vira
+  consulta a otimizar — não é o caso hoje, e está documentado no serviço.
 
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 22. É lá que mora o detalhe — este bloco é orientação, não
+  itens 11 a 24. É lá que mora o detalhe — este bloco é orientação, não
   changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,

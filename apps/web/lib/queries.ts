@@ -262,8 +262,10 @@ export function useToggleFavorite(
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: favoritesKeys.ids() });
       queryClient.invalidateQueries({ queryKey: favoritesKeys.all });
+      // A tela de conta anuncia quantos itens estão salvos. Sem isto, salvar
+      // uma matéria e voltar para lá mostraria o número de antes.
+      queryClient.invalidateQueries({ queryKey: accountKeys.overview() });
     },
   });
 }
