@@ -7,7 +7,7 @@ import { useNewsFacets, useNewsList } from '@/lib/queries';
 import { useNewsFilters } from '@/lib/use-news-filters';
 import { countActiveFilters, toApiFilters } from '@/lib/news-filters';
 import { newsToStory } from '@/lib/story';
-import { FavoriteButton } from '@/components/news/favorite-button';
+import { SaveButton } from '@/components/editorial/save-button';
 import { CategoryNav } from './category-nav';
 import { NewsArchiveHeader } from './news-archive-header';
 import { NewsEmptyState } from './news-empty-state';
@@ -83,7 +83,7 @@ export function NewsPageClient({
   // O favoritar da listagem, que a V1 já tinha. Chega por prop para o
   // `NewsList` não passar a depender de sessão e de favoritos.
   const renderAction = useCallback(
-    (storyId: string) => <FavoriteButton itemId={storyId} />,
+    (storyId: string) => <SaveButton itemId={storyId} />,
     [],
   );
 

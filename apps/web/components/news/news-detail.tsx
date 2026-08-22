@@ -8,7 +8,7 @@ import { ArticleHero } from '@/components/editorial/article-hero';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { RelatedStories } from '@/components/editorial/related-stories';
 import { ShareButton } from '@/components/editorial/share-button';
-import { FavoriteButton } from '@/components/news/favorite-button';
+import { SaveButton } from '@/components/editorial/save-button';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
 import { readingTimeFromText } from '@/lib/format';
 
@@ -22,7 +22,7 @@ interface NewsDetailProps {
  *
  * **Continua server component**, e é o que permite renderizar o `NewsletterCta`
  * — que é `async` e não pode ser filho de um client component. Os controles que
- * precisam do navegador (`FavoriteButton`, `ShareButton`) entram como elementos
+ * precisam do navegador (`SaveButton`, `ShareButton`) entram como elementos
  * nas props do hero; a fronteira fica neles, não na tela inteira.
  *
  * **Não tem seção de transparência de IA, e é de propósito.** Esta matéria foi
@@ -75,7 +75,7 @@ export async function NewsDetail({ news, related }: NewsDetailProps) {
           }
           actions={
             <>
-              <FavoriteButton itemId={news.id} />
+              <SaveButton itemId={news.id} />
               <ShareButton title={news.title} text={news.description} />
             </>
           }

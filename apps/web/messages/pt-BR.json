@@ -7,12 +7,13 @@
     "admin": "Admin",
     "articles": "Artigos",
     "closeMenu": "Fechar menu",
-    "favorites": "Favoritos",
+    "favorites": "Salvos",
     "home": "Home",
     "metrics": "Métricas",
     "news": "Notícias",
     "openMenu": "Abrir menu",
-    "secondary": "Navegação secundária"
+    "secondary": "Navegação secundária",
+    "account": "Conta"
   },
   "shell": {
     "edition": "Edição de hoje",
@@ -175,12 +176,13 @@
     "noData": "Sem dados no período."
   },
   "favorites": {
-    "title": "Favoritos",
-    "add": "Salvar nos favoritos",
-    "remove": "Remover dos favoritos",
-    "loadError": "Não foi possível carregar seus favoritos.",
-    "emptyTitle": "Você ainda não favoritou nenhuma notícia.",
-    "emptyHint": "Toque no coração em uma notícia para salvá-la aqui."
+    "title": "Salvos",
+    "add": "Salvar",
+    "remove": "Remover dos salvos",
+    "loadError": "Não foi possível carregar o que você salvou.",
+    "emptyTitle": "Você ainda não salvou nada.",
+    "emptyHint": "Toque no marcador em uma notícia ou no briefing do dia para guardá-lo aqui.",
+    "description": "As notícias e os briefings que você guardou para ler depois."
   },
   "admin": {
     "title": "Painel Admin",
@@ -208,7 +210,7 @@
   },
   "signin": {
     "title": "Entrar",
-    "hint": "Acesse sua conta para favoritar notícias e usar o painel admin.",
+    "hint": "Entre para salvar notícias e o briefing do dia, e para escolher seus assuntos.",
     "google": "Continuar com Google",
     "github": "Continuar com GitHub",
     "backHome": "Voltar para a Home",
@@ -298,7 +300,7 @@
       "description": "Acompanhe o desempenho do pipeline de notícias e dos artigos gerados por IA."
     },
     "favorites": {
-      "title": "Favoritos"
+      "title": "Salvos"
     },
     "news": {
       "title": "Notícias",
@@ -314,6 +316,15 @@
     },
     "signin": {
       "title": "Entrar"
+    },
+    "account": {
+      "title": "Sua conta"
+    },
+    "preferences": {
+      "title": "Preferências"
+    },
+    "newsletterSettings": {
+      "title": "Newsletter"
     }
   },
   "ads": {
@@ -344,5 +355,51 @@
     "goToPage": "Ir para a página {page}",
     "historyLabel": "Paginação do histórico",
     "label": "Paginação do acervo"
+  },
+  "account": {
+    "title": "Sua conta",
+    "subtitle": "Quem você é no Newra, o que já guardou e por onde recebe o briefing.",
+    "loadError": "Não foi possível carregar sua conta.",
+    "memberSince": "No Newra desde {date}",
+    "savedNews": "Notícias salvas",
+    "savedBriefings": "Briefings salvos",
+    "goToSaved": "Ver o que salvei",
+    "signOut": "Sair da conta",
+    "nav": {
+      "label": "Navegação da conta",
+      "profile": "Conta",
+      "preferences": "Preferências",
+      "newsletter": "Newsletter",
+      "saved": "Salvos"
+    },
+    "preferences": {
+      "title": "Preferências",
+      "description": "O que você escolher aqui vale para a sua conta, em qualquer aparelho.",
+      "loadError": "Não foi possível carregar suas preferências.",
+      "categoriesTitle": "Assuntos que te interessam",
+      "categoriesHint": "Guardamos sua escolha desde já; ela vai orientar o que aparece primeiro conforme a personalização avançar.",
+      "themeTitle": "Tema",
+      "themeHint": "Vale imediatamente ao salvar, e acompanha a sua conta.",
+      "themeSystem": "Do sistema",
+      "themeLight": "Claro",
+      "themeDark": "Escuro",
+      "save": "Salvar preferências",
+      "saving": "Salvando...",
+      "saved": "Preferências salvas.",
+      "saveError": "Não foi possível salvar. Tente de novo."
+    },
+    "newsletter": {
+      "title": "Newsletter",
+      "description": "O briefing do dia no seu e-mail, toda manhã.",
+      "loadError": "Não foi possível carregar sua inscrição.",
+      "subscribedTitle": "Você recebe o Newra Daily",
+      "subscribedHint": "Enviamos para {email}.",
+      "notSubscribedTitle": "Você não recebe o Newra Daily",
+      "notSubscribedHint": "Podemos enviar para {email}.",
+      "otherEmail": "Esta inscrição foi feita com um e-mail diferente do da sua conta.",
+      "subscribe": "Quero receber",
+      "unsubscribe": "Cancelar inscrição",
+      "error": "Não foi possível atualizar sua inscrição. Tente de novo."
+    }
   }
 }

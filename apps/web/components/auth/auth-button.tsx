@@ -4,6 +4,7 @@ import { signIn, signOut, useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { LogIn, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Link } from '@/i18n/navigation';
 
 export function AuthButton() {
   const { data: session, status } = useSession();
@@ -36,12 +37,17 @@ export function AuthButton() {
 
   return (
     <div className='flex items-center gap-1'>
-      <span className='hidden items-center gap-1.5 text-sm text-muted-foreground md:flex'>
+      {/* O nome é a porta da conta: é onde quem está logado procura, e evita
+          um item a mais na barra que já tem seis. */}
+      <Link
+        href='/account'
+        className='hidden items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-base hover:text-link md:flex'
+      >
         <User className='h-4 w-4' />
         <span className='max-w-28 truncate' title={session.user.email ?? name}>
           {name}
         </span>
-      </span>
+      </Link>
       <Button
         variant='ghost'
         size='sm'

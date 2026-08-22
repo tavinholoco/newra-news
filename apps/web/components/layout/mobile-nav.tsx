@@ -32,6 +32,7 @@ export function MobileNav() {
 
   const links: NavItem[] = [...NAV_LINKS];
   if (status === 'authenticated') {
+    links.push({ href: '/account', key: 'account' });
     links.push({ href: '/favorites', key: 'favorites' });
     if (session?.user?.role === 'ADMIN') {
       links.push({ href: '/admin', key: 'admin' });

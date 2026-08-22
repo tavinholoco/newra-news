@@ -83,7 +83,8 @@ describe('MobileNav', () => {
     renderWithIntl(<MobileNav />);
     await open();
 
-    expect(screen.queryByRole('link', { name: 'Favoritos' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Salvos' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Conta' })).toBeNull();
     expect(screen.queryByRole('link', { name: /admin/i })).toBeNull();
   });
 
@@ -95,7 +96,8 @@ describe('MobileNav', () => {
     renderWithIntl(<MobileNav />);
     await open();
 
-    expect(screen.getByRole('link', { name: 'Favoritos' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Salvos' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Conta' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^admin$/i })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Métricas' })).toBeNull();
   });

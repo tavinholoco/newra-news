@@ -19,12 +19,12 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
       {error && (
         <p
           role='alert'
-          className='rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive'
+          className='rounded-md border border-line px-3 py-2 text-body-sm text-danger'
         >
           {t('error')}
         </p>
       )}
-      <p className='text-muted-foreground'>{t('hint')}</p>
+      <p className='text-body-sm text-ink-secondary'>{t('hint')}</p>
 
       <div className='flex flex-col gap-3'>
         <Button
@@ -49,7 +49,7 @@ export function SignInForm({ callbackUrl, error }: SignInFormProps) {
 
       <Link
         href='/'
-        className='inline-flex items-center gap-1.5 text-sm font-medium text-link hover:text-link-hover'
+        className='inline-flex items-center gap-1.5 font-display text-body-sm font-semibold text-link transition-colors duration-base hover:text-link-hover'
       >
         <ArrowLeft className='h-4 w-4' />
         {t('backHome')}

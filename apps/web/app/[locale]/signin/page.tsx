@@ -64,15 +64,18 @@ export default async function SignInPage({ params, searchParams }: Props) {
   }
 
   return (
-    <div className='mx-auto max-w-md px-4 py-16 sm:px-6'>
-      <div className='rounded-lg border border-border bg-card p-8'>
-        <h1 className='font-display mb-2 text-2xl font-bold text-foreground'>
-          {t('title')}
-        </h1>
-        <SignInForm
-          callbackUrl={callbackUrl}
-          error={typeof searchParams.error === 'string' ? searchParams.error : undefined}
-        />
+    <div className='container-editorial py-section'>
+      {/* A caixa é estreita de propósito: a tela tem uma decisão só, e a
+          largura editorial cheia faria dois botões flutuarem no meio do nada. */}
+      <div className='mx-auto w-full max-w-md rounded-lg border border-line bg-surface p-8'>
+        <h1 className='font-display text-h2 font-bold text-ink'>{t('title')}</h1>
+
+        <div className='mt-4'>
+          <SignInForm
+            callbackUrl={callbackUrl}
+            error={typeof searchParams.error === 'string' ? searchParams.error : undefined}
+          />
+        </div>
       </div>
     </div>
   );

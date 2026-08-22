@@ -255,10 +255,24 @@ marca.
 | Render | `force-dynamic` (**obrigatório** — ver §1.1 do diagnóstico) |
 | Auth | sessão; anônimo → `/signin?callbackUrl=` |
 | Indexação | **noindex** |
-| Fase | 6 |
+| Fase | 6 — **entregue** |
 
-Passa a usar `story-card-compact`. Precisa de estado vazio editorial, não de
-uma lista vazia.
+Usa `story-card-compact` para a notícia e `briefing-card-compact` para o
+briefing, numa **lista só**, ordenada por quando o leitor salvou. Estado vazio
+editorial, não uma lista vazia.
+
+### `/[locale]/account` + `/account/preferences` + `/account/newsletter` — Conta
+
+| | |
+|---|---|
+| Render | `force-dynamic` (guard no layout do segmento) |
+| Auth | sessão; anônimo → `/signin?callbackUrl=` |
+| Indexação | **noindex** |
+| Fase | 6 — **entregue** |
+
+Não existiam na V1. Perfil **de leitura** (o provedor de OAuth reescreve nome e
+imagem a cada sign-in), assuntos e tema, e a inscrição na newsletter. As quatro
+telas — com `/favorites` — dividem a `account-nav`.
 
 ### `/[locale]/signin` — Entrar
 
@@ -347,7 +361,7 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | 3 — Home | `/[locale]` |
 | 4 — News | `/news`, `/news/[id]` |
 | 5 — Article | `/article`, `/article/[date]` |
-| 6 — Account | `/favorites`, `/signin` |
+| 6 — Account | `/favorites`, `/signin`, `/account`, `/account/preferences`, `/account/newsletter` |
 | 7 — SEO/perf/a11y | todas (auditoria) |
 | 8 — Monetização | `ad-slot` nas telas da 3, 4 e 5 |
 

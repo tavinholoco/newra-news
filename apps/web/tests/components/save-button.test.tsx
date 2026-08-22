@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { FavoriteButton } from '@/components/news/favorite-button';
+import { SaveButton } from '@/components/editorial/save-button';
 import { renderWithIntl } from '@/tests/utils';
 
 const signInMock = vi.fn();
@@ -26,7 +26,7 @@ function mockAuthenticated(favorited: boolean) {
   useIsFavoriteMock.mockReturnValue(favorited);
 }
 
-describe('FavoriteButton', () => {
+describe('SaveButton', () => {
   beforeEach(() => {
     signInMock.mockClear();
     useSessionMock.mockReset();
@@ -39,10 +39,10 @@ describe('FavoriteButton', () => {
     useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
     useIsFavoriteMock.mockReturnValue(false);
     const user = userEvent.setup();
-    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
 
     await user.click(
-      screen.getByRole('button', { name: 'Salvar nos favoritos' }),
+      screen.getByRole('button', { name: 'Salvar' }),
     );
 
     expect(signInMock).toHaveBeenCalledTimes(1);
@@ -53,9 +53,9 @@ describe('FavoriteButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
 
-    const button = screen.getByRole('button', { name: 'Salvar nos favoritos' });
+    const button = screen.getByRole('button', { name: 'Salvar' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
     await user.click(button);
 
@@ -67,9 +67,9 @@ describe('FavoriteButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
 
-    const button = screen.getByRole('button', { name: 'Remover dos favoritos' });
+    const button = screen.getByRole('button', { name: 'Remover dos salvos' });
     expect(button).toHaveAttribute('aria-pressed', 'true');
     await user.click(button);
 
@@ -82,16 +82,16 @@ describe('FavoriteButton', () => {
       mutate: vi.fn(),
       isPending: true,
     });
-    renderWithIntl(<FavoriteButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
 
     expect(
-      screen.getByRole('button', { name: 'Salvar nos favoritos' }),
+      screen.getByRole('button', { name: 'Salvar' }),
     ).toBeDisabled();
   });
 
   it('should carry the item type through, so the briefing can be saved too', () => {
     mockAuthenticated(false);
-    renderWithIntl(<FavoriteButton itemId={NEWS_ID} itemType='ARTICLE' />);
+    renderWithIntl(<SaveButton itemId={NEWS_ID} itemType='ARTICLE' />);
 
     expect(useIsFavoriteMock).toHaveBeenCalledWith(NEWS_ID, 'ARTICLE', true);
     expect(useToggleFavoriteMock).toHaveBeenCalledWith(NEWS_ID, 'ARTICLE');

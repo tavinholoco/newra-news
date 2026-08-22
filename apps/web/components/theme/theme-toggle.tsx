@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Moon, Sun } from 'lucide-react';
+import { applyThemePreference, readStoredTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -13,13 +14,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const stored = (() => {
-      try {
-        return localStorage.getItem('theme');
-      } catch {
-        return null;
-      }
-    })();
+    const stored = readStoredTheme();
     const systemDark = document.documentElement.classList.contains('dark');
     const initial: 'light' | 'dark' =
       stored === 'dark' || (!stored && systemDark) ? 'dark' : 'light';
@@ -32,14 +27,9 @@ export function ThemeToggle({ className }: { className?: string }) {
   const isDark = theme === 'dark';
 
   function handleToggle() {
-    const next = isDark ? 'light' : 'dark';
-    setTheme(next);
-    document.documentElement.classList.toggle('dark', next === 'dark');
-    try {
-      localStorage.setItem('theme', next);
-    } catch {
-      // localStorage indisponível (ex.: testes) — ignora
-    }
+    // A escrita mora em `lib/theme.ts`, que é o mesmo caminho das preferências
+    // da conta — duas cópias da mesma gravação divergiriam no primeiro ajuste.
+    setTheme(applyThemePreference(isDark ? 'LIGHT' : 'DARK'));
   }
 
   return (
