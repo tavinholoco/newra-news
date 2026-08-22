@@ -93,7 +93,7 @@ do dia mudou, ou há algo errado.
   hidratação quebrada em `/article` e a baseline achou o dek repetido no corpo —
   os dois corrigidos e a baseline recapturada.
 - **Nada pendente do ciclo anterior.** A Fase 6 abre limpa.
-- **Testes:** 892 em 84 suites (537 API em 41 + 355 web em 43 — todos passando).
+- **Testes:** 903 em 84 suites (537 API em 41 + 366 web em 43 — todos passando).
 
 ### Por onde começar a Fase 6
 
@@ -106,9 +106,12 @@ Entregues: o **backend** (migrations, `/api/favorites` com os filtros do acervo,
 `/account/newsletter`, `/favorites` na camada editorial, `/signin`), com o
 "salvar" no briefing que a Fase 5 tinha adiado.
 
-**Falta o PR 3: "somente salvos" na `/news`** — a API já serve, e a regra é que
-o filtro componha com categoria, busca, fonte, período e ordem. Depois dele, o
-ritual de fechar a fase.
+O **PR 3** fechou o "somente salvos" na `/news`: o filtro compõe com categoria,
+busca, fonte, período e ordem, e **desliga a contagem das pílulas** — as facetas
+contam o acervo, e ali a lista vem de outra fonte.
+
+**Falta só o ritual de fechar a fase, contra produção** (Lighthouse por rota e
+baseline visual) — ver "Fechar uma fase" acima.
 
 O que ficou decidido, e está no banco e na API:
 

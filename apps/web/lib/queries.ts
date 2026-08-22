@@ -76,7 +76,7 @@ export const metricsKeys = {
 
 export const favoritesKeys = {
   all: ['favorites'] as const,
-  list: (filters: FavoriteListFilters = {}) =>
+  list: (filters: FavoriteListFilters & { page: number; limit: number }) =>
     [...favoritesKeys.all, 'list', filters] as const,
   // Os ids ficam fora de `list()`: eles não mudam ao filtrar a tela, e o botão
   // de salvar de qualquer card lê esta mesma chave.
@@ -98,6 +98,7 @@ export const adminKeys = {
 export function useNewsList(
   filters: NewsListFilters,
   initialData?: PaginatedResponse<News>,
+  enabled = true,
 ) {
   const { page, limit, ...rest } = filters;
 
@@ -106,6 +107,7 @@ export function useNewsList(
     queryFn: () => getNews(page, limit, rest),
     initialData,
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
@@ -180,10 +182,20 @@ export function useDashboardMetrics(initialData?: DashboardMetrics) {
 
 const FAVORITES_LIMIT = 100;
 
-export function useFavorites(filters: FavoriteListFilters = {}, enabled = true) {
+/**
+ * Os salvos do leitor.
+ *
+ * A tela "Salvos" pede tudo de uma vez (`FAVORITES_LIMIT`); a `/news` com
+ * "somente salvos" ligado pede a página que está sendo lida, com o mesmo
+ * tamanho do acervo — é a mesma rota servindo as duas.
+ */
+export function useFavorites(
+  filters: FavoriteListFilters = {},
+  { page = 1, limit = FAVORITES_LIMIT, enabled = true } = {},
+) {
   return useQuery({
-    queryKey: favoritesKeys.list(filters),
-    queryFn: () => getFavorites(1, FAVORITES_LIMIT, filters),
+    queryKey: favoritesKeys.list({ ...filters, page, limit }),
+    queryFn: () => getFavorites(page, limit, filters),
     enabled,
   });
 }

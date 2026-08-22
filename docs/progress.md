@@ -1238,7 +1238,36 @@ Decisões que a implementação tomou:
 
 **Falta o PR 3:** "somente salvos" na `/news` — a API já serve.
 
-**PR 3 — "somente salvos" na `/news`**, compondo com os filtros existentes.
+**PR 3 — "somente salvos" na `/news`** ✅
+
+```text
+[x] `saved` entra no estado da URL, zera a página e conta como filtro ativo
+[x] a tela troca de fonte de dados: /api/favorites autenticada no lugar da
+    listagem pública, com o recorte inteiro viajando junto
+[x] contagem sai das pílulas e do seletor de fonte no modo salvos
+[x] estado vazio próprio, e sem hero — o recorte não é uma edição
+[x] o controle só aparece com sessão; `?saved=1` sem sessão mostra o acervo
+```
+
+**Entregue em 22/08 — 903 testes (892 → 903), lint, typecheck e build limpos.**
+
+Duas decisões que a implementação tomou:
+
+- **A contagem some no modo salvos.** As facetas contam o **acervo**; com o
+  filtro ligado, a pílula "Esportes 223" abriria uma lista de dois itens — o
+  mesmo defeito da pílula "Todas" da Fase 4, que lia 594 e abria 2.373. Pílula
+  sem número continua filtrando; pílula com número errado é promessa quebrada.
+  Vale também para o `(30)` ao lado de cada fonte no seletor.
+- **`?saved=1` sem sessão mostra o acervo**, não uma tela vazia nem um erro. É a
+  mesma regra de `?category=BANANA`: a query string é editável por qualquer um,
+  e valor que a tela não consegue honrar cai no default em silêncio.
+
+As duas consultas **nunca correm juntas** — `enabled` desliga a que não está
+valendo, então ligar o filtro não dispara uma busca no acervo que ninguém vai
+ler.
+
+**A Fase 6 fecha aqui**, faltando o ritual contra produção (Lighthouse por rota
+e baseline visual).
 
 **Fechamento, contra produção:** Lighthouse por rota
 (`gh workflow run "Lighthouse CI" --ref main`), baseline visual de produção nas

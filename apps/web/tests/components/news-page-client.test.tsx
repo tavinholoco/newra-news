@@ -7,6 +7,8 @@ import { renderWithIntl } from '@/tests/utils';
 const searchParamsMock = vi.fn();
 const useNewsListMock = vi.fn();
 const useNewsFacetsMock = vi.fn();
+const useFavoritesMock = vi.fn();
+const useSessionMock = vi.fn();
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
 
@@ -29,12 +31,13 @@ vi.mock('@/i18n/navigation', () => ({
 vi.mock('@/lib/queries', () => ({
   useNewsList: (...args: unknown[]) => useNewsListMock(...args),
   useNewsFacets: (...args: unknown[]) => useNewsFacetsMock(...args),
+  useFavorites: (...args: unknown[]) => useFavoritesMock(...args),
   useIsFavorite: () => false,
   useToggleFavorite: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({ data: null, status: 'unauthenticated' }),
+  useSession: () => useSessionMock(),
   signIn: vi.fn(),
 }));
 
@@ -100,6 +103,12 @@ describe('NewsPageClient', () => {
     useNewsFacetsMock.mockReturnValue({
       data: { categories: [{ category: 'SPORTS', count: 5 }], sources: [] },
     });
+    useFavoritesMock.mockReturnValue({
+      data: undefined,
+      isFetching: false,
+      isError: false,
+    });
+    useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
     setUrl('');
   });
 
@@ -354,6 +363,118 @@ describe('NewsPageClient', () => {
       expect(
         screen.queryByRole('navigation', { name: /Paginação/ }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('somente salvos', () => {
+    function signedIn() {
+      useSessionMock.mockReturnValue({
+        data: { user: { id: 'user-1' } },
+        status: 'authenticated',
+      });
+    }
+
+    /** Argumentos da última chamada ao hook de salvos. */
+    function lastSavedQuery() {
+      const calls = useFavoritesMock.mock.calls;
+      return calls[calls.length - 1] as [
+        Record<string, unknown>,
+        { page: number; limit: number; enabled: boolean },
+      ];
+    }
+
+    it('should not offer the filter to anonymous visitors', () => {
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      expect(
+        screen.queryByRole('button', { name: 'Somente salvos' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('should show the archive when ?saved=1 arrives without a session', () => {
+      // A query string é editável por qualquer um, e sem sessão não há lista de
+      // salvos: a tela mostra o acervo em vez de quebrar.
+      setUrl('saved=1');
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      expect(lastSavedQuery()[1].enabled).toBe(false);
+      expect(useNewsListMock.mock.calls.at(-1)?.[2]).toBe(true);
+    });
+
+    it('should switch data source when the filter is on', () => {
+      signedIn();
+      setUrl('saved=1&category=SPORTS&source=G1&sort=oldest&page=2');
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      const [filters, options] = lastSavedQuery();
+      // O recorte inteiro viaja junto: "somente salvos" compõe com os outros
+      // filtros, em vez de substituí-los.
+      expect(filters).toMatchObject({
+        type: 'NEWS',
+        category: 'SPORTS',
+        source: 'G1',
+        sort: 'oldest',
+      });
+      expect(options).toMatchObject({ page: 2, limit: 20, enabled: true });
+      // E a listagem pública fica desligada — as duas nunca correm juntas.
+      expect(useNewsListMock.mock.calls.at(-1)?.[2]).toBe(false);
+    });
+
+    it('should render what the saved route returned', () => {
+      signedIn();
+      setUrl('saved=1');
+      useFavoritesMock.mockReturnValue({
+        data: {
+          data: [
+            {
+              id: 'fav-1',
+              itemType: 'NEWS',
+              itemId: 'uuid-1',
+              createdAt: '2024-01-02T08:00:00.000Z',
+              news: makeNews(1),
+            },
+          ],
+          meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+        },
+        isFetching: false,
+        isError: false,
+      });
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      expect(screen.getByText('Matéria 1')).toBeInTheDocument();
+    });
+
+    it('should drop the counts from the pills — they count the archive', () => {
+      signedIn();
+      setUrl('saved=1');
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      // A faceta diz 5 em Esportes, e o clique com "salvos" ligado não devolve
+      // cinco. Pílula sem número continua filtrando; com número errado, mente.
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+    });
+
+    it('should explain an empty cut of saved stories', () => {
+      signedIn();
+      setUrl('saved=1&category=SPORTS');
+      useFavoritesMock.mockReturnValue({
+        data: { data: [], meta: { total: 0, page: 1, limit: 20, totalPages: 0 } },
+        isFetching: false,
+        isError: false,
+      });
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      expect(screen.getByText('Nada salvo neste recorte.')).toBeInTheDocument();
+    });
+
+    it('should write the filter into the URL and go back to page 1', () => {
+      signedIn();
+      setUrl('page=3');
+      renderWithIntl(<NewsPageClient initialData={emptyList} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Somente salvos' }));
+
+      expect(lastUrl()).toBe('/news?saved=1');
     });
   });
 });

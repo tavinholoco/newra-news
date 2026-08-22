@@ -115,7 +115,17 @@ Regras que não são óbvias no código:
   render — e ele entra na chave do TanStack Query e na URL da API.
 - **A contagem da pílula é o que o clique dela devolve.** As facetas ignoram a
   própria dimensão, e a pílula "Todas" soma as facetas de categoria. **Não use
-  um total do recorte ali** — foi o defeito que a revisão da Fase 4 achou.
+  um total do recorte ali** — foi o defeito que a revisão da Fase 4 achou. Pela
+  mesma razão, **"somente salvos" desliga a contagem** (`showCounts={false}` na
+  `category-nav` e na `news-filter-bar`): as facetas contam o acervo, e ali a
+  lista vem de outra fonte.
+- **"Somente salvos" troca a fonte de dados, não o `where`.** O acervo é público
+  e cacheável; a lista de salvos é por usuário e vem de `/api/favorites`, que
+  aceita as mesmas dimensões. As duas consultas nunca correm juntas — `enabled`
+  desliga a que não está valendo. E ele **não** entra em `toApiFilters`: a rota
+  pública não sabe quem está pedindo.
+- **`?saved=1` sem sessão mostra o acervo.** Mesma regra de `?category=BANANA`:
+  valor que a tela não consegue honrar cai no default em silêncio.
 - **O `Suspense` da página repete o `NewsArchiveHeader` no fallback.** A rota é
   estática: sem isso o HTML pré-renderizado sairia com um retângulo cinza no
   lugar do `h1`.
