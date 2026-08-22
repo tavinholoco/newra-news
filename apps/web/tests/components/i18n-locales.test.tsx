@@ -6,7 +6,7 @@ import { renderWithIntl } from '@/tests/utils';
 
 describe('i18n rendering', () => {
   it('renders SubscribeForm in pt-BR by default', () => {
-    renderWithIntl(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm origin='footer' />);
 
     expect(
       screen.getByRole('button', { name: /assinar/i }),
@@ -15,7 +15,7 @@ describe('i18n rendering', () => {
   });
 
   it('renders SubscribeForm in English with the en locale', () => {
-    renderWithIntl(<SubscribeForm />, 'en');
+    renderWithIntl(<SubscribeForm origin='footer' />, 'en');
 
     expect(
       screen.getByRole('button', { name: /subscribe/i }),

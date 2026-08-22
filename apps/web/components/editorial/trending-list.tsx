@@ -47,7 +47,12 @@ export function TrendingList({ stories, className }: TrendingListProps) {
       <ol className='flex flex-col divide-y divide-line'>
         {stories.map((story, index) => (
           <li key={story.id} className='py-3 first:pt-0 last:pb-0'>
-            <StoryCardCompact story={story} rank={index + 1} />
+            <StoryCardCompact
+              story={story}
+              rank={index + 1}
+              source='trending'
+              position={index}
+            />
           </li>
         ))}
       </ol>

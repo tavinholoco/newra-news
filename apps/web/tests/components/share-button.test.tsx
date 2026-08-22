@@ -34,7 +34,7 @@ describe('ShareButton', () => {
   it('should use the native share sheet when the browser has one', () => {
     const share = vi.fn().mockResolvedValue(undefined);
     setShare(share);
-    renderWithIntl(<ShareButton title='Manchete' text='Resumo' />);
+    renderWithIntl(<ShareButton contentId='c1' contentType='story' title='Manchete' text='Resumo' />);
 
     fireEvent.click(screen.getByRole('button'));
 
@@ -48,7 +48,7 @@ describe('ShareButton', () => {
   it('should copy the link when there is no native share', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     setClipboard(writeText);
-    renderWithIntl(<ShareButton title='Manchete' />);
+    renderWithIntl(<ShareButton contentId='c1' contentType='story' title='Manchete' />);
 
     fireEvent.click(screen.getByRole('button'));
 
@@ -62,7 +62,7 @@ describe('ShareButton', () => {
     setShare(vi.fn().mockRejectedValue(new Error('AbortError')));
     const writeText = vi.fn().mockResolvedValue(undefined);
     setClipboard(writeText);
-    renderWithIntl(<ShareButton title='Manchete' />);
+    renderWithIntl(<ShareButton contentId='c1' contentType='story' title='Manchete' />);
 
     fireEvent.click(screen.getByRole('button'));
 
@@ -72,7 +72,7 @@ describe('ShareButton', () => {
   it('should not claim success when the clipboard is unavailable', async () => {
     // `clipboard` exige contexto seguro e permissão.
     setClipboard(vi.fn().mockRejectedValue(new Error('NotAllowedError')));
-    renderWithIntl(<ShareButton title='Manchete' />);
+    renderWithIntl(<ShareButton contentId='c1' contentType='story' title='Manchete' />);
 
     fireEvent.click(screen.getByRole('button'));
 
@@ -86,12 +86,12 @@ describe('ShareButton', () => {
     // `navigator.share` só existe depois da hidratação; trocar o rótulo a
     // partir dele produziria markup diferente no servidor e no cliente.
     setShare(vi.fn().mockResolvedValue(undefined));
-    const { unmount } = renderWithIntl(<ShareButton title='Manchete' />);
+    const { unmount } = renderWithIntl(<ShareButton contentId='c1' contentType='story' title='Manchete' />);
     expect(screen.getByText('Compartilhar')).toBeInTheDocument();
     unmount();
 
     setShare(undefined);
-    renderWithIntl(<ShareButton title='Manchete' />);
+    renderWithIntl(<ShareButton contentId='c1' contentType='story' title='Manchete' />);
     expect(screen.getByText('Compartilhar')).toBeInTheDocument();
   });
 });

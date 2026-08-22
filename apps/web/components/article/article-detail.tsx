@@ -94,8 +94,17 @@ export async function ArticleDetail({
               {/* O "salvar" que a Fase 5 registrou como fora de alcance: o
                   `Favorite` só chegava a notícia, e o briefing não podia ser
                   salvo. Com `itemType`, chega. */}
-              <SaveButton itemId={article.id} itemType='ARTICLE' />
-              <ShareButton title={article.title} text={article.summary} />
+              <SaveButton
+                itemId={article.id}
+                itemType='ARTICLE'
+                origin='briefing'
+              />
+              <ShareButton
+                title={article.title}
+                text={article.summary}
+                contentId={article.id}
+                contentType='briefing'
+              />
             </>
           }
         />

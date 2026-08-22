@@ -1649,6 +1649,122 @@ e a instrumentação dos eventos que já têm call site). O consentimento mexe e
 toda página, e a camada nasce lendo a decisão: sem decisão, descarta. **PR 3 —
 inventário e slots.**
 
+### 27. V2.0 Fase 8 — pré-requisitos: a camada de analytics ✅ Concluído em 2026-08-22
+
+> Branch `feat/v2-analytics-layer`. **PR 2 dos três.** O PR 1 (item 26) deu o
+> banco e a rota; este dá o `track()` e liga os oito eventos que já têm ponto de
+> disparo.
+
+#### As quatro decisões tomadas antes da primeira linha
+
+Foram perguntadas e respondidas antes de escrever código, porque cada uma muda o
+trabalho:
+
+| Questão | Decisão |
+|---|---|
+| Consentimento | **banner no PR 3**, camada já no PR 2 |
+| `search.query` | **enviar, com higiene forte** |
+| `subscription_intent` | **fora do PR 2** — o Newra Plus não existe |
+| Escopo | **os 8 eventos com call site pronto** |
+
+**O banner no PR 3, e não aqui.** A §5 do doc escreveu "nenhum evento sai antes
+da decisão de consentimento", mas o desenho fechou depois: a camada é
+*cookieless*, não tem identificador entre sessões e não fala com terceiro. O
+tratamento se apoia em legítimo interesse (LGPD art. 7º, IX), e um banner hoje
+interromperia a leitura em toda página sem portar decisão nenhuma — a mesma
+armadilha do `AdSlot` renderizar caixa vazia sem inventário. O que muda isso é
+anúncio personalizado, que é o PR 3. **A camada já nasce obedecendo:** DNT e GPC
+são respeitados, um `denied` gravado vale, e quando o banner existir ele só
+precisa gravar a decisão.
+
+#### O que entrou
+
+| Peça | Papel |
+|---|---|
+| `lib/analytics/index.ts` | `track()`, a fila e o transporte |
+| `lib/analytics/consent.ts` | a decisão, DNT e GPC |
+| `lib/analytics/session.ts` | o `sessionId`, em `sessionStorage` |
+| `lib/analytics/sanitize.ts` | a higiene do termo de busca |
+| `components/analytics/page-view.tsx` | evento de visualização numa página server |
+| `app/api/events/route.ts` | o repasse same-origin |
+
+**Os oito instrumentados:** `homepage_view`, `story_open`, `briefing_open`,
+`category_view`, `search`, `favorite_add`, `share`, `newsletter_signup`.
+
+> **O destino é uma rota do próprio Next, e não a API direto.** `sendBeacon` é o
+> único transporte que o navegador promete entregar durante uma navegação — que
+> é justamente quando o clique mais interessante acontece — e ele **não sabe
+> fazer preflight**. Um POST `application/json` para o Render exigiria preflight
+> e o beacon falharia em silêncio, sem erro em lugar nenhum. Same-origin, não há
+> preflight a fazer.
+
+#### O que o compilador cobrou, e estava certo
+
+`source` e `position` nasceram como props **obrigatórias** nos cards. O
+`typecheck` reprovou 13 usos e 30 linhas de teste — que é exatamente o ponto:
+prop opcional deixaria um uso novo sem atribuição, e a falta só apareceria na
+hora de ler a métrica.
+
+E cobrou um erro de verdade: **`position` não existe no payload de
+`briefing_open`**. Eu tinha exigido a prop nos dois cards de briefing, onde ela
+não chegava a lugar nenhum — a armadilha do controle sem consequência, em forma
+de prop. Saiu dos dois.
+
+#### Três defeitos que a verificação achou
+
+- **O `homepage_view` caiu no ramo errado.** A inserção automática pegou o
+  primeiro `container-editorial` do arquivo, que é o do **estado vazio** da
+  Home: o evento só dispararia nos dias em que o pipeline não rodou. Agora sai
+  nos dois ramos — Home vazia continua sendo uma visita à Home.
+- **A regra de "parece chave" descartava palavra longa sem dígito.** O teste de
+  truncamento reprovou com 200 letras iguais; a mesma regra descartaria
+  "anticonstitucionalissimamente", que tem 29 letras e é palavra de verdade. A
+  regra passou a exigir **mistura de letra e dígito**, que é a forma de uma
+  chave.
+- **A API de produção ainda não serve `/api/events`.** Medido: a migration de
+  #122 rodou (`Migrate (produção)`, 16:06 UTC, sucesso), mas
+  `POST /api/events` responde **404** no Render três horas depois. A tabela
+  existe e o código não subiu — o deploy do backend precisa ser conferido antes
+  de o PR 2 medir qualquer coisa em produção. **Não é defeito deste PR**, e o
+  proxy se comportou certo: repassou o 404 do backend sem inventar sucesso.
+
+#### A verificação que sustenta o PR
+
+Com o navegador apontado para a API de produção, um clique no hero da Home
+produziu este payload no `sendBeacon` — capturado interceptando o transporte:
+
+```json
+{ "type": "story_open", "source": "hero", "position": 0,
+  "path": "/pt-BR", "locale": "pt-BR", "category": "HEALTH",
+  "sessionId": "ead86ed6-…", "occurredAt": "2026-08-22T19:12:18.146Z",
+  "storyId": "13a1eaa9-…" }
+```
+
+Ele virou **teste na API**: o payload real do navegador, contra o Zod de
+verdade, esperando 201. É a única asserção que prova que os dois lados
+concordam sobre o formato do fio — as outras testam o schema contra o que o
+próprio teste escreveu.
+
+Também conferido no navegador: o `sessionId` está em `sessionStorage` e
+**não** em `localStorage`, e o `path` sai sem query string.
+
+#### Números
+
+- **1.000 testes** (976 → 1.000): 558 na API (+1) e **442 no web** (+24), 93
+  suites.
+- **Documentação:** seção "Analytics" em `apps/web/CLAUDE.md`; a §3 de
+  `docs/v2/04-analytics-e-slots.md` deixou de dizer "toggle do coração" — o
+  coração virou marcador na Fase 6.
+
+#### O que vem a seguir
+
+**PR 3 — inventário e slots:** ligar o inventário, `ad_view`/`ad_click`, o
+banner de consentimento e o `premium-cta`. Antes dele, **conferir o deploy do
+Render**: sem `/api/events` no ar, a camada mede para o vazio.
+
+Fora do PR 2, de propósito: os três eventos de scroll (pedem
+`IntersectionObserver` novo nas telas de leitura) e `subscription_intent`.
+
 ---
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13

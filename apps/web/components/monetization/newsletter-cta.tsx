@@ -51,7 +51,7 @@ export async function NewsletterCta({
         </div>
 
         <div className={cn('w-full', variant === 'band' && 'lg:max-w-md')}>
-          <SubscribeForm />
+          <SubscribeForm origin='article-cta' />
           <p className='mt-3 text-meta text-on-brand/70'>{t('ctaPrivacy')}</p>
         </div>
       </div>

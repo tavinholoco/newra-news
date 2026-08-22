@@ -36,8 +36,10 @@ export function RelatedStories({ stories }: RelatedStoriesProps) {
       <SectionHeading id={headingId} title={t('relatedTitle')} />
 
       <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4'>
-        {stories.map((story) => (
+        {stories.map((story, index) => (
           <StoryCard
+            source='related'
+            position={index}
             key={story.id}
             story={story}
             headingLevel='h3'

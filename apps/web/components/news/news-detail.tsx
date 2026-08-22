@@ -87,8 +87,17 @@ export async function NewsDetail({
           }
           actions={
             <>
-              <SaveButton itemId={news.id} />
-              <ShareButton title={news.title} text={news.description} />
+              <SaveButton
+                itemId={news.id}
+                category={news.category}
+                origin='search'
+              />
+              <ShareButton
+                title={news.title}
+                text={news.description}
+                contentId={news.id}
+                contentType='story'
+              />
             </>
           }
         />

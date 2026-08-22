@@ -6,11 +6,22 @@ import { Bookmark } from 'lucide-react';
 import type { FavoriteItemType } from '@newranews/types';
 import { cn } from '@/lib/utils';
 import { useIsFavorite, useToggleFavorite } from '@/lib/queries';
+import { track } from '@/lib/analytics';
+import type { Category, EventSource } from '@newranews/types';
 
 interface SaveButtonProps {
   itemId: string;
   /** `NEWS` (padrão) ou `ARTICLE` — o briefing do dia também se salva. */
   itemType?: FavoriteItemType;
+  /** De onde o gesto partiu — vai no `favorite_add`. */
+  origin: EventSource;
+  /**
+   * A categoria da matéria. **Só existe para `NEWS`**, e por isso é opcional:
+   * um briefing não tem categoria, e o payload de `favorite_add` exige uma.
+   * Sem ela o evento não sai — salvar briefing fica sem medição até o catálogo
+   * ganhar um evento próprio, o que é escopo de outra entrega.
+   */
+  category?: Category;
   /** Sobre imagem: fundo escuro translúcido, para o ícone não sumir na foto. */
   overlay?: boolean;
   className?: string;
@@ -32,6 +43,8 @@ interface SaveButtonProps {
 export function SaveButton({
   itemId,
   itemType = 'NEWS',
+  origin,
+  category,
   overlay,
   className,
 }: SaveButtonProps) {
@@ -45,6 +58,14 @@ export function SaveButton({
       void signIn();
       return;
     }
+
+    // **Só quando salva**, nunca quando remove: o catálogo tem `favorite_add` e
+    // não tem o par oposto. Medir remoção com o mesmo evento inflaria "saves por
+    // usuário" contando o desfazer como interação positiva.
+    if (!isSaved && itemType === 'NEWS' && category) {
+      track('favorite_add', { storyId: itemId, category, origin });
+    }
+
     toggle.mutate(isSaved);
   }
 

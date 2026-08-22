@@ -73,7 +73,7 @@ export async function Footer() {
               {tNewsletter('footerDesc')}
             </p>
             <div className='mt-4'>
-              <SubscribeForm />
+              <SubscribeForm origin='footer' />
             </div>
           </div>
         </div>

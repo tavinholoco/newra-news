@@ -8,9 +8,19 @@ import { Link } from '@/i18n/navigation';
 import { ReadingTime } from '@/components/editorial/reading-time';
 import { toDateSlug } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import type { EventSource } from '@newranews/types';
+import { track } from '@/lib/analytics';
 
 interface BriefingCardProps {
   briefing: DailyBriefing;
+  /**
+   * De onde este card foi renderizado — vai no `briefing_open`.
+   *
+   * **Não há `position` aqui**, e não é esquecimento: o payload de
+   * `briefing_open` não tem esse campo. Exigir uma prop que não chega a lugar
+   * nenhum é a armadilha do controle sem consequência, em forma de prop.
+   */
+  source: EventSource;
   className?: string;
 }
 
@@ -30,11 +40,24 @@ interface BriefingCardProps {
  * migration `add_daily_briefing_metadata` — a contagem cai para
  * `sourceCount`, que sempre existe.
  */
-export function BriefingCard({ briefing, className }: BriefingCardProps) {
+export function BriefingCard({
+  briefing,
+  source,
+  className,
+}: BriefingCardProps) {
   const t = useTranslations('home');
   // `useId`: um `id` literal duplica se o bloco for reusado noutra tela.
   const headingId = useId();
   const tCommon = useTranslations('common');
+
+
+  function handleOpen() {
+    track('briefing_open', {
+      briefingId: briefing.id,
+      date: briefing.date,
+      source,
+    });
+  }
 
   return (
     <section
@@ -74,6 +97,7 @@ export function BriefingCard({ briefing, className }: BriefingCardProps) {
       </p>
 
       <Link
+        onClick={handleOpen}
         href={`/article/${toDateSlug(briefing.date)}`}
         className='mt-6 inline-flex items-center gap-1.5 font-display text-body-sm font-semibold text-link transition-colors duration-base hover:text-link-hover'
       >
