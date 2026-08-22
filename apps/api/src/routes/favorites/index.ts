@@ -1,16 +1,58 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { addFavorite, listFavorites, removeFavorite } from '../../services/favorite.service';
+import {
+  addFavorite,
+  listFavoriteIds,
+  listFavorites,
+  removeFavorite,
+  type FavoriteItem,
+} from '../../services/favorite.service';
 import { NotFoundError, UnauthorizedError } from '../../utils/errors';
 import { authPlugin } from '../../plugins/auth';
 import {
   addFavoriteBodySchema,
   addFavoriteResponseSchema,
+  favoriteIdsResponseSchema,
   favoriteParamsSchema,
   listFavoritesQuerySchema,
   listFavoritesResponseSchema,
   removeFavoriteResponseSchema,
 } from './schemas';
+
+/**
+ * Resposta **por usuário** — por isso nenhuma rota daqui passa pelo
+ * `withEditorialCache`. Um `s-maxage` num proxy compartilhado aqui serviria o
+ * recorte de um leitor para o próximo.
+ */
+function serializeFavorite(item: FavoriteItem) {
+  const base = {
+    id: item.id,
+    itemId: item.itemId,
+    createdAt: item.createdAt.toISOString(),
+  };
+
+  if (item.itemType === 'NEWS') {
+    return {
+      ...base,
+      itemType: 'NEWS' as const,
+      news: {
+        ...item.news,
+        publishedAt: item.news.publishedAt.toISOString(),
+        createdAt: item.news.createdAt.toISOString(),
+        updatedAt: item.news.updatedAt.toISOString(),
+      },
+    };
+  }
+
+  return {
+    ...base,
+    itemType: 'ARTICLE' as const,
+    article: {
+      ...item.article,
+      date: item.article.date.toISOString(),
+    },
+  };
+}
 
 export async function favoritesRoutes(app: FastifyInstance) {
   await app.register(authPlugin);
@@ -29,21 +71,15 @@ export async function favoritesRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      const { page, limit } = request.query;
-      const { data, total } = await listFavorites(userIdOf(request.user?.sub), { page, limit });
+      const { page, limit, sort, type, ...filters } = request.query;
+      const { data, total } = await listFavorites(
+        userIdOf(request.user?.sub),
+        { ...filters, type },
+        { page, limit, sort },
+      );
 
       return {
-        data: data.map((item) => ({
-          id: item.id,
-          newsId: item.newsId,
-          createdAt: item.createdAt.toISOString(),
-          news: {
-            ...item.news!,
-            publishedAt: item.news!.publishedAt.toISOString(),
-            createdAt: item.news!.createdAt.toISOString(),
-            updatedAt: item.news!.updatedAt.toISOString(),
-          },
-        })),
+        data: data.map(serializeFavorite),
         meta: {
           total,
           page,
@@ -51,6 +87,15 @@ export async function favoritesRoutes(app: FastifyInstance) {
           totalPages: Math.ceil(total / limit),
         },
       };
+    },
+  );
+
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/ids',
+    { schema: { response: { 200: favoriteIdsResponseSchema } } },
+    async (request) => {
+      const data = await listFavoriteIds(userIdOf(request.user?.sub));
+      return { data };
     },
   );
 
@@ -63,14 +108,16 @@ export async function favoritesRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      const favorite = await addFavorite(userIdOf(request.user?.sub), request.body.newsId);
-      if (!favorite) throw new NotFoundError('News');
+      const { itemType, itemId } = request.body;
+      const favorite = await addFavorite(userIdOf(request.user?.sub), itemType, itemId);
+      if (!favorite) throw new NotFoundError(itemType === 'NEWS' ? 'News' : 'Article');
 
       return {
         data: {
           id: favorite.id,
           userId: favorite.userId,
-          newsId: favorite.newsId,
+          itemType: favorite.itemType,
+          itemId: favorite.itemId,
           createdAt: favorite.createdAt.toISOString(),
         },
       };
@@ -78,7 +125,7 @@ export async function favoritesRoutes(app: FastifyInstance) {
   );
 
   app.withTypeProvider<ZodTypeProvider>().delete(
-    '/:newsId',
+    '/:itemType/:itemId',
     {
       schema: {
         params: favoriteParamsSchema,
@@ -86,7 +133,8 @@ export async function favoritesRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      const removed = await removeFavorite(userIdOf(request.user?.sub), request.params.newsId);
+      const { itemType, itemId } = request.params;
+      const removed = await removeFavorite(userIdOf(request.user?.sub), itemType, itemId);
       if (!removed) throw new NotFoundError('Favorite');
 
       return { data: { removed: true } };

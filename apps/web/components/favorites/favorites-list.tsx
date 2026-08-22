@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Heart } from 'lucide-react';
+import type { NewsFavorite } from '@newranews/types';
 import { useFavorites } from '@/lib/queries';
 import { NewsCard } from '@/components/news/news-card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function FavoritesList() {
   const t = useTranslations('favorites');
   const tCommon = useTranslations('common');
-  const { data, isLoading, isError, refetch } = useFavorites();
+  // Pede **só** o que esta tela sabe desenhar. O briefing salvo já existe no
+  // banco e na API; o card editorial dele entra junto com o redesenho da tela,
+  // e até lá pedir tudo para descartar metade seria a lista mentindo sobre o
+  // que o leitor salvou.
+  const { data, isLoading, isError, refetch } = useFavorites({ type: 'NEWS' });
 
   if (isLoading && !data) {
     return (
@@ -42,7 +47,9 @@ export function FavoritesList() {
     );
   }
 
-  const favorites = data?.data ?? [];
+  const favorites = (data?.data ?? []).filter(
+    (favorite): favorite is NewsFavorite => favorite.itemType === 'NEWS',
+  );
 
   if (favorites.length === 0) {
     return (
@@ -61,7 +68,7 @@ export function FavoritesList() {
   return (
     <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
       {favorites.map((favorite) => (
-        <NewsCard key={favorite.newsId} news={favorite.news} />
+        <NewsCard key={favorite.itemId} news={favorite.news} />
       ))}
     </div>
   );

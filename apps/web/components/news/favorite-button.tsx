@@ -3,23 +3,29 @@
 import { signIn, useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { Heart } from 'lucide-react';
-import type { News } from '@newranews/types';
+import type { FavoriteItemType } from '@newranews/types';
 import { cn } from '@/lib/utils';
 import { useIsFavorite, useToggleFavorite } from '@/lib/queries';
 
 interface FavoriteButtonProps {
-  newsId: string;
-  news?: News;
+  itemId: string;
+  /** `NEWS` (padrão) ou `ARTICLE` — o briefing do dia também pode ser salvo. */
+  itemType?: FavoriteItemType;
   /** Estilo para sobreposição no card de notícia (fundo escuro translúcido). */
   overlay?: boolean;
   className?: string;
 }
 
-export function FavoriteButton({ newsId, news, overlay, className }: FavoriteButtonProps) {
+export function FavoriteButton({
+  itemId,
+  itemType = 'NEWS',
+  overlay,
+  className,
+}: FavoriteButtonProps) {
   const { status } = useSession();
   const t = useTranslations('favorites');
-  const isFavorited = useIsFavorite(newsId, status === 'authenticated');
-  const toggle = useToggleFavorite(newsId, news);
+  const isFavorited = useIsFavorite(itemId, itemType, status === 'authenticated');
+  const toggle = useToggleFavorite(itemId, itemType);
 
   function handleClick() {
     if (status !== 'authenticated') {

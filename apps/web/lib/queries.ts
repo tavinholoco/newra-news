@@ -5,7 +5,8 @@ import type {
   ArticleWithSources,
   PaginatedResponse,
   DashboardMetrics,
-  FavoriteWithNews,
+  FavoriteIds,
+  FavoriteItemType,
   RunPipelineResult,
   DeleteNewsResult,
   NewsFilters,
@@ -20,6 +21,7 @@ import {
   getLatestArticle,
   getDashboardMetrics,
   getFavorites,
+  getFavoriteIds,
   addFavorite,
   removeFavorite,
   runDailyPipeline,
@@ -37,6 +39,8 @@ interface ArticleListFilters {
   page: number;
   limit: number;
 }
+
+type FavoriteListFilters = NewsFilters & { type?: FavoriteItemType };
 
 export const newsKeys = {
   all: ['news'] as const,
@@ -66,7 +70,11 @@ export const metricsKeys = {
 
 export const favoritesKeys = {
   all: ['favorites'] as const,
-  list: () => [...favoritesKeys.all, 'list'] as const,
+  list: (filters: FavoriteListFilters = {}) =>
+    [...favoritesKeys.all, 'list', filters] as const,
+  // Os ids ficam fora de `list()`: eles não mudam ao filtrar a tela, e o botão
+  // de salvar de qualquer card lê esta mesma chave.
+  ids: () => [...favoritesKeys.all, 'ids'] as const,
 };
 
 export const adminKeys = {
@@ -161,25 +169,82 @@ export function useDashboardMetrics(initialData?: DashboardMetrics) {
 
 const FAVORITES_LIMIT = 100;
 
-export function useFavorites(enabled = true) {
+export function useFavorites(filters: FavoriteListFilters = {}, enabled = true) {
   return useQuery({
-    queryKey: favoritesKeys.list(),
-    queryFn: () => getFavorites(1, FAVORITES_LIMIT),
+    queryKey: favoritesKeys.list(filters),
+    queryFn: () => getFavorites(1, FAVORITES_LIMIT, filters),
     enabled,
   });
 }
 
-/** True se `newsId` está entre os favoritos do usuário. */
-export function useIsFavorite(newsId: string, enabled = true) {
-  const { data } = useFavorites(enabled);
-  return data?.data.some((favorite) => favorite.newsId === newsId) ?? false;
+/**
+ * Os ids do que está salvo — uma consulta por sessão, compartilhada por todos
+ * os botões de salvar da página.
+ */
+export function useFavoriteIds(enabled = true) {
+  return useQuery({
+    queryKey: favoritesKeys.ids(),
+    queryFn: () => getFavoriteIds(),
+    enabled,
+  });
+}
+
+/** True se este item está salvo. */
+export function useIsFavorite(
+  itemId: string,
+  itemType: FavoriteItemType = 'NEWS',
+  enabled = true,
+) {
+  const { data } = useFavoriteIds(enabled);
+  const ids = itemType === 'NEWS' ? data?.news : data?.articles;
+  return ids?.includes(itemId) ?? false;
 }
 
 /**
- * Toggle otimista: adiciona ou remove o favorito e invalida a lista.
- * `news` (opcional) permite inserir a notícia completa na lista otimista,
- * deixando o heart preenchido imediatamente ao favoritar.
+ * Toggle otimista.
+ *
+ * O estado otimista mexe na **lista de ids**, não na lista com conteúdo: é ela
+ * que o botão lê, e ela não depende de nenhum recorte de filtro. A lista com
+ * conteúdo é invalidada no fim — o card certo aparece quando a resposta chega,
+ * em vez de ser fabricado aqui.
  */
+export function useToggleFavorite(
+  itemId: string,
+  itemType: FavoriteItemType = 'NEWS',
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation<unknown, Error, boolean, { previous?: FavoriteIds }>({
+    mutationFn: (favorited: boolean) =>
+      favorited ? removeFavorite(itemType, itemId) : addFavorite(itemType, itemId),
+    onMutate: async (favorited) => {
+      await queryClient.cancelQueries({ queryKey: favoritesKeys.ids() });
+      const previous = queryClient.getQueryData<FavoriteIds>(favoritesKeys.ids());
+
+      queryClient.setQueryData<FavoriteIds>(favoritesKeys.ids(), (old) => {
+        if (!old) return old;
+        const key = itemType === 'NEWS' ? 'news' : 'articles';
+        const ids = favorited
+          ? old[key].filter((id) => id !== itemId)
+          : [...old[key], itemId];
+
+        return { ...old, [key]: ids };
+      });
+
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(favoritesKeys.ids(), context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: favoritesKeys.ids() });
+      queryClient.invalidateQueries({ queryKey: favoritesKeys.all });
+    },
+  });
+}
+
 // ── Admin Hooks ───────────────────────────────────────────────────────────
 
 /** Dispara o pipeline manualmente (admin). */
@@ -198,66 +263,6 @@ export function useDeleteNews() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.newsList() });
       queryClient.invalidateQueries({ queryKey: newsKeys.lists() });
-    },
-  });
-}
-
-export function useToggleFavorite(newsId: string, news?: News) {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    unknown,
-    Error,
-    boolean,
-    { previous?: PaginatedResponse<FavoriteWithNews> }
-  >({
-    mutationFn: (favorited: boolean) =>
-      favorited ? removeFavorite(newsId) : addFavorite(newsId),
-    onMutate: async (favorited) => {
-      await queryClient.cancelQueries({ queryKey: favoritesKeys.list() });
-      const previous = queryClient.getQueryData<PaginatedResponse<FavoriteWithNews>>(
-        favoritesKeys.list(),
-      );
-
-      queryClient.setQueryData<PaginatedResponse<FavoriteWithNews>>(
-        favoritesKeys.list(),
-        (old) => {
-          if (!old) return old;
-          if (favorited) {
-            return {
-              ...old,
-              data: old.data.filter((item) => item.newsId !== newsId),
-              meta: { ...old.meta, total: Math.max(0, old.meta.total - 1) },
-            };
-          }
-          if (news) {
-            return {
-              ...old,
-              data: [
-                {
-                  id: 'pending',
-                  newsId,
-                  createdAt: new Date().toISOString(),
-                  news,
-                },
-                ...old.data,
-              ],
-              meta: { ...old.meta, total: old.meta.total + 1 },
-            };
-          }
-          return old;
-        },
-      );
-
-      return { previous };
-    },
-    onError: (_error, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(favoritesKeys.list(), context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: favoritesKeys.list() });
     },
   });
 }

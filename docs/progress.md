@@ -53,9 +53,9 @@
 
 > As três telas de leitura: `/news/[id]`, `/article/[date]` e o histórico `/article`. Camada editorial nova (`article-hero`, `article-body`, `ai-disclosure`, `source-list`, `share-button`, `related-stories`) e a `pagination` promovida de `news/` para `editorial/`. A transparência de IA fica **só** no briefing; a notícia coletada declara a outra coisa. 820 testes verdes. Ver **item 21**.
 
-**Próximo ciclo — V2.0 Fase 6 (Account ecosystem)** 📋 **pré-requisitos levantados**
+**Próximo ciclo — V2.0 Fase 6 (Account ecosystem)** 📋 **decidida, pronta para abrir**
 
-> `favorites`, `profile`, `preferences` e `newsletter settings` — §19 e §23 do plano. Ao contrário da Fase 5, ela **muda o banco**: `Favorite` só alcança notícia, `User` não tem onde guardar preferência, e `Subscriber` não conhece `User`. Há também uma decisão de cache a tomar antes de desenhar o "somente salvos". Ver **item 22**.
+> `favorites`, `profile`, `preferences` e `newsletter settings` — §19 e §23 do plano. Ao contrário da Fase 5, ela **muda o banco**, e as quatro decisões que isso exigia foram tomadas em 21/08: `Favorite` polimórfico (`itemType` + `itemId`), "somente salvos" servido pela `/api/favorites` autenticada, `UserPreference` só com o que a tela honra hoje, e `Subscriber.userId` nullable. Levantamento no **item 22**; decisões e plano de execução em três PRs no **item 23**.
 
 ---
 
@@ -1046,6 +1046,189 @@ sign-in, logado ou não. Toda tela de conta nova herda essa restrição.
 
 **22.4** só bloqueia "newsletter settings"; dá para adiar se a fase for
 recortada.
+
+---
+
+### 23. V2.0 Fase 6 — decisões de arquitetura e plano de execução 📋 decididas em 2026-08-21
+
+> As quatro decisões que o item 22 deixou em aberto foram tomadas. Este item é
+> o **plano de execução** da fase; o item 22 continua sendo o levantamento que
+> as motivou.
+
+#### As quatro decisões
+
+**D1 (22.1) — `Favorite` polimórfico: `itemType` + `itemId`.**
+
+```prisma
+enum FavoriteItemType {
+  NEWS
+  ARTICLE
+}
+
+model Favorite {
+  id        String           @id @default(uuid())
+  userId    String
+  itemType  FavoriteItemType @default(NEWS)
+  itemId    String
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId, createdAt])
+}
+```
+
+Escolhido porque **"Salvos" tem de ser uma lista só**, notícias e briefings
+ordenados pela data em que o leitor os salvou — duas tabelas paginadas por
+`createdAt` não se juntam numa página sem ler as duas inteiras. O custo que a
+tabela do item 22 atribuía a esta opção ("perde a FK") **já estava pago**:
+`Favorite` nunca teve FK; a única relação declarada no schema é
+`Article` ↔ `BriefingSource`.
+
+A opção `articleId` nullable foi descartada por um defeito que o levantamento
+não via: no Postgres `NULL` é sempre distinto de `NULL`, então
+`@@unique([userId, newsId])` com `newsId` nulo deixaria o **mesmo briefing ser
+salvo N vezes**. Corrigir isso pede dois índices únicos parciais em SQL cru.
+
+Migration: renomear `newsId` → `itemId` e backfill de `itemType = 'NEWS'` em
+tudo que já existe. Aditiva e reversível; produção tem favoritos reais.
+
+**D2 (22.2) — o "somente salvos" vive em `/api/favorites`, e compõe.**
+
+A rota autenticada que já existe e já pagina ganha as mesmas dimensões da
+listagem (`category`, `search`, `from`/`to`, `source`, `sort`), e a `/news`
+troca de fonte de dados quando o filtro está ligado. A `/news` pública segue
+intocada e cacheável.
+
+A alternativa ("a `/news` ganha caminho sem cache") caiu por um motivo que só o
+código mostra: **o browser nunca fala autenticado com a API**. `lib/api.ts`
+chama `NEXT_PUBLIC_API_URL` direto, sem token; só as rotas proxy do Next assinam
+o JWT (`app/api/favorites/route.ts`). Ela exigiria uma rota proxy nova do mesmo
+jeito — e ainda poria um desvio por usuário dentro da rota mais cacheada do
+site.
+
+**D3 (22.3) — preferências: só o que a tela honra hoje, em tabela própria.**
+
+```prisma
+model UserPreference {
+  id         String          @id @default(uuid())
+  userId     String          @unique
+  categories Category[]      @default([])
+  theme      ThemePreference @default(SYSTEM)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+```
+
+**"Horário do briefing" fica de fora**: o pipeline roda num cron único, e um
+controle que o sistema não honra é o mesmo erro da pílula "Todas" da Fase 4 —
+um número que não promete o que o clique entrega. "Temas" e "fontes" também
+ficam para quando houver quem os consuma.
+
+**E o opt-in de alerta saiu daqui na implementação.** Ele era para ser a
+terceira coluna, mas o único canal de saída que existe é a newsletter, e ela é
+`Subscriber` — o mesmo que a D4 acabou de amarrar ao usuário. Uma coluna
+`alertOptIn` ao lado disso não seria "preferência ainda sem consumidor", seria
+**duas fontes de verdade para a mesma resposta**, com a chance de discordarem no
+dia seguinte. A tela de conta lê e escreve a inscrição, que é quem o envio
+consulta.
+
+Tabela própria, e não colunas em `User`, para o upsert de login não dividir
+espaço com dado de produto (`upsertUser` roda a cada sign-in).
+
+**D4 (22.4) — `Subscriber` ganha `userId` nullable.**
+
+Preenchido quando um usuário logado se inscreve, e backfill por e-mail no
+momento da migration. A leitura de "newsletter settings" é por `userId` com
+fallback por e-mail. Cruzar só por e-mail mentiria quando o e-mail do provedor
+de login não é o da inscrição — inscrito aparecendo como não inscrito, e um
+clique criando inscrição duplicada.
+
+#### O que a leitura do código acrescentou ao item 22
+
+- **`useIsFavorite` baixa os 100 primeiros favoritos e testa no cliente**
+  (`lib/queries.ts`). Com o "salvar" chegando ao briefing e a todos os cards
+  editoriais, do 101º favorito em diante o coração mente. A fase entrega um
+  `GET /api/favorites/ids` (só os ids, uma query por sessão).
+- **`upsertUser` sobrescreve `name` e `image` a cada login.** Se o
+  `/account/profile` deixar editar o nome, o próximo sign-in o desfaz. Nesta
+  fase o perfil é **de leitura** (identidade do provedor, salvos, inscrição,
+  sair); nome editável pede coluna própria e é escopo novo.
+- **A migration de produção corre em paralelo com os deploys.** O `migrate.yml`
+  dispara no push para `main`, junto com Vercel e Render — a mesma corrida que a
+  seção "Fechar uma fase" do `CLAUDE.md` descreve. Migration só aditiva, e
+  confirmar que ela terminou **antes** de medir.
+- **`/api/news` não usa `withEditorialCache`** — quem usa são `home`,
+  `trending`, `facets` e `related`. O `s-maxage` que o item 22 cita como risco
+  chega à `/news` pela ISR da página (`revalidate = 3600`), não pela rota.
+- **`news-grid` provavelmente sai junto com `news-card`** (22.5) — conferir os
+  consumidores restantes na hora.
+
+#### Plano de execução
+
+**PR 1 — banco e API** (é a Fase 0.5 desta fase; nenhuma tela antes dele)
+
+```text
+[x] migration do Favorite polimórfico, com backfill itemType = NEWS
+[x] migration do UserPreference
+[x] migration do Subscriber.userId + backfill por e-mail
+[x] favorite.service por tipo (list/add/remove) + hidratação por tipo na leitura
+[x] GET /api/favorites com os filtros da listagem (D2) e GET /api/favorites/ids
+[x] GET/PUT /api/account/preferences (autenticadas, sem Cache-Control)
+[x] leitura de inscrição por userId com fallback por e-mail
+[x] testes de API + docs/api.md + docs/v2/03-contratos-api.md
+
+    -- o que o contrato novo obrigou a mexer junto --
+[x] tipos compartilhados (união discriminada por itemType) e o cliente do web
+[x] trending contava favorito: passou a contar só itemType NEWS
+[x] proxy do Next unificado em lib/api-proxy.ts (cinco rotas assinando JWT)
+```
+
+**Entregue em 21/08 — 869 testes (825 → 869), lint, typecheck e build limpos.**
+Três achados que o plano não previa:
+
+- **O trending contava salvamento.** `getTrending` agrupava `Favorite` por
+  `newsId` sem filtrar tipo; com briefing salvável, salvar o briefing do dia
+  passaria a empurrar uma notícia no ranking. Hoje filtra `itemType: 'NEWS'`.
+- **A migration é escrita à mão**, porque `migrate diff` resolveria o rename de
+  `newsId` como DROP + ADD — apagando os favoritos que já existem em produção.
+  Aplicada no banco local e conferida com `migrate diff` contra o schema: sem
+  drift além do índice de `News.sourceUrl` que já faltava lá.
+- **`meta.total` da lista de salvos passou a contar o que a lista mostra.** A
+  versão anterior contava a linha do favorito, e o cleanup do Stage 8 apaga
+  notícia com mais de 30 dias — o leitor via "12 salvos" e nove cards.
+
+**PR 2 — telas de conta**
+
+```text
+[ ] segmento /account com guard de sessão no layout (padrão do admin/layout.tsx)
+[ ] force-dynamic em todas — /favorites já paga essa conta desde a V1
+[ ] /favorites mantém a URL (está no menu mobile e na baseline) e migra para
+    story-card-compact + estado vazio editorial
+[ ] save-button editorial no lugar do FavoriteButton da V1 (cards, news-detail
+    e briefing)
+[ ] /account/profile (leitura), /account/preferences, /account/newsletter
+[ ] /signin redesenhado — visual apenas, sem tocar no fluxo
+[ ] news-card (e provavelmente news-grid) saem do repositório
+[ ] i18n pt-BR/en, testes web, suíte design-tokens verde
+```
+
+**PR 3 — "somente salvos" na `/news`**, compondo com os filtros existentes.
+
+**Fechamento, contra produção:** Lighthouse por rota
+(`gh workflow run "Lighthouse CI" --ref main`), baseline visual de produção nas
+mesmas larguras, item deste arquivo marcado e **só o topo** do `CLAUDE.md`
+atualizado.
+
+#### Armadilhas que valem para esta fase
+
+- Resposta por usuário **não** leva `Cache-Control` — é o que `utils/cache.ts`
+  documenta.
+- Campo novo tem de entrar no **schema de resposta** Zod, senão o
+  `fastify-type-provider-zod` o descarta em silêncio.
+- Nível de heading é decisão da página (`heading-level`), nunca do componente.
+- Nada de relógio dentro do render — "salvo há 3 dias" é efeito, não JSX.
+- Nome novo na escala tipográfica exige entrada em `TYPOGRAPHY_SCALE`.
+- Bloco sem dado devolve `null` **e** o wrapper do grid junto.
 
 ---
 

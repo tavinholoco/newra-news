@@ -10,6 +10,7 @@ import {
   subscribeToNewsletter,
   unsubscribeFromNewsletter,
   getFavorites,
+  getFavoriteIds,
   addFavorite,
   removeFavorite,
   runDailyPipeline,
@@ -209,44 +210,78 @@ describe('unsubscribeFromNewsletter', () => {
 });
 
 describe('favorites client API', () => {
-  const favoriteWithNews = {
+  const savedNews = {
     id: 'fav-uuid',
-    newsId: 'uuid-1',
+    itemType: 'NEWS' as const,
+    itemId: 'uuid-1',
     createdAt: '2024-01-02T08:00:00.000Z',
     news: mockNews,
   };
 
   it('should fetch favorites from the same-origin proxy', async () => {
-    mockFetchJson({ data: [favoriteWithNews], meta: { total: 1 } });
+    mockFetchJson({ data: [savedNews], meta: { total: 1 } });
 
     const result = await getFavorites();
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
     expect(url).toBe('/api/favorites?page=1&limit=100');
-    expect(result.data[0]?.news.title).toBe('Notícia de Teste');
+    expect(result.data[0]?.itemType === 'NEWS' && result.data[0].news.title).toBe(
+      'Notícia de Teste',
+    );
   });
 
-  it('should POST the newsId to add a favorite', async () => {
+  it('should send the archive filters along, so "saved only" filters like /news', async () => {
+    mockFetchJson({ data: [], meta: { total: 0 } });
+
+    await getFavorites(2, 20, { category: Category.WORLD, search: 'clima', type: 'NEWS' });
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toContain('category=WORLD');
+    expect(url).toContain('search=clima');
+    expect(url).toContain('page=2');
+    expect(url).toContain('type=NEWS');
+  });
+
+  it('should fetch only the ids of what is saved', async () => {
+    mockFetchJson({ data: { news: ['uuid-1'], articles: ['uuid-2'] } });
+
+    const result = await getFavoriteIds();
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toBe('/api/favorites/ids');
+    expect(result).toEqual({ news: ['uuid-1'], articles: ['uuid-2'] });
+  });
+
+  it('should POST the type and the id to save an item', async () => {
     mockFetchJson({
-      data: { id: 'fav-uuid', userId: 'user-1', newsId: 'uuid-1', createdAt: '2024-01-02T08:00:00.000Z' },
+      data: {
+        id: 'fav-uuid',
+        userId: 'user-1',
+        itemType: 'ARTICLE',
+        itemId: 'uuid-2',
+        createdAt: '2024-01-02T08:00:00.000Z',
+      },
     });
 
-    const result = await addFavorite('uuid-1');
+    const result = await addFavorite('ARTICLE', 'uuid-2');
 
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/favorites');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(String(init.body))).toEqual({ newsId: 'uuid-1' });
-    expect(result.newsId).toBe('uuid-1');
+    expect(JSON.parse(String(init.body))).toEqual({
+      itemType: 'ARTICLE',
+      itemId: 'uuid-2',
+    });
+    expect(result.itemId).toBe('uuid-2');
   });
 
-  it('should DELETE the newsId to remove a favorite', async () => {
+  it('should address the item by type and id to remove it', async () => {
     mockFetchJson({ data: { removed: true } });
 
-    const result = await removeFavorite('uuid-1');
+    const result = await removeFavorite('NEWS', 'uuid-1');
 
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/api/favorites/uuid-1');
+    expect(url).toBe('/api/favorites/news/uuid-1');
     expect(init.method).toBe('DELETE');
     expect(result).toEqual({ removed: true });
   });

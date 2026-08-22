@@ -7,7 +7,7 @@ import { renderWithIntl } from '@/tests/utils';
 const useFavoritesMock = vi.fn();
 
 vi.mock('@/lib/queries', () => ({
-  useFavorites: () => useFavoritesMock(),
+  useFavorites: (...args: unknown[]) => useFavoritesMock(...args),
 }));
 
 // NewsCard renderiza o FavoriteButton (useSession + useIsFavorite)
@@ -22,7 +22,8 @@ vi.mock('@/components/news/favorite-button', () => ({
 
 const favorite = {
   id: 'fav-1',
-  newsId: 'uuid-1',
+  itemType: 'NEWS',
+  itemId: 'uuid-1',
   createdAt: '2024-01-02T08:00:00.000Z',
   news: {
     id: 'uuid-1',

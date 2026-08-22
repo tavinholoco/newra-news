@@ -6,8 +6,13 @@ import type {
   ApiResponse,
   DashboardMetrics,
   Subscriber,
-  FavoriteWithNews,
-  AddedFavorite,
+  FavoriteWithItem,
+  FavoriteIds,
+  FavoriteItemType,
+  SavedFavorite,
+  AccountOverview,
+  UserPreferences,
+  NewsletterStatus,
   RunPipelineResult,
   DeleteNewsResult,
   HomeResponse,
@@ -180,29 +185,90 @@ async function fetchWebApi<T>(endpoint: string, options?: RequestInit): Promise<
   return response.json() as Promise<T>;
 }
 
+/**
+ * Os salvos do leitor — a mesma rota que a tela "Salvos" e o "somente salvos"
+ * do acervo usam, com **as mesmas dimensões de filtro da `/news`**.
+ *
+ * `newsFilterParams` é o mesmo helper da listagem pública, e não uma cópia: é o
+ * que garante que ligar "somente salvos" não mude o significado de nenhum outro
+ * controle da tela.
+ */
 export async function getFavorites(
   page = 1,
   limit = 100,
-): Promise<PaginatedResponse<FavoriteWithNews>> {
-  return fetchWebApi<PaginatedResponse<FavoriteWithNews>>(
-    `/api/favorites?page=${page}&limit=${limit}`,
+  filters: NewsFilters & { type?: FavoriteItemType } = {},
+): Promise<PaginatedResponse<FavoriteWithItem>> {
+  const { type, ...newsFilters } = filters;
+  const params = newsFilterParams(newsFilters);
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  if (type) params.set('type', type);
+
+  return fetchWebApi<PaginatedResponse<FavoriteWithItem>>(
+    `/api/favorites?${params.toString()}`,
   );
 }
 
-export async function addFavorite(newsId: string): Promise<AddedFavorite> {
-  const res = await fetchWebApi<ApiResponse<AddedFavorite>>('/api/favorites', {
+/**
+ * Só os ids do que está salvo.
+ *
+ * O botão de salvar precisa de uma resposta por item, e a alternativa era
+ * baixar os favoritos com conteúdo e procurar no cliente — o que fazia o
+ * coração mentir a partir do 101º favorito.
+ */
+export async function getFavoriteIds(): Promise<FavoriteIds> {
+  const res = await fetchWebApi<ApiResponse<FavoriteIds>>('/api/favorites/ids');
+  return res.data;
+}
+
+export async function addFavorite(
+  itemType: FavoriteItemType,
+  itemId: string,
+): Promise<SavedFavorite> {
+  const res = await fetchWebApi<ApiResponse<SavedFavorite>>('/api/favorites', {
     method: 'POST',
-    body: JSON.stringify({ newsId }),
+    body: JSON.stringify({ itemType, itemId }),
   });
   return res.data;
 }
 
 export async function removeFavorite(
-  newsId: string,
+  itemType: FavoriteItemType,
+  itemId: string,
 ): Promise<{ removed: boolean }> {
   const res = await fetchWebApi<ApiResponse<{ removed: boolean }>>(
-    `/api/favorites/${newsId}`,
+    `/api/favorites/${itemType.toLowerCase()}/${itemId}`,
     { method: 'DELETE' },
+  );
+  return res.data;
+}
+
+// ── Conta ──────────────────────────────────────────────────────────────
+// Também por rota proxy: resposta por usuário, e por isso sem cache nenhum.
+
+/** Perfil, preferências, inscrição e contagem de salvos numa chamada só. */
+export async function getAccount(): Promise<AccountOverview> {
+  const res = await fetchWebApi<ApiResponse<AccountOverview>>('/api/account');
+  return res.data;
+}
+
+/** Campo ausente não é campo apagado — o `PUT` grava só o que recebe. */
+export async function updatePreferences(
+  input: Partial<UserPreferences>,
+): Promise<UserPreferences> {
+  const res = await fetchWebApi<ApiResponse<UserPreferences>>(
+    '/api/account/preferences',
+    { method: 'PUT', body: JSON.stringify(input) },
+  );
+  return res.data;
+}
+
+export async function updateNewsletterSubscription(
+  subscribed: boolean,
+): Promise<NewsletterStatus> {
+  const res = await fetchWebApi<ApiResponse<NewsletterStatus>>(
+    '/api/account/newsletter',
+    { method: 'PUT', body: JSON.stringify({ subscribed }) },
   );
   return res.data;
 }

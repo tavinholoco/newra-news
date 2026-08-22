@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GET, POST } from '@/app/api/favorites/route';
-import { DELETE } from '@/app/api/favorites/[newsId]/route';
+import { DELETE, GET as GET_PATH } from '@/app/api/favorites/[...path]/route';
 
 const getServerSessionMock = vi.fn();
 const signAuthJwtMock = vi.fn();
@@ -68,34 +68,47 @@ describe('favorites proxy routes', () => {
   });
 
   it('POST should forward method and body', async () => {
-    mockFetchOk({ data: { id: 'fav-1', newsId: NEWS_ID } });
+    mockFetchOk({ data: { id: 'fav-1', itemType: 'NEWS', itemId: NEWS_ID } });
 
     const res = await POST(
       new Request('http://localhost:3000/api/favorites', {
         method: 'POST',
-        body: JSON.stringify({ newsId: NEWS_ID }),
+        body: JSON.stringify({ itemId: NEWS_ID }),
       }),
     );
 
     expect(res.status).toBe(200);
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('POST');
-    expect(JSON.parse(String(init.body))).toEqual({ newsId: NEWS_ID });
+    expect(JSON.parse(String(init.body))).toEqual({ itemId: NEWS_ID });
   });
 
-  it('DELETE should forward the newsId in the path', async () => {
+  it('GET should forward the ids path', async () => {
+    mockFetchOk({ data: { news: [], articles: [] } });
+
+    const res = await GET_PATH(
+      new Request('http://localhost:3000/api/favorites/ids'),
+      { params: { path: ['ids'] } },
+    );
+
+    expect(res.status).toBe(200);
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toContain('/favorites/ids');
+  });
+
+  it('DELETE should forward the type and the id in the path', async () => {
     mockFetchOk({ data: { removed: true } });
 
     const res = await DELETE(
-      new Request(`http://localhost:3000/api/favorites/${NEWS_ID}`, {
+      new Request(`http://localhost:3000/api/favorites/news/${NEWS_ID}`, {
         method: 'DELETE',
       }),
-      { params: { newsId: NEWS_ID } },
+      { params: { path: ['news', NEWS_ID] } },
     );
 
     expect(res.status).toBe(200);
     const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
-    expect(url).toContain(`/favorites/${NEWS_ID}`);
+    expect(url).toContain(`/favorites/news/${NEWS_ID}`);
     expect(init.method).toBe('DELETE');
   });
 
@@ -110,10 +123,10 @@ describe('favorites proxy routes', () => {
     );
 
     const res = await DELETE(
-      new Request(`http://localhost:3000/api/favorites/${NEWS_ID}`, {
+      new Request(`http://localhost:3000/api/favorites/news/${NEWS_ID}`, {
         method: 'DELETE',
       }),
-      { params: { newsId: NEWS_ID } },
+      { params: { path: ['news', NEWS_ID] } },
     );
 
     expect(res.status).toBe(404);

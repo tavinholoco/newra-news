@@ -75,7 +75,7 @@ export async function NewsDetail({ news, related }: NewsDetailProps) {
           }
           actions={
             <>
-              <FavoriteButton newsId={news.id} news={news} />
+              <FavoriteButton itemId={news.id} />
               <ShareButton title={news.title} text={news.description} />
             </>
           }

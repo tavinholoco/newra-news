@@ -11,6 +11,9 @@ const CATEGORIES = [
   'HEALTH',
 ] as const;
 
+/** As oito categorias, num lugar só — a conta e o acervo leem a mesma lista. */
+export const categorySchema = z.enum(CATEGORIES);
+
 /**
  * As dimensões de filtro da §7 do plano V2, compartilhadas entre a listagem e
  * as facetas — os dois precisam interpretar `?search=` e `?from=` do mesmo

@@ -93,6 +93,12 @@ enum UserRole {
 | `POST /api/favorites` `{ newsId }` | Bearer JWT | adiciona (idempotente: já existe → 200; news inexistente → 404) |
 | `DELETE /api/favorites/:newsId` | Bearer JWT | remove (404 se não existe) |
 
+> **Este é o contrato de 2026-08-16, e ele mudou na Fase 6 da V2.** O favorito
+> passou a alcançar também o briefing do dia (`itemType` + `itemId`), a
+> listagem ganhou os filtros do acervo e `DELETE` passou a endereçar
+> `:itemType/:itemId`. A referência viva é `docs/api.md`; esta tabela fica como
+> registro do que o P1.3 entregou.
+
 - Schemas Zod + `errorResponseSchema` — padrão das rotas existentes.
 - Sem rota de login no backend: o JWT vem pronto do web.
 
