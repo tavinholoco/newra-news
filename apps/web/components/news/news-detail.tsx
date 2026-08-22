@@ -88,7 +88,11 @@ export async function NewsDetail({ news, related }: NewsDetailProps) {
             <p className='text-overline uppercase tracking-wide text-ink-muted'>
               {t('excerptLabel')}
             </p>
-            <ArticleBody content={news.content} className='mt-3' />
+            <ArticleBody
+              content={news.content}
+              lede={news.description}
+              className='mt-3'
+            />
           </>
         ) : (
           <p className='text-body-lg text-ink-secondary'>

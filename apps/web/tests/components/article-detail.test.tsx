@@ -43,6 +43,39 @@ describe('parseArticleBody', () => {
     ]);
   });
 
+  it('should drop the opening paragraph when it repeats the dek', () => {
+    // No briefing acontece sempre: `summary` é definido como a primeira linha
+    // do conteúdo, então dek e lide são o mesmo texto por construção.
+    const lede = 'A sexta-feira se desenha com um panorama complexo.';
+    const blocks = parseArticleBody(`${lede}
+### Economia
+O mercado abriu.`, lede);
+
+    expect(blocks).toEqual([
+      { kind: 'heading', text: 'Economia' },
+      { kind: 'paragraph', text: 'O mercado abriu.' },
+    ]);
+  });
+
+  it('should keep the opening when it merely starts like the dek', () => {
+    // Recorte parcial não é repetição: cortar aqui comeria texto que o leitor
+    // ainda não viu.
+    const lede = 'A sexta-feira se desenha';
+    const blocks = parseArticleBody(`${lede} com um panorama complexo.`, lede);
+
+    expect(blocks).toHaveLength(1);
+  });
+
+  it('should keep the opening when there is no dek to compare against', () => {
+    expect(parseArticleBody('Abertura do texto.')).toHaveLength(1);
+    expect(parseArticleBody('Abertura do texto.', null)).toHaveLength(1);
+  });
+
+  it('should never drop a heading, even if the dek somehow matches it', () => {
+    const blocks = parseArticleBody('### Economia\nCorpo.', 'Economia');
+    expect(blocks[0]).toEqual({ kind: 'heading', text: 'Economia' });
+  });
+
   it('should not treat a mid-sentence hash as a heading', () => {
     const blocks = parseArticleBody('O item #3 da pauta');
     expect(blocks[0]!.kind).toBe('paragraph');

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { screen } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { NextIntlClientProvider } from 'next-intl';
+import ptBR from '@/messages/pt-BR.json';
 import type { Article } from '@newranews/types';
 import { ArticleStatus } from '@newranews/types';
 import { ArticleGrid } from '@/components/article/article-grid';
@@ -97,6 +100,31 @@ describe('ArticleGrid', () => {
     renderWithIntl(<ArticleGrid articles={[makeArticle('2026-08-21')]} />);
 
     expect(screen.queryByText('Hoje')).not.toBeInTheDocument();
+  });
+
+  it('should not emit the badge on the server render', () => {
+    // Esta é a propriedade que quebrou em produção. A `/article` é estática:
+    // o HTML guarda o dia do **build** e o cliente compara com o dia de
+    // **agora**. Toda meia-noite UTC os dois divergem, o selo aparece num lado
+    // só e o React derruba a hidratação da árvore (erros #418 e #422) —
+    // best-practices de `/article` caiu de 100 para 96 por isso.
+    //
+    // `renderToString` é exatamente o que o servidor faz. Sem selo aqui, os
+    // dois lados concordam sempre, e o selo entra depois pelo efeito.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-21T15:00:00.000Z'));
+
+    const html = renderToString(
+      <NextIntlClientProvider locale='pt-BR' messages={ptBR}>
+        <ArticleGrid articles={[makeArticle('2026-08-21')]} />
+      </NextIntlClientProvider>,
+    );
+
+    expect(html).not.toContain('Hoje');
+    // O resto da lista tem de estar lá: o conserto é sobre o relógio, não
+    // sobre esconder a tela do servidor.
+    expect(html).toContain('Briefing de 2026-08-21');
+    expect(html).toContain('agosto de 2026');
   });
 
   it('should link each item to its date slug', () => {

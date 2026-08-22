@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import type { Article } from '@newranews/types';
 import { toDateFormatLocale } from '@/lib/i18n';
@@ -16,9 +17,25 @@ function monthKey(date: string): string {
   return date.slice(0, 7);
 }
 
-/** O dia corrente em UTC — a mesma âncora que o pipeline usa para `date`. */
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * O dia corrente em UTC, **depois da hidratação**.
+ *
+ * Ler o relógio durante o render quebra esta tela, e quebra em silêncio: a
+ * `/article` é estática, então o HTML guarda o dia do *build* e o cliente
+ * compara com o dia de *agora*. Toda meia-noite UTC os dois divergem, o selo
+ * "Hoje" aparece num lado só, e o React derruba a hidratação da árvore inteira
+ * (erros #418 e #422). Aconteceu em produção: o build correu 23:5x e a medição
+ * do Lighthouse 00:04 — best-practices de `/article` caiu de 100 para 96,
+ * sozinha entre as cinco rotas.
+ *
+ * Com o estado começando em `null`, servidor e primeira renderização do cliente
+ * concordam (sem selo) e o selo entra no efeito. O custo é ele aparecer um
+ * quadro depois; o benefício é a tela não depender de o dia não virar.
+ */
+function useTodayKey(): string | null {
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => setToday(new Date().toISOString().slice(0, 10)), []);
+  return today;
 }
 
 /**
@@ -35,6 +52,8 @@ function todayKey(): string {
 export function ArticleGrid({ articles, isLoading = false }: ArticleGridProps) {
   const t = useTranslations('article');
   const locale = useLocale();
+  // Antes do `if` de carregamento: hook não pode ficar atrás de retorno cedo.
+  const today = useTodayKey();
 
   if (isLoading) return <ArticleHistorySkeleton />;
 
@@ -49,7 +68,6 @@ export function ArticleGrid({ articles, isLoading = false }: ArticleGridProps) {
     );
   }
 
-  const today = todayKey();
   const monthFormatter = new Intl.DateTimeFormat(toDateFormatLocale(locale), {
     month: 'long',
     year: 'numeric',

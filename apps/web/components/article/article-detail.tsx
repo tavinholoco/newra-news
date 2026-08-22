@@ -85,7 +85,7 @@ export async function ArticleDetail({ article }: ArticleDetailProps) {
       </div>
 
       <div className='mx-auto w-full max-w-narrow'>
-        <ArticleBody content={article.content} />
+        <ArticleBody content={article.content} lede={article.summary} />
       </div>
 
       <div className='mx-auto flex w-full max-w-narrow flex-col gap-block'>
