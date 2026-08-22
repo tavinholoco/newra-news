@@ -7,19 +7,15 @@
  * nascem aqui na Fase 3, com altura reservada, **antes** de existir anunciante.
  */
 
-/** As cinco posições da §9. As duas de `home-*` são as únicas da Fase 3. */
-export type AdPlacement =
-  | 'home-after-hero'
-  | 'home-between-sections'
-  | 'news-list-inline'
-  | 'article-in-content'
-  | 'article-after-content';
+/**
+ * **O vocabulário mora em `packages/types`, e a tabela de alturas aqui.**
+ * O nome da posição viaja no payload de `ad_view` e a API o valida; a altura é
+ * decisão de layout e só o web a usa. Declarados nos dois lugares, um
+ * `placement` novo passaria pelo build dos dois e seria recusado em runtime.
+ */
+export type { AdPlacement, AdFormat } from '@newranews/types';
 
-export type AdFormat =
-  | 'leaderboard'
-  | 'rectangle'
-  | 'in-article'
-  | 'mobile-banner';
+import type { AdPlacement, AdFormat } from '@newranews/types';
 
 /**
  * Altura reservada por formato, em pixels.

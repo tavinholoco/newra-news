@@ -22,6 +22,12 @@ vi.mock('@newranews/database', async (importOriginal) => {
         upsert: vi.fn(),
         deleteMany: vi.fn(),
       },
+      // A retenção de evento de produto (§4 dos slots) entrou na etapa 8, junto
+      // do cleanup que já existia. Sem este mock, a etapa lançava e o estágio
+      // caía de INFO para WARN -- foi assim que este teste avisou.
+      productEvent: {
+        deleteMany: vi.fn(),
+      },
       briefingSource: {
         deleteMany: vi.fn(),
         createMany: vi.fn(),
@@ -125,6 +131,7 @@ beforeEach(() => {
   vi.mocked(prisma.news.deleteMany).mockResolvedValue({ count: 5 });
   vi.mocked(prisma.article.upsert).mockResolvedValue(mockSavedArticle as never);
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.pipelineEvent.create).mockResolvedValue({} as never);
   vi.mocked(prisma.news.findMany).mockResolvedValue([] as never);
@@ -531,6 +538,52 @@ describe('PipelineService', () => {
  * velha. Com ela, o acervo converge sozinho no dia seguinte, sem ninguém
  * precisar lembrar de disparar nada.
  */
+/**
+ * A retenção de evento de produto (§4 de `docs/v2/04-analytics-e-slots.md`).
+ *
+ * Ela vive na etapa 8, junto do cleanup que já existia, e é de propósito:
+ * ingestão sem expurgo é tabela que cresce para sempre, e etapa própria seria
+ * um segundo lugar para lembrar de olhar quando algo parasse.
+ */
+describe('PipelineService — retenção de eventos de produto (etapa 8)', () => {
+  it('should purge product events on every run, with no manual job', async () => {
+    await triggerPipeline();
+    await vi.waitFor(() =>
+      expect(prisma.productEvent.deleteMany).toHaveBeenCalled(),
+    );
+  });
+
+  it('should cut at 90 days by occurredAt, not createdAt', async () => {
+    // O que a §4 limita é há quanto tempo o comportamento aconteceu, não
+    // quando a linha chegou.
+    await triggerPipeline();
+    await vi.waitFor(() =>
+      expect(prisma.productEvent.deleteMany).toHaveBeenCalled(),
+    );
+
+    const [arg] = vi.mocked(prisma.productEvent.deleteMany).mock.calls[0] as [
+      { where: { occurredAt: { lt: Date } } },
+    ];
+    const cutoff = arg.where.occurredAt.lt;
+    const days = Math.round((Date.now() - cutoff.getTime()) / 86_400_000);
+
+    expect(days).toBe(90);
+  });
+
+  it('should count the purged events in the cleanup total', async () => {
+    vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 12 });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
+
+    const [arg] = vi.mocked(prisma.dailyMetric.upsert).mock.calls[0] as [
+      { create: { cleanupCount: number } },
+    ];
+    // 5 notícias + 0 logs + 0 artigos + 12 eventos
+    expect(arg.create.cleanupCount).toBe(17);
+  });
+});
+
 describe('PipelineService — renormalização do acervo (etapa 8.5)', () => {
   it('should renormalize stored news on every run, writing for real', async () => {
     await triggerPipeline();

@@ -61,9 +61,9 @@
 
 > `lib/seo.ts` virou a fonte única de URL e de metadata (canonical, `x-default`, `og:url` e os defaults que o Next **não** herda do layout); `lib/json-ld.ts` + `components/seo/json-ld.tsx` levam `Organization`, `WebSite`, `NewsArticle` e `BreadcrumbList`; a trilha visível nasceu espelhando o dado estruturado; e `/news-sitemap.xml` publica a janela de 48h do Google Notícias. A medição contra produção achou quatro defeitos que o checklist não previa — a imagem OG e o ícone do iOS inalcançáveis, `og:image`/`og:type`/`og:site_name` ausentes em toda página, e o briefing exibindo a véspera. 416 testes no web. Ver **item 25**.
 
-**Próximo ciclo — V2.0 Fase 8 (Monetização)** 📋
+**Newra News V2.0 — Fase 8 (Monetização)** 🔶 **em andamento** — pré-requisitos
 
-> `AdSlot` já existe e não renderiza nada sem inventário (`NEXT_PUBLIC_ADS_ENABLED`). A fase pede inventário reservado, camada de consentimento/privacidade, patrocínio na newsletter e o `track()` que hoje falta para `ad_view`/`ad_click` — §28 do plano.
+> A fase começa pelo que a §28 não lista: **a camada de analytics**. Sem ela não há `ad_view`, `ad_click`, CTR nem experimento de preço — e o `AdSlot`, que existe desde a Fase 3, continuaria sem ter onde gravar a impressão. Três PRs, no mesmo corte da Fase 6: **banco e API** → **camada e consentimento** → **inventário e slots**. O primeiro está no **item 26**.
 
 ---
 
@@ -1557,6 +1557,97 @@ recaptura fica para depois deste deploy.
   em UTC.
 - **Documentação:** seção SEO reescrita em `apps/web/CLAUDE.md`, com as regras de
   metadata, de matcher e de fuso.
+
+### 26. V2.0 Fase 8 — pré-requisitos: eventos de produto (banco e API) ✅ Concluído em 2026-08-22
+
+> Branch `feat/v2-product-events`. É o **primeiro dos três PRs** dos
+> pré-requisitos, e o único de backend — mesmo corte que a Fase 6 usou.
+
+#### Por que este PR vem antes de qualquer slot
+
+A §28 lista cinco itens de monetização e **nenhum deles é o primeiro passo**. O
+`AdSlot` existe desde a Fase 3, reserva altura e não renderiza nada sem
+inventário; o que falta para ligá-lo não é criativo, é **onde gravar a
+impressão**. Sem `ad_view`/`ad_click` não há viewability, sem viewability não há
+CTR, e sem CTR o "framework de experimento de preço" mede o nada.
+
+#### O que entrou
+
+| Peça | Papel |
+|---|---|
+| `packages/types/src/analytics.ts` | os 14 eventos e os vocabulários fechados |
+| `model ProductEvent` + migration | uma tabela, `payload` em `Json`, dois índices |
+| `routes/events/schemas.ts` | a união discriminada em Zod + a guarda contra deriva |
+| `services/product-event.service.ts` | gravação em lote e o expurgo por idade |
+| `POST /api/events` | ingestão pública e anônima, lote de 1 a 20, 30 req/min |
+
+**Anônima por construção.** Não há `userId`, e-mail, IP nem User-Agent: o
+`sessionId` é aleatório, de sessão, e não persiste entre visitas. É o que a §4
+dos slots exige, e é o que permite a tabela existir sem virar dado pessoal.
+
+**E é por ser anônima que a rota é chata com o corpo.** Não há sessão para
+autenticar — a própria §4 proíbe o identificador que serviria para isso —, então
+o que separa evento de lixo é o schema: tipo fora do catálogo, `source`
+inventado, `sessionId` que não é UUID, `path` com query string, lote vazio ou
+acima do teto → 400, e **nada é gravado**.
+
+#### A guarda contra deriva, e o que ela pegou na primeira execução
+
+O tipo em `packages/types` é o que o web escreve; o schema Zod é o que a API
+aceita. Os dois descrevem o mesmo contrato em linguagens diferentes, e um campo
+acrescentado só de um lado passa pelo build dos dois — aparecendo só como 400 em
+produção. `SchemaMatchesSharedType` é uma linha que não gera código nenhum e
+falha o `typecheck` no instante em que os dois discordarem.
+
+> **Ela reprovou na primeira execução, e o achado era real.** Eu tinha escrito
+> `z.nativeEnum(Category)` importando o `Category` do **Prisma** — que é união de
+> literais — contra o `Category` de `packages/types`, que é um `enum` TS e
+> portanto nominal: `"TECHNOLOGY"` não é atribuível a `Category`. Aqui não havia
+> ponte a fazer: o valor vai para o `payload` JSON, nunca para uma coluna enum.
+> O schema passou a validar contra o enum compartilhado, e a ponte entre os dois
+> continua onde sempre esteve, no `editorial.mapper`.
+
+#### Duas decisões de escopo, e o motivo de cada uma
+
+- **Sem tabela de agregado diário.** A §4 pede um agregado que sobreviva à
+  retenção de 90 dias, mas **hoje ninguém o leria** — e tabela sem consumidor é a
+  armadilha da pílula de contagem da Fase 4 em outra forma. Ela entra com a tela
+  de métricas de produto que a exibir.
+- **Sem instrumentação.** Este PR não chama `track()` em componente nenhum: sem a
+  camada e sem consentimento, seria evento que não sai.
+
+Mas a **retenção entrou**, e era o que dava para esquecer: ingestão sem expurgo é
+tabela que cresce para sempre. Ela vive na **etapa 8 do pipeline**, junto do
+cleanup que já apaga notícia aos 30 dias e briefing aos 90 — mecanismo, não job
+manual. Corta por `occurredAt` e não `createdAt`: o que a §4 limita é há quanto
+tempo o comportamento aconteceu, não quando a linha chegou.
+
+> **Foi o teste do pipeline que avisou da dependência nova.** O mock do Prisma
+> não conhecia `productEvent`, então a etapa 8 lançou e caiu de INFO para WARN —
+> exatamente o que aconteceria num ambiente sem a migration aplicada.
+
+#### Um efeito colateral que valia a pena
+
+`AdPlacement` e `AdFormat` **saíram** de `apps/web/lib/ads.ts` para
+`packages/types`: o nome da posição viaja no payload de `ad_view` e a API o
+valida, então declará-lo nos dois lugares faria um `placement` novo passar pelo
+build dos dois e ser recusado em runtime. A tabela de alturas ficou onde estava
+— ela é decisão de layout e só o web a usa.
+
+#### Números
+
+- **976 testes** (955 → 976): **558 na API** (+21) e 418 no web, 92 suites.
+- A migration foi conferida com `prisma migrate diff` contra um shadow database:
+  **"No difference detected"** — o SQL reproduz o schema.
+- **Documentação:** seção "Eventos de produto" em `docs/api.md` e em
+  `apps/api/CLAUDE.md`, com as regras de vocabulário, de deriva e de retenção.
+
+#### O que vem a seguir
+
+**PR 2 — camada e consentimento** (`lib/analytics/`, `lib/consent.ts`, o banner,
+e a instrumentação dos eventos que já têm call site). O consentimento mexe em
+toda página, e a camada nasce lendo a decisão: sem decisão, descarta. **PR 3 —
+inventário e slots.**
 
 ---
 

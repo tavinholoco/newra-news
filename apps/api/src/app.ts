@@ -24,6 +24,7 @@ import { renormalizeJobRoutes } from './routes/jobs/renormalize';
 import { metricsRoutes } from './routes/metrics';
 import { metricsAdminRoutes } from './routes/metrics/admin';
 import { newsletterRoutes } from './routes/newsletter';
+import { eventsRoutes } from './routes/events';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
 import { accountRoutes } from './routes/account';
@@ -76,6 +77,10 @@ export async function buildApp() {
   await app.register(metricsAdminRoutes, { prefix: '/api/metrics' });
 
   await app.register(newsletterRoutes, { prefix: '/api/newsletter' });
+
+  // Eventos de produto (docs/v2/04 §6). Publica e anonima: o que separa
+  // evento de lixo e o schema, nao a sessao.
+  await app.register(eventsRoutes, { prefix: '/api/events' });
 
   await app.register(authRoutes, { prefix: '/api/auth' });
 

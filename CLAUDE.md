@@ -89,57 +89,49 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4, 5, 6 e **7**
-  concluídas. **O próximo ciclo é a Fase 8 (Monetização).** O PRD da V1 foi
-  fechado em 2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-22):** Fase 7 (SEO/performance/acessibilidade), em
-  um PR. `lib/seo.ts` virou a fonte única de URL e de metadata; nasceram o
-  JSON-LD (`Organization`, `WebSite`, `NewsArticle`, `BreadcrumbList`), a trilha
-  visível e `/news-sitemap.xml`. **A medição contra produção achou quatro
-  defeitos que o checklist não previa**, e a baseline visual achou um quinto —
-  a trilha foi ao ar com os degraus grudados. Ver o item 25.
+- **Onde estamos:** V2.0 com as Fases 0 a 7 concluídas e a **Fase 8 em
+  andamento** — os pré-requisitos, em três PRs. O PRD da V1 foi fechado em
+  2026-08-15; a V2 é o redesign editorial em cima dele.
+- **Última entrega (2026-08-22):** **PR 1 dos pré-requisitos da Fase 8** —
+  eventos de produto, banco e API. `ProductEvent`, `POST /api/events` (pública e
+  anônima), o catálogo dos 14 eventos em `packages/types`, e a retenção de 90
+  dias dentro da etapa 8 do pipeline. Antes dele, a Fase 7 (SEO) foi fechada
+  contra produção — item 25.
 - **Nada pendente do ciclo anterior.**
-- **Testes:** 955 em 90 suites (537 API em 41 + 418 web em 49 — todos passando).
+- **Testes:** 976 em 92 suites (558 API em 43 + 418 web em 49 — todos passando).
 
-### Por onde começar a Fase 8
+### Por onde continuar a Fase 8
 
-**Leia o item 25 do `docs/progress.md`** — é o fechamento da Fase 7. O checklist
-da Fase 8 está na §28 do plano: abstração de `AdSlot`, inventário reservado,
-camada de privacidade/consentimento, patrocínio da newsletter e o framework de
-experimento de preço.
+**Leia o item 26 do `docs/progress.md`** — é o PR 1, e explica por que a fase
+começa pelo que a §28 não lista.
 
-Duas coisas que a Fase 7 deixa prontas para ela:
+Os três PRs, no mesmo corte da Fase 6:
 
-- **O `AdSlot` já existe e já reserva altura** (`lib/ads.ts`, §9 de
-  `docs/v2/04-analytics-e-slots.md`), e **não renderiza nada sem inventário**.
-  O que falta é o inventário e o `track()` — `ad_view`/`ad_click` estão
-  escritos como pendência desde a Fase 3, porque medir impressão sem ter onde
-  gravar o evento seria código morto.
-- **Consentimento é o que trava o resto.** Sem ele não há como servir anúncio
-  personalizado na UE, e a camada mexe em toda página — vale desenhá-la antes
-  de qualquer criativo.
+| PR | Escopo | Estado |
+|---|---|---|
+| 1. Banco e API | `ProductEvent`, `POST /api/events`, catálogo tipado, retenção | ✅ |
+| 2. Camada e consentimento | `lib/analytics/`, `lib/consent.ts`, o banner, instrumentação | próximo |
+| 3. Inventário e slots | ligar o inventário, `ad_view`/`ad_click`, `premium-cta` | — |
 
-O que a Fase 7 entregou, em uma linha cada:
+**A camada de analytics vem antes de qualquer slot.** O `AdSlot` existe desde a
+Fase 3 e reserva altura; o que falta para ligá-lo não é criativo, é **onde
+gravar a impressão**. Sem `ad_view`/`ad_click` não há viewability, sem
+viewability não há CTR, e sem CTR o "framework de experimento de preço" mede o
+nada.
 
-1. **`pageMetadata`** — a metadata inteira de uma página pública num lugar só:
-   canonical auto-referente, os três `hreflang` (com `x-default`), `og:url` e os
-   defaults de OG/Twitter que **o Next não herda do layout**.
-2. **JSON-LD** — `Organization` + `WebSite` no layout; `NewsArticle` +
-   `BreadcrumbList` nas telas de leitura, com a autoria seguindo quem escreveu.
-3. **A trilha visível**, que recebe **a mesma lista** que o `BreadcrumbList` — e
-   que substituiu o "← voltar".
-4. **`/news-sitemap.xml`** — janela de 48h, só as URLs `pt-BR`, `news:language`
-   em ISO 639.
-5. **As cinco auditorias**, com a de imagem virando guarda em
-   `tests/lib/images.test.ts` em vez de passada manual.
+Três avisos para o PR 2:
 
-O que ela **não** fez, de propósito:
+- **A camada nasce lendo a decisão de consentimento**, e sem decisão **descarta**
+  — o padrão da §5 dos slots: medir menos é melhor que medir errado.
+- **`subscription_intent` está no catálogo, mas o Newra Plus não existe.** Medir
+  intenção de um plano que não há é evento morto — ou o PR cria o funil, ou o
+  evento fica de fora.
+- **O texto da §3 diz "toggle do coração" em `favorite_add`.** O coração virou
+  marcador na Fase 6; o payload continua válido, o texto do doc não.
 
-- **Trilha nas listagens** (`/news`, `/article`). Marcação de trilha pede trilha
-  visível, e ali o segundo degrau seria a própria página — o `editorial-nav` já
-  diz onde se está.
-- **Página na URL em `/article`** — continua em `useState`. Ver "o que ficou em
-  aberto".
+O que a Fase 7 entregou continua valendo, e o item 25 tem o detalhe: `lib/seo.ts`
+como fonte única de URL e metadata, JSON-LD, a trilha visível e
+`/news-sitemap.xml`.
 
 ### Armadilhas que já custaram caro
 

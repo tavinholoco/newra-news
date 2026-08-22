@@ -3,6 +3,7 @@ import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
 import { renormalizeStoredNews } from './news-renormalizer.service';
+import { deleteExpiredProductEvents } from './product-event.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
@@ -256,16 +257,24 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-      const [deletedNews, deletedLogs, deletedArticles] = await Promise.all([
-        prisma.news.deleteMany({ where: { createdAt: { lt: thirtyDaysAgo } } }),
-        prisma.pipelineLog.deleteMany({
-          where: { startedAt: { lt: thirtyDaysAgo }, id: { not: pipelineLogId } },
-        }),
-        prisma.article.deleteMany({ where: { createdAt: { lt: ninetyDaysAgo } } }),
-      ]);
-      metrics.cleanupCount = deletedNews.count + deletedLogs.count + deletedArticles.count;
+      // A retenção de evento de produto entra **aqui**, e não numa etapa nova:
+      // é o mesmo expurgo por idade que a notícia e o briefing já fazem, e o
+      // que a §4 dos slots pede (90 dias no nível de evento). Etapa própria
+      // seria um segundo lugar para lembrar de olhar quando algo parasse.
+      const [deletedNews, deletedLogs, deletedArticles, deletedEvents] =
+        await Promise.all([
+          prisma.news.deleteMany({ where: { createdAt: { lt: thirtyDaysAgo } } }),
+          prisma.pipelineLog.deleteMany({
+            where: { startedAt: { lt: thirtyDaysAgo }, id: { not: pipelineLogId } },
+          }),
+          prisma.article.deleteMany({ where: { createdAt: { lt: ninetyDaysAgo } } }),
+          deleteExpiredProductEvents(),
+        ]);
+      metrics.cleanupCount =
+        deletedNews.count + deletedLogs.count + deletedArticles.count + deletedEvents;
       await logPipelineEvent(pipelineLogId, 8, 'INFO', 'Cleanup completed', {
         deleted: metrics.cleanupCount,
+        productEvents: deletedEvents,
       });
     } catch (cleanupErr) {
       metrics.pipelineErrors += 1;
