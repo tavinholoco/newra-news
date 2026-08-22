@@ -1564,24 +1564,55 @@ Garantido acontecer toda meia-noite UTC, não acaso de horário.
 > `generatedAt`. Melhor omitir do que rotular um número como coisa que ele não
 > é — o mesmo critério que barrou o indicador "Atualizado" na Home.
 
-## Fase 6 — Account ecosystem
+## Fase 6 — Account ecosystem ✅ 22/08/2026 — PRs #116, #117 e #118
 
 ```text
-[ ] favorites
-[ ] profile
-[ ] preferences
-[ ] newsletter settings
+[x] favorites            (uma lista só: notícia e briefing, por data de salvamento)
+[x] profile              (de leitura — o provedor reescreve nome e imagem no login)
+[x] preferences          (assuntos e tema; só o que a interface honra)
+[x] newsletter settings  (a inscrição, que é Subscriber, não uma preferência)
 
     -- herdado das Fases 4 e 5, pelo mesmo motivo --
-[ ] "somente salvos" em /news        (§7 — adiado na Fase 4)
-[ ] "salvar" no briefing             (§8 — adiado na Fase 5)
+[x] "somente salvos" em /news        (§7 — adiado na Fase 4)
+[x] "salvar" no briefing             (§8 — adiado na Fase 5)
+
+    -- o que a fase mudou no banco, decidido antes da primeira tela --
+[x] Favorite polimórfico (itemType + itemId), com backfill
+[x] UserPreference (categorias + tema)
+[x] Subscriber.userId, com backfill por e-mail
+
+    -- ao fechar a fase, contra produção --
+[x] Lighthouse por rota (§26) — acessibilidade 100 nas cinco, gate verde
+[x] recapturar a baseline visual (§30) — 20 imagens, todas explicadas
 ```
 
-> **Esta fase muda o banco, e é isso que precisa ser decidido antes da primeira
-> tela.** `Favorite` só tem `userId` + `newsId`, então não há como favoritar um
-> `Article`; `User` não tem coluna para nenhuma das preferências da §19; e
-> `Subscriber` não conhece `User`, o que "newsletter settings" precisa saber.
-> Levantamento completo em `docs/progress.md`, item 22.
+### Medição de 22/08, 03:01 ([run 32547642493](https://github.com/tavinholoco/newra-news/actions/runs/32547642493))
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 94 | 100 | 100 | 100 |
+| `/pt-BR/news` | 96 | 100 | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 94 | 100 | 100 | 100 |
+
+**Acessibilidade 100 nas cinco**, e o best-practices de `/article` voltou aos
+100 — a correção do relógio no render, feita na Fase 5, confirmada numa segunda
+medição.
+
+> **A primeira medição reprovou, e não era a mudança.** Rodada minutos depois do
+> merge, deu **83** de performance na `/pt-BR` (execuções 0,64 · 0,83 · 0,83)
+> enquanto a `/en` — a mesma página, outro idioma — deu 94. O 0,64 é o custo da
+> **regeneração da ISR** logo após o deploy; a página estava fria. Com o site
+> aquecido (dois GETs, 0,23 s cada), a mesma rota deu 94 sem uma linha de código
+> mudar. Medir logo após o merge mede o deploy, não a página.
+
+> **Esta fase mudou o banco, e foi isso que se decidiu antes da primeira tela.**
+> `Favorite` passou a ser `itemType` + `itemId` (o desenho de `articleId`
+> nullable caiu: no Postgres `NULL` não colide com `NULL`, e o mesmo briefing
+> poderia ser salvo N vezes); `UserPreference` nasceu com o que a interface
+> honra; `Subscriber` ganhou `userId`. Decisões e execução nos itens 22 e 23 do
+> `docs/progress.md`.
 
 > **"Somente salvos" não é só interface.** Ele junta `Favorite` e `News` e
 > devolve resposta **por usuário** — que não pode carregar o `s-maxage` que a

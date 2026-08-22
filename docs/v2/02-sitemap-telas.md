@@ -380,6 +380,7 @@ Os `*-page-client` e `*-detail` mantêm a lógica de dados e trocam a composiç�
 | `/pt-BR/admin/metrics` | não | atrás de sessão + role ADMIN; a captura da V1 pegou `/pt-BR/dashboard`, que era pública |
 | `/pt-BR/signin` | sim | |
 | `/pt-BR/favorites` | parcial | anônimo → cai no login |
+| `/pt-BR/account*` | não | atrás de sessão; o anônimo é o mesmo sign-in que já está na baseline |
 | `/pt-BR/newsletter/unsubscribe` | sim | |
 | `/pt-BR/newsletter` | **não** | não existe ainda — entra na Fase 2 |
 | `/en` | sim | |

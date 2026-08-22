@@ -5,10 +5,30 @@ import { FavoritesList } from '@/components/favorites/favorites-list';
 import { renderWithIntl } from '@/tests/utils';
 
 const useFavoritesMock = vi.fn();
+const searchParamsMock = vi.fn();
+const pushMock = vi.fn();
+const replaceMock = vi.fn();
 
 vi.mock('@/lib/queries', () => ({
   useFavorites: (...args: unknown[]) => useFavoritesMock(...args),
 }));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => searchParamsMock(),
+}));
+
+// `Link` continua o de verdade — é ele que põe o prefixo de locale no href, e
+// é isso que os testes de destino conferem.
+vi.mock('@/i18n/navigation', async () => {
+  const actual = await vi.importActual<typeof import('@/i18n/navigation')>(
+    '@/i18n/navigation',
+  );
+  return {
+    ...actual,
+    usePathname: () => '/favorites',
+    useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  };
+});
 
 // O `SaveButton` de cada linha depende de sessão e dos ids salvos — o que
 // interessa aqui é a lista, não o botão (que tem suíte própria).
@@ -63,6 +83,9 @@ function mockList(data: unknown[]) {
 
 beforeEach(() => {
   useFavoritesMock.mockReset();
+  pushMock.mockReset();
+  replaceMock.mockReset();
+  searchParamsMock.mockReturnValue(new URLSearchParams(''));
 });
 
 describe('FavoritesList', () => {
@@ -126,10 +149,35 @@ describe('FavoritesList', () => {
     );
   });
 
-  it('should ask only for what the reader saved, without filtering by type', () => {
-    mockList([]);
+  it('should ask for every type, and for the page in the URL', () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('page=2'));
+    mockList([savedNews]);
     renderWithIntl(<FavoritesList />);
 
-    expect(useFavoritesMock).toHaveBeenCalledWith();
+    // Sem `type`: a lista é uma só. Com paginação: a conta anuncia o total, e
+    // uma tela que mostrasse só os 100 primeiros mentiria sobre o resto.
+    expect(useFavoritesMock).toHaveBeenCalledWith({}, { page: 2, limit: 20 });
+  });
+
+  it('should fall back to the first page on a bogus ?page=', () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('page=banana'));
+    mockList([savedNews]);
+    renderWithIntl(<FavoritesList />);
+
+    expect(useFavoritesMock).toHaveBeenCalledWith({}, { page: 1, limit: 20 });
+  });
+
+  it('should leave an emptied inner page instead of saying nothing was saved', () => {
+    // Tirar o último item da página 3 deixaria o leitor olhando para "você não
+    // salvou nada" com dezenas de itens salvos.
+    searchParamsMock.mockReturnValue(new URLSearchParams('page=3'));
+    useFavoritesMock.mockReturnValue({
+      data: { data: [], meta: { total: 40, page: 3, limit: 20, totalPages: 2 } },
+      isLoading: false,
+      isError: false,
+    });
+    renderWithIntl(<FavoritesList />);
+
+    expect(replaceMock).toHaveBeenCalledWith('/favorites', { scroll: false });
   });
 });

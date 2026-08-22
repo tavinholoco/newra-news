@@ -53,9 +53,13 @@
 
 > As três telas de leitura: `/news/[id]`, `/article/[date]` e o histórico `/article`. Camada editorial nova (`article-hero`, `article-body`, `ai-disclosure`, `source-list`, `share-button`, `related-stories`) e a `pagination` promovida de `news/` para `editorial/`. A transparência de IA fica **só** no briefing; a notícia coletada declara a outra coisa. 820 testes verdes. Ver **item 21**.
 
-**Próximo ciclo — V2.0 Fase 6 (Account ecosystem)** 📋 **decidida, pronta para abrir**
+**Newra News V2.0 — Fase 6 (Account ecosystem)** ✅ Concluída em 2026-08-22 — **checklist da §28 fechado, verificada contra produção**
 
-> `favorites`, `profile`, `preferences` e `newsletter settings` — §19 e §23 do plano. Ao contrário da Fase 5, ela **muda o banco**, e as quatro decisões que isso exigia foram tomadas em 21/08: `Favorite` polimórfico (`itemType` + `itemId`), "somente salvos" servido pela `/api/favorites` autenticada, `UserPreference` só com o que a tela honra hoje, e `Subscriber.userId` nullable. Levantamento no **item 22**; decisões e plano de execução em três PRs no **item 23**.
+> O ecossistema de conta em três PRs: banco e API (#116), telas (#117) e "somente salvos" no acervo (#118). `Favorite` virou polimórfico (`itemType` + `itemId`) e passou a alcançar o briefing; nasceram `/account`, `/account/preferences` e `/account/newsletter`; `/favorites` migrou para a camada editorial e o `news-card` da V1 saiu do repositório. **Acessibilidade 100 nas cinco rotas**, gate verde, 905 testes. Decisões no **item 23**, fechamento no **item 24**.
+
+**Próximo ciclo — V2.0 Fase 7 (SEO / performance / acessibilidade)** 📋
+
+> JSON-LD de `NewsArticle`, `BreadcrumbList`, news sitemap, canonical, metadata e as quatro auditorias (imagem, teclado, contraste, leitor de tela) mais Core Web Vitals — §28 do plano. A acessibilidade já está em 100 nas rotas medidas: a fase é para ir além do que a métrica sintética alcança.
 
 ---
 
@@ -1284,6 +1288,84 @@ atualizado.
 - Nada de relógio dentro do render — "salvo há 3 dias" é efeito, não JSX.
 - Nome novo na escala tipográfica exige entrada em `TYPOGRAPHY_SCALE`.
 - Bloco sem dado devolve `null` **e** o wrapper do grid junto.
+
+---
+
+### 24. V2.0 Fase 6 — Account ecosystem ✅ Concluída em 2026-08-22
+
+> Três PRs, na ordem que o item 23 planejou: **#116** (banco e API), **#117**
+> (telas de conta) e **#118** ("somente salvos" no acervo). O detalhe de cada um
+> está no item 23; este item é o **fechamento** — o que a medição contra
+> produção achou e o que a fase deixa para trás.
+
+#### O ritual, contra produção
+
+**Lighthouse por rota** ([run 32547642493](https://github.com/tavinholoco/newra-news/actions/runs/32547642493)):
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 94 | 100 | 100 | 100 |
+| `/pt-BR/news` | 96 | 100 | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 94 | 100 | 100 | 100 |
+
+**A primeira execução reprovou, e não era a mudança.** Disparada minutos depois
+do merge, deu **83** de performance na `/pt-BR` (execuções 0,64 · 0,83 · 0,83)
+enquanto a `/en` — a mesma página, outro idioma — deu 94. O 0,64 é o custo da
+**regeneração da ISR** logo após o deploy. Dois `curl` na rota (0,23 s cada) e
+uma segunda execução devolveram 94, sem uma linha de código mudar. O aviso
+entrou no ritual do `CLAUDE.md`: **medir logo após o merge mede o deploy**.
+
+**Baseline visual** — 20 imagens mudaram, e cada uma tem explicação:
+
+| Imagens | Por quê |
+|---|---|
+| `news--*` (5), `news-detail--*` (3) | o ícone de salvar virou marcador (era coração) |
+| `article-detail--*` (5) | o briefing ganhou o botão "salvar" |
+| `signin--*` (3), `favorites-anon--*` (3) | o redesenho do sign-in (o `/favorites` anônimo cai nele) |
+
+As que **não** mudaram são exatamente as que não têm controle de salvar nem
+foram redesenhadas — home, histórico, `/about`, `/en` e a 404. A comparação
+pixel a pixel do `news--375` confirmou: fora o ícone, as duas capturas são
+idênticas, mesmas matérias e mesmas contagens.
+
+#### O que a auditoria de fechamento achou
+
+Nenhum item do checklist ficou de fora, mas duas coisas apareceram ao conferir a
+fase inteira — as duas corrigidas antes de fechar:
+
+- **A tela "Salvos" não paginava.** Pedia 100 itens e desenhava o que viesse,
+  como na V1. Passou a não ter consequência quando o perfil, ao lado, anuncia
+  "132 salvos": a lista mostraria 100 e nada diria que havia mais. A rota já
+  paginava; faltava a tela usar, e agora a página mora na URL (`?page=`), com
+  volta à primeira quando a última linha de uma página interna é removida.
+- **A contagem de salvos do perfil não se atualizava.** `useToggleFavorite`
+  invalidava as chaves de favoritos, mas não a da conta: salvar uma matéria e
+  voltar para `/account` mostrava o número de antes.
+
+#### O que a fase deixa para trás
+
+- **Nome editável no perfil.** `upsertUser` reescreve `name` e `image` a cada
+  sign-in; um campo ali seria desfeito no login seguinte, sem aviso. Pede coluna
+  própria, e é escopo novo.
+- **Temas, fontes e horário do briefing** (§19). Sem consumidor, e "horário"
+  nunca terá enquanto o pipeline rodar num cron único.
+- **Excluir a conta.** Ninguém pediu, e é fluxo com consequência jurídica.
+- **A leitura de `/api/favorites` resolve os salvos inteiros antes de paginar.**
+  É o que faz o `meta.total` prometer o que a lista mostra, e o conjunto é
+  limitado pela conta. Com dezenas de milhares de salvos por pessoa vira
+  consulta a otimizar — não é o caso hoje, e está documentado no serviço.
+
+#### Números da fase
+
+- **905 testes** (825 → 905): 537 na API (+35) e 368 no web (+45), 84 suites.
+- **Sai do repositório:** `news-card` da V1 e seu teste; `favorite-button` virou
+  `editorial/save-button`.
+- **Documentação:** `docs/api.md` (favoritos reescritos + seção de conta), §10
+  nova em `docs/v2/03-contratos-api.md`, fichas das telas em
+  `docs/v2/02-sitemap-telas.md`, regras de conta e de i18n em
+  `apps/web/CLAUDE.md`, e o ritual de medição no `CLAUDE.md` da raiz.
 
 ---
 

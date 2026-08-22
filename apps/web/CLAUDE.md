@@ -39,6 +39,15 @@
   Namespaces resolvidos dinamicamente (`categories`, `categoryDescriptions`,
   `newsPeriod`, `newsSort`) e `metadata` estão isentos — os filhos deste último
   são namespaces, não chaves
+- **O teste tira só o *primeiro* segmento da chave para procurar no código.**
+  Então `useTranslations('account.preferences')` + `t('save')` faz
+  `account.preferences.save` parecer órfã: o que ele procura é
+  `'preferences.save'`. Namespace aninhado, portanto, não: pegue o de primeiro
+  nível e escreva a chave com ponto (`useTranslations('account')` +
+  `t('preferences.save')`)
+- **Chave montada em runtime também parece órfã** — interpolar o nome dentro do
+  `t(...)` não deixa o literal escrito em lugar nenhum. Use um mapa com as
+  chaves por extenso (`THEME_LABEL` em `account/preferences-form.tsx`)
 
 ## Padrões
 - Componentes em components/ organizados por domínio
