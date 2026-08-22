@@ -849,6 +849,67 @@ Inscreve ou cancela pela sessão — sem o token que vai no e-mail, que continua
 
 ---
 
+## Eventos de produto
+
+> A camada de analytics da §27 do plano e da parte 1 de
+> `docs/v2/04-analytics-e-slots.md`. **Pública e anônima**: não há sessão para
+> autenticar — a §4 proíbe justamente o identificador que serviria para isso —,
+> então o que separa evento de lixo é o schema.
+
+### POST /api/events
+
+Ingestão em lote. Rate limit próprio: **30 req/min** por IP (o global é 100),
+porque `track()` despacha em blocos e não uma requisição por clique.
+
+**Body:**
+
+```json
+{
+  "events": [
+    {
+      "sessionId": "uuid",
+      "locale": "pt-BR",
+      "path": "/pt-BR/news",
+      "occurredAt": "2026-08-22T12:00:00.000Z",
+      "type": "story_open",
+      "storyId": "uuid",
+      "category": "HEALTH",
+      "position": 0,
+      "source": "hero"
+    }
+  ]
+}
+```
+
+Os quatro campos de base vêm em todo evento e são anexados por `track()`, nunca
+pelo componente. O resto depende do `type` — são os 14 do catálogo, cada um com
+o seu payload fechado, validados por união discriminada.
+
+| Regra | Por quê |
+|---|---|
+| `sessionId` é UUID de **sessão** | não persiste entre visitas e não identifica pessoa (§4) |
+| `path` **recusa query string** | a query carrega o termo de busca, que tem regra de higiene própria |
+| `query` de `search` cabe em 100 caracteres | o truncamento acontece no cliente; aqui é o teto, porque o cliente é editável |
+| lote de 1 a 20 eventos | acima disso é script, não leitor |
+
+**Resposta 201:** `{ "data": { "accepted": 2 } }`
+
+`201` porque a requisição criou linhas, e o corpo diz **quantas** — um
+`{ ok: true }` não deixaria descobrir que metade do lote sumiu.
+
+**Resposta 400:** tipo fora do catálogo, `source` inventado, campo que o próprio
+tipo exige faltando, `sessionId` que não é UUID, `path` com query, lote vazio ou
+acima do teto. **Nada é gravado** — a validação é do lote inteiro.
+
+**Não leva `Cache-Control`**, pela mesma razão que as rotas de conta não levam: a
+resposta é da requisição, não do recurso.
+
+**Retenção:** 90 dias no nível de evento, cortando por `occurredAt`. Quem executa
+é a **etapa 8 do pipeline diário**, junto do cleanup que já apaga notícia aos 30
+dias e briefing aos 90 — não há job manual a disparar.
+
+---
+
 ## Observabilidade (dev-only)
 
 > Painel de logs e erros do pipeline, **apenas para o dev** — todas as rotas

@@ -38,6 +38,8 @@
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
 - GET /api/metrics/dashboard — **admin (JWT + role ADMIN)**: hoje + última semana + último mês
+- POST /api/events — ingestão de eventos de produto (**pública e anônima**,
+  lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only (JOB_SECRET via header ou `?secret=`): runs, erros e status dos providers
@@ -98,7 +100,8 @@ Coleta → Normalização → Deduplicação → Persistência →
 Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup →
 **Renormalização** → Métricas
 
-Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias
+Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias,
+**ProductEvents >90 dias** (por `occurredAt`)
 
 **A etapa 8.5 (renormalização) é o que faz uma correção de regra alcançar o que
 já está gravado.** Consertar a ingestão só conserta o que entra; sem ela, uma
@@ -164,6 +167,57 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
 - **`WORLD` é o balde genérico, e é onde matéria de polícia e trânsito deve
   cair.** Não há categoria para esse gênero no enum, e forçá-lo em outra é
   exatamente o defeito que foi corrigido.
+
+## Eventos de produto (pré-requisito da Fase 8)
+
+A camada de analytics da parte 1 de `docs/v2/04-analytics-e-slots.md`. Este PR
+entrega **só o banco e a API** — a camada `track()`, o consentimento e a
+instrumentação vêm depois.
+
+| Peça | Papel |
+|---|---|
+| `packages/types/src/analytics.ts` | o catálogo dos 14 eventos e os vocabulários fechados |
+| `routes/events/schemas.ts` | a união discriminada em Zod + a guarda contra deriva |
+| `services/product-event.service.ts` | gravação em lote e o expurgo por idade |
+| `model ProductEvent` | uma tabela, `payload` em `Json` |
+
+Regras que não são óbvias no código:
+
+- **O vocabulário mora em `packages/types`, não aqui e não no web.** A API valida
+  o mesmo conjunto que o web escreve; um `source` novo declarado só de um lado
+  passaria pelo build dos dois e viraria 400 em produção. Por isso `AdPlacement`
+  e `AdFormat` **saíram** de `apps/web/lib/ads.ts` — lá ficou a tabela de
+  alturas, que é decisão de layout e só o web usa.
+- **`SchemaMatchesSharedType` é uma guarda de compilação, e ela já pagou.** Na
+  primeira execução ela reprovou o `z.nativeEnum(Category)` importado do Prisma:
+  aquele `Category` é união de literais e o de `packages/types` é um `enum` TS,
+  que é nominal. Aqui não há ponte a fazer — o valor vai para o `payload` JSON,
+  nunca para uma coluna enum —, então o schema valida contra o enum
+  compartilhado. A ponte entre os dois continua onde sempre esteve, no
+  `editorial.mapper`.
+- **`discriminatedUnion` e não `union`.** Com ela o Zod escolhe o ramo pelo
+  `type` e devolve o erro do campo que faltou; um `union` simples devolveria os
+  catorze erros de uma vez.
+- **`path` recusa query string.** A query carrega o termo de busca, que tem
+  regra de higiene própria — deixá-lo entrar por ali seria a mesma informação
+  por uma porta sem porteiro.
+- **`type` é coluna e o resto é `Json`.** Toda métrica filtra por tipo numa
+  janela de tempo (`@@index([type, occurredAt])`); catorze formatos em colunas
+  seriam vinte campos nulos ou catorze tabelas.
+- **Sem `skipDuplicates`.** Não há chave única para colidir, e dois `story_open`
+  idênticos em segundos são dois cliques — descartar o segundo apagaria a
+  diferença entre "clicou uma vez" e "voltou e clicou de novo".
+- **A resposta diz quantos entraram.** `{ ok: true }` não deixaria descobrir que
+  metade do lote sumiu.
+- **A retenção é etapa 8, não etapa nova.** É o mesmo expurgo por idade que a
+  notícia e o briefing já fazem. Etapa própria seria um segundo lugar para
+  lembrar de olhar quando algo parasse — e ingestão sem expurgo é tabela que
+  cresce para sempre. Corta por `occurredAt`, não `createdAt`: o que a §4 limita
+  é há quanto tempo o comportamento aconteceu, não quando a linha chegou.
+- **Não há tabela de agregado diário, e é de propósito.** A §4 pede um agregado
+  que sobreviva à retenção, mas hoje ninguém o leria — tabela sem consumidor é
+  a armadilha da pílula de contagem da Fase 4 em outra forma. Ela entra com a
+  tela que a exibir.
 
 ## Providers
 ```

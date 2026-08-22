@@ -212,6 +212,35 @@ model DailyMetric {
   @@index([date])
 }
 
+/// Evento de produto (docs/v2/04-analytics-e-slots.md, parte 1).
+///
+/// **Anônimo por construção.** Não há `userId`, e-mail, IP nem User-Agent:
+/// `sessionId` é aleatório, de sessão, e não persiste entre visitas. É o que a
+/// §4 exige, e é o que permite a tabela existir sem virar dado pessoal.
+///
+/// `payload` é `Json` porque cada um dos 14 tipos tem campos próprios — a
+/// alternativa seria 14 tabelas ou uma tabela larga com 20 colunas nulas. O
+/// contrato de cada payload é a união discriminada de `@newranews/types`, e a
+/// rota o valida com Zod antes de gravar.
+///
+/// Retenção de 90 dias, executada pela etapa 8 do pipeline diário.
+model ProductEvent {
+  id         String   @id @default(uuid())
+  type       String
+  sessionId  String
+  locale     String
+  path       String
+  /// Quando aconteceu no cliente. Pode divergir de `createdAt` por fila.
+  occurredAt DateTime
+  payload    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  /// A consulta que toda métrica faz: um tipo, numa janela de tempo.
+  @@index([type, occurredAt])
+  /// A do expurgo, e a de "o que aconteceu neste dia".
+  @@index([occurredAt])
+}
+
 enum Category {
   TECHNOLOGY
   POLITICS
