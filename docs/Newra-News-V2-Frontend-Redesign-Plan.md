@@ -875,7 +875,11 @@ As boas práticas do Google AdSense recomendam organizar o conteúdo pensando no
 
 A própria documentação também reforça que experiência, velocidade e posicionamento afetam a viewability. Fonte: https://support.google.com/adsense/answer/6219980?hl=en.
 
-## Fase 2: Newsletter patrocinada
+## Fase 2: Newsletter patrocinada — **ADIADA** (indeterminado, 22/08/2026)
+
+> Depende de **número de assinantes para pôr na proposta**. Retomar quando o
+> `ProductEvent` mostrar volume de `newsletter_signup` e sessões recorrentes —
+> o gatilho é um número, não uma data. Ver a Fase 8 da §28.
 
 Possibilidades:
 
@@ -885,7 +889,13 @@ Possibilidades:
 
 Isso tende a combinar melhor com uma publicação de nicho do que encher o site de banners.
 
-## Fase 3: Newra Plus
+## Fase 3: Newra Plus — **ADIADA** (indeterminado, 22/08/2026)
+
+> A própria seção já condicionava a "quando houver base de usuários
+> recorrentes", e essa base ainda não existe. `subscription_intent` fica no
+> catálogo **sem call site**: medir intenção por um plano que não existe é evento
+> morto, e um `premium-cta` que não leva a lugar nenhum é a armadilha do
+> controle sem consequência. Ver a Fase 8 da §28.
 
 Quando houver base de usuários recorrentes, testar assinatura:
 
@@ -1660,15 +1670,46 @@ medição.
 > BCP-47 da rota. As duas URLs continuam no `sitemap.xml` geral, com o `hreflang`
 > dizendo o que elas são.
 
-## Fase 8 — Monetização
+## Fase 8 — Monetização 🔶 pré-requisitos concluídos em 2026-08-22
 
 ```text
-[ ] AdSlot abstraction
-[ ] reserved inventory
-[ ] privacy/consent layer
-[ ] newsletter sponsorship placement
-[ ] pricing experiment framework
+[x] AdSlot abstraction              (Fase 3; ganhou os três estados no PR 3)
+[x] reserved inventory              (inventário de casa — a newsletter)
+[x] privacy/consent layer           (gate de terceiro; nasce desligado)
+[~] newsletter sponsorship placement  ADIADO — lançamento indeterminado
+[~] pricing experiment framework      ADIADO — lançamento indeterminado
 ```
+
+> **A fase começou pelo que esta lista não tinha.** Nenhum dos cinco itens era o
+> primeiro passo: o `AdSlot` existe desde a Fase 3 e reserva altura, e o que
+> faltava para ligá-lo não era criativo — era **onde gravar a impressão**. Sem
+> `ad_view`/`ad_click` não há viewability, sem viewability não há CTR, e sem CTR
+> o "pricing experiment framework" mede o nada. Os pré-requisitos saíram em três
+> PRs — itens **26, 27 e 28** do `docs/progress.md`.
+
+### Os dois itens adiados, e até quando
+
+**Patrocínio da newsletter (§21 fase 2) e Newra Plus (§21 fase 3) estão
+adiados para lançamento futuro e indeterminado** — decisão de 22/08/2026.
+
+Não é falta de tempo: os dois dependem de **base de usuários recorrentes**, que
+é exatamente o que a §11 de `docs/v2/04-analytics-e-slots.md` já dizia ao
+deixá-los sem especificação. Vender patrocínio de newsletter pede número de
+assinantes para pôr na proposta; cobrar assinatura pede gente voltando. Construir
+a tela antes do número é a armadilha do controle sem consequência na sua forma
+mais cara — um produto pago que ninguém pediu.
+
+O que **fica pronto** para o dia em que forem retomados:
+
+| Peça | Estado |
+|---|---|
+| `subscription_intent` | no catálogo de eventos, **sem call site** |
+| `premium-cta` | não existe, e não deve existir antes do plano |
+| medição de interesse | possível no dia seguinte à decisão — a camada já está no ar |
+
+**O gatilho para retomar não é uma data, é um número.** Enquanto o
+`ProductEvent` não mostrar sessões recorrentes e assinantes de newsletter em
+volume, os dois continuam adiados.
 
 ## Fase 9 — Release
 

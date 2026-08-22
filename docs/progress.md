@@ -61,9 +61,13 @@
 
 > `lib/seo.ts` virou a fonte única de URL e de metadata (canonical, `x-default`, `og:url` e os defaults que o Next **não** herda do layout); `lib/json-ld.ts` + `components/seo/json-ld.tsx` levam `Organization`, `WebSite`, `NewsArticle` e `BreadcrumbList`; a trilha visível nasceu espelhando o dado estruturado; e `/news-sitemap.xml` publica a janela de 48h do Google Notícias. A medição contra produção achou quatro defeitos que o checklist não previa — a imagem OG e o ícone do iOS inalcançáveis, `og:image`/`og:type`/`og:site_name` ausentes em toda página, e o briefing exibindo a véspera. 416 testes no web. Ver **item 25**.
 
-**Newra News V2.0 — Fase 8 (Monetização)** 🔶 **em andamento** — pré-requisitos
+**Newra News V2.0 — Fase 8 (Monetização)** 🔶 **pré-requisitos concluídos em 2026-08-22**
 
-> A fase começa pelo que a §28 não lista: **a camada de analytics**. Sem ela não há `ad_view`, `ad_click`, CTR nem experimento de preço — e o `AdSlot`, que existe desde a Fase 3, continuaria sem ter onde gravar a impressão. Três PRs, no mesmo corte da Fase 6: **banco e API** → **camada e consentimento** → **inventário e slots**. O primeiro está no **item 26**.
+> A fase começou pelo que a §28 não lista: **a camada de analytics**. Sem ela não há `ad_view`, `ad_click`, CTR nem experimento de preço — e o `AdSlot`, que existe desde a Fase 3, continuaria sem ter onde gravar a impressão. Três PRs, no mesmo corte da Fase 6: **banco e API** (item 26), **camada e instrumentação** (item 27) e **inventário, consentimento e profundidade** (item 28). Catálogo em **13 dos 14** eventos.
+>
+> **Patrocínio da newsletter e Newra Plus foram ADIADOS** para lançamento futuro e indeterminado. Os dois dependem de base de usuários recorrentes, e o gatilho para retomá-los é um número — não uma data. Ver a Fase 8 da §28 do plano.
+>
+> **Pendente e fora do código:** a API de produção ainda não serve `POST /api/events` (deploy do Render), então a camada mede para o vazio.
 
 ---
 

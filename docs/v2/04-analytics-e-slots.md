@@ -197,7 +197,15 @@ CTA de assinatura
 ## 11. O que fica fora desta fase
 
 Newsletter patrocinada (§21 fase 2), Newra Plus (fase 3) e API B2B (fase 4) não
-recebem especificação agora — dependem de base de usuários que não existe. O
-`premium-cta` entra no design system na Fase 8 apenas como componente, e
-`subscription_intent` já está no catálogo de eventos para medir interesse antes
-de qualquer coisa ser construída.
+recebem especificação agora — dependem de base de usuários que não existe.
+
+> **Atualizado em 22/08/2026:** os dois primeiros foram **adiados para
+> lançamento futuro e indeterminado**, e o gatilho para retomá-los é um número
+> (sessões recorrentes e assinantes), não uma data.
+>
+> A frase original desta seção dizia que o `premium-cta` entraria no design
+> system "apenas como componente". **Isso foi reconsiderado e não foi feito:**
+> um CTA que não leva a lugar nenhum mede clique em botão, não intenção de
+> compra — e é a armadilha do controle sem consequência. `subscription_intent`
+> continua no catálogo **sem call site**: está pronto para o dia em que houver
+> plano, e até lá não finge medir nada.

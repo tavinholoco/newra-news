@@ -128,18 +128,21 @@ horas depois do merge — a tabela existe e o código do backend não subiu.
 **Conferir o deploy do Render antes de esperar qualquer número**, porque a
 camada mede para o vazio enquanto isso.
 
-**Os três pré-requisitos estão entregues.** O que resta da §28 é o que depende
-de decisão de negócio, não de código:
+**Os três pré-requisitos estão entregues**, e a §28 da Fase 8 registra o estado
+de cada item. O que resta não é código:
 
-- **Uma conta de rede de anúncio.** Com ela, `NEXT_PUBLIC_AD_NETWORK` liga o
-  banner, o gate de consentimento e o espaço de terceiro — tudo já escrito e
-  testado.
-- **Patrocínio da newsletter** (§21, fase 2) e **Newra Plus** (fase 3), que a
-  §11 dos slots deixou sem especificação por dependerem de base de usuários.
-  `subscription_intent` continua no catálogo sem call site: medir intenção de um
-  plano que não existe é evento morto.
-- **A tela de métricas de produto**, que é quem daria consumidor à tabela de
-  agregado diário que o PR 1 deliberadamente não criou.
+- **Patrocínio da newsletter e Newra Plus estão ADIADOS** para lançamento futuro
+  e indeterminado (22/08/2026). **O gatilho para retomar é um número, não uma
+  data:** sessões recorrentes e assinantes em volume, medidos pelo
+  `ProductEvent`. `subscription_intent` fica no catálogo **sem call site**, e
+  `premium-cta` **não deve existir** antes de haver plano.
+- **Rede de anúncio de terceiro:** com uma conta, `NEXT_PUBLIC_AD_NETWORK` liga
+  banner, gate de consentimento e o espaço — tudo escrito e testado. Sem ela, o
+  que preenche o slot é inventário de casa.
+- **A tela de métricas de produto** é o próximo passo natural: hoje o
+  `ProductEvent` recebe eventos e **ninguém os lê**. É ela que daria consumidor
+  à tabela de agregado diário que o PR 1 deliberadamente não criou — e é ela que
+  produz o número que destrava os dois itens adiados.
 
 O que a Fase 7 entregou continua valendo, e o item 25 tem o detalhe: `lib/seo.ts`
 como fonte única de URL e metadata, JSON-LD, a trilha visível e
