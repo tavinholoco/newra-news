@@ -1765,6 +1765,104 @@ Render**: sem `/api/events` no ar, a camada mede para o vazio.
 Fora do PR 2, de propósito: os três eventos de scroll (pedem
 `IntersectionObserver` novo nas telas de leitura) e `subscription_intent`.
 
+### 28. V2.0 Fase 8 — pré-requisitos: slots, consentimento e profundidade ✅ Concluído em 2026-08-22
+
+> Branch `feat/v2-ad-slots-consent`. **PR 3, o último dos pré-requisitos.** Fecha
+> o catálogo em **13 dos 14** eventos.
+
+#### Três decisões, e o motivo de cada uma
+
+- **`subscription_intent` e `premium-cta` ficam de fora.** Não há plano, preço
+  nem funil — CTA que não leva a lugar nenhum é a armadilha do controle sem
+  consequência. O "reserved inventory" da §28 é atendido por **inventário de
+  casa**: a newsletter, que é produto real com funil real.
+- **O banner de consentimento é o gate de terceiro, e nasce desligado.** Mesmo
+  padrão do `AdSlot`: existe, é testado, e liga com uma variável.
+- **Um observador só** para `ad_view` e os três eventos de scroll — é a mesma
+  primitiva, e duas implementações da mesma regra divergiriam no primeiro ajuste
+  de limiar.
+
+#### O `AdSlot` agora tem três estados, não dois
+
+| `NEXT_PUBLIC_AD_NETWORK` | Consentimento | O que renderiza |
+|---|---|---|
+| ausente | irrelevante | inventário **de casa** — a newsletter |
+| presente | `granted` | o espaço de terceiro, rotulado "Publicidade" |
+| presente | qualquer outro | **nada** |
+
+> **Inventário de casa não se chama "Publicidade".** Carimbar assim a promoção
+> da própria newsletter seria mentir sobre a natureza do espaço — a mesma regra
+> que impede a matéria coletada de ser carimbada como escrita por IA.
+
+> **Rede sem consentimento não cai no criativo de casa.** A posição foi vendida;
+> preenchê-la com outra coisa entregaria ao anunciante um espaço que ele pagou e
+> não teve.
+
+#### Consentimento: duas funções que discordam de propósito
+
+`isTrackingAllowed` permite com `unset`; `isThirdPartyAllowed` nega. É a
+diferença entre os dois tratamentos — medição anônima de primeira parte se apoia
+em legítimo interesse, e carregar script que grava cookie e cruza comportamento
+entre sites exige consentimento prévio e expresso. Está em duas funções para não
+virar um `if` que alguém simplifica.
+
+No banner: **recusar vem primeiro** na ordem de tabulação e tem o mesmo peso
+visual, e ele é `dialog` com `aria-modal='false'` — `alertdialog` moveria o foco
+à força, tirando do lugar quem está lendo.
+
+#### O que a verificação achou
+
+**Uma fragilidade real no `ScrollDepth`.** O guard do `requestAnimationFrame`
+era o id do frame, zerado dentro do callback — o que **só funciona porque o rAF
+do navegador é assíncrono**: a atribuição acontece depois dele, e com uma
+implementação síncrona ela reescreve o `null` e trava o agendamento para sempre.
+O stub síncrono da suite pegou; o guard passou a ser um booleano, que não depende
+da implementação.
+
+> **O painel do navegador não compõe frames, e isso é mais amplo do que "o
+> screenshot falha".** Medido nesta fase: `requestAnimationFrame` **nunca**
+> dispara, eventos de `scroll` **nunca** disparam (mesmo com `scrollY` e o rect
+> mudando), e um `IntersectionObserver` novo, num elemento inteiramente visível,
+> não recebe callback. `ad_view` e os três eventos de scroll ficaram, portanto,
+> **cobertos por teste e não por navegação** — com `IntersectionObserver` e rAF
+> de mentira, que é o que torna a regra de permanência verificável.
+
+#### O que a verificação **conseguiu** provar no navegador
+
+Com `NEXT_PUBLIC_ADS_ENABLED=true` e a API de produção:
+
+| Estado | Observado |
+|---|---|
+| sem rede | dois slots, rótulo "Do Newra News", link para `/pt-BR/newsletter`, **altura reservada = altura real (100px)** |
+| rede, sem decisão | banner com "Recusar" antes de "Aceitar", `aria-modal='false'`, foco não roubado, e **zero slots** |
+| rede, `granted` | dois slots rotulados "Publicidade", sem criativo de casa, banner não volta depois do reload |
+
+Reserva igual à altura real é a asserção que importa: é CLS zero medido, não
+prometido.
+
+#### Números
+
+- **1.025 testes** (1.000 → 1.025): 559 na API e **466 no web** (+24), 96 suites.
+- Suites novas: `use-in-view`, `scroll-depth`, `consent-banner`; a de `ad-slot`
+  passou de 3 para 8 casos.
+- **Documentação:** as duas variáveis de ambiente em `docs/setup.md`, e as
+  seções de monetização e consentimento reescritas em `apps/web/CLAUDE.md`.
+
+#### O estado do catálogo
+
+**13 dos 14 instrumentados.** Fora: `subscription_intent`, que espera um plano
+pago existir.
+
+#### O que continua pendente, e não é código
+
+**A API de produção segue sem `/api/events`.** Conferido de novo depois do merge
+do #123: `POST` responde **404**. O `uptime` da API (3h50m às 19:57 UTC) bate com
+o merge do #122 — então o Render **reiniciou** naquele momento e mesmo assim não
+serve a rota; `/api/account` responde 401, o que mostra que a build tem a Fase 6.
+Enquanto isso não for resolvido no painel do Render, **a camada mede para o
+vazio**: os eventos saem, o proxy repassa o 404 e nada é gravado — sem quebrar
+nada, que é o caminho testado.
+
 ---
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13

@@ -1,6 +1,12 @@
 import { cn } from '@/lib/utils';
 
 interface ArticleBodyProps {
+  /**
+   * `id` do contêner, para a `ScrollDepth` medir **o corpo do texto** e não a
+   * página: a tela termina em relacionadas e num CTA, e incluí-los faria "90%
+   * da página" ser alcançável sem ler o último terço da matéria.
+   */
+  id?: string;
   /** Corpo do texto. `###` vira subtítulo; o resto vira parágrafo. */
   content: string;
   /**
@@ -69,11 +75,16 @@ export function parseArticleBody(content: string, lede?: string | null): Block[]
  * nível — o mesmo defeito que reprovou `heading-order` em `/news` e `/article`
  * na Fase 1.
  */
-export function ArticleBody({ content, lede, className }: ArticleBodyProps) {
+export function ArticleBody({
+  content,
+  lede,
+  id,
+  className,
+}: ArticleBodyProps) {
   const blocks = parseArticleBody(content, lede);
 
   return (
-    <div className={cn('max-w-prose', className)}>
+    <div id={id} className={cn('max-w-prose', className)}>
       {blocks.map((block, index) =>
         block.kind === 'heading' ? (
           <h2

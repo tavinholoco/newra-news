@@ -12,6 +12,10 @@ import { ShareButton } from '@/components/editorial/share-button';
 import { SaveButton } from '@/components/editorial/save-button';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
 import { readingTimeFromText } from '@/lib/format';
+import { ScrollDepth } from '@/components/analytics/scroll-depth';
+
+/** `id` do corpo, para a `ScrollDepth` medir o texto e não a página. */
+const BODY_ID = 'news-body';
 
 interface NewsDetailProps {
   news: News;
@@ -110,9 +114,15 @@ export async function NewsDetail({
               {t('excerptLabel')}
             </p>
             <ArticleBody
+              id={BODY_ID}
               content={news.content}
               lede={news.description}
               className='mt-3'
+            />
+            <ScrollDepth
+              contentId={news.id}
+              contentType='story'
+              targetId={BODY_ID}
             />
           </>
         ) : (

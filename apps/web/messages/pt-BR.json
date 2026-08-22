@@ -330,6 +330,8 @@
     }
   },
   "ads": {
+    "houseCta": "Receba o briefing do dia por e-mail",
+    "houseLabel": "Do Newra News",
     "label": "Publicidade"
   },
   "newsPeriod": {
@@ -403,5 +405,12 @@
       "unsubscribe": "Cancelar inscrição",
       "error": "Não foi possível atualizar sua inscrição. Tente de novo."
     }
+  },
+  "consent": {
+    "accept": "Aceitar",
+    "body": "Usamos cookies de parceiros para exibir anúncios. A medição de uso do site é anônima e não depende desta escolha.",
+    "decline": "Recusar",
+    "learnMore": "Saiba mais",
+    "title": "Cookies de publicidade"
   }
 }
