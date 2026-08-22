@@ -1499,9 +1499,56 @@ aquecida. Ver abaixo.
   quando existe: ~30% do acervo não tem imagem, e uma lista vazia trocaria o
   cartão de marca por um cartão sem imagem nenhuma.
 
+#### O ritual, contra produção
+
+**Lighthouse por rota** ([run 32579866160](https://github.com/tavinholoco/newra-news/actions/runs/32579866160)), com o site aquecido (dois GETs por rota, ~0,2 s cada):
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 93 | 100 | 100 | 100 |
+| `/pt-BR/news` | 91 | 100 | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | 100 | 100 |
+| `/pt-BR/about` | 98 | 100 | 100 | 100 |
+| `/en` | 95 | 100 | 100 | 100 |
+
+Gate verde nas cinco rotas. Acessibilidade, best practices e SEO em **100**;
+performance entre 91 e 98. A `/news` caiu de 96 para 91 e a `/pt-BR` de 94 para
+93 — dentro da faixa de aquecimento que a própria Fase 6 documentou, e o
+JSON-LD acrescenta 1–2 KB de HTML por página. Não há audit reprovado.
+
+**Antes de medir, conferi que a mudança estava no ar** — `/opengraph-image` e
+`/apple-icon` respondendo **200 image/png** (eram 307→404), `/news-sitemap.xml`
+com **732 URLs** e `news:language` em `pt`, `robots.txt` listando os dois
+sitemaps, e as cinco rotas públicas com canonical, `x-default`, `og:url`,
+`og:type`, `og:image`, `og:site_name` e `twitter:card: summary_large_image`.
+
+**Baseline visual** — e foi ela que achou o defeito que o Lighthouse não pega.
+
+> **A trilha foi ao ar com os degraus grudados.** O `flex-shrink: 1` ficou no
+> `li`, e o `shrink-0` que eu tinha escrito estava no `<a>` de dentro — mas quem
+> o flex encolhe é o item da linha. Com `min-w-0` junto, cada `li` clipava o
+> próprio conteúdo: medido em produção, "Notícias" pedia 77px e recebia 51,
+> comendo exatamente o chevron e o gap. A trilha renderizou
+> "Home›NotíciasSaúde 'A geração sóbria'…" sem separador visível nenhum. O
+> teste da fase media a **existência** dos degraus, não a largura deles — agora
+> mede as duas coisas (`shrink-0` nos ancestrais, `min-w-0` só no atual, e um
+> separador por degrau depois do primeiro).
+
+Das 35 imagens que a captura mexeu, **nenhuma ficou sem explicação**:
+
+| Imagens | Por quê |
+|---|---|
+| estáticas em 768 e 1440 (`about`, `newsletter`, `newsletter-unsubscribe`, `signin`, `favorites-anon`) | só a data do top-bar avançou (21→22/08). Os 375px **não** mudaram, e é a confirmação: o top-bar é `hidden md:block` |
+| `home--*`, `news--*`, `article-history--*` | o pipeline diário rodou entre as duas capturas |
+| `news-detail--*`, `article-detail--*` | a captura segue a matéria e o briefing **mais recentes**, e os dois trocaram (o manifest registra) |
+
+A captura foi **descartada** em vez de commitada: ela registrava a trilha
+quebrada, e baselinar um defeito faria a próxima comparação aprovar o erro. A
+recaptura fica para depois deste deploy.
+
 #### Números da fase
 
-- **416 testes no web** (368 → 416, +48): `seo`, `json-ld`, `images`,
+- **418 testes no web** (368 → 418, +50): `seo`, `json-ld`, `images`,
   `breadcrumb`, `json-ld` (componente) e `news-sitemap` são suites novas.
 - **Guardas novas:** nenhuma página escreve caminho localizado à mão; toda
   `generateMetadata` passa por um dos dois helpers; as quatro regras de imagem; o

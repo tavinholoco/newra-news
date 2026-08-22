@@ -37,15 +37,28 @@ export function Breadcrumb({ steps, ariaLabel, className }: BreadcrumbProps) {
     <nav aria-label={ariaLabel} className={cn('min-w-0', className)}>
       {/* Uma linha, sempre. Com `flex-wrap`, o degrau atual pedia a largura
           inteira **antes** de truncar e ia sozinho para a segunda linha — a
-          trilha ocupava 52px de altura numa tela de 1280. Sem quebra, os
-          degraus de ancestral ficam `shrink-0` e só o atual encolhe, que é a
-          ordem certa: perder o fim da manchete é aceitável, perder "Notícias"
-          não. */}
+          trilha ocupava 52px de altura numa tela de 1280. */}
       <ol className='flex items-center gap-x-1.5 text-body-sm text-ink-secondary'>
-        {steps.map((step, index) => (
+        {steps.map((step, index) => {
+          const { path } = step;
+          const isCurrent = path === undefined;
+
+          return (
           <li
             key={`${step.name}-${index}`}
-            className='flex min-w-0 items-center gap-x-1.5'
+            // **O `shrink-0` tem de estar no `li`, não só no `<a>`** — e é o
+            // que a baseline visual da fase pegou. Quem o flex encolhe é o
+            // item da linha, e um `li` que encolhe com `min-w-0` clipa o
+            // próprio conteúdo: em produção, "Notícias" pedia 77px e recebia
+            // 51, comendo exatamente o chevron e o gap. A trilha saiu com os
+            // degraus grudados ("NotíciasSaúde") e sem separador nenhum.
+            //
+            // Só o degrau atual encolhe, e é a ordem certa: perder o fim da
+            // manchete é aceitável, perder "Notícias" não.
+            className={cn(
+              'flex items-center gap-x-1.5',
+              isCurrent ? 'min-w-0' : 'shrink-0',
+            )}
           >
             {index > 0 ? (
               <ChevronRight
@@ -54,7 +67,7 @@ export function Breadcrumb({ steps, ariaLabel, className }: BreadcrumbProps) {
               />
             ) : null}
 
-            {step.path === undefined ? (
+            {isCurrent ? (
               // `truncate` só no degrau atual: é o único que carrega manchete, e
               // manchete inteira empurra os degraus anteriores para fora da tela
               // no mobile.
@@ -70,14 +83,15 @@ export function Breadcrumb({ steps, ariaLabel, className }: BreadcrumbProps) {
                 // A Home é `''` no caminho canônico (`/pt-BR`, sem barra final,
                 // que é o que entra no sitemap e no JSON-LD) e `'/'` no `Link`,
                 // que é o que o next-intl entende como raiz do idioma.
-                href={step.path === '' ? '/' : step.path}
-                className='shrink-0 transition-colors duration-fast hover:text-link'
+                href={path === '' ? '/' : path}
+                className='transition-colors duration-fast hover:text-link'
               >
                 {step.name}
               </Link>
             )}
           </li>
-        ))}
+          );
+        })}
       </ol>
     </nav>
   );

@@ -96,9 +96,10 @@ do dia mudou, ou há algo errado.
   um PR. `lib/seo.ts` virou a fonte única de URL e de metadata; nasceram o
   JSON-LD (`Organization`, `WebSite`, `NewsArticle`, `BreadcrumbList`), a trilha
   visível e `/news-sitemap.xml`. **A medição contra produção achou quatro
-  defeitos que o checklist não previa** — ver abaixo.
+  defeitos que o checklist não previa**, e a baseline visual achou um quinto —
+  a trilha foi ao ar com os degraus grudados. Ver o item 25.
 - **Nada pendente do ciclo anterior.**
-- **Testes:** 953 em 90 suites (537 API em 41 + 416 web em 49 — todos passando).
+- **Testes:** 955 em 90 suites (537 API em 41 + 418 web em 49 — todos passando).
 
 ### Por onde começar a Fase 8
 
