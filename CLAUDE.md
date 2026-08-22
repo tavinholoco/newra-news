@@ -97,49 +97,54 @@ do dia mudou, ou há algo errado.
 
 ### Por onde começar a Fase 6
 
-**Leia primeiro o item 22 do `docs/progress.md`** — é o levantamento completo,
-com as opções de modelagem e o custo de cada uma. O caminho recomendado, na
-ordem:
+**As quatro decisões de banco já foram tomadas (21/08) — estão no item 23 do
+`docs/progress.md`, com o plano de execução em três PRs.** O item 22 continua
+sendo o levantamento que as motivou; leia o 23 primeiro.
 
-1. **Decidir como `Favorite` alcança um `Article`** (item 22.1). O item lista
-   três desenhos com o custo de cada; a decisão é sua, e ela destrava *duas*
-   coisas de uma vez — o "salvar" no briefing e o "somente salvos" no acervo.
-2. **Decidir a política de cache do "somente salvos"** (22.2), que é o mesmo
-   problema visto do outro lado. Rota autenticada própria ou caminho sem cache
-   na `/news`.
-3. **Migration de preferências** (22.3) — antes das telas, pelo mesmo motivo que
-   a auditoria do briefing entrou antes da Fase 3.
-4. **As telas.** `favorites-list` migra para os cards editoriais no caminho, e
-   com isso o `news-card` da V1 sai do repositório (22.5).
+O que ficou decidido:
 
-Os passos 1 a 3 são backend e cabem num PR só — é o papel que a Fase 0.5 teve
-para a Fase 3. As telas vêm depois.
+1. **`Favorite` polimórfico** — `itemType` (`NEWS` | `ARTICLE`) + `itemId`,
+   `@@unique([userId, itemType, itemId])`, migration renomeando `newsId` e
+   fazendo backfill. É o que permite "Salvos" ser **uma** lista ordenada por
+   data de salvamento. (`articleId` nullable caiu: no Postgres `NULL` não colide
+   com `NULL`, e o mesmo briefing poderia ser salvo N vezes.)
+2. **"Somente salvos" mora na `/api/favorites`**, que ganha as dimensões da
+   listagem (`category`, `search`, `from`/`to`, `source`, `sort`); a `/news`
+   troca de fonte de dados quando o filtro está ligado e segue cacheável.
+3. **`UserPreference` (tabela própria) só com o que a tela honra hoje** —
+   categorias favoritas, tema e opt-in de alerta. "Horário do briefing" fica de
+   fora: o cron é único, e controle que o sistema não honra é a armadilha da
+   pílula "Todas".
+4. **`Subscriber.userId` nullable**, preenchido no sign-up logado e com backfill
+   por e-mail; leitura por `userId` com fallback por e-mail.
 
-O resumo do que foi encontrado:
+A ordem: **um PR de backend** com as três migrations e as rotas (é o papel que a
+Fase 0.5 teve para a Fase 3), depois as telas, depois o "somente salvos".
 
-- **Escopo:** `favorites`, `profile`, `preferences` e `newsletter settings`
-  (§28), com a visão em §19. Herda dois itens adiados: "somente salvos" em
-  `/news` (Fase 4) e "salvar" no briefing (Fase 5).
-- **Esta fase muda o banco**, ao contrário da Fase 5 — e é o que se decide antes
-  da primeira tela:
-  - `Favorite` tem `userId` + `newsId` e mais nada, então **não há como
-    favoritar um `Article`**;
-  - `User` não tem coluna para nenhuma preferência da §19;
-  - `Subscriber` não conhece `User` (duas tabelas com `email` e zero relação).
-- **"Somente salvos" não é só UI.** Junta `Favorite` e `News` e devolve resposta
-  **por usuário** — que não pode carregar o `s-maxage` que a `/news` carrega,
-  sob pena de vazar recorte entre sessões. Ou vira rota autenticada própria
-  (`/api/favorites` já é isso e já pagina), ou a `/news` ganha caminho sem cache.
-- **Preferência é dado que só existe daqui para frente**, como foi a auditoria do
-  briefing na Fase 0.5: tela antes de coluna é um dia de escolha do leitor
-  perdido por dia.
-- **`favorites-list` é o último consumidor do `news-card` da V1.** Quando a Fase
-  6 migrar para os cards editoriais, `news-card` pode sair do repositório.
+O que vale saber antes de escrever a primeira linha:
+
+- **O browser nunca fala autenticado com a API.** `lib/api.ts` vai direto ao
+  `NEXT_PUBLIC_API_URL` sem token; só as rotas proxy do Next assinam o JWT
+  (`app/api/favorites/route.ts`). Toda tela de conta passa por proxy.
+- **`useIsFavorite` baixa 100 favoritos e testa no cliente** — do 101º em diante
+  o coração mente. A fase entrega `GET /api/favorites/ids`.
+- **`upsertUser` sobrescreve `name` e `image` a cada login**, então nome
+  editável no perfil seria desfeito no próximo sign-in. O perfil desta fase é de
+  leitura.
+- **Resposta por usuário não leva `Cache-Control`** — `utils/cache.ts` diz por
+  quê. `/api/news` não usa o helper; o cache da `/news` vem da ISR da página.
 - **Tela de conta não pode ser SSG.** `/favorites` é `force-dynamic` porque o
   `redirect()` de sessão foi assado no HTML estático e mandava todo mundo para o
-  sign-in. Toda tela nova herda a restrição.
+  sign-in. Toda tela nova herda a restrição, e o guard de sessão do
+  `app/[locale]/admin/layout.tsx` é o padrão a copiar para `/account`.
+- **`favorites-list` é o último consumidor do `news-card` da V1** — migrando
+  para `story-card-compact`, `news-card` (e provavelmente `news-grid`) sai do
+  repositório.
 - **A camada editorial é para reusar.** `article-hero` é casca com encaixes;
   `pagination`, `story-card*` e `article-meta` não sabem de domínio nenhum.
+- **A migration de produção corre em paralelo com os deploys** (`migrate.yml`
+  dispara no push para `main`): migration só aditiva, e confirmar que terminou
+  antes de medir.
 
 ### Armadilhas que já custaram caro
 
