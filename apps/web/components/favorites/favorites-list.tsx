@@ -1,33 +1,43 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Heart } from 'lucide-react';
-import type { NewsFavorite } from '@newranews/types';
+import { Bookmark } from 'lucide-react';
 import { useFavorites } from '@/lib/queries';
-import { NewsCard } from '@/components/news/news-card';
+import { StoryCardCompact } from '@/components/editorial/story-card-compact';
+import { BriefingCardCompact } from '@/components/editorial/briefing-card-compact';
+import { SaveButton } from '@/components/editorial/save-button';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { newsToStory } from '@/lib/story';
 
+/**
+ * A tela "Salvos" (§28 da Fase 6).
+ *
+ * É **uma lista só**, notícias e briefings na ordem em que foram salvos — o
+ * desenho polimórfico do `Favorite` existe justamente para isso. Cada linha
+ * traz o mesmo botão de salvar da tela de origem, aqui no estado preenchido:
+ * remover é o gesto que esta tela precisa oferecer, e repeti-lo é mais barato
+ * do que ensinar um controle novo.
+ *
+ * O nível dos headings é `h2` porque a página tem um `h1` próprio e nenhuma
+ * seção entre os dois — na Home o mesmo card é `h3`.
+ */
 export function FavoritesList() {
   const t = useTranslations('favorites');
   const tCommon = useTranslations('common');
-  // Pede **só** o que esta tela sabe desenhar. O briefing salvo já existe no
-  // banco e na API; o card editorial dele entra junto com o redesenho da tela,
-  // e até lá pedir tudo para descartar metade seria a lista mentindo sobre o
-  // que o leitor salvou.
-  const { data, isLoading, isError, refetch } = useFavorites({ type: 'NEWS' });
+  const { data, isLoading, isError, refetch } = useFavorites();
 
   if (isLoading && !data) {
     return (
-      <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+      <ul className='divide-y divide-line border-y border-line'>
         {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className='space-y-3'>
-            <Skeleton className='aspect-[16/9] w-full rounded-lg' />
+          <li key={index} className='space-y-2 py-4'>
+            <Skeleton className='h-3 w-20' />
             <Skeleton className='h-4 w-3/4' />
-            <Skeleton className='h-4 w-1/2' />
-          </div>
+            <Skeleton className='h-3 w-1/3' />
+          </li>
         ))}
-      </div>
+      </ul>
     );
   }
 
@@ -35,11 +45,9 @@ export function FavoritesList() {
     return (
       <div
         role='alert'
-        className='rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center'
+        className='rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center'
       >
-        <p className='mb-4 text-muted-foreground'>
-          {t('loadError')}
-        </p>
+        <p className='mb-4 text-ink-secondary'>{t('loadError')}</p>
         <Button variant='outline' onClick={() => void refetch()}>
           {tCommon('retry')}
         </Button>
@@ -47,18 +55,14 @@ export function FavoritesList() {
     );
   }
 
-  const favorites = (data?.data ?? []).filter(
-    (favorite): favorite is NewsFavorite => favorite.itemType === 'NEWS',
-  );
+  const saved = data?.data ?? [];
 
-  if (favorites.length === 0) {
+  if (saved.length === 0) {
     return (
-      <div className='rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12 text-center'>
-        <Heart className='mx-auto mb-3 h-8 w-8 text-line-strong' />
-        <p className='text-ink-secondary'>
-          {t('emptyTitle')}
-        </p>
-        <p className='mt-1 text-body-sm text-ink-muted'>
+      <div className='rounded-lg border border-dashed border-line bg-surface px-6 py-12 text-center'>
+        <Bookmark className='mx-auto mb-3 size-8 text-line-strong' aria-hidden='true' />
+        <p className='font-display text-h4 text-ink'>{t('emptyTitle')}</p>
+        <p className='mx-auto mt-2 max-w-prose text-body-sm text-ink-secondary'>
           {t('emptyHint')}
         </p>
       </div>
@@ -66,10 +70,20 @@ export function FavoritesList() {
   }
 
   return (
-    <div className='grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-      {favorites.map((favorite) => (
-        <NewsCard key={favorite.itemId} news={favorite.news} />
+    <ul className='divide-y divide-line border-y border-line'>
+      {saved.map((item) => (
+        <li key={item.id} className='flex items-start gap-4 py-4'>
+          <div className='min-w-0 flex-1'>
+            {item.itemType === 'NEWS' ? (
+              <StoryCardCompact story={newsToStory(item.news)} headingLevel='h2' />
+            ) : (
+              <BriefingCardCompact briefing={item.article} headingLevel='h2' />
+            )}
+          </div>
+
+          <SaveButton itemId={item.itemId} itemType={item.itemType} className='shrink-0' />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

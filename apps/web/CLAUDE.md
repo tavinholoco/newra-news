@@ -172,6 +172,12 @@ Regras que não são óbvias no código:
   transparência de IA: declaração, depois a lista de fontes
 - /[locale]/newsletter → Landing de aquisição (estática, no sitemap)
 - /[locale]/about → Sobre o projeto
+- /[locale]/account → Conta: perfil (leitura), atalhos e saída
+- /[locale]/account/preferences → Assuntos e tema (grava em `UserPreference`)
+- /[locale]/account/newsletter → Inscrição no briefing diário (`Subscriber`)
+- /[locale]/favorites → Salvos: notícias e briefings numa lista só
+  - o guard de sessão vive em `app/[locale]/account/layout.tsx` e vale para
+    todo o segmento; `/favorites` é a exceção fora dele, com o guard próprio
 - /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN)
 - /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
@@ -295,6 +301,7 @@ plano).
 | `pagination` | paginação numerada — do acervo **e** do histórico (Fase 4/5) |
 | `article-hero` · `article-body` · `article-skeleton` | a abertura, o corpo e a espera das telas de leitura (Fase 5) |
 | `ai-disclosure` · `source-list` · `share-button` · `related-stories` | as peças da §8 e §9 (Fase 5) |
+| `save-button` · `briefing-card-compact` | salvar qualquer item · o briefing na forma do card compacto (Fase 6) |
 
 Regras que não são óbvias no código:
 
@@ -345,3 +352,47 @@ vive em `lib/ads.ts`.
 - Sem CSS modules ou styled-components
 - `components/ui/` é shadcn: alterar só o que os tokens exigem (radius,
   superfície), nunca a API dos componentes
+
+## Ecossistema de conta (Fase 6)
+
+Quatro telas atrás de sessão — `/account`, `/account/preferences`,
+`/account/newsletter` e `/favorites` — sobre `GET /api/account` e
+`/api/favorites`.
+
+| Peça | Papel |
+|---|---|
+| `account/account-nav` | as quatro abas; `/favorites` entra como a quarta |
+| `account/profile-card` | identidade, quanto foi salvo, e a saída |
+| `account/preferences-form` | assuntos e tema |
+| `account/newsletter-settings` | inscrição no briefing diário |
+| `favorites/favorites-list` | a lista única de salvos |
+
+Regras que não são óbvias no código:
+
+- **O perfil é de leitura, e é decisão.** `upsertUser` reescreve `name` e
+  `image` a cada sign-in: um campo editável ali seria desfeito no login
+  seguinte, sem aviso. Nome próprio pede coluna própria.
+- **Só entra controle que muda alguma coisa.** "Horário do briefing" (§19) não
+  existe porque o pipeline roda num cron único — a mesma armadilha da pílula de
+  contagem da Fase 4, agora em forma de seletor. E "receber por e-mail" é a
+  inscrição da newsletter, não uma preferência: duas fontes de verdade para a
+  mesma resposta discordariam no dia seguinte.
+- **O tema é aplicado quando o servidor confirma**, a partir do que ele
+  devolveu — aplicar no clique deixaria a tela escura com a escolha não gravada
+  se o `PUT` falhasse. Quem escreve a chave `theme` do `localStorage` é
+  `lib/theme.ts`, e só ele: são dois controles (o botão do cabeçalho e as
+  preferências) mexendo no mesmo lugar. `SYSTEM` **apaga** a chave em vez de
+  gravar o valor atual — gravado, o tema deixaria de acompanhar o aparelho.
+- **A lista de salvos é uma só.** Notícia e briefing na ordem em que foram
+  salvos, cada um com o seu card (`story-card-compact` e
+  `briefing-card-compact`) e o mesmo `save-button` no estado preenchido — o
+  gesto de remover é o mesmo de salvar.
+- **`useIsFavorite` lê só ids** (`GET /api/favorites/ids`), uma consulta por
+  sessão para todos os botões da página. Antes, a tela baixava 100 salvos com
+  conteúdo e procurava no cliente: do 101º em diante o ícone mentia.
+- **Tela de conta não pode ser SSG**, como `/favorites` e `/admin` já pagavam:
+  o `redirect()` de sessão seria assado no HTML estático. O `force-dynamic`
+  fica no layout do segmento.
+- **`/favorites` continua em `/favorites`.** É a URL da V1, está no menu e na
+  baseline visual; movê-la para dentro de `/account` pediria um redirect
+  permanente para não ganhar nada.

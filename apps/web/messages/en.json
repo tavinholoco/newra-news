@@ -7,12 +7,13 @@
     "admin": "Admin",
     "articles": "Articles",
     "closeMenu": "Close menu",
-    "favorites": "Favorites",
+    "favorites": "Saved",
     "home": "Home",
     "metrics": "Metrics",
     "news": "News",
     "openMenu": "Open menu",
-    "secondary": "Secondary navigation"
+    "secondary": "Secondary navigation",
+    "account": "Account"
   },
   "shell": {
     "edition": "Today's edition",
@@ -175,12 +176,13 @@
     "noData": "No data for this period."
   },
   "favorites": {
-    "title": "Favorites",
-    "add": "Save to favorites",
-    "remove": "Remove from favorites",
-    "loadError": "Couldn't load your favorites.",
-    "emptyTitle": "You haven't favorited any news yet.",
-    "emptyHint": "Tap the heart on a news item to save it here."
+    "title": "Saved",
+    "add": "Save",
+    "remove": "Remove from saved",
+    "loadError": "We could not load what you saved.",
+    "emptyTitle": "You have not saved anything yet.",
+    "emptyHint": "Tap the bookmark on a story or on the daily briefing to keep it here.",
+    "description": "The stories and briefings you kept to read later."
   },
   "admin": {
     "title": "Admin Panel",
@@ -208,7 +210,7 @@
   },
   "signin": {
     "title": "Sign in",
-    "hint": "Sign in to favorite news and access the admin panel.",
+    "hint": "Sign in to save stories and the daily briefing, and to choose your subjects.",
     "google": "Continue with Google",
     "github": "Continue with GitHub",
     "backHome": "Back to Home",
@@ -298,7 +300,7 @@
       "description": "Track the performance of the news pipeline and AI-generated articles."
     },
     "favorites": {
-      "title": "Favorites"
+      "title": "Saved"
     },
     "news": {
       "title": "News",
@@ -314,6 +316,15 @@
     },
     "signin": {
       "title": "Sign in"
+    },
+    "account": {
+      "title": "Your account"
+    },
+    "preferences": {
+      "title": "Preferences"
+    },
+    "newsletterSettings": {
+      "title": "Newsletter"
     }
   },
   "ads": {
@@ -344,5 +355,51 @@
     "goToPage": "Go to page {page}",
     "historyLabel": "History pagination",
     "label": "Archive pagination"
+  },
+  "account": {
+    "title": "Your account",
+    "subtitle": "Who you are on Newra, what you kept, and where the briefing reaches you.",
+    "loadError": "We could not load your account.",
+    "memberSince": "On Newra since {date}",
+    "savedNews": "Saved stories",
+    "savedBriefings": "Saved briefings",
+    "goToSaved": "See what I saved",
+    "signOut": "Sign out",
+    "nav": {
+      "label": "Account navigation",
+      "profile": "Account",
+      "preferences": "Preferences",
+      "newsletter": "Newsletter",
+      "saved": "Saved"
+    },
+    "preferences": {
+      "title": "Preferences",
+      "description": "What you choose here follows your account, on any device.",
+      "loadError": "We could not load your preferences.",
+      "categoriesTitle": "Subjects you care about",
+      "categoriesHint": "We keep your choice from now on; it will guide what comes first as personalisation grows.",
+      "themeTitle": "Theme",
+      "themeHint": "Applies as soon as you save, and follows your account.",
+      "themeSystem": "System",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "save": "Save preferences",
+      "saving": "Saving...",
+      "saved": "Preferences saved.",
+      "saveError": "We could not save. Please try again."
+    },
+    "newsletter": {
+      "title": "Newsletter",
+      "description": "The daily briefing in your inbox, every morning.",
+      "loadError": "We could not load your subscription.",
+      "subscribedTitle": "You get the Newra Daily",
+      "subscribedHint": "We send it to {email}.",
+      "notSubscribedTitle": "You do not get the Newra Daily",
+      "notSubscribedHint": "We can send it to {email}.",
+      "otherEmail": "This subscription was made with an e-mail other than your account one.",
+      "subscribe": "Send it to me",
+      "unsubscribe": "Unsubscribe",
+      "error": "We could not update your subscription. Please try again."
+    }
   }
 }

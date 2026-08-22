@@ -1200,17 +1200,43 @@ Três achados que o plano não previa:
 **PR 2 — telas de conta**
 
 ```text
-[ ] segmento /account com guard de sessão no layout (padrão do admin/layout.tsx)
-[ ] force-dynamic em todas — /favorites já paga essa conta desde a V1
-[ ] /favorites mantém a URL (está no menu mobile e na baseline) e migra para
+[x] segmento /account com guard de sessão no layout (padrão do admin/layout.tsx)
+[x] force-dynamic em todas — /favorites já paga essa conta desde a V1
+[x] /favorites mantém a URL (está no menu mobile e na baseline) e migra para
     story-card-compact + estado vazio editorial
-[ ] save-button editorial no lugar do FavoriteButton da V1 (cards, news-detail
+[x] save-button editorial no lugar do FavoriteButton da V1 (cards, news-detail
     e briefing)
-[ ] /account/profile (leitura), /account/preferences, /account/newsletter
-[ ] /signin redesenhado — visual apenas, sem tocar no fluxo
-[ ] news-card (e provavelmente news-grid) saem do repositório
-[ ] i18n pt-BR/en, testes web, suíte design-tokens verde
+[x] /account (perfil, leitura), /account/preferences, /account/newsletter
+[x] /signin redesenhado — visual apenas, sem tocar no fluxo
+[x] news-card sai do repositório (news-grid não existia mais)
+[x] i18n pt-BR/en, testes web, suíte design-tokens verde
+
+    -- a pendência da Fase 5 que este PR fecha --
+[x] "salvar" no briefing (§8) — `/article/[date]` ganhou o botão
 ```
+
+**Entregue em 21/08 — 892 testes (869 → 892), lint, typecheck e build limpos.**
+
+Decisões que a implementação tomou:
+
+- **O perfil é de leitura.** `upsertUser` reescreve `name` e `image` a cada
+  sign-in: campo editável ali seria desfeito no login seguinte, sem aviso.
+- **"Salvos" é uma lista só**, notícia e briefing na ordem em que foram salvos —
+  é o que o `Favorite` polimórfico existe para permitir. `briefing-card-compact`
+  nasceu para o briefing ter a forma do card compacto sem virar notícia.
+- **O tema virou `lib/theme.ts`, com um escritor só.** São dois controles
+  mexendo na mesma chave do `localStorage` (o botão do cabeçalho e as
+  preferências da conta), e duas cópias da mesma gravação divergiriam no
+  primeiro ajuste. `SYSTEM` **apaga** a chave em vez de gravar o valor atual:
+  gravado, o tema deixaria de acompanhar o aparelho quando ele virasse à noite.
+- **O tema é aplicado quando o `PUT` responde**, a partir do que ele devolveu —
+  aplicar no clique deixaria a tela escura com a escolha não gravada se a
+  chamada falhasse.
+- **`/favorites` não se mudou para `/account/saved`.** É URL da V1, está no menu
+  e na baseline visual; movê-la pediria um redirect permanente para não ganhar
+  nada. Ela entra na `account-nav` como quarta aba.
+
+**Falta o PR 3:** "somente salvos" na `/news` — a API já serve.
 
 **PR 3 — "somente salvos" na `/news`**, compondo com os filtros existentes.
 

@@ -6,6 +6,7 @@ import { AiDisclosure } from '@/components/editorial/ai-disclosure';
 import { ArticleBody } from '@/components/editorial/article-body';
 import { ArticleHero } from '@/components/editorial/article-hero';
 import { ReadingTime } from '@/components/editorial/reading-time';
+import { SaveButton } from '@/components/editorial/save-button';
 import { ShareButton } from '@/components/editorial/share-button';
 import { SourceList } from '@/components/editorial/source-list';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
@@ -79,7 +80,13 @@ export async function ArticleDetail({ article }: ArticleDetailProps) {
             </div>
           }
           actions={
-            <ShareButton title={article.title} text={article.summary} />
+            <>
+              {/* O "salvar" que a Fase 5 registrou como fora de alcance: o
+                  `Favorite` só chegava a notícia, e o briefing não podia ser
+                  salvo. Com `itemType`, chega. */}
+              <SaveButton itemId={article.id} itemType='ARTICLE' />
+              <ShareButton title={article.title} text={article.summary} />
+            </>
           }
         />
       </div>

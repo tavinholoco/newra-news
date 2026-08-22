@@ -4,6 +4,7 @@ import type {
   Article,
   ArticleWithSources,
   PaginatedResponse,
+  AccountOverview,
   DashboardMetrics,
   FavoriteIds,
   FavoriteItemType,
@@ -11,6 +12,8 @@ import type {
   DeleteNewsResult,
   NewsFilters,
   NewsFacets,
+  NewsletterStatus,
+  UserPreferences,
 } from '@newranews/types';
 import {
   getNews,
@@ -20,6 +23,9 @@ import {
   getArticleByDate,
   getLatestArticle,
   getDashboardMetrics,
+  getAccount,
+  updatePreferences,
+  updateNewsletterSubscription,
   getFavorites,
   getFavoriteIds,
   addFavorite,
@@ -75,6 +81,11 @@ export const favoritesKeys = {
   // Os ids ficam fora de `list()`: eles não mudam ao filtrar a tela, e o botão
   // de salvar de qualquer card lê esta mesma chave.
   ids: () => [...favoritesKeys.all, 'ids'] as const,
+};
+
+export const accountKeys = {
+  all: ['account'] as const,
+  overview: () => [...accountKeys.all, 'overview'] as const,
 };
 
 export const adminKeys = {
@@ -263,6 +274,48 @@ export function useDeleteNews() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.newsList() });
       queryClient.invalidateQueries({ queryKey: newsKeys.lists() });
+    },
+  });
+}
+
+
+// ── Account Hooks ─────────────────────────────────────────────────────
+
+/** Perfil, preferências, inscrição e contagem de salvos — uma chamada só. */
+export function useAccount() {
+  return useQuery({
+    queryKey: accountKeys.overview(),
+    queryFn: () => getAccount(),
+  });
+}
+
+/**
+ * Grava as preferências e **corrige o cache no lugar**, em vez de invalidar: a
+ * resposta do `PUT` já é o estado novo, e uma invalidação faria a tela piscar o
+ * valor antigo enquanto refaz a consulta que acabou de ser respondida.
+ */
+export function useUpdatePreferences() {
+  const queryClient = useQueryClient();
+
+  return useMutation<UserPreferences, Error, Partial<UserPreferences>>({
+    mutationFn: (input) => updatePreferences(input),
+    onSuccess: (preferences) => {
+      queryClient.setQueryData<AccountOverview>(accountKeys.overview(), (old) =>
+        old ? { ...old, preferences } : old,
+      );
+    },
+  });
+}
+
+export function useUpdateNewsletterSubscription() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NewsletterStatus, Error, boolean>({
+    mutationFn: (subscribed) => updateNewsletterSubscription(subscribed),
+    onSuccess: (newsletter) => {
+      queryClient.setQueryData<AccountOverview>(accountKeys.overview(), (old) =>
+        old ? { ...old, newsletter } : old,
+      );
     },
   });
 }

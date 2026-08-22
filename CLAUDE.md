@@ -93,17 +93,22 @@ do dia mudou, ou há algo errado.
   hidratação quebrada em `/article` e a baseline achou o dek repetido no corpo —
   os dois corrigidos e a baseline recapturada.
 - **Nada pendente do ciclo anterior.** A Fase 6 abre limpa.
-- **Testes:** 869 em 80 suites (537 API em 41 + 332 web em 39 — todos passando).
+- **Testes:** 892 em 84 suites (537 API em 41 + 355 web em 43 — todos passando).
 
 ### Por onde começar a Fase 6
 
-**As quatro decisões de banco foram tomadas e o PR de backend já está entregue
-(21/08) — item 23 do `docs/progress.md`.** O item 22 continua sendo o
-levantamento que as motivou; leia o 23 primeiro.
+**As quatro decisões de banco foram tomadas, e os dois primeiros PRs da fase
+estão entregues (21/08) — item 23 do `docs/progress.md`.** O item 22 continua
+sendo o levantamento que as motivou; leia o 23 primeiro.
 
-**O próximo passo são as telas** (`/account/*`, `/favorites` em
-`story-card-compact`, `save-button` editorial, `/signin`), e depois o "somente
-salvos" na `/news` — que a API já serve.
+Entregues: o **backend** (migrations, `/api/favorites` com os filtros do acervo,
+`/api/account/*`) e as **telas de conta** (`/account`, `/account/preferences`,
+`/account/newsletter`, `/favorites` na camada editorial, `/signin`), com o
+"salvar" no briefing que a Fase 5 tinha adiado.
+
+**Falta o PR 3: "somente salvos" na `/news`** — a API já serve, e a regra é que
+o filtro componha com categoria, busca, fonte, período e ordem. Depois dele, o
+ritual de fechar a fase.
 
 O que ficou decidido, e está no banco e na API:
 
