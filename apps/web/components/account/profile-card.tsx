@@ -7,7 +7,7 @@ import { useAccount } from '@/lib/queries';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatArticleDate } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 
 /**
@@ -71,8 +71,11 @@ export function ProfileCard() {
           </p>
           <p className='truncate text-body-sm text-ink-secondary'>{user.email}</p>
           <p className='mt-1 text-meta text-ink-muted'>
+            {/* `formatDate` e não `formatArticleDate`: `createdAt` é um
+                instante, e o segundo lê em UTC porque a data de um briefing é
+                dia de calendário. Aqui o fuso de quem lê é o certo. */}
             {t('memberSince', {
-              date: formatArticleDate(user.createdAt, toDateFormatLocale(locale)),
+              date: formatDate(user.createdAt, toDateFormatLocale(locale)),
             })}
           </p>
         </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { PreferencesForm } from '@/components/account/preferences-form';
+import { alternatesFor } from '@/lib/seo';
 
 interface Props {
   params: { locale: string };
@@ -14,12 +15,7 @@ export async function generateMetadata({
   return {
     title: t('title'),
     robots: { index: false, follow: false },
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/account/preferences',
-        en: '/en/account/preferences',
-      },
-    },
+    alternates: alternatesFor(locale, '/account/preferences'),
   };
 }
 

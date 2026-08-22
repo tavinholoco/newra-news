@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { Link } from '@/i18n/navigation';
 import { BarChart3 } from 'lucide-react';
+import { alternatesFor } from '@/lib/seo';
 
 // Sessão + role ADMIN são verificados no layout do segmento (admin/layout.tsx),
 // que também declara `dynamic = 'force-dynamic'`.
@@ -19,12 +20,7 @@ export async function generateMetadata({
   return {
     title: t('title'),
     robots: { index: false, follow: false },
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/admin',
-        en: '/en/admin',
-      },
-    },
+    alternates: alternatesFor(locale, '/admin'),
   };
 }
 

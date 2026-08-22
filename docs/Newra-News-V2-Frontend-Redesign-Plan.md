@@ -1624,20 +1624,41 @@ medição.
 > que só existe daqui para frente, como foi a auditoria do briefing na Fase 0.5.
 > Tela antes de coluna é um dia de escolha do leitor jogado fora por dia.
 
-## Fase 7 — SEO/performance/accessibility
+## Fase 7 — SEO/performance/accessibility ✅ Concluída em 2026-08-22
 
 ```text
-[ ] NewsArticle JSON-LD
-[ ] BreadcrumbList
-[ ] news sitemap
-[ ] canonical
-[ ] metadata
-[ ] image audit
-[ ] keyboard audit
-[ ] contrast audit
-[ ] screen reader audit
-[ ] Core Web Vitals audit
+[x] NewsArticle JSON-LD             (autoria da fonte na notícia, do site no briefing)
+[x] BreadcrumbList                  (mesma lista da trilha visível, que nasceu junto)
+[x] news sitemap                    (/news-sitemap.xml, 48h, só pt-BR — ver abaixo)
+[x] canonical                       (+ x-default e og:url, num helper só)
+[x] metadata                        (o Next não herda openGraph/twitter — ver abaixo)
+[x] image audit                     (virou guarda em tests/lib/images.test.ts)
+[x] keyboard audit                  (40 focáveis, todos com nome, ordem do DOM)
+[x] contrast audit                  (contrast:check — 60 pares, 0 reprovando)
+[x] screen reader audit             (as telas de leitura viraram <article>)
+[x] Core Web Vitals audit           (Lighthouse do ritual, contra produção quente)
 ```
+
+> **A medição rendeu mais que o checklist.** Os cinco itens de SEO eram código a
+> escrever; as cinco auditorias eram medição — e foi ela que achou quatro
+> defeitos que já estavam em produção e que nenhum item nomeava: a imagem OG e o
+> ícone do iOS **inalcançáveis** (o matcher do middleware exclui o que tem ponto,
+> e rota de metadata gerada não tem extensão), o `/opengraph-image.png` da tela
+> do briefing que nunca existiu, o `og:image`/`og:type`/`og:site_name` ausente em
+> **toda** página, e o briefing exibindo a véspera. Detalhe no item 25 do
+> `docs/progress.md`.
+
+> **A metadata do Next não faz merge profundo.** O layout declara
+> `openGraph: { type, siteName, locale }` e `twitter: { card }`; a página que
+> declara os seus substitui o objeto inteiro. Cinco das sete páginas públicas
+> compartilhavam com `twitter:card: summary` porque as outras duas repetiam o
+> valor à mão. O default passou a viver em `pageMetadata`.
+
+> **O news sitemap leva só as URLs `pt-BR`, e é decisão sobre o conteúdo.** As
+> fontes RSS são brasileiras: o corpo é o mesmo texto em português nas duas URLs,
+> e o que `/en` traduz é a moldura. `news:language` é ISO 639 (`pt`), não o
+> BCP-47 da rota. As duas URLs continuam no `sitemap.xml` geral, com o `hreflang`
+> dizendo o que elas são.
 
 ## Fase 8 — Monetização
 

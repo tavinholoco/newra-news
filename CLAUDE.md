@@ -89,65 +89,78 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4, 5 e **6** concluídas.
-  **O próximo ciclo é a Fase 7 (SEO/performance/acessibilidade).** O PRD da V1
-  foi fechado em 2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-22):** Fase 6 (Account ecosystem) fechada contra
-  produção, em três PRs — banco e API (#116), telas de conta (#117) e "somente
-  salvos" no acervo (#118). `Favorite` passou a alcançar o briefing
-  (`itemType` + `itemId`), nasceram `/account`, `/account/preferences` e
-  `/account/newsletter`, e o `news-card` da V1 saiu do repositório.
-  Acessibilidade **100 nas cinco rotas**, gate verde.
-- **Nada pendente do ciclo anterior.** Os dois itens que as Fases 4 e 5 adiaram
-  ("somente salvos" e "salvar" no briefing) foram entregues na 6.
-- **Testes:** 905 em 84 suites (537 API em 41 + 368 web em 43 — todos passando).
+- **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4, 5, 6 e **7**
+  concluídas. **O próximo ciclo é a Fase 8 (Monetização).** O PRD da V1 foi
+  fechado em 2026-08-15; a V2 é o redesign editorial em cima dele.
+- **Última entrega (2026-08-22):** Fase 7 (SEO/performance/acessibilidade), em
+  um PR. `lib/seo.ts` virou a fonte única de URL e de metadata; nasceram o
+  JSON-LD (`Organization`, `WebSite`, `NewsArticle`, `BreadcrumbList`), a trilha
+  visível e `/news-sitemap.xml`. **A medição contra produção achou quatro
+  defeitos que o checklist não previa** — ver abaixo.
+- **Nada pendente do ciclo anterior.**
+- **Testes:** 953 em 90 suites (537 API em 41 + 416 web em 49 — todos passando).
 
-### Por onde começar a Fase 7
+### Por onde começar a Fase 8
 
-**Leia o item 24 do `docs/progress.md`** — é o fechamento da Fase 6, com o que
-ficou entregue e o que ela deixou para trás. O checklist da Fase 7 está na §28
-do plano: JSON-LD de `NewsArticle`, `BreadcrumbList`, news sitemap, canonical,
-metadata, e as quatro auditorias (imagem, teclado, contraste, leitor de tela)
-mais Core Web Vitals.
+**Leia o item 25 do `docs/progress.md`** — é o fechamento da Fase 7. O checklist
+da Fase 8 está na §28 do plano: abstração de `AdSlot`, inventário reservado,
+camada de privacidade/consentimento, patrocínio da newsletter e o framework de
+experimento de preço.
 
-Três coisas que a Fase 6 deixa prontas para ela:
+Duas coisas que a Fase 7 deixa prontas para ela:
 
-- **A acessibilidade está em 100 nas cinco rotas medidas**, e o gate do
-  Lighthouse é real desde 21/08. A Fase 7 é para ir além do que a métrica
-  sintética alcança — teclado e leitor de tela de verdade —, não para consertar
-  o que ela já cobre.
-- **Toda tela de conta é `noindex`** e fica fora do `sitemap.ts`. O que a Fase 7
-  audita é o conteúdo público: Home, acervo, notícia, briefing e histórico.
-- **A performance da Home oscila entre 83 e 94 conforme o aquecimento** (ver o
-  aviso no ritual de fechar fase). Antes de tratar isso como regressão, meça com
-  o site quente.
+- **O `AdSlot` já existe e já reserva altura** (`lib/ads.ts`, §9 de
+  `docs/v2/04-analytics-e-slots.md`), e **não renderiza nada sem inventário**.
+  O que falta é o inventário e o `track()` — `ad_view`/`ad_click` estão
+  escritos como pendência desde a Fase 3, porque medir impressão sem ter onde
+  gravar o evento seria código morto.
+- **Consentimento é o que trava o resto.** Sem ele não há como servir anúncio
+  personalizado na UE, e a camada mexe em toda página — vale desenhá-la antes
+  de qualquer criativo.
 
-O que a Fase 6 entregou, em uma linha cada:
+O que a Fase 7 entregou, em uma linha cada:
 
-1. **`Favorite` polimórfico** — `itemType` (`NEWS` | `ARTICLE`) + `itemId`, com
-   `@@unique([userId, itemType, itemId])`; é o que permite salvar o briefing e
-   ter "Salvos" como **uma** lista.
-2. **`/api/favorites` aceita as dimensões do acervo** (o mesmo schema Zod da
-   `/api/news`), e é a fonte do "somente salvos" — que por isso compõe com
-   categoria, busca, fonte, período e ordem.
-3. **`/api/account/*`** monta a tela de conta numa chamada, e **nenhuma rota de
-   conta leva `Cache-Control`**.
-4. **`UserPreference`** guarda só o que a interface honra: assuntos e tema.
-   "Horário do briefing" ficou de fora (cron único) e "receber por e-mail" é a
-   inscrição, que é `Subscriber`.
-5. **As telas** `/account`, `/account/preferences`, `/account/newsletter` e
-   `/favorites` na camada editorial — e o `news-card` da V1 saiu do repositório.
+1. **`pageMetadata`** — a metadata inteira de uma página pública num lugar só:
+   canonical auto-referente, os três `hreflang` (com `x-default`), `og:url` e os
+   defaults de OG/Twitter que **o Next não herda do layout**.
+2. **JSON-LD** — `Organization` + `WebSite` no layout; `NewsArticle` +
+   `BreadcrumbList` nas telas de leitura, com a autoria seguindo quem escreveu.
+3. **A trilha visível**, que recebe **a mesma lista** que o `BreadcrumbList` — e
+   que substituiu o "← voltar".
+4. **`/news-sitemap.xml`** — janela de 48h, só as URLs `pt-BR`, `news:language`
+   em ISO 639.
+5. **As cinco auditorias**, com a de imagem virando guarda em
+   `tests/lib/images.test.ts` em vez de passada manual.
 
 O que ela **não** fez, de propósito:
 
-- **Nome editável no perfil.** `upsertUser` reescreve `name` e `image` a cada
-  sign-in; um campo ali seria desfeito no login seguinte. Pede coluna própria.
-- **Temas, fontes e horário do briefing** (§19) — não há quem os consuma, e
-  controle que o sistema ignora é a armadilha da pílula de contagem da Fase 4.
-- **Excluir a conta.** Ninguém pediu, e é fluxo com consequência jurídica.
+- **Trilha nas listagens** (`/news`, `/article`). Marcação de trilha pede trilha
+  visível, e ali o segundo degrau seria a própria página — o `editorial-nav` já
+  diz onde se está.
+- **Página na URL em `/article`** — continua em `useState`. Ver "o que ficou em
+  aberto".
 
 ### Armadilhas que já custaram caro
 
+- **A metadata do Next não faz merge profundo.** O layout declara
+  `openGraph: { type, siteName, locale }` e `twitter: { card }`; a página que
+  declara os seus **substitui o objeto inteiro**. Nenhuma página tinha
+  `og:type`, `og:site_name`, `og:locale` nem `og:image`, e cinco das sete
+  compartilhavam com `twitter:card: summary` — porque as outras duas repetiam
+  o valor à mão. O default vive em `pageMetadata` (`lib/seo.ts`); não o
+  reescreva na página.
+- **Rota de metadata gerada não tem extensão, e o middleware engolia.** O
+  matcher exclui o que tem ponto (`sitemap.xml`, `icon.svg`, `robots.txt`);
+  `opengraph-image` e `apple-icon` não têm, e viravam 307 para
+  `/pt-BR/...` → 404. A imagem de compartilhamento do site e o ícone do iOS
+  ficaram **inalcançáveis** desde que existem, e nada no build acusa.
+  Rota de metadata nova entra no matcher de `middleware.ts`.
+- **`Article.date` é data de calendário, não instante.** Gravada à meia-noite
+  UTC, lida no fuso local ela vira a véspera em qualquer fuso negativo — o
+  Brasil é um. A URL dizia `/article/2026-08-22` e a página dizia "21 de
+  agosto"; e como a Vercel roda em UTC e o navegador não, os dois lados
+  renderizavam diferente. `formatArticleDate` lê em UTC; para **instante**
+  (`createdAt`, `generatedAt`) use `formatDate`/`formatDateTime`.
 - **`cn` e a escala tipográfica.** `tailwind-merge` não distingue tamanho
   nomeado de cor nomeada; sem a configuração de `lib/utils.ts`, uma das duas
   some do HTML sem erro nenhum. Ao acrescentar um nome à escala em `tokens.css`,
@@ -198,6 +211,10 @@ O que ela **não** fez, de propósito:
 
 ### O que ficou em aberto
 
+- **Trilha nas listagens** (`/news`, `/article`). Marcação de trilha pede
+  trilha visível, e ali o segundo degrau seria a própria página — o
+  `editorial-nav` já diz onde se está. Se um dia entrar, a lista de
+  `BreadcrumbStep` é a mesma que o componente e o JSON-LD consomem.
 - **Página na URL em `/article`** — a lista usa `useState`, ao contrário de
   `/news` e, desde a Fase 6, de `/favorites`. Dívida consciente: a ficha escopa a
   tela a ritmo visual, e ler a query string pediria uma fronteira de Suspense que

@@ -5,6 +5,7 @@ import { getNews, getNewsFacets, prefetch } from '@/lib/api';
 import { NewsArchiveHeader } from '@/components/news/news-archive-header';
 import { NewsListSkeleton } from '@/components/news/news-list-skeleton';
 import { NewsPageClient } from '@/components/news/news-page-client';
+import { pageMetadata } from '@/lib/seo';
 
 export const revalidate = 3600;
 
@@ -17,24 +18,12 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'metadata.news' });
 
-  return {
+  return pageMetadata({
+    locale,
+    path: '/news',
     title: t('title'),
     description: t('description'),
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/news',
-        en: '/en/news',
-      },
-    },
-    openGraph: {
-      title: t('title'),
-      description: t('description'),
-    },
-    twitter: {
-      title: t('title'),
-      description: t('description'),
-    },
-  };
+  });
 }
 
 export default async function NewsPage({ params }: Props) {

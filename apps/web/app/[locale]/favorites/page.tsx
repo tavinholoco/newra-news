@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FavoritesList } from '@/components/favorites/favorites-list';
 import { AccountNav } from '@/components/account/account-nav';
+import { alternatesFor } from '@/lib/seo';
 
 // Página protegida (lê a sessão por request) — não pode ser prerenderizada
 // como SSG: o redirect() seria "assado" no HTML estático e todos seriam
@@ -23,12 +24,7 @@ export async function generateMetadata({
   return {
     title: t('title'),
     robots: { index: false, follow: false },
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/favorites',
-        en: '/en/favorites',
-      },
-    },
+    alternates: alternatesFor(locale, '/favorites'),
   };
 }
 

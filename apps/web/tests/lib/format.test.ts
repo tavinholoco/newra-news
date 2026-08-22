@@ -42,6 +42,20 @@ describe('formatArticleDate', () => {
     expect(result).toContain('janeiro');
     expect(result).toContain('2024');
   });
+
+  it('lê a meia-noite UTC como o dia que ela é, não como a véspera', () => {
+    // `Article.date` é data de calendário gravada à meia-noite UTC. Lida no
+    // fuso local, num fuso negativo ela vira 21h do dia anterior — e foi assim
+    // que `/article/2026-08-22` exibiu "21 de agosto". O `toDateSlug` sempre
+    // usou UTC; os dois têm de concordar, senão o card leva a um dia e rotula
+    // outro. É também o que faz servidor (UTC) e navegador renderizarem igual.
+    const iso = '2026-08-22T00:00:00.000Z';
+
+    expect(formatArticleDate(iso)).toContain('22');
+    expect(formatArticleDate(iso)).toContain('agosto');
+    expect(formatArticleDate(iso, 'en-US')).toContain('22');
+    expect(formatArticleDate(iso)).toContain(toDateSlug(iso).slice(-2));
+  });
 });
 
 describe('toDateSlug', () => {

@@ -9,7 +9,7 @@ import { TrendingList } from '@/components/editorial/trending-list';
 import { CategorySection } from '@/components/editorial/category-section';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
 import { AdSlot } from '@/components/monetization/ad-slot';
-import { SITE_NAME } from '@/lib/seo';
+import { SITE_NAME, pageMetadata } from '@/lib/seo';
 
 export const revalidate = 3600;
 
@@ -22,24 +22,13 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'site' });
 
-  return {
-    title: { absolute: SITE_NAME },
+  return pageMetadata({
+    locale,
+    path: '',
+    title: SITE_NAME,
     description: t('description'),
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR',
-        en: '/en',
-      },
-    },
-    openGraph: {
-      title: SITE_NAME,
-      description: t('description'),
-    },
-    twitter: {
-      title: SITE_NAME,
-      description: t('description'),
-    },
-  };
+    absoluteTitle: true,
+  });
 }
 
 /**

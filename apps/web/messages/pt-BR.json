@@ -16,6 +16,7 @@
     "account": "Conta"
   },
   "shell": {
+    "breadcrumb": "Trilha de navegação",
     "edition": "Edição de hoje",
     "newsletter": "Newsletter",
     "skipToContent": "Pular para o conteúdo"
@@ -72,7 +73,6 @@
   "news": {
     "archiveDescription": "Todas as notícias coletadas pelo Newra News, por categoria, fonte e período.",
     "archiveTitle": "Acervo",
-    "backTo": "Voltar para Notícias",
     "browseAll": "Ver o acervo inteiro",
     "clearFilters": "Limpar filtros",
     "collectedNotice": "Matéria publicada por {source}. O Newra News coleta e organiza; o texto e a apuração são do veículo original.",
@@ -112,7 +112,6 @@
     "aiDisclosureBody": "Este texto foi escrito por inteligência artificial a partir de {count, plural, one {# notícia publicada} other {# notícias publicadas}} por veículos jornalísticos, listadas abaixo. Nenhum trecho foi apurado pelo Newra News.",
     "aiDisclosureCaveat": "A IA resume e conecta o que as fontes publicaram; ela não verifica os fatos. Para o contexto completo de qualquer assunto, leia a matéria original.",
     "aiDisclosureTitle": "Como este briefing foi produzido",
-    "backTo": "Voltar para Artigos",
     "briefKicker": "Newra Daily Brief",
     "emptyDesc": "Os artigos diários aparecerão aqui quando disponíveis.",
     "emptyTitle": "Nenhum artigo encontrado",

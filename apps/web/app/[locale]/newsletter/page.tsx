@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { FileText, Quote, CalendarClock } from 'lucide-react';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
+import { pageMetadata } from '@/lib/seo';
 
 interface Props {
   params: { locale: string };
@@ -12,18 +13,12 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'metadata.newsletter' });
 
-  return {
+  return pageMetadata({
+    locale,
+    path: '/newsletter',
     title: t('title'),
     description: t('description'),
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/newsletter',
-        en: '/en/newsletter',
-      },
-    },
-    openGraph: { title: t('title'), description: t('description') },
-    twitter: { title: t('title'), description: t('description') },
-  };
+  });
 }
 
 /**
