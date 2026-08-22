@@ -53,24 +53,39 @@
 - **Onde estamos:** V2.0 com as Fases 0, 0.5, 1, 2, 3, 4 e 5 concluídas. **O
   próximo ciclo é a Fase 6 (Account ecosystem).** O PRD da V1 foi fechado em
   2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-21):** Fase 5 (Article) — as três telas de leitura
-  (`/news/[id]`, `/article/[date]` e o histórico `/article`) sobre uma camada
-  editorial nova. A transparência de IA fica **só** no briefing. Falta medir
-  contra produção (Lighthouse e baseline), como em toda fase.
-- **Testes:** 820 em 78 suites (502 API em 40 + 318 web em 38 — todos passando).
+- **Última entrega (2026-08-21):** Fase 5 (Article) fechada contra produção — as
+  três telas de leitura (`/news/[id]`, `/article/[date]` e o histórico
+  `/article`) sobre uma camada editorial nova, com a transparência de IA **só**
+  no briefing. Acessibilidade **100 nas cinco rotas**; a medição achou uma
+  hidratação quebrada em `/article` e a baseline achou o dek repetido no corpo —
+  os dois corrigidos.
+- **Testes:** 825 em 78 suites (502 API em 40 + 323 web em 38 — todos passando).
 
 ### O que a Fase 6 precisa saber antes de começar
 
-- **Escopo:** `favorites`, `profile`, `preferences` e `newsletter settings`.
-  Especificação nas **§19 e §23 do plano V2**.
-- **`Favorite` só referencia `newsId`.** É por isso que não dá para favoritar um
-  briefing, e é a Fase 6 que decide se isso muda. Duas coisas dependem: o
-  `save` em `/article/[date]` e o filtro **"somente salvos"** da §7 em `/news`.
-- **"Somente salvos" não é só UI.** Junta `Favorite` e `News` na consulta do
-  acervo e devolve resposta por usuário — que **não pode** ser cacheada no CDN
-  como o resto da rota é. Decidir a política de cache antes de escrever a tela.
-- **`favorites-list` ainda usa o `news-card` da V1.** É o último consumidor dele;
-  quando a Fase 6 migrar para os cards editoriais, `news-card` pode sair.
+**Levantamento completo no item 22 do `docs/progress.md`.** O resumo:
+
+- **Escopo:** `favorites`, `profile`, `preferences` e `newsletter settings`
+  (§28), com a visão em §19. Herda dois itens adiados: "somente salvos" em
+  `/news` (Fase 4) e "salvar" no briefing (Fase 5).
+- **Esta fase muda o banco**, ao contrário da Fase 5 — e é o que se decide antes
+  da primeira tela:
+  - `Favorite` tem `userId` + `newsId` e mais nada, então **não há como
+    favoritar um `Article`**;
+  - `User` não tem coluna para nenhuma preferência da §19;
+  - `Subscriber` não conhece `User` (duas tabelas com `email` e zero relação).
+- **"Somente salvos" não é só UI.** Junta `Favorite` e `News` e devolve resposta
+  **por usuário** — que não pode carregar o `s-maxage` que a `/news` carrega,
+  sob pena de vazar recorte entre sessões. Ou vira rota autenticada própria
+  (`/api/favorites` já é isso e já pagina), ou a `/news` ganha caminho sem cache.
+- **Preferência é dado que só existe daqui para frente**, como foi a auditoria do
+  briefing na Fase 0.5: tela antes de coluna é um dia de escolha do leitor
+  perdido por dia.
+- **`favorites-list` é o último consumidor do `news-card` da V1.** Quando a Fase
+  6 migrar para os cards editoriais, `news-card` pode sair do repositório.
+- **Tela de conta não pode ser SSG.** `/favorites` é `force-dynamic` porque o
+  `redirect()` de sessão foi assado no HTML estático e mandava todo mundo para o
+  sign-in. Toda tela nova herda a restrição.
 - **A camada editorial é para reusar.** `article-hero` é casca com encaixes;
   `pagination`, `story-card*` e `article-meta` não sabem de domínio nenhum.
 
@@ -88,6 +103,11 @@
   devolve.** A pílula "Todas" da Fase 4 mostrava o total **já filtrado** por
   categoria: lia 594 e abria 2.373. Contagem de faceta ignora a própria
   dimensão; o total do recorte é o `meta.total` da listagem, e só ele.
+- **Relógio dentro do render quebra página estática, e quebra em silêncio.** O
+  HTML guarda o dia do *build* e o cliente compara com o dia de *agora*; toda
+  meia-noite UTC os dois divergem e o React derruba a hidratação (#418/#422).
+  Leia o relógio num efeito. Foi o que custou 4 pontos de best-practices em
+  `/article`, e o teste que trava isso usa `renderToString`.
 - **O nível do heading é da página, não do texto.** A IA escreve `###` no corpo
   do briefing; o `ArticleBody` emite `h2`, porque o `h1` é o título. Emitir `h3`
   abriria salto de nível — o defeito que já reprovou `heading-order` duas vezes.
@@ -119,8 +139,8 @@
 
 ### O que ficou em aberto na Fase 5
 
-- **Lighthouse por rota e recaptura da baseline visual** — rodam contra
-  produção, depois do merge. É o ritual de fechamento de toda fase.
+- **Recapturar `article-detail--*` da baseline** depois que o conserto do dek
+  repetido subir — as imagens atuais são o registro do defeito.
 - **Página na URL em `/article`** — a lista usa `useState`, ao contrário de
   `/news`. Dívida consciente: a ficha escopa a tela a ritmo visual, e ler a
   query string pediria uma fronteira de Suspense que a página não precisa.
@@ -136,7 +156,7 @@
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 21. É lá que mora o detalhe — este bloco é orientação, não
+  itens 11 a 22. É lá que mora o detalhe — este bloco é orientação, não
   changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,

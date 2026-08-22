@@ -1504,9 +1504,35 @@ gate rodou (`Asserting`) e passou.
 [x] payload do artigo com auditoria e fontes
 
     -- ao fechar a fase, contra produção --
-[ ] Lighthouse por rota (§26)
-[ ] recapturar a baseline visual (§30)
+[x] Lighthouse por rota (§26) — acessibilidade 100 nas cinco; e a medição
+    achou uma hidratação quebrada em /article
+[x] recapturar a baseline visual (§30) — 42 imagens, 11 diferentes; e ela
+    achou o dek repetido no corpo do briefing
 ```
+
+### Medição de 22/08, 00:04 ([run 32538891625](https://github.com/tavinholoco/newra-news/actions/runs/32538891625))
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 93 | 100 | 100 | 100 |
+| `/pt-BR/news` | 95 | 100 | 100 | 100 |
+| `/pt-BR/article` | 96 | 100 | **96** | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 94 | 100 | 100 | 100 |
+
+**Acessibilidade 100 nas cinco**, com o skip link novo e as três telas
+reescritas. O gate passou. Os 4 pontos de best-practices em `/article` eram
+`errors-in-console`: o `ArticleGrid` lia o relógio durante o render de uma
+página **estática**, o build correu 23:5x e a medição 00:04, o dia virou no meio
+e o selo "Hoje" existiu de um lado só — React #418 e #422, hidratação derrubada.
+Garantido acontecer toda meia-noite UTC, não acaso de horário.
+
+> **A baseline achou o segundo defeito**, que métrica sintética nenhuma pegaria:
+> o dek do briefing e o primeiro parágrafo do corpo são **o mesmo texto**, um
+> embaixo do outro. `summary` não é resumo escrito à parte — o
+> `parseMarkdownResponse` o define como a primeira linha do conteúdo. Verdade
+> nos seis artigos que a API devolve. Corrigido na apresentação, que é o que
+> alcança os 90 dias já gravados. Detalhe no item 21 do `progress.md`.
 
 > **`/news/[id]` era da Fase 5, não da 4.** A ficha da tela em
 > `docs/v2/02-sitemap-telas.md` a marcava como Fase 4, mas os cinco itens do
@@ -1545,7 +1571,27 @@ gate rodou (`Asserting`) e passou.
 [ ] profile
 [ ] preferences
 [ ] newsletter settings
+
+    -- herdado das Fases 4 e 5, pelo mesmo motivo --
+[ ] "somente salvos" em /news        (§7 — adiado na Fase 4)
+[ ] "salvar" no briefing             (§8 — adiado na Fase 5)
 ```
+
+> **Esta fase muda o banco, e é isso que precisa ser decidido antes da primeira
+> tela.** `Favorite` só tem `userId` + `newsId`, então não há como favoritar um
+> `Article`; `User` não tem coluna para nenhuma das preferências da §19; e
+> `Subscriber` não conhece `User`, o que "newsletter settings" precisa saber.
+> Levantamento completo em `docs/progress.md`, item 22.
+
+> **"Somente salvos" não é só interface.** Ele junta `Favorite` e `News` e
+> devolve resposta **por usuário** — que não pode carregar o `s-maxage` que a
+> `/news` carrega hoje, sob pena de vazar recorte entre sessões. Ou vira rota
+> autenticada própria (a `/api/favorites` já é isso e já pagina), ou a `/news`
+> ganha um caminho sem cache quando o parâmetro aparece.
+
+> **A §19 pede a arquitetura antes da personalização** — mas preferência é dado
+> que só existe daqui para frente, como foi a auditoria do briefing na Fase 0.5.
+> Tela antes de coluna é um dia de escolha do leitor jogado fora por dia.
 
 ## Fase 7 — SEO/performance/accessibility
 
