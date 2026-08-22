@@ -28,7 +28,7 @@ afterEach(() => {
 
 describe('SubscribeForm', () => {
   it('should render the email input and submit button', () => {
-    renderWithIntl(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm origin='footer' />);
 
     expect(
       screen.getByRole('textbox', { name: 'Seu e-mail' }),
@@ -41,7 +41,7 @@ describe('SubscribeForm', () => {
   it('should show a validation error for an invalid email without calling the API', async () => {
     vi.stubGlobal('fetch', vi.fn());
     const user = userEvent.setup();
-    renderWithIntl(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm origin='footer' />);
 
     await user.type(
       screen.getByRole('textbox', { name: 'Seu e-mail' }),
@@ -58,7 +58,7 @@ describe('SubscribeForm', () => {
   it('should show a success message and clear the input after subscribing', async () => {
     mockFetchOk();
     const user = userEvent.setup();
-    renderWithIntl(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm origin='footer' />);
 
     const input = screen.getByRole('textbox', { name: 'Seu e-mail' });
     await user.type(input, 'Assinante@Test.com ');
@@ -74,7 +74,7 @@ describe('SubscribeForm', () => {
   it('should show an error message when the API call fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
     const user = userEvent.setup();
-    renderWithIntl(<SubscribeForm />);
+    renderWithIntl(<SubscribeForm origin='footer' />);
 
     await user.type(
       screen.getByRole('textbox', { name: 'Seu e-mail' }),

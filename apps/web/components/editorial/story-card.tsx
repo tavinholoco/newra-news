@@ -8,6 +8,8 @@ import { ArticleMeta } from '@/components/editorial/article-meta';
 import { StoryImage } from '@/components/editorial/story-image';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
 import { cn } from '@/lib/utils';
+import type { EventSource } from '@newranews/types';
+import { track } from '@/lib/analytics';
 
 interface StoryCardProps {
   story: EditorialStory;
@@ -19,6 +21,14 @@ interface StoryCardProps {
   showDek?: boolean;
   sizes?: string;
   priority?: boolean;
+  /**
+   * De onde este card foi renderizado. **Obrigatório de propósito**: é o que
+   * separa o CTR do hero do CTR do rodapé, e prop opcional aqui viraria uso
+   * novo sem atribuição nenhuma, descoberto só na hora de ler a métrica.
+   */
+  source: EventSource;
+  /** Posição na lista, base 0. */
+  position: number;
   className?: string;
 }
 
@@ -38,10 +48,26 @@ export function StoryCard({
   showDek = true,
   sizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw',
   priority = false,
+  source,
+  position,
   className,
 }: StoryCardProps) {
   const t = useTranslations('categories');
   const isLead = size === 'lead';
+
+
+  // O evento sai no clique, **antes** da navegação. É por isso que `track()`
+  // enfileira e descarrega com `sendBeacon`: um `fetch` comum morreria no meio
+  // da troca de página, e o clique que leva a pessoa embora é justamente o mais
+  // interessante de medir.
+  function handleOpen() {
+    track('story_open', {
+      storyId: story.id,
+      category: story.category,
+      position,
+      source,
+    });
+  }
 
   return (
     <article
@@ -50,7 +76,11 @@ export function StoryCard({
         className,
       )}
     >
-      <Link href={`/news/${story.id}`} className='flex h-full flex-col'>
+      <Link
+        href={`/news/${story.id}`}
+        onClick={handleOpen}
+        className='flex h-full flex-col'
+      >
         <div className='relative'>
           <StoryImage
             src={story.imageUrl}

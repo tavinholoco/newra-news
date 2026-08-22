@@ -7,10 +7,20 @@ import type { HeadingLevel } from '@/components/editorial/heading-level';
 import { formatArticleDate, toDateSlug } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import type { EventSource } from '@newranews/types';
+import { track } from '@/lib/analytics';
 
 interface BriefingCardCompactProps {
   briefing: FavoriteArticle;
   headingLevel?: HeadingLevel;
+  /**
+   * De onde este card foi renderizado — vai no `briefing_open`.
+   *
+   * **Não há `position` aqui**, e não é esquecimento: o payload de
+   * `briefing_open` não tem esse campo. Exigir uma prop que não chega a lugar
+   * nenhum é a armadilha do controle sem consequência, em forma de prop.
+   */
+  source: EventSource;
   className?: string;
 }
 
@@ -26,15 +36,29 @@ interface BriefingCardCompactProps {
 export function BriefingCardCompact({
   briefing,
   headingLevel: Heading = 'h3',
+  source,
   className,
 }: BriefingCardCompactProps) {
   const t = useTranslations('home');
   const tCommon = useTranslations('common');
   const locale = useLocale();
 
+
+  function handleOpen() {
+    track('briefing_open', {
+      briefingId: briefing.id,
+      date: briefing.date,
+      source,
+    });
+  }
+
   return (
     <article className={cn('group', className)}>
-      <Link href={`/article/${toDateSlug(briefing.date)}`} className='block'>
+      <Link
+        href={`/article/${toDateSlug(briefing.date)}`}
+        onClick={handleOpen}
+        className='block'
+      >
         <p className='text-overline uppercase text-link'>{t('briefKicker')}</p>
 
         <Heading className='mt-1 font-display text-body font-bold leading-snug text-ink transition-colors duration-base line-clamp-3 group-hover:text-link'>

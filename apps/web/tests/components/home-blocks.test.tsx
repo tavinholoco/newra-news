@@ -16,7 +16,7 @@ vi.mock('next/image', async () => ({
 
 describe('HeroStory', () => {
   it('should render the headline as h2 with the dek and a read CTA', () => {
-    renderWithIntl(<HeroStory story={makeStory()} />);
+    renderWithIntl(<HeroStory source='hero' position={0} story={makeStory()} />);
 
     expect(
       screen.getByRole('heading', { level: 2, name: /Matéria de teste/ }),
@@ -27,7 +27,7 @@ describe('HeroStory', () => {
 
   it('should mark the hero image as priority — it is the LCP of the Home', () => {
     renderWithIntl(
-      <HeroStory story={makeStory({ imageUrl: 'https://cdn.test/hero.jpg' })} />,
+      <HeroStory source='hero' position={0} story={makeStory({ imageUrl: 'https://cdn.test/hero.jpg' })} />,
     );
 
     // `priority` é prop do componente do Next, não atributo de DOM — o mock a
@@ -42,7 +42,7 @@ describe('HeroStory', () => {
   // pipeline reclassifica a categoria, não quando a redação revisa o texto.
   it('should not advertise an "updated" state from the row timestamp', () => {
     renderWithIntl(
-      <HeroStory
+      <HeroStory source='hero' position={0}
         story={makeStory({ updatedAt: '2024-06-01T00:00:00.000Z' })}
       />,
     );
@@ -51,7 +51,7 @@ describe('HeroStory', () => {
   });
 
   it('should expose exactly one link, so the CTA is not a second tab stop', () => {
-    renderWithIntl(<HeroStory story={makeStory()} />);
+    renderWithIntl(<HeroStory source='hero' position={0} story={makeStory()} />);
 
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });
@@ -60,7 +60,7 @@ describe('HeroStory', () => {
   // ali a matéria inteira — 1.876 caracteres no hero de produção. Sem clamp o
   // parágrafo vira o elemento de LCP da Home.
   it('should clamp the dek, however long the feed made it', () => {
-    renderWithIntl(<HeroStory story={makeStory({ dek: 'palavra '.repeat(400) })} />);
+    renderWithIntl(<HeroStory source='hero' position={0} story={makeStory({ dek: 'palavra '.repeat(400) })} />);
 
     const dek = screen.getByText(/palavra/);
     expect(dek.className).toMatch(/\bline-clamp-\d\b/);
@@ -69,7 +69,7 @@ describe('HeroStory', () => {
 
 describe('BriefingCard', () => {
   it('should show the brand seal, source count, reading time and AI disclosure', () => {
-    renderWithIntl(<BriefingCard briefing={makeBriefing()} />);
+    renderWithIntl(<BriefingCard source='hero' briefing={makeBriefing()} />);
 
     expect(screen.getByText('Newra Daily Brief')).toBeInTheDocument();
     expect(screen.getByText('12 fontes consultadas')).toBeInTheDocument();
@@ -80,7 +80,7 @@ describe('BriefingCard', () => {
   });
 
   it('should link the CTA to the dated article page', () => {
-    renderWithIntl(<BriefingCard briefing={makeBriefing()} />);
+    renderWithIntl(<BriefingCard source='hero' briefing={makeBriefing()} />);
 
     expect(
       screen.getByRole('link', { name: /Ler o briefing completo/ }),
@@ -91,7 +91,7 @@ describe('BriefingCard', () => {
   // fontes registradas; a contagem ainda existe e o bloco tem de renderizar.
   it('should render for a legacy briefing with no sources', () => {
     renderWithIntl(
-      <BriefingCard
+      <BriefingCard source='hero'
         briefing={makeBriefing({ generatedAt: null, sources: [], sourceCount: 0 })}
       />,
     );

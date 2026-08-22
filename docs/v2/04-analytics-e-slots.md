@@ -66,7 +66,7 @@ Os 14 da §18.5, com payload fechado. `EventBase` (`sessionId`, `locale`,
 | `article_scroll_25` | `contentId`, `contentType` | 25% do corpo | **profundidade de scroll** |
 | `article_scroll_50` | idem | 50% | idem |
 | `article_scroll_90` | idem | 90% | leitura completa |
-| `favorite_add` | `storyId`, `category`, `origin` | toggle do coração | **saves por usuário** |
+| `favorite_add` | `storyId`, `category`, `origin` | clique no marcador de salvar | **saves por usuário** |
 | `share` | `contentId`, `contentType`, `channel` | menu de compartilhar | **share rate** |
 | `newsletter_signup` | `origin` | inscrição confirmada | **taxa de inscrição** |
 | `ad_view` | `placement`, `format` | slot ≥50% visível por ≥1s | **viewability** |

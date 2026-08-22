@@ -39,7 +39,7 @@ describe('SaveButton', () => {
     useSessionMock.mockReturnValue({ data: null, status: 'unauthenticated' });
     useIsFavoriteMock.mockReturnValue(false);
     const user = userEvent.setup();
-    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton origin='search' itemId={NEWS_ID} />);
 
     await user.click(
       screen.getByRole('button', { name: 'Salvar' }),
@@ -53,7 +53,7 @@ describe('SaveButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton origin='search' itemId={NEWS_ID} />);
 
     const button = screen.getByRole('button', { name: 'Salvar' });
     expect(button).toHaveAttribute('aria-pressed', 'false');
@@ -67,7 +67,7 @@ describe('SaveButton', () => {
     const mutate = vi.fn();
     useToggleFavoriteMock.mockReturnValue({ mutate, isPending: false });
     const user = userEvent.setup();
-    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton origin='search' itemId={NEWS_ID} />);
 
     const button = screen.getByRole('button', { name: 'Remover dos salvos' });
     expect(button).toHaveAttribute('aria-pressed', 'true');
@@ -82,7 +82,7 @@ describe('SaveButton', () => {
       mutate: vi.fn(),
       isPending: true,
     });
-    renderWithIntl(<SaveButton itemId={NEWS_ID} />);
+    renderWithIntl(<SaveButton origin='search' itemId={NEWS_ID} />);
 
     expect(
       screen.getByRole('button', { name: 'Salvar' }),
@@ -91,7 +91,7 @@ describe('SaveButton', () => {
 
   it('should carry the item type through, so the briefing can be saved too', () => {
     mockAuthenticated(false);
-    renderWithIntl(<SaveButton itemId={NEWS_ID} itemType='ARTICLE' />);
+    renderWithIntl(<SaveButton origin='search' itemId={NEWS_ID} itemType='ARTICLE' />);
 
     expect(useIsFavoriteMock).toHaveBeenCalledWith(NEWS_ID, 'ARTICLE', true);
     expect(useToggleFavoriteMock).toHaveBeenCalledWith(NEWS_ID, 'ARTICLE');

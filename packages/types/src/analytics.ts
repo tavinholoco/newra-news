@@ -121,11 +121,13 @@ export type ProductEventPayload =
       query: string;
       resultCount: number;
     }
-  | {
-      type: 'article_scroll_25' | 'article_scroll_50' | 'article_scroll_90';
-      contentId: string;
-      contentType: EventContentType;
-    }
+  // Os três limiares são membros separados, e não um `type` em união: o
+  // `track(type, payload)` resolve o payload por `Extract<..., { type: T }>`, e
+  // um membro cujo `type` já é união não casa com literal nenhum — o helper
+  // devolveria `never` e o evento ficaria impossível de disparar.
+  | { type: 'article_scroll_25'; contentId: string; contentType: EventContentType }
+  | { type: 'article_scroll_50'; contentId: string; contentType: EventContentType }
+  | { type: 'article_scroll_90'; contentId: string; contentType: EventContentType }
   | {
       type: 'favorite_add';
       storyId: string;

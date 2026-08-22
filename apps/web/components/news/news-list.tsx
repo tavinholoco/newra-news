@@ -60,6 +60,8 @@ export function NewsList({
       {lead ? (
         <div className='grid gap-block lg:grid-cols-3'>
           <HeroStory
+            source='search'
+            position={0}
             story={lead}
             action={renderAction?.(lead.id)}
             className='lg:col-span-2'
@@ -70,13 +72,15 @@ export function NewsList({
               editoria que não existe. */}
           {aside.length > 0 ? (
             <ul className='flex flex-col divide-y divide-line'>
-              {aside.map((story) => (
+              {aside.map((story, index) => (
                 <li key={story.id} className='py-4 first:pt-0 last:pb-0'>
                   <StoryCardHorizontal
                     story={story}
                     headingLevel='h3'
                     highlight={highlight}
                     action={renderAction?.(story.id)}
+                    source='search'
+                    position={index + 1}
                   />
                 </li>
               ))}
@@ -91,13 +95,15 @@ export function NewsList({
           {/* Régua entre itens em vez de cartão solto: a lista é um bloco só, e
               é isso que a faz parecer acervo em vez de vitrine (§7). */}
           <ul className='grid grid-cols-1 gap-x-8 md:grid-cols-2'>
-            {list.map((story) => (
+            {list.map((story, index) => (
               <li key={story.id} className='border-b border-line py-4'>
                 <StoryCardHorizontal
                   story={story}
                   headingLevel='h3'
                   highlight={highlight}
                   action={renderAction?.(story.id)}
+                  source='search'
+                  position={index}
                 />
               </li>
             ))}

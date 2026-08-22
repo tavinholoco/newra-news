@@ -17,6 +17,7 @@ import { NewsList } from './news-list';
 import { NewsListSkeleton } from './news-list-skeleton';
 import { Pagination } from '@/components/editorial/pagination';
 import { NewsSearch } from './news-search';
+import { track, sanitizeSearchQuery } from '@/lib/analytics';
 
 interface NewsPageClientProps {
   /**
@@ -113,11 +114,55 @@ export function NewsPageClient({
 
   const stories = useMemo(() => news.map(newsToStory), [news]);
 
+  // O `favorite_add` pede a categoria e o `SaveButton` só recebe o id. O mapa
+  // evita varrer a lista a cada render de botão — são até 20 por página.
+  /**
+   * `search` e `category_view`, disparados quando a consulta **resolve** — não
+   * a cada tecla.
+   *
+   * O termo passa por `sanitizeSearchQuery`, que descarta o que parecer e-mail,
+   * credencial ou dígitos demais: quem digita numa caixa de busca às vezes
+   * digita no lugar errado, e nenhum assunto de notícia precisa de um CPF para
+   * ser nomeado. Descartado, o evento inteiro não sai — `search` sem o termo
+   * entregaria "alguém buscou algo e achou zero", que não diz o que faltou.
+   *
+   * A chave do efeito é o recorte **mais** o total: sem o total, o evento
+   * sairia com `resultCount: 0` no primeiro render de toda busca.
+   */
+  const lastMeasured = useRef<string | null>(null);
+  useEffect(() => {
+    if (isFetching) return;
+
+    const key = `${state.search}|${state.category ?? ''}|${meta.total}`;
+    if (lastMeasured.current === key) return;
+    lastMeasured.current = key;
+
+    if (state.search) {
+      const query = sanitizeSearchQuery(state.search);
+      if (query) track('search', { query, resultCount: meta.total });
+    }
+
+    if (state.category) {
+      track('category_view', { category: state.category, origin: 'search' });
+    }
+  }, [isFetching, state.search, state.category, meta.total]);
+
+  const categoryById = useMemo(
+    () => new Map(news.map((item) => [item.id, item.category])),
+    [news],
+  );
+
   // O favoritar da listagem, que a V1 já tinha. Chega por prop para o
   // `NewsList` não passar a depender de sessão e de favoritos.
   const renderAction = useCallback(
-    (storyId: string) => <SaveButton itemId={storyId} />,
-    [],
+    (storyId: string) => (
+      <SaveButton
+        itemId={storyId}
+        category={categoryById.get(storyId)}
+        origin='search'
+      />
+    ),
+    [categoryById],
   );
 
   // Virar a página sem rolar deixa o leitor no meio de uma lista nova, olhando

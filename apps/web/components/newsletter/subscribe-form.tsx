@@ -6,12 +6,23 @@ import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { subscribeToNewsletter } from '@/lib/api';
+import { track } from '@/lib/analytics';
+import type { EventSource } from '@newranews/types';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Status = 'idle' | 'submitting' | 'success' | 'error';
 
-export function SubscribeForm() {
+interface SubscribeFormProps {
+  /**
+   * Onde este formulário está. O mesmo componente aparece no rodapé e no CTA
+   * editorial, e a taxa de inscrição dos dois não é a mesma coisa — sem isto o
+   * número somaria dois lugares diferentes num só.
+   */
+  origin: EventSource;
+}
+
+export function SubscribeForm({ origin }: SubscribeFormProps) {
   const t = useTranslations('newsletter');
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>('idle');
@@ -32,6 +43,9 @@ export function SubscribeForm() {
 
     try {
       await subscribeToNewsletter(normalized);
+      // Depois do `await`, e só no caminho de sucesso: a métrica é "taxa de
+      // inscrição", não "taxa de tentativa".
+      track('newsletter_signup', { origin });
       setStatus('success');
       setMessage(t('success'));
       setEmail('');

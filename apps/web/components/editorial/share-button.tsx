@@ -4,8 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Check, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { track } from '@/lib/analytics';
+import type { EventContentType } from '@newranews/types';
 
 interface ShareButtonProps {
+  /** O que está sendo compartilhado — vai no evento. */
+  contentId: string;
+  contentType: EventContentType;
   title: string;
   /** Texto de apoio no compartilhamento nativo. */
   text?: string;
@@ -33,7 +38,13 @@ const FEEDBACK_MS = 2000;
  * passar a URL montada à mão duplicaria a construção do link canônico em cada
  * página que usa o botão.
  */
-export function ShareButton({ title, text, className }: ShareButtonProps) {
+export function ShareButton({
+  title,
+  text,
+  contentId,
+  contentType,
+  className,
+}: ShareButtonProps) {
   const t = useTranslations('common');
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -48,6 +59,10 @@ export function ShareButton({ title, text, className }: ShareButtonProps) {
     if (navigator.share) {
       try {
         await navigator.share({ title, text, url });
+        // Depois do `await`: a folha de compartilhamento pode ser cancelada, e
+        // o cancelamento rejeita a promessa. Medir antes contaria intenção
+        // como compartilhamento.
+        track('share', { contentId, contentType, channel: 'native-share' });
         return;
       } catch {
         // Cancelar a folha de compartilhamento rejeita a promessa. Não é erro,
@@ -59,6 +74,7 @@ export function ShareButton({ title, text, className }: ShareButtonProps) {
 
     try {
       await navigator.clipboard.writeText(url);
+      track('share', { contentId, contentType, channel: 'copy-link' });
       setCopied(true);
       timer.current = setTimeout(() => setCopied(false), FEEDBACK_MS);
     } catch {

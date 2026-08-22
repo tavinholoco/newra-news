@@ -75,11 +75,14 @@ const payloadSchema = z.discriminatedUnion('type', [
     query: z.string().max(SEARCH_QUERY_MAX_LENGTH),
     resultCount: z.number().int().min(0),
   }),
-  z.object({
-    type: z.enum(['article_scroll_25', 'article_scroll_50', 'article_scroll_90']),
-    contentId: z.string().min(1).max(64),
-    contentType: contentTypeSchema,
-  }),
+  ...(['article_scroll_25', 'article_scroll_50', 'article_scroll_90'] as const).map(
+    (threshold) =>
+      z.object({
+        type: z.literal(threshold),
+        contentId: z.string().min(1).max(64),
+        contentType: contentTypeSchema,
+      }),
+  ),
   z.object({
     type: z.literal('favorite_add'),
     storyId: z.string().min(1).max(64),

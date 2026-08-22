@@ -268,6 +268,66 @@ Regras que não são óbvias no código:
   exibia "21 de agosto", e o servidor (UTC) e o navegador renderizavam diferente.
   Para um **instante** (`createdAt`, `generatedAt`) o fuso de quem lê é o certo.
 
+## Analytics (Fase 8, PR 2)
+
+A camada de eventos da parte 1 de `docs/v2/04-analytics-e-slots.md`. **Nenhum
+componente importa provider** — só `track`.
+
+| Peça | Papel |
+|---|---|
+| `lib/analytics/index.ts` | `track()`, a fila e o transporte |
+| `lib/analytics/consent.ts` | a decisão, DNT e GPC |
+| `lib/analytics/session.ts` | o `sessionId`, em `sessionStorage` |
+| `lib/analytics/sanitize.ts` | a higiene do termo de busca |
+| `components/analytics/page-view.tsx` | `homepage_view`/`category_view` de dentro de uma página server |
+| `app/api/events/route.ts` | o repasse same-origin para a API |
+
+Regras que não são óbvias no código:
+
+- **O destino é `/api/events` do próprio Next, e não a API direto.** `sendBeacon`
+  é o único transporte que o navegador promete entregar durante uma navegação —
+  que é justamente quando o evento mais interessante acontece — e ele **não sabe
+  fazer preflight**. Um POST `application/json` para outra origem exigiria
+  preflight e o beacon falharia em silêncio. Same-origin, não há preflight.
+- **O `sessionId` mora em `sessionStorage`, nunca em `localStorage`.** Em
+  `localStorage` ele viraria identificador estável entre visitas, e é essa linha
+  que separa medição anônima de dado pessoal.
+- **Sem decisão de consentimento, mede.** É legítimo interesse enquanto o
+  tratamento for este: sem cookie, sem identificador persistente, sem terceiro.
+  DNT e GPC são respeitados mesmo assim, e um `denied` gravado vale mesmo antes
+  de existir banner. **O banner entra no PR 3, com o anúncio personalizado** —
+  que é o primeiro uso que exige consentimento de verdade. Quando entrar, só
+  precisa gravar a decisão: `track()` já obedece.
+- **`source` e `position` são props obrigatórias nos cards.** Opcionais, um uso
+  novo nasceria sem atribuição e a falta só apareceria na hora de ler a métrica.
+  O compilador é quem cobra.
+- **Os cards de briefing não têm `position`**, e não é esquecimento: o payload
+  de `briefing_open` não tem esse campo. Prop que não chega a lugar nenhum é a
+  armadilha do controle sem consequência, em forma de prop.
+- **`favorite_add` só sai ao salvar, e só para `NEWS`.** Não há evento de
+  remoção no catálogo, e medir o desfazer com o mesmo evento inflaria "saves por
+  usuário". Briefing não tem categoria, e o payload exige uma — salvar briefing
+  fica sem medição até o catálogo ganhar evento próprio.
+- **`share` mede os dois canais que existem** (`native-share`, `copy-link`), e
+  só **depois** do `await`: cancelar a folha de compartilhamento rejeita a
+  promessa, e medir antes contaria intenção como compartilhamento. Os outros
+  três canais do vocabulário não têm botão — vocabulário maior que a interface
+  é contrato de dado, não controle prometido.
+- **`newsletter_signup` leva `origin`** porque o mesmo formulário aparece no
+  rodapé e no CTA editorial, e somar os dois num número só esconde qual
+  converte.
+- **`search` dispara quando a consulta resolve, não a cada tecla**, e o termo
+  passa por `sanitizeSearchQuery`. Descartado, o evento inteiro não sai: um
+  `search` sem termo diria "alguém buscou algo e achou zero", que não responde a
+  pergunta que o evento existe para responder.
+- **`PageView` é um componente que renderiza `null`.** Evento só sai de client
+  component, e transformar a Home inteira em client component por causa de uma
+  chamada é o que a §17 proíbe. O `useRef` guarda a montagem dupla do
+  StrictMode — sem ele, a contagem de sessões sairia dobrada de todo ambiente
+  de desenvolvimento.
+- **`track()` nunca lança e nunca bloqueia**, e a fila é esvaziada **antes** do
+  envio: falha de transporte perde o lote em vez de acumular memória presa.
+
 ## Estilo — design tokens da V2 (Fase 1)
 
 Os tokens vivem em `styles/tokens.css`, importado pelo `globals.css` **antes de

@@ -176,6 +176,28 @@ describe('POST /api/events', () => {
     expect(res.headers['cache-control']).toBeUndefined();
   });
 
+  it('accepts the exact payload the browser produces', async () => {
+    // **Capturado do `sendBeacon` real**, num clique no hero da Home rodando
+    // contra a API de produção. É a única asserção que prova que a camada do
+    // web e o schema da API concordam sobre o formato do fio — as outras
+    // testam o schema contra o que o próprio teste escreveu.
+    const doNavegador = {
+      category: 'HEALTH',
+      locale: 'pt-BR',
+      occurredAt: '2026-08-22T19:12:18.146Z',
+      path: '/pt-BR',
+      position: 0,
+      sessionId: 'ead86ed6-7923-440a-b423-1e25681f2802',
+      source: 'hero',
+      storyId: '13a1eaa9-87bf-4a69-95a6-915aa320e1d6',
+      type: 'story_open',
+    };
+
+    const res = await post(app, [doNavegador]);
+
+    expect(res.statusCode).toBe(201);
+  });
+
   it('accepts every ad placement and format of the inventory', async () => {
     const res = await post(app, [
       {

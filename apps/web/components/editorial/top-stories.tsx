@@ -33,9 +33,13 @@ export function TopStories({ stories, className }: TopStoriesProps) {
       {/* `divide-y` e não `border-b` no item: a divisória some sozinha no
           último, sem depender de `last:` em toda variação de lista. */}
       <ol className='flex flex-col divide-y divide-line'>
-        {stories.map((story) => (
+        {stories.map((story, index) => (
           <li key={story.id} className='py-4 first:pt-0 last:pb-0'>
-            <StoryCardHorizontal story={story} />
+            <StoryCardHorizontal
+              story={story}
+              source='top-stories'
+              position={index}
+            />
           </li>
         ))}
       </ol>

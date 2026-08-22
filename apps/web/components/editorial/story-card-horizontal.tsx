@@ -9,6 +9,8 @@ import { StoryImage } from '@/components/editorial/story-image';
 import { HighlightTerm } from '@/components/editorial/highlight-term';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
 import { cn } from '@/lib/utils';
+import type { EventSource } from '@newranews/types';
+import { track } from '@/lib/analytics';
 
 interface StoryCardHorizontalProps {
   story: EditorialStory;
@@ -24,6 +26,14 @@ interface StoryCardHorizontalProps {
    * link, e o clique dispararia os dois.
    */
   action?: ReactNode;
+  /**
+   * De onde este card foi renderizado. **Obrigatório de propósito**: é o que
+   * separa o CTR do hero do CTR do rodapé, e prop opcional aqui viraria uso
+   * novo sem atribuição nenhuma, descoberto só na hora de ler a métrica.
+   */
+  source: EventSource;
+  /** Posição na lista, base 0. */
+  position: number;
   className?: string;
 }
 
@@ -41,13 +51,30 @@ export function StoryCardHorizontal({
   showImage = true,
   highlight = '',
   action,
+  source,
+  position,
   className,
 }: StoryCardHorizontalProps) {
   const t = useTranslations('categories');
 
+
+  // O evento sai no clique, **antes** da navegação. É por isso que `track()`
+  // enfileira e descarrega com `sendBeacon`: um `fetch` comum morreria no meio
+  // da troca de página, e o clique que leva a pessoa embora é justamente o mais
+  // interessante de medir.
+  function handleOpen() {
+    track('story_open', {
+      storyId: story.id,
+      category: story.category,
+      position,
+      source,
+    });
+  }
+
   return (
     <article className={cn('group flex items-start gap-2', className)}>
       <Link
+        onClick={handleOpen}
         href={`/news/${story.id}`}
         className='flex min-w-0 flex-1 items-start gap-3'
       >

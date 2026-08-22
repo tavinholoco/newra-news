@@ -35,8 +35,13 @@ export function LatestStories({ stories, className }: LatestStoriesProps) {
       />
 
       <div className='grid gap-block sm:grid-cols-2'>
-        {stories.map((story) => (
-          <StoryCard key={story.id} story={story} />
+        {stories.map((story, index) => (
+          <StoryCard
+            key={story.id}
+            story={story}
+            source='latest'
+            position={index}
+          />
         ))}
       </div>
     </section>

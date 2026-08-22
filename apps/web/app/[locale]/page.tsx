@@ -10,6 +10,7 @@ import { CategorySection } from '@/components/editorial/category-section';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
 import { AdSlot } from '@/components/monetization/ad-slot';
 import { SITE_NAME, pageMetadata } from '@/lib/seo';
+import { PageView } from '@/components/analytics/page-view';
 
 export const revalidate = 3600;
 
@@ -75,6 +76,9 @@ export default async function HomePage({ params }: Props) {
   if (isEmpty) {
     return (
       <div className='container-editorial py-section'>
+        {/* A Home vazia continua sendo uma visita à Home: sem isto, a métrica
+            de sessões contaria só os dias em que o pipeline rodou. */}
+        <PageView event='homepage_view' />
         <h1 className='font-display text-h2 font-bold text-ink'>
           {t('emptyTitle')}
         </h1>
@@ -90,6 +94,7 @@ export default async function HomePage({ params }: Props) {
 
   return (
     <div className='container-editorial py-section'>
+      <PageView event='homepage_view' />
       <h1 className='sr-only'>{t('srHeading')}</h1>
 
       <div className='flex flex-col gap-section'>
@@ -103,7 +108,12 @@ export default async function HomePage({ params }: Props) {
         {hasLeadRow ? (
           <div className='grid gap-block lg:grid-cols-3'>
             {home.hero ? (
-              <HeroStory story={home.hero} className='lg:col-span-2' />
+              <HeroStory
+                story={home.hero}
+                source='hero'
+                position={0}
+                className='lg:col-span-2'
+              />
             ) : null}
             <TopStories
               stories={home.topStories}
@@ -114,7 +124,9 @@ export default async function HomePage({ params }: Props) {
 
         <AdSlot placement='home-after-hero' format='leaderboard' />
 
-        {home.briefing ? <BriefingCard briefing={home.briefing} /> : null}
+        {home.briefing ? (
+          <BriefingCard briefing={home.briefing} source='briefing' />
+        ) : null}
 
         {/* Mais notícias + em alta (§6.1). */}
         {hasFeedRow ? (

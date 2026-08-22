@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { StoryImage } from '@/components/editorial/story-image';
 import { cn } from '@/lib/utils';
+import type { EventSource } from '@newranews/types';
+import { track } from '@/lib/analytics';
 
 interface HeroStoryProps {
   story: EditorialStory;
@@ -19,6 +21,14 @@ interface HeroStoryProps {
    * link, e o clique dispararia os dois.
    */
   action?: ReactNode;
+  /**
+   * De onde este card foi renderizado. **Obrigatório de propósito**: é o que
+   * separa o CTR do hero do CTR do rodapé, e prop opcional aqui viraria uso
+   * novo sem atribuição nenhuma, descoberto só na hora de ler a métrica.
+   */
+  source: EventSource;
+  /** Posição na lista, base 0. */
+  position: number;
   className?: string;
 }
 
@@ -40,9 +50,29 @@ interface HeroStoryProps {
  * a categoria. Rotular isso como "atualizado" mentiria em praticamente toda
  * matéria.
  */
-export function HeroStory({ story, action, className }: HeroStoryProps) {
+export function HeroStory({
+  story,
+  action,
+  source,
+  position,
+  className,
+}: HeroStoryProps) {
   const t = useTranslations('categories');
   const tHome = useTranslations('home');
+
+
+  // O evento sai no clique, **antes** da navegação. É por isso que `track()`
+  // enfileira e descarrega com `sendBeacon`: um `fetch` comum morreria no meio
+  // da troca de página, e o clique que leva a pessoa embora é justamente o mais
+  // interessante de medir.
+  function handleOpen() {
+    track('story_open', {
+      storyId: story.id,
+      category: story.category,
+      position,
+      source,
+    });
+  }
 
   return (
     <article
@@ -51,7 +81,11 @@ export function HeroStory({ story, action, className }: HeroStoryProps) {
     >
       {action ? <div className='absolute right-4 top-4 z-10'>{action}</div> : null}
 
-      <Link href={`/news/${story.id}`} className='flex flex-col'>
+      <Link
+        href={`/news/${story.id}`}
+        onClick={handleOpen}
+        className='flex flex-col'
+      >
         <div className='relative overflow-hidden rounded-lg'>
           <StoryImage
             src={story.imageUrl}

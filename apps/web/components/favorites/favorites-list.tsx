@@ -106,17 +106,32 @@ export function FavoritesList() {
   return (
     <div className='flex flex-col gap-6'>
       <ul className='divide-y divide-line border-y border-line'>
-        {saved.map((item) => (
+        {saved.map((item, index) => (
           <li key={item.id} className='flex items-start gap-4 py-4'>
             <div className='min-w-0 flex-1'>
               {item.itemType === 'NEWS' ? (
-                <StoryCardCompact story={newsToStory(item.news)} headingLevel='h2' />
+                <StoryCardCompact
+                  story={newsToStory(item.news)}
+                  headingLevel='h2'
+                  source='favorites'
+                  position={index}
+                />
               ) : (
-                <BriefingCardCompact briefing={item.article} headingLevel='h2' />
+                <BriefingCardCompact
+                  briefing={item.article}
+                  headingLevel='h2'
+                  source='favorites'
+                />
               )}
             </div>
 
-            <SaveButton itemId={item.itemId} itemType={item.itemType} className='shrink-0' />
+            <SaveButton
+              itemId={item.itemId}
+              itemType={item.itemType}
+              category={item.itemType === 'NEWS' ? item.news.category : undefined}
+              origin='favorites'
+              className='shrink-0'
+            />
           </li>
         ))}
       </ul>

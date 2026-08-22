@@ -46,6 +46,8 @@ export function CategorySection({ section, className }: CategorySectionProps) {
           não como categoria magra. Sozinho, o lead ocupa a largura toda. */}
       <div className={cn('grid gap-block', rest.length > 0 && 'md:grid-cols-2')}>
         <StoryCard
+          source='category-section'
+          position={0}
           story={lead}
           size='lead'
           sizes={
@@ -55,9 +57,13 @@ export function CategorySection({ section, className }: CategorySectionProps) {
 
         {rest.length > 0 ? (
           <ol className='flex flex-col divide-y divide-line'>
-            {rest.map((story) => (
+            {rest.map((story, index) => (
               <li key={story.id} className='py-4 first:pt-0 last:pb-0'>
-                <StoryCardHorizontal story={story} />
+                <StoryCardHorizontal
+                  story={story}
+                  source='category-section'
+                  position={index + 1}
+                />
               </li>
             ))}
           </ol>
