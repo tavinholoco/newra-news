@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getArticles, prefetch } from '@/lib/api';
 import { ArticlePageClient } from '@/components/article/article-page-client';
+import { pageMetadata } from '@/lib/seo';
 
 export const revalidate = 3600;
 
@@ -14,24 +15,12 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'metadata.articles' });
 
-  return {
+  return pageMetadata({
+    locale,
+    path: '/article',
     title: t('title'),
     description: t('description'),
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/article',
-        en: '/en/article',
-      },
-    },
-    openGraph: {
-      title: t('title'),
-      description: t('description'),
-    },
-    twitter: {
-      title: t('title'),
-      description: t('description'),
-    },
-  };
+  });
 }
 
 export default async function ArticleHistoryPage({ params }: Props) {

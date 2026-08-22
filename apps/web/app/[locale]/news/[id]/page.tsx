@@ -3,6 +3,10 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getNewsById, getRelatedNews } from '@/lib/api';
 import { NewsDetail } from '@/components/news/news-detail';
+import { JsonLd } from '@/components/seo/json-ld';
+import { pageMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd, newsArticleJsonLd } from '@/lib/json-ld';
+import type { BreadcrumbStep } from '@/lib/json-ld';
 
 export const revalidate = 3600;
 
@@ -15,29 +19,39 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: 'news' });
   const news = await getNewsById(params.id).catch(() => null);
-  if (!news) return { title: t('notFoundTitle') };
+  // `noindex` no caminho de 404: sem ele o buscador indexaria a página de "não
+  // encontrada" sob a URL que alguém digitou errado.
+  if (!news) {
+    return { title: t('notFoundTitle'), robots: { index: false, follow: false } };
+  }
 
-  return {
+  const tCategories = await getTranslations({
+    locale: params.locale,
+    namespace: 'categories',
+  });
+  return pageMetadata({
+    locale: params.locale,
+    path: `/news/${params.id}`,
     title: news.title,
     description: news.description,
-    alternates: {
-      languages: {
-        'pt-BR': `/pt-BR/news/${params.id}`,
-        en: `/en/news/${params.id}`,
-      },
-    },
     openGraph: {
-      title: news.title,
-      description: news.description,
-      images: news.imageUrl ? [{ url: news.imageUrl }] : [],
+      // `article` e não `website`: é o que faz o compartilhamento carregar data
+      // e seção em vez de só título e imagem.
+      type: 'article',
+      publishedTime: news.publishedAt,
+      modifiedTime: news.updatedAt,
+      section: tCategories(news.category),
+      // A redação que escreveu a matéria — não o Newra News, que a coletou.
+      authors: [news.source],
+      // Só sobrescreve quando há foto: ~30% do acervo não tem, e um `images:
+      // []` apagaria a imagem do site que `pageMetadata` põe por padrão —
+      // trocando um cartão de marca por um cartão sem imagem nenhuma.
+      ...(news.imageUrl
+        ? { images: [{ url: news.imageUrl, alt: news.title }] }
+        : {}),
     },
-    twitter: {
-      card: 'summary_large_image',
-      title: news.title,
-      description: news.description,
-      images: news.imageUrl ? [news.imageUrl] : [],
-    },
-  };
+    ...(news.imageUrl ? { twitter: { images: [news.imageUrl] } } : {}),
+  });
 }
 
 export default async function NewsDetailPage({ params }: Props) {
@@ -53,9 +67,33 @@ export default async function NewsDetailPage({ params }: Props) {
   // consulta toda vez que o id não existe.
   const related = await getRelatedNews(id);
 
+  const tNav = await getTranslations({ locale, namespace: 'nav' });
+  const tCategories = await getTranslations({ locale, namespace: 'categories' });
+
+  // Uma lista, dois consumidores: a trilha que o leitor vê e o `BreadcrumbList`
+  // que o buscador lê. Montá-las separadamente é como as duas divergem.
+  const breadcrumb: BreadcrumbStep[] = [
+    { name: tNav('home'), path: '' },
+    { name: tNav('news'), path: '/news' },
+    // O degrau da categoria leva ao recorte real do acervo — a mesma URL que a
+    // `editorial-nav` aponta.
+    { name: tCategories(news.category), path: `/news?category=${news.category}` },
+    { name: news.title },
+  ];
+
   return (
     <div className='container-editorial py-section'>
-      <NewsDetail news={news} related={related} />
+      <JsonLd
+        data={[
+          newsArticleJsonLd({
+            news,
+            locale,
+            sectionLabel: tCategories(news.category),
+          }),
+          breadcrumbJsonLd(locale, breadcrumb),
+        ]}
+      />
+      <NewsDetail news={news} related={related} breadcrumb={breadcrumb} />
     </div>
   );
 }

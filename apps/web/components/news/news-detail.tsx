@@ -1,8 +1,9 @@
 import { getTranslations } from 'next-intl/server';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import type { EditorialStory, News } from '@newranews/types';
-import { Link } from '@/i18n/navigation';
 import { Badge } from '@/components/ui/badge';
+import { Breadcrumb } from '@/components/editorial/breadcrumb';
+import type { BreadcrumbStep } from '@/lib/json-ld';
 import { ArticleBody } from '@/components/editorial/article-body';
 import { ArticleHero } from '@/components/editorial/article-hero';
 import { ArticleMeta } from '@/components/editorial/article-meta';
@@ -15,6 +16,12 @@ import { readingTimeFromText } from '@/lib/format';
 interface NewsDetailProps {
   news: News;
   related: EditorialStory[];
+  /**
+   * A trilha, montada pela página — que é quem também a manda para o
+   * `BreadcrumbList`. Uma lista só serve as duas pontas: marcação de trilha que
+   * não descreve a trilha visível é dado estruturado errado.
+   */
+  breadcrumb: readonly BreadcrumbStep[];
 }
 
 /**
@@ -36,25 +43,30 @@ interface NewsDetailProps {
  * no topo, junto das ações, e no fim do texto. Fingir que a página tem a matéria
  * inteira faria o leitor rolar até o fim para descobrir que não tem.
  */
-export async function NewsDetail({ news, related }: NewsDetailProps) {
+export async function NewsDetail({
+  news,
+  related,
+  breadcrumb,
+}: NewsDetailProps) {
   const t = await getTranslations('news');
   const tCategories = await getTranslations('categories');
+  const tShell = await getTranslations('shell');
 
   const readingTime = readingTimeFromText(news.content);
 
+  // `article` e não `div`: veio da auditoria de leitor de tela da Fase 7.
+  // A tela **é** um artigo, e não havia elemento nenhum dizendo isso — o
+  // documento era uma pilha de `div` com um `h1` no meio. Marcado, o leitor
+  // de tela ganha a navegação por artigo, o modo leitura do navegador
+  // reconhece o corpo, e o `header` do `ArticleHero` passa a ser o cabeçalho
+  // **daquele** artigo em vez de um `header` solto. Nenhuma classe mudou.
   return (
-    <div className='flex flex-col gap-section'>
+    <article className='flex flex-col gap-section'>
       {/* A medida de leitura vale para o hero e o corpo; as relacionadas e o
           CTA ocupam a largura cheia — uma grade de 4 colunas dentro de 720px
           viraria quatro tiras. */}
       <div className='mx-auto w-full max-w-narrow'>
-        <Link
-          href='/news'
-          className='inline-flex items-center gap-1.5 text-body-sm font-medium text-ink-secondary transition-colors duration-fast hover:text-link'
-        >
-          <ArrowLeft className='size-4' aria-hidden='true' />
-          {t('backTo')}
-        </Link>
+        <Breadcrumb steps={breadcrumb} ariaLabel={tShell('breadcrumb')} />
 
         <ArticleHero
           className='mt-6'
@@ -118,6 +130,6 @@ export async function NewsDetail({ news, related }: NewsDetailProps) {
       <RelatedStories stories={related} />
 
       <NewsletterCta />
-    </div>
+    </article>
   );
 }

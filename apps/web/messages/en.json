@@ -16,6 +16,7 @@
     "account": "Account"
   },
   "shell": {
+    "breadcrumb": "Breadcrumb",
     "edition": "Today's edition",
     "newsletter": "Newsletter",
     "skipToContent": "Skip to content"
@@ -72,7 +73,6 @@
   "news": {
     "archiveDescription": "Every story Newra News has collected, by category, source and period.",
     "archiveTitle": "Archive",
-    "backTo": "Back to News",
     "browseAll": "Browse the whole archive",
     "clearFilters": "Clear filters",
     "collectedNotice": "Story published by {source}. Newra News collects and organizes it; the text and the reporting are the outlet's.",
@@ -112,7 +112,6 @@
     "aiDisclosureBody": "This text was written by artificial intelligence from {count, plural, one {# story published} other {# stories published}} by news outlets, listed below. None of it was reported by Newra News.",
     "aiDisclosureCaveat": "The AI summarizes and connects what the sources published; it does not verify the facts. For the full context of any topic, read the original story.",
     "aiDisclosureTitle": "How this briefing was produced",
-    "backTo": "Back to Articles",
     "briefKicker": "Newra Daily Brief",
     "emptyDesc": "Daily articles will appear here as they become available.",
     "emptyTitle": "No articles found",

@@ -66,11 +66,14 @@ describe('GET /api/cron/daily-news', () => {
       data,
       revalidated: true,
     });
-    expect(revalidatePathMock).toHaveBeenCalledTimes(2);
+    expect(revalidatePathMock).toHaveBeenCalledTimes(3);
     // O padrão /[locale] cobre as duas línguas de uma vez — revalidar por
     // caminho resolvido (/pt-BR, /en) não invalida nada (gotcha documentado).
     expect(revalidatePathMock).toHaveBeenCalledWith('/[locale]', 'layout');
     expect(revalidatePathMock).toHaveBeenCalledWith('/sitemap.xml');
+    // O news sitemap tem janela de 48h: ele é justamente o que precisa refletir
+    // a matéria que o pipeline acabou de gravar.
+    expect(revalidatePathMock).toHaveBeenCalledWith('/news-sitemap.xml');
   });
 
   it('forwards the pipeline trigger as POST with the job secret', async () => {

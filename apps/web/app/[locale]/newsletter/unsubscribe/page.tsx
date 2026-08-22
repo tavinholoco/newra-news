@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { unsubscribeFromNewsletter } from '@/lib/api';
+import { alternatesFor } from '@/lib/seo';
 
 interface Props {
   params: { locale: string };
@@ -21,12 +22,7 @@ export async function generateMetadata({
     title: t('title'),
     description: t('description'),
     robots: { index: false, follow: false },
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/newsletter/unsubscribe',
-        en: '/en/newsletter/unsubscribe',
-      },
-    },
+    alternates: alternatesFor(locale, '/newsletter/unsubscribe'),
   };
 }
 

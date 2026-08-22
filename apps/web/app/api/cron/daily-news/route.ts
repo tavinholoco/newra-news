@@ -45,6 +45,10 @@ export async function GET(request: Request) {
     // notícias/artigos imediatamente.
     revalidatePath('/[locale]', 'layout');
     revalidatePath('/sitemap.xml');
+    // O news sitemap tem janela de 48h e é a rota que o Google Notícias lê
+    // logo depois de a matéria sair; deixá-lo esperar o `revalidate` de 15 min
+    // atrasaria justamente o que ele existe para acelerar.
+    revalidatePath('/news-sitemap.xml');
 
     return NextResponse.json({ success: true, data, revalidated: true });
   } catch {

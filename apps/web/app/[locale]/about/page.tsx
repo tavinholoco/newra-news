@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { pageMetadata } from '@/lib/seo';
 import {
   Newspaper,
   Sparkles,
@@ -17,24 +18,12 @@ export async function generateMetadata({
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: 'metadata.about' });
 
-  return {
+  return pageMetadata({
+    locale,
+    path: '/about',
     title: t('title'),
     description: t('description'),
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/about',
-        en: '/en/about',
-      },
-    },
-    openGraph: {
-      title: t('title'),
-      description: t('description'),
-    },
-    twitter: {
-      title: t('title'),
-      description: t('description'),
-    },
-  };
+  });
 }
 
 const techStack = [

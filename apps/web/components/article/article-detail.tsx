@@ -1,8 +1,8 @@
 import { getLocale, getTranslations } from 'next-intl/server';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import type { ArticleWithSources } from '@newranews/types';
-import { Link } from '@/i18n/navigation';
 import { AiDisclosure } from '@/components/editorial/ai-disclosure';
+import { Breadcrumb } from '@/components/editorial/breadcrumb';
 import { ArticleBody } from '@/components/editorial/article-body';
 import { ArticleHero } from '@/components/editorial/article-hero';
 import { ReadingTime } from '@/components/editorial/reading-time';
@@ -12,9 +12,15 @@ import { SourceList } from '@/components/editorial/source-list';
 import { NewsletterCta } from '@/components/monetization/newsletter-cta';
 import { formatArticleDate, readingTimeFromText } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
+import type { BreadcrumbStep } from '@/lib/json-ld';
 
 interface ArticleDetailProps {
   article: ArticleWithSources;
+  /**
+   * A trilha, montada pela página — que é quem também a manda para o
+   * `BreadcrumbList`. Uma lista só serve as duas pontas.
+   */
+  breadcrumb: readonly BreadcrumbStep[];
 }
 
 /**
@@ -36,23 +42,27 @@ interface ArticleDetailProps {
  * possível. A `SourceList` se omite sozinha; a declaração de IA fica, porque
  * vale para todo briefing.
  */
-export async function ArticleDetail({ article }: ArticleDetailProps) {
+export async function ArticleDetail({
+  article,
+  breadcrumb,
+}: ArticleDetailProps) {
   const t = await getTranslations('article');
   const tCommon = await getTranslations('common');
+  const tShell = await getTranslations('shell');
   const locale = await getLocale();
 
   const sourceCount = article.sources.length || article.newsCount;
 
+  // `article` e não `div`: veio da auditoria de leitor de tela da Fase 7.
+  // A tela **é** um artigo, e não havia elemento nenhum dizendo isso — o
+  // documento era uma pilha de `div` com um `h1` no meio. Marcado, o leitor
+  // de tela ganha a navegação por artigo, o modo leitura do navegador
+  // reconhece o corpo, e o `header` do `ArticleHero` passa a ser o cabeçalho
+  // **daquele** artigo em vez de um `header` solto. Nenhuma classe mudou.
   return (
-    <div className='flex flex-col gap-section'>
+    <article className='flex flex-col gap-section'>
       <div className='mx-auto w-full max-w-narrow'>
-        <Link
-          href='/article'
-          className='inline-flex items-center gap-1.5 text-body-sm font-medium text-ink-secondary transition-colors duration-fast hover:text-link'
-        >
-          <ArrowLeft className='size-4' aria-hidden='true' />
-          {t('backTo')}
-        </Link>
+        <Breadcrumb steps={breadcrumb} ariaLabel={tShell('breadcrumb')} />
 
         <ArticleHero
           className='mt-6'
@@ -107,6 +117,6 @@ export async function ArticleDetail({ article }: ArticleDetailProps) {
       </div>
 
       <NewsletterCta />
-    </div>
+    </article>
   );
 }

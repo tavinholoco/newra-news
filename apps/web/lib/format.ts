@@ -39,8 +39,27 @@ export function formatDateTime(dateString: string, locale = 'pt-BR'): string {
   });
 }
 
+/**
+ * O **dia coberto** por um briefing, por extenso.
+ *
+ * **Lê em UTC, e é o que conserta um dia inteiro de diferença.** `Article.date`
+ * não é um instante: é uma data de calendário, gravada à meia-noite UTC. Lida no
+ * fuso local, meia-noite UTC do dia 22 vira 21h do dia **21** em qualquer fuso
+ * negativo — e o Brasil é um. O resultado, medido em 22/08: a URL dizia
+ * `/article/2026-08-22` (o `toDateSlug` abaixo já usava UTC) e a página dizia
+ * "sexta-feira, 21 de agosto". O mesmo card do histórico levava a um dia e
+ * rotulava outro.
+ *
+ * E não era só cosmético: o servidor da Vercel roda em UTC e o navegador não,
+ * então a mesma data saía diferente dos dois lados — a divergência de
+ * hidratação da armadilha do relógio, agora vinda do dado em vez do `Date.now`.
+ *
+ * Para um **instante** (quando alguém se cadastrou, quando o modelo rodou), o
+ * fuso local é o certo e quem serve são `formatDate` e `formatDateTime`.
+ */
 export function formatArticleDate(dateString: string, locale = 'pt-BR'): string {
   return new Date(dateString).toLocaleDateString(locale, {
+    timeZone: 'UTC',
     weekday: 'long',
     day: '2-digit',
     month: 'long',

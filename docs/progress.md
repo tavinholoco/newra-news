@@ -57,9 +57,13 @@
 
 > O ecossistema de conta em três PRs: banco e API (#116), telas (#117) e "somente salvos" no acervo (#118). `Favorite` virou polimórfico (`itemType` + `itemId`) e passou a alcançar o briefing; nasceram `/account`, `/account/preferences` e `/account/newsletter`; `/favorites` migrou para a camada editorial e o `news-card` da V1 saiu do repositório. **Acessibilidade 100 nas cinco rotas**, gate verde, 905 testes. Decisões no **item 23**, fechamento no **item 24**.
 
-**Próximo ciclo — V2.0 Fase 7 (SEO / performance / acessibilidade)** 📋
+**Newra News V2.0 — Fase 7 (SEO / performance / acessibilidade)** ✅ Concluída em 2026-08-22 — **checklist da §28 fechado**
 
-> JSON-LD de `NewsArticle`, `BreadcrumbList`, news sitemap, canonical, metadata e as quatro auditorias (imagem, teclado, contraste, leitor de tela) mais Core Web Vitals — §28 do plano. A acessibilidade já está em 100 nas rotas medidas: a fase é para ir além do que a métrica sintética alcança.
+> `lib/seo.ts` virou a fonte única de URL e de metadata (canonical, `x-default`, `og:url` e os defaults que o Next **não** herda do layout); `lib/json-ld.ts` + `components/seo/json-ld.tsx` levam `Organization`, `WebSite`, `NewsArticle` e `BreadcrumbList`; a trilha visível nasceu espelhando o dado estruturado; e `/news-sitemap.xml` publica a janela de 48h do Google Notícias. A medição contra produção achou quatro defeitos que o checklist não previa — a imagem OG e o ícone do iOS inalcançáveis, `og:image`/`og:type`/`og:site_name` ausentes em toda página, e o briefing exibindo a véspera. 416 testes no web. Ver **item 25**.
+
+**Próximo ciclo — V2.0 Fase 8 (Monetização)** 📋
+
+> `AdSlot` já existe e não renderiza nada sem inventário (`NEXT_PUBLIC_ADS_ENABLED`). A fase pede inventário reservado, camada de consentimento/privacidade, patrocínio na newsletter e o `track()` que hoje falta para `ad_view`/`ad_click` — §28 do plano.
 
 ---
 
@@ -1366,6 +1370,146 @@ fase inteira — as duas corrigidas antes de fechar:
   nova em `docs/v2/03-contratos-api.md`, fichas das telas em
   `docs/v2/02-sitemap-telas.md`, regras de conta e de i18n em
   `apps/web/CLAUDE.md`, e o ritual de medição no `CLAUDE.md` da raiz.
+
+### 25. V2.0 Fase 7 — SEO, performance e acessibilidade ✅ Concluída em 2026-08-22
+
+> Branch `feat/v2-seo`, PR único. O checklist da §28 tem dez itens; os cinco de
+> SEO eram código a escrever, e as cinco auditorias eram medição. **Foi a
+> medição que rendeu mais** — quatro defeitos que estavam em produção e que
+> nenhum item do checklist nomeava.
+
+#### O que a fase escreveu
+
+| Peça | O que faz |
+|---|---|
+| `lib/seo.ts` → `pageMetadata` | a metadata inteira de uma página pública |
+| `lib/seo.ts` → `alternatesFor` | canonical + hreflang + `x-default` |
+| `lib/json-ld.ts` | `Organization`, `WebSite`, `NewsArticle`, `BreadcrumbList` |
+| `components/seo/json-ld.tsx` | serializa um nó (ou `@graph`) com escape |
+| `components/editorial/breadcrumb.tsx` | a trilha visível |
+| `app/news-sitemap.xml/route.ts` | a janela de 48h do Google Notícias |
+
+**Canonical.** Nenhuma rota declarava `canonical` — nem as públicas, nem as
+`noindex`. O que havia eram **quinze cópias** manuais de
+`{ 'pt-BR': '/pt-BR/x', en: '/en/x' }`, nenhuma com `x-default`. Agora o caminho
+sem prefixo de idioma é escrito **uma vez por página** e o helper deriva o
+canonical, os três `hreflang` e o `og:url`. O canonical é auto-referente: as duas
+URLs servem o mesmo corpo em português, mas canonizar `/en` para `/pt-BR` tiraria
+do índice justamente a versão que serve quem busca em inglês.
+
+**JSON-LD.** O layout de idioma declara `Organization` + `WebSite` (com a
+`SearchAction` apontando para a busca que existe); as telas de leitura declaram
+`NewsArticle` + `BreadcrumbList` e referenciam a organização pelo `@id`.
+
+> **A autoria segue quem escreveu.** Em `/news/[id]` o `author` é o veículo, o
+> `publisher` é o Newra News e o `isBasedOn` aponta para a matéria original — é o
+> par honesto de o corpo ser um trecho de RSS. No briefing o `author` é o site e
+> as quinze fontes viram `citation`. Carimbar texto de terceiro como nosso é o
+> mesmo erro que a §8 evita na interface, num lugar onde o buscador acredita.
+
+**Trilha.** A visível e o `BreadcrumbList` recebem **a mesma lista**: o Google
+pede que o dado estruturado descreva a trilha visível, e duas listas paralelas
+divergem no primeiro degrau que alguém renomear. Ela substituiu o "← voltar" das
+duas telas — dois controles de volta na mesma linha seriam a mesma ação duas
+vezes — e as chaves `news.backTo`/`article.backTo` saíram dos JSONs junto.
+
+**News sitemap.** É route handler e não `sitemap.ts` porque o
+`MetadataRoute.Sitemap` do Next não emite o namespace `news:`.
+
+> **Só as URLs `pt-BR`, e é decisão sobre o conteúdo.** As fontes RSS são
+> brasileiras: o corpo é o mesmo texto em português nas duas URLs, e o que `/en`
+> traduz é a moldura. Declarar `/en/news/{id}` com `news:language` inglês diria
+> que ali há matéria em inglês que não existe. As duas URLs continuam no
+> `sitemap.xml` geral, com o `hreflang` dizendo o que elas são. `news:language` é
+> ISO 639 (`pt`), não o BCP-47 da rota. Medido: **734 URLs** na janela, dentro do
+> teto de 1.000 do formato.
+
+#### O que a medição achou — os quatro defeitos
+
+Nenhum deles estava no checklist, e os quatro estavam em produção.
+
+**1. A imagem de compartilhamento do site era inalcançável.** O matcher do
+middleware exclui o que tem ponto (`sitemap.xml`, `icon.svg`, `robots.txt`), mas
+as rotas de metadata **geradas** — `opengraph-image.tsx`, `apple-icon.tsx` — são
+servidas em URL **sem** extensão. O middleware as tratava como página sem idioma:
+`GET /opengraph-image` → 307 para `/pt-BR/opengraph-image` → 404. O mesmo para
+`/apple-icon`, o ícone do iOS. Valia desde que os dois arquivos existem.
+
+**2. A tela do briefing apontava para uma URL que nunca existiu.** Desde a Fase 5
+o `og:image` e o `twitter:image` de `/article/[date]` eram `/opengraph-image.png`
+— 404. Todo compartilhamento do briefing carregava imagem quebrada.
+
+**3. A metadata do Next não faz merge profundo, e ninguém tinha percebido.** O
+layout declara `openGraph: { type, siteName, locale }` e `twitter: { card }`; a
+página que declara os seus **substitui o objeto inteiro**. Medido no HTML de
+produção: nenhuma página tinha `og:type`, `og:site_name`, `og:locale` nem
+`og:image`, e a Home, a `/news`, o histórico, a `/about` e a `/newsletter`
+compartilhavam com `twitter:card: summary` em vez de `summary_large_image` —
+porque as duas telas de leitura repetiam o valor à mão e as outras cinco não.
+Repetir os quatro campos nas sete páginas resolveria hoje e quebraria na oitava:
+o default agora vive em `pageMetadata`.
+
+**4. O briefing exibia a véspera.** `Article.date` é data de calendário gravada à
+meia-noite UTC, e `formatArticleDate` lia no fuso local. Em qualquer fuso
+negativo — o Brasil é um — meia-noite UTC do dia 22 vira 21h do dia **21**. A URL
+dizia `/article/2026-08-22` (o `toDateSlug` sempre usou UTC) e a página dizia
+"sexta-feira, 21 de agosto"; no histórico, o mesmo card levava a um dia e
+rotulava outro. E não era só cosmético: o servidor da Vercel roda em UTC e o
+navegador não, então a mesma data saía diferente dos dois lados — a divergência
+de hidratação da armadilha do relógio, agora vinda do dado em vez do `Date.now`.
+`formatArticleDate` passou a ler em UTC; `formatDate`/`formatDateTime` continuam
+no fuso local, que é o certo para um **instante** (o "membro desde" do perfil
+migrou para `formatDate`).
+
+#### As auditorias
+
+**Imagem** — virou guarda, não passada manual (`tests/lib/images.test.ts`): nada
+de `<img>` cru, `fill` sempre com `sizes`, `alt` sempre declarado (nem que vazio)
+e `priority` só nos três lugares onde a imagem pode ser o LCP. As quatro regras
+já valiam no código; nenhuma delas quebra build, lint ou tipo quando for violada,
+que é a razão de existirem.
+
+**Contraste** — `contrast:check`, 60 pares, **0 reprovando**. A trilha não
+introduziu combinação nova: `ink-700` (11,22:1), `ink-500` (4,71:1) e `ink-950`
+(17,70:1) sobre `paper` já estavam medidos.
+
+**Teclado** — 40 elementos focáveis na tela da notícia, **todos com nome
+acessível**, na ordem do DOM, com o skip link em primeiro. Um `h1`, nenhum salto
+de nível de heading, 21 regras de foco no CSS gerado.
+
+**Leitor de tela** — a árvore de acessibilidade não apontou defeito, e rendeu uma
+melhora: as duas telas de leitura viraram `<article>`. A tela **é** um artigo e
+nada dizia isso — era uma pilha de `div` com um `h1` no meio.
+
+> **A árvore do painel deriva papel pela tag, não pelo cálculo do Chrome.** Uma
+> `<section>` sem nome acessível apareceu como `region`, o que não é o papel
+> real. Cheguei a registrar "dois landmarks `banner`" como achado antes de
+> conferir — não era. Conferir no DOM antes de concluir a partir dela.
+
+**Core Web Vitals** — o Lighthouse do ritual de fechamento, contra produção
+aquecida. Ver abaixo.
+
+#### Ajustes que a verificação pediu
+
+- **A trilha quebrava em duas linhas.** Com `flex-wrap`, o degrau atual pedia a
+  largura inteira **antes** de truncar e ia sozinho para a segunda linha — 52px
+  de altura numa tela de 1280. Sem quebra, os ancestrais ficam `shrink-0` e só o
+  atual encolhe: 24px em 1280 e em 375, sem rolagem horizontal.
+- **`images: []` apagaria o default.** Em `/news/[id]` a foto só sobrescreve
+  quando existe: ~30% do acervo não tem imagem, e uma lista vazia trocaria o
+  cartão de marca por um cartão sem imagem nenhuma.
+
+#### Números da fase
+
+- **416 testes no web** (368 → 416, +48): `seo`, `json-ld`, `images`,
+  `breadcrumb`, `json-ld` (componente) e `news-sitemap` são suites novas.
+- **Guardas novas:** nenhuma página escreve caminho localizado à mão; toda
+  `generateMetadata` passa por um dos dois helpers; as quatro regras de imagem; o
+  escape do `<script>` (o conteúdo vem de feed de terceiro, e `JSON.stringify`
+  não escapa `<`); a trilha visível igual ao `BreadcrumbList`; a data do briefing
+  em UTC.
+- **Documentação:** seção SEO reescrita em `apps/web/CLAUDE.md`, com as regras de
+  metadata, de matcher e de fuso.
 
 ---
 

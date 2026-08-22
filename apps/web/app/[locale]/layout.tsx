@@ -12,8 +12,10 @@ import { cn } from '@/lib/utils';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { ThemeInit } from '@/components/theme/theme-init';
+import { JsonLd } from '@/components/seo/json-ld';
 import { Providers } from '../providers';
-import { SITE_URL, SITE_NAME } from '@/lib/seo';
+import { SITE_URL, SITE_NAME, toOgLocale } from '@/lib/seo';
+import { organizationJsonLd, webSiteJsonLd } from '@/lib/json-ld';
 import { routing } from '@/i18n/routing';
 import type { Locale } from '@/lib/i18n';
 
@@ -66,7 +68,7 @@ export async function generateMetadata({
     openGraph: {
       type: 'website',
       siteName: SITE_NAME,
-      locale: locale.replace('-', '_'),
+      locale: toOgLocale(locale),
     },
     twitter: {
       card: 'summary_large_image',
@@ -90,6 +92,9 @@ export default async function LocaleLayout({
   const skipLabel = (await getTranslations({ locale, namespace: 'shell' }))(
     'skipToContent',
   );
+  const siteDescription = (await getTranslations({ locale, namespace: 'site' }))(
+    'description',
+  );
 
   return (
     <html lang={locale} suppressHydrationWarning className={cn(inter.variable, newsreader.variable)}>
@@ -104,6 +109,12 @@ export default async function LocaleLayout({
         )}
       >
         <ThemeInit />
+        {/* A marca e o site, uma vez por página. As páginas declaram só o que
+            só elas sabem (a matéria, a trilha) e referenciam estes dois pelo
+            `@id` — o buscador junta os blocos num grafo só. */}
+        <JsonLd
+          data={[organizationJsonLd(), webSiteJsonLd(locale, siteDescription)]}
+        />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>
             {/* Bypass block (WCAG 2.4.1). O shell tem três linhas e a faixa

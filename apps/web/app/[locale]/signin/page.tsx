@@ -4,6 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { SignInForm } from '@/components/auth/sign-in-form';
+import { alternatesFor } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,12 +21,7 @@ export async function generateMetadata({
   return {
     title: t('title'),
     robots: { index: false, follow: false },
-    alternates: {
-      languages: {
-        'pt-BR': '/pt-BR/signin',
-        en: '/en/signin',
-      },
-    },
+    alternates: alternatesFor(locale, '/signin'),
   };
 }
 

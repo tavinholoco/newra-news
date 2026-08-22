@@ -172,6 +172,13 @@ Regras que não são óbvias no código:
   da dobra no mobile.
 - **Hero e corpo ficam em `max-w-narrow`; relacionadas e CTA usam o contêiner
   cheio.** Uma grade de quatro colunas dentro de 720px vira quatro tiras.
+- **A trilha substituiu o “← voltar”, e não se somou a ele.** Dois controles de
+  volta na mesma linha seriam a mesma ação duas vezes. As chaves `news.backTo`
+  e `article.backTo` saíram dos dois JSONs junto com o link.
+- **As duas telas são `<article>`.** Vieram da auditoria de leitor de tela da
+  Fase 7: a tela **é** um artigo e nada dizia isso — era uma pilha de `div` com
+  um `h1` no meio. Marcado, o leitor de tela ganha navegação por artigo e o
+  `header` do `ArticleHero` vira o cabeçalho **daquele** artigo.
 - **`ShareButton` tem um rótulo só para os dois caminhos.** `navigator.share` só
   existe depois da hidratação; trocar o texto a partir dele daria markup
   diferente no servidor e no cliente.
@@ -202,13 +209,64 @@ Regras que não são óbvias no código:
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
 
-## SEO
-- Meta tags dinâmicas via generateMetadata() em cada page
-- Open Graph tags para compartilhamento social
-- Hreflang: `alternates.languages` ({ 'pt-BR': '/pt-BR/...', en: '/en/...' }) em
-  **todas** as generateMetadata — inclusive nas dinâmicas (`news/[id]`,
-  `article/[date]`), com o id/date interpolado no path
-- Sitemap gerado automaticamente (entradas duplicadas por idioma)
+## SEO (Fase 7)
+
+**Nenhuma página escreve metadata à mão.** `lib/seo.ts` tem os dois helpers e
+`tests/lib/seo.test.ts` falha se alguma `generateMetadata` não passar por um
+deles.
+
+| Peça | Papel |
+|---|---|
+| `lib/seo.ts` → `pageMetadata` | a metadata inteira de uma página pública |
+| `lib/seo.ts` → `alternatesFor` | canonical + hreflang, para as `noindex` |
+| `lib/json-ld.ts` | os nós de dado estruturado |
+| `components/seo/json-ld.tsx` | serializa um nó (ou `@graph`) num `<script>` |
+| `components/editorial/breadcrumb.tsx` | a trilha visível |
+| `app/news-sitemap.xml/route.ts` | o sitemap do Google Notícias |
+
+Regras que não são óbvias no código:
+
+- **A metadata do Next não faz merge profundo.** O layout declara
+  `openGraph: { type, siteName, locale }` e `twitter: { card }`; a página que
+  declara os seus **substitui o objeto inteiro**. Medido no HTML de produção da
+  Fase 6: nenhuma página tinha `og:type`, `og:site_name`, `og:locale` nem
+  `og:image`, e cinco compartilhavam com `twitter:card: summary`. É `pageMetadata`
+  quem repõe os defaults — não repita os quatro campos na página.
+- **O caminho sem prefixo de idioma é escrito uma vez por página.** `pageMetadata`
+  deriva dele o `canonical`, os três `hreflang` (incluindo `x-default`) e o
+  `og:url`. Eram quinze cópias de `{ 'pt-BR': '/pt-BR/x', en: '/en/x' }`.
+- **`canonical` é auto-referente.** Canonizar `/en` para `/pt-BR` tiraria do
+  índice justamente a versão que serve quem busca em inglês. Auto-canonical +
+  hreflang recíproco é o par certo para conjunto de idioma.
+- **Rota de metadata gerada não tem extensão, e o middleware precisa saber.** O
+  matcher exclui o que tem ponto (`sitemap.xml`, `icon.svg`); `opengraph-image` e
+  `apple-icon` não têm, e eram redirecionados para `/pt-BR/...` → 404. A imagem
+  de compartilhamento e o ícone do iOS ficaram inalcançáveis até a Fase 7. Rota
+  de metadata nova entra no matcher.
+- **A URL da imagem OG é `SITE_OG_IMAGE`, sem `.png`.** O `/opengraph-image.png`
+  que a tela do briefing usava desde a Fase 5 nunca existiu.
+- **Autoria no JSON-LD segue quem escreveu.** Em `/news/[id]` o `author` é o
+  veículo e o `publisher` é o Newra News, com `isBasedOn` na matéria original;
+  no briefing o `author` é o site e as fontes viram `citation`. Carimbar texto de
+  terceiro como nosso é o mesmo erro que a §8 evita na interface.
+- **A trilha visível e o `BreadcrumbList` recebem a mesma lista.** A página monta
+  `BreadcrumbStep[]` uma vez e passa às duas pontas — o Google pede que o dado
+  estruturado descreva a trilha visível, e duas listas paralelas divergem no
+  primeiro degrau renomeado. Degrau sem `path` é a página atual: não vira link e
+  leva `aria-current`.
+- **A trilha é uma linha só.** Com `flex-wrap` o degrau atual pedia a largura
+  inteira antes de truncar e caía para a segunda linha.
+- **O news sitemap só leva as URLs `pt-BR`, e é decisão sobre o conteúdo.** As
+  fontes RSS são brasileiras: o corpo é o mesmo texto em português nas duas URLs,
+  e o que `/en` traduz é a moldura. `news:language` é ISO 639 (`pt`), não o
+  BCP-47 da rota. Janela de 48h e teto de 1.000 URLs são do formato.
+- **Dois sitemaps no `robots.txt`.** O geral descreve o acervo; o de notícias, a
+  janela. O cron diário invalida os dois.
+- **`formatArticleDate` lê em UTC; `formatDate`/`formatDateTime`, no fuso local.**
+  `Article.date` é data de calendário gravada à meia-noite UTC — lida no fuso
+  local, num fuso negativo ela vira a véspera. Era assim que `/article/2026-08-22`
+  exibia "21 de agosto", e o servidor (UTC) e o navegador renderizavam diferente.
+  Para um **instante** (`createdAt`, `generatedAt`) o fuso de quem lê é o certo.
 
 ## Estilo — design tokens da V2 (Fase 1)
 
@@ -321,6 +379,7 @@ plano).
 | `article-hero` · `article-body` · `article-skeleton` | a abertura, o corpo e a espera das telas de leitura (Fase 5) |
 | `ai-disclosure` · `source-list` · `share-button` · `related-stories` | as peças da §8 e §9 (Fase 5) |
 | `save-button` · `briefing-card-compact` | salvar qualquer item · o briefing na forma do card compacto (Fase 6) |
+| `breadcrumb` | a trilha das telas de leitura, espelhada no `BreadcrumbList` (Fase 7) |
 
 Regras que não são óbvias no código:
 
