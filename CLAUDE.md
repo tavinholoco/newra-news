@@ -16,10 +16,43 @@
 - `pnpm build` — build de produção
 - `pnpm lint` — ESLint em todo o monorepo
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
-- `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`
+- `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`. **O conjunto versionado é capturado de produção**, não do local — ver "Fechar uma fase" abaixo
 - `pnpm db:migrate` — rodar migrations Prisma
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
+
+## Fechar uma fase (o ritual, contra produção)
+
+Roda **depois** do merge e do deploy — as duas medições são contra o site no ar,
+e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as duas acharam defeito.
+
+**1. Lighthouse por rota.** Não espere a execução de segunda:
+
+```bash
+gh workflow run "Lighthouse CI" --ref main
+```
+
+Quando terminar, os scores saem no passo "Print scores" do log. Se alguma
+categoria cair, o relatório completo vem por
+`gh run download <run-id> -D <dir>` e o audit reprovado está em
+`lhr-*.json` → `categories.<cat>.auditRefs` com `score < 1`.
+
+**2. Baseline visual** (§30) — de produção, com as mesmas larguras do conjunto
+versionado, senão o diff vira ruído:
+
+```bash
+BASE_URL=https://newra-news-web.vercel.app NEXT_PUBLIC_API_URL=https://newra-news-api.onrender.com/api OUT_DIR=../../docs/v2/baseline-v2 WIDTHS=375,768,1440 FORMAT=jpeg node scripts/capture-visual-baseline.mjs
+```
+
+(a partir de `apps/web/`). A captura é determinística: **só as telas que mudaram
+aparecem no `git status`** — se aparecer imagem que você não mexeu, ou o conteúdo
+do dia mudou, ou há algo errado.
+
+> **O deploy da Vercel e o do Render disparam juntos no merge, e não terminam
+> juntos.** Se o build do web correr antes de a API subir uma rota nova, o
+> prefetch falha e a página estática nasce sem o dado. Conferir que a mudança
+> está no ar **antes** de medir — foi assim que a `/news` foi para produção com
+> as oito categorias zeradas.
 
 ## Convenções de Código
 - TypeScript estrito: sem `any`, sem `@ts-ignore`
@@ -58,12 +91,31 @@
   `/article`) sobre uma camada editorial nova, com a transparência de IA **só**
   no briefing. Acessibilidade **100 nas cinco rotas**; a medição achou uma
   hidratação quebrada em `/article` e a baseline achou o dek repetido no corpo —
-  os dois corrigidos.
+  os dois corrigidos e a baseline recapturada.
+- **Nada pendente do ciclo anterior.** A Fase 6 abre limpa.
 - **Testes:** 825 em 78 suites (502 API em 40 + 323 web em 38 — todos passando).
 
-### O que a Fase 6 precisa saber antes de começar
+### Por onde começar a Fase 6
 
-**Levantamento completo no item 22 do `docs/progress.md`.** O resumo:
+**Leia primeiro o item 22 do `docs/progress.md`** — é o levantamento completo,
+com as opções de modelagem e o custo de cada uma. O caminho recomendado, na
+ordem:
+
+1. **Decidir como `Favorite` alcança um `Article`** (item 22.1). O item lista
+   três desenhos com o custo de cada; a decisão é sua, e ela destrava *duas*
+   coisas de uma vez — o "salvar" no briefing e o "somente salvos" no acervo.
+2. **Decidir a política de cache do "somente salvos"** (22.2), que é o mesmo
+   problema visto do outro lado. Rota autenticada própria ou caminho sem cache
+   na `/news`.
+3. **Migration de preferências** (22.3) — antes das telas, pelo mesmo motivo que
+   a auditoria do briefing entrou antes da Fase 3.
+4. **As telas.** `favorites-list` migra para os cards editoriais no caminho, e
+   com isso o `news-card` da V1 sai do repositório (22.5).
+
+Os passos 1 a 3 são backend e cabem num PR só — é o papel que a Fase 0.5 teve
+para a Fase 3. As telas vêm depois.
+
+O resumo do que foi encontrado:
 
 - **Escopo:** `favorites`, `profile`, `preferences` e `newsletter settings`
   (§28), com a visão em §19. Herda dois itens adiados: "somente salvos" em
@@ -97,8 +149,10 @@
   acrescente também em `TYPOGRAPHY_SCALE`. Detalhe em `apps/web/CLAUDE.md`.
 - **Bloco sem dado devolve `null`, e o wrapper do grid também sai** — grid vazio
   tem altura zero mas ainda consome o `gap-section` do pai.
-- **Nível de heading é prop, não valor fixo** nos cards editoriais. Heading fixo
-  foi o que deixou `heading-order` reprovando em `/news` e `/article`.
+- **O nível do heading é decisão da página, nunca do componente nem do texto.**
+  Nos cards é prop (`heading-level`); no corpo do briefing, o `###` que a IA
+  escreve sai como `h2`, porque o `h1` é o título. Heading fixo já reprovou
+  `heading-order` duas vezes neste projeto.
 - **Número em controle de filtro tem de prometer o que o próprio clique
   devolve.** A pílula "Todas" da Fase 4 mostrava o total **já filtrado** por
   categoria: lia 594 e abria 2.373. Contagem de faceta ignora a própria
@@ -108,9 +162,6 @@
   meia-noite UTC os dois divergem e o React derruba a hidratação (#418/#422).
   Leia o relógio num efeito. Foi o que custou 4 pontos de best-practices em
   `/article`, e o teste que trava isso usa `renderToString`.
-- **O nível do heading é da página, não do texto.** A IA escreve `###` no corpo
-  do briefing; o `ArticleBody` emite `h2`, porque o `h1` é o título. Emitir `h3`
-  abriria salto de nível — o defeito que já reprovou `heading-order` duas vezes.
 - **Duas utilities de mesma especificidade brigando são decididas pela ordem no
   CSS gerado**, que ninguém controla. O par `sr-only` / `focus:not-sr-only` é o
   caso clássico; o skip link usa `top` negativo + `focus:top-4`, onde o
@@ -133,25 +184,26 @@
   migration como aplicada sem executar o SQL — por isso falta o índice único de
   `News.sourceUrl` e há títulos duplicados no ambiente local. Não afeta
   produção. Há `pnpm --filter @newranews/database db:cleanup-news-duplicates`.
+  O artigo mais recente do banco local também tem **auditoria e 12 fontes
+  semeadas à mão** (21/08), para dar de ver a tela de briefing completa — não
+  saiu do pipeline, e o resto do acervo local é anterior à migration.
 - **O gate do Lighthouse é real desde 21/08** (`configPath` nos inputs da
   action): a execução semanal de segunda 09:00 UTC falha se alguma categoria
   cair abaixo de 90.
 
 ### O que ficou em aberto na Fase 5
 
-- **Recapturar `article-detail--*` da baseline** depois que o conserto do dek
-  repetido subir — as imagens atuais são o registro do defeito.
 - **Página na URL em `/article`** — a lista usa `useState`, ao contrário de
   `/news`. Dívida consciente: a ficha escopa a tela a ritmo visual, e ler a
   query string pediria uma fronteira de Suspense que a página não precisa.
 - **"Salvar" no briefing e "somente salvos" no acervo** — os dois esperam a
   Fase 6, pelo mesmo motivo: `Favorite` referencia `newsId`.
-- **A categoria gravada acerta ~67%**, e isso é o teto do classificador por
-  palavra-chave. A Fase 4 é interface sobre um campo que existe e é estável, mas
-  evita a surpresa de ver matéria fora de lugar navegando por categoria. Passar
-  de 67% pede classificação por IA, que é trabalho próprio e ainda não foi
-  feito. O acervo se renormaliza sozinho na etapa 8.5 do pipeline diário — não
-  existe job manual a disparar.
+- **A categoria gravada acerta ~67%**, teto do classificador por palavra-chave.
+  Não bloqueia tela nenhuma — o campo existe e é estável —, mas evita a surpresa
+  de ver matéria fora de lugar navegando por categoria. Passar disso pede
+  classificação por IA, que é trabalho próprio e ainda não foi feito. O acervo se
+  renormaliza sozinho na etapa 8.5 do pipeline diário: não há job manual a
+  disparar.
 
 ### Onde ler o resto
 
