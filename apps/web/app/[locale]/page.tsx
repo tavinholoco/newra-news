@@ -7,8 +7,7 @@ import { BriefingCard } from '@/components/editorial/briefing-card';
 import { LatestStories } from '@/components/editorial/latest-stories';
 import { TrendingList } from '@/components/editorial/trending-list';
 import { CategorySection } from '@/components/editorial/category-section';
-import { NewsletterCta } from '@/components/monetization/newsletter-cta';
-import { AdSlot } from '@/components/monetization/ad-slot';
+import { NewsletterCta } from '@/components/editorial/newsletter-cta';
 import { SITE_NAME, pageMetadata } from '@/lib/seo';
 import { PageView } from '@/components/analytics/page-view';
 
@@ -122,7 +121,6 @@ export default async function HomePage({ params }: Props) {
           </div>
         ) : null}
 
-        <AdSlot placement='home-after-hero' format='leaderboard' />
 
         {home.briefing ? (
           <BriefingCard briefing={home.briefing} source='briefing' />
@@ -144,7 +142,6 @@ export default async function HomePage({ params }: Props) {
           </div>
         ) : null}
 
-        <AdSlot placement='home-between-sections' format='leaderboard' />
 
         {home.categories.map((section) => (
           <CategorySection key={section.category} section={section} />

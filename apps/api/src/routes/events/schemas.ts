@@ -1,7 +1,5 @@
 import { z } from 'zod';
 import {
-  AD_FORMATS,
-  AD_PLACEMENTS,
   CONTENT_TYPES,
   EVENT_SOURCES,
   PRODUCT_EVENT_BATCH_MAX,
@@ -96,16 +94,6 @@ const payloadSchema = z.discriminatedUnion('type', [
     channel: z.enum(SHARE_CHANNELS),
   }),
   z.object({ type: z.literal('newsletter_signup'), origin: sourceSchema }),
-  z.object({
-    type: z.literal('ad_view'),
-    placement: z.enum(AD_PLACEMENTS),
-    format: z.enum(AD_FORMATS),
-  }),
-  z.object({
-    type: z.literal('ad_click'),
-    placement: z.enum(AD_PLACEMENTS),
-    format: z.enum(AD_FORMATS),
-  }),
   z.object({
     type: z.literal('subscription_intent'),
     origin: sourceSchema,

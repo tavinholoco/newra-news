@@ -61,9 +61,13 @@
 
 > `lib/seo.ts` virou a fonte única de URL e de metadata (canonical, `x-default`, `og:url` e os defaults que o Next **não** herda do layout); `lib/json-ld.ts` + `components/seo/json-ld.tsx` levam `Organization`, `WebSite`, `NewsArticle` e `BreadcrumbList`; a trilha visível nasceu espelhando o dado estruturado; e `/news-sitemap.xml` publica a janela de 48h do Google Notícias. A medição contra produção achou quatro defeitos que o checklist não previa — a imagem OG e o ícone do iOS inalcançáveis, `og:image`/`og:type`/`og:site_name` ausentes em toda página, e o briefing exibindo a véspera. 416 testes no web. Ver **item 25**.
 
-**Newra News V2.0 — Fase 8 (Monetização)** 🔶 **em andamento** — pré-requisitos
+**Newra News V2.0 — Fase 8 (Medição de produto)** 🔶 **em andamento**
 
-> A fase começa pelo que a §28 não lista: **a camada de analytics**. Sem ela não há `ad_view`, `ad_click`, CTR nem experimento de preço — e o `AdSlot`, que existe desde a Fase 3, continuaria sem ter onde gravar a impressão. Três PRs, no mesmo corte da Fase 6: **banco e API** → **camada e consentimento** → **inventário e slots**. O primeiro está no **item 26**.
+> A fase se chamava **Monetização** e foi reescrita em 22/08/2026: **o site não exibe anúncio**. A camada de analytics saiu em três PRs (itens **26**, **27** e **28**) e ficou; o aparato de anúncio foi **removido** (item **29**). O que resta é a **tela de métricas de produto** — hoje o `ProductEvent` recebe evento e ninguém o lê.
+>
+> **Monetização virou planejamento** (§21 do plano): publicidade **cancelada**; newsletter patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e indeterminado. O gatilho para retomá-los é um número — sessões recorrentes —, e é a tela de métricas que o produz.
+>
+> **Pendente e fora do código:** a API de produção ainda não serve `POST /api/events` (deploy do Render), então a camada mede para o vazio.
 
 ---
 
@@ -1862,6 +1866,89 @@ serve a rota; `/api/account` responde 401, o que mostra que a build tem a Fase 6
 Enquanto isso não for resolvido no painel do Render, **a camada mede para o
 vazio**: os eventos saem, o proxy repassa o 404 e nada é gravado — sem quebrar
 nada, que é o caminho testado.
+
+### 29. V2.0 Fase 8 — anúncio cancelado, e a fase reescrita ✅ 2026-08-22
+
+> Branch `refactor/v2-drop-ads`. **Decisão de produto:** o site não exibe
+> anúncio. Este item registra o que saiu, o que ficou, e o que a decisão mudou
+> no plano.
+
+#### O que saiu
+
+~750 linhas em sete arquivos, mais o vocabulário compartilhado e dois
+namespaces de i18n:
+
+| Peça | Por que existia |
+|---|---|
+| `components/monetization/ad-slot.tsx` | o espaço, com altura reservada e três estados |
+| `lib/ads.ts` | inventário, formatos e alturas |
+| `components/consent/consent-banner.tsx` | o gate de terceiro |
+| `lib/use-in-view.ts` | a regra de viewability (metade por um segundo) |
+| 3 suítes de teste | 27 casos |
+| `ad_view`, `ad_click`, `AD_PLACEMENTS`, `AD_FORMATS` | o catálogo compartilhado |
+| `NEXT_PUBLIC_ADS_ENABLED`, `NEXT_PUBLIC_AD_NETWORK` | as duas chaves |
+
+**A alternativa era deixar dormente, e ela foi recusada com razão.** Código que
+ninguém executa é a mesma armadilha do controle que não muda nada: cada mudança
+de token, de chave de i18n ou do `cn` teria de mantê-lo verde para sempre, e
+quem lesse o repo não distinguiria "ainda vai ligar" de "decidimos não". O git
+guarda tudo (PR #124), e a engenharia continua legível nos itens 28 e 29.
+
+**Visualmente não mudou um pixel:** os dois slots da Home já não renderizavam em
+produção, porque `NEXT_PUBLIC_ADS_ENABLED` nunca foi ligado lá.
+
+#### Duas consequências que a remoção obrigou a resolver
+
+**1. A máquina de consentimento perdeu quem escrevesse nela.** `readConsent`,
+`writeConsent` e o tipo `ConsentDecision` existiam para o banner. Sem ele,
+`readConsent` lia uma chave que nada gravava — um `if` que nunca muda de lado.
+Saiu tudo; ficou `isTrackingAllowed()`, que respeita **DNT e Global Privacy
+Control**.
+
+> Isso deixa o **direito de oposição** com um mecanismo só: o sinal do
+> navegador. É o padrão para medição anônima de primeira parte — *cookieless*,
+> sem identificador entre sessões, sem terceiro — e está registrado como item em
+> aberto caso se queira um controle explícito na interface.
+
+**2. A pasta `monetization/` ficou com um arquivo só.** O `newsletter-cta`
+promove a **própria** newsletter: é conteúdo, não inventário. Foi para
+`editorial/`, e a pasta deixou de existir — nome de pasta que descreve uma
+estratégia cancelada é sinal falso para quem chega depois.
+
+#### O catálogo de eventos: de 14 para 12
+
+`ad_view` e `ad_click` saíram do tipo compartilhado e do Zod da API. Um cliente
+antigo que ainda os mandasse recebe **400** — e há teste para isso, porque o
+schema é o contrato.
+
+`subscription_intent` **fica**, sem call site: está pronto para o dia em que o
+Newra Plus existir, e até lá não finge medir nada.
+
+#### O que a decisão mudou no plano
+
+| Onde | O quê |
+|---|---|
+| §21 | "Monetização: estratégia proposta" virou "o que fica planejado"; fase 1 **cancelada**, fases 2, 3 e 4 **adiadas** |
+| §22 | marcada como **histórica** — existia para decidir onde o anúncio entra antes de fechar o layout |
+| §28, Fase 8 | "Monetização" → **"Medição de produto"**, com a tela de métricas como único item aberto |
+| `docs/v2/02` | `ad-slot` e `premium-cta` fora do inventário de componentes |
+
+> **"Experiência sem anúncios" saiu da lista do Newra Plus.** Era o item mais
+> fácil de vender e o menos honesto — cobrar para tirar um incômodo que o
+> próprio site cria. Sem anúncio, não há o que remover.
+
+#### Números
+
+- **998 testes** (1.025 → 998): 559 na API e **439 no web** (−27), 92 suites.
+  É a única vez neste projeto em que o número cai, e cair é o resultado certo:
+  os 27 casos testavam código que não existe mais.
+
+#### O próximo passo
+
+**A tela de métricas de produto, versão mínima** — consulta o `ProductEvent`
+cru, agrupado por tipo e por dia, numa aba nova de `/admin/metrics`. Sem
+migration. É ela que produz o número de sessões recorrentes que destrava
+patrocínio e Plus.
 
 ---
 

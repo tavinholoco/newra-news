@@ -92,58 +92,48 @@ do dia mudou, ou há algo errado.
 - **Onde estamos:** V2.0 com as Fases 0 a 7 concluídas e a **Fase 8 em
   andamento** — os pré-requisitos, em três PRs. O PRD da V1 foi fechado em
   2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-22):** **PR 3, o último dos pré-requisitos da Fase
-  8** — inventário de casa no `AdSlot`, o banner de consentimento (gate de
-  terceiro), `ad_view`/`ad_click` e a profundidade de leitura. **13 dos 14
-  eventos instrumentados.** Antes dele, o **PR 2** (a camada) e o **PR 1** —
-  eventos de produto, banco e API. `ProductEvent`, `POST /api/events` (pública e
-  anônima), o catálogo dos 14 eventos em `packages/types`, e a retenção de 90
-  dias dentro da etapa 8 do pipeline. Antes dele, a Fase 7 (SEO) foi fechada
-  contra produção — item 25.
-- **Nada pendente do ciclo anterior.**
-- **Testes:** 1.025 em 96 suites (559 API em 43 + 466 web em 53 — todos passando).
+- **Última entrega (2026-08-22):** **anúncio cancelado e a Fase 8 reescrita**
+  — `AdSlot`, inventário, banner de consentimento e viewability removidos (~750
+  linhas); a fase deixou de se chamar "Monetização" e virou **"Medição de
+  produto"**. Antes disso, os três PRs de pré-requisito entregaram a camada de
+  analytics (itens 26, 27 e 28).
+- **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
+  patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e
+  indeterminado. **O gatilho é um número, não uma data.**
+- **Testes:** 998 em 92 suites (559 API em 43 + 439 web em 49 — todos passando).
+  O número caiu pela primeira vez, e cair era o certo: 27 casos testavam código
+  removido.
 
 ### Por onde continuar a Fase 8
 
-**Leia o item 26 do `docs/progress.md`** — é o PR 1, e explica por que a fase
-começa pelo que a §28 não lista.
+**Leia o item 29 do `docs/progress.md`** — é o cancelamento do anúncio e a
+reescrita da fase. Os itens 26 a 28 são a camada de analytics, que ficou.
 
-Os três PRs, no mesmo corte da Fase 6:
+**O que resta é um entregável só: a tela de métricas de produto.** Hoje o
+`ProductEvent` recebe evento e **ninguém o lê** — tabela sem leitor, a armadilha
+que este projeto evita em toda fase. Versão **mínima**, decidida em 22/08:
+consulta o evento cru agrupado por tipo e por dia, numa aba nova de
+`/admin/metrics`, **sem migration**.
 
-| PR | Escopo | Estado |
-|---|---|---|
-| 1. Banco e API | `ProductEvent`, `POST /api/events`, catálogo tipado, retenção | ✅ |
-| 2. Camada e instrumentação | `lib/analytics/`, consentimento, os 8 eventos | ✅ |
-| 3. Inventário, slots e banner | inventário de casa, `ad_view`/`ad_click`, o banner, profundidade | ✅ |
+Não confundir com o painel que já existe ali: aquele mede o **pipeline** (saúde
+de máquina); este mede **comportamento de gente** — CTR do hero por origem,
+profundidade de leitura, buscas com zero resultado, editoria que puxa audiência
+e, principalmente, **sessões recorrentes**.
 
-**A camada de analytics vem antes de qualquer slot.** O `AdSlot` existe desde a
-Fase 3 e reserva altura; o que falta para ligá-lo não é criativo, é **onde
-gravar a impressão**. Sem `ad_view`/`ad_click` não há viewability, sem
-viewability não há CTR, e sem CTR o "framework de experimento de preço" mede o
-nada.
+> **A tabela de agregado diário ficou de fora, com data para reavaliar.** Ela
+> serve para comparar meses depois que a retenção de 90 dias apagar o evento
+> cru — problema que aparece três meses após a ingestão começar. Entra sem
+> retrabalho: o expurgo e a etapa 8 do pipeline já existem.
 
-**A API de produção ainda não serve `/api/events`.** Medido em 22/08: a
-migration de #122 rodou com sucesso, mas o `POST` responde **404** no Render três
-horas depois do merge — a tabela existe e o código do backend não subiu.
-**Conferir o deploy do Render antes de esperar qualquer número**, porque a
-camada mede para o vazio enquanto isso.
+Três coisas a saber antes de mexer:
 
-**Os três pré-requisitos estão entregues.** O que resta da §28 é o que depende
-de decisão de negócio, não de código:
-
-- **Uma conta de rede de anúncio.** Com ela, `NEXT_PUBLIC_AD_NETWORK` liga o
-  banner, o gate de consentimento e o espaço de terceiro — tudo já escrito e
-  testado.
-- **Patrocínio da newsletter** (§21, fase 2) e **Newra Plus** (fase 3), que a
-  §11 dos slots deixou sem especificação por dependerem de base de usuários.
-  `subscription_intent` continua no catálogo sem call site: medir intenção de um
-  plano que não existe é evento morto.
-- **A tela de métricas de produto**, que é quem daria consumidor à tabela de
-  agregado diário que o PR 1 deliberadamente não criou.
-
-O que a Fase 7 entregou continua valendo, e o item 25 tem o detalhe: `lib/seo.ts`
-como fonte única de URL e metadata, JSON-LD, a trilha visível e
-`/news-sitemap.xml`.
+- **A API de produção ainda não serve `POST /api/events`** (deploy do Render). O
+  `uptime` bate com o merge do #122, então ela **reiniciou** e mesmo assim não
+  tem a rota. Enquanto isso, a camada mede para o vazio — sem quebrar nada.
+- **Não reintroduza espaço de anúncio** sem ler a §21 do plano: publicidade está
+  **cancelada por decisão**, não esquecida.
+- **`subscription_intent` continua sem call site**, e `premium-cta` **não deve
+  existir** antes de haver plano pago.
 
 ### Armadilhas que já custaram caro
 

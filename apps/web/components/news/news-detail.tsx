@@ -10,7 +10,7 @@ import { ArticleMeta } from '@/components/editorial/article-meta';
 import { RelatedStories } from '@/components/editorial/related-stories';
 import { ShareButton } from '@/components/editorial/share-button';
 import { SaveButton } from '@/components/editorial/save-button';
-import { NewsletterCta } from '@/components/monetization/newsletter-cta';
+import { NewsletterCta } from '@/components/editorial/newsletter-cta';
 import { readingTimeFromText } from '@/lib/format';
 import { ScrollDepth } from '@/components/analytics/scroll-depth';
 

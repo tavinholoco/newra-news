@@ -9,7 +9,7 @@ import { ReadingTime } from '@/components/editorial/reading-time';
 import { SaveButton } from '@/components/editorial/save-button';
 import { ShareButton } from '@/components/editorial/share-button';
 import { SourceList } from '@/components/editorial/source-list';
-import { NewsletterCta } from '@/components/monetization/newsletter-cta';
+import { NewsletterCta } from '@/components/editorial/newsletter-cta';
 import { formatArticleDate, readingTimeFromText } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import type { BreadcrumbStep } from '@/lib/json-ld';
