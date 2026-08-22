@@ -92,48 +92,41 @@ do dia mudou, ou há algo errado.
 - **Onde estamos:** V2.0 com as Fases 0 a 7 concluídas e a **Fase 8 em
   andamento** — os pré-requisitos, em três PRs. O PRD da V1 foi fechado em
   2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-22):** **anúncio cancelado e a Fase 8 reescrita**
-  — `AdSlot`, inventário, banner de consentimento e viewability removidos (~750
-  linhas); a fase deixou de se chamar "Monetização" e virou **"Medição de
-  produto"**. Antes disso, os três PRs de pré-requisito entregaram a camada de
-  analytics (itens 26, 27 e 28).
+- **Última entrega (2026-08-22):** **a tela de métricas de produto** — fecha a
+  **Fase 8**. `GET /api/metrics/product` (admin) e um bloco novo no
+  `/admin/metrics`: audiência, leitura, cliques por origem, categorias e buscas
+  sem resultado. Antes dela, o anúncio foi cancelado (item 29) e o `/api/events`
+  foi consertado (item 30) — **a ingestão está no ar**, respondendo 201 em
+  produção.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
-  patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e
-  indeterminado. **O gatilho é um número, não uma data.**
-- **Testes:** 1.000 em 93 suites (561 API em 44 + 439 web em 49 — todos passando).
+  patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
+  **assinantes ativos e contas**, os dois persistentes.
+- **Testes:** 1.026 em 95 suites (575 API em 45 + 451 web em 50 — todos
+  passando).
 
-### Por onde continuar a Fase 8
+### Por onde começar a Fase 9 (Release)
 
-**Leia o item 29 do `docs/progress.md`** — é o cancelamento do anúncio e a
-reescrita da fase. Os itens 26 a 28 são a camada de analytics, que ficou.
+**A Fase 8 está fechada.** Leia os itens **26 a 31** do `docs/progress.md` — a
+camada de analytics, o cancelamento do anúncio, o conserto do empacotamento e a
+tela de métricas.
 
-**O que resta é um entregável só: a tela de métricas de produto.** Hoje o
-`ProductEvent` recebe evento e **ninguém o lê** — tabela sem leitor, a armadilha
-que este projeto evita em toda fase. Versão **mínima**, decidida em 22/08:
-consulta o evento cru agrupado por tipo e por dia, numa aba nova de
-`/admin/metrics`, **sem migration**.
+O checklist da Fase 9 está na §28: regressão visual, QA mobile e desktop,
+Lighthouse CI, smoke E2E, validação de SEO e de analytics, e canary de produção.
+**Boa parte já existe** — a baseline visual (§30), o gate do Lighthouse e a
+validação de SEO da Fase 7 —, então vale começar levantando o que de fato falta
+em vez de refazer.
 
-Não confundir com o painel que já existe ali: aquele mede o **pipeline** (saúde
-de máquina); este mede **comportamento de gente** — CTR do hero por origem,
-profundidade de leitura, buscas com zero resultado, editoria que puxa audiência
-e, principalmente, **sessões recorrentes**.
+Três coisas a saber:
 
-> **A tabela de agregado diário ficou de fora, com data para reavaliar.** Ela
-> serve para comparar meses depois que a retenção de 90 dias apagar o evento
-> cru — problema que aparece três meses após a ingestão começar. Entra sem
-> retrabalho: o expurgo e a etapa 8 do pipeline já existem.
-
-Três coisas a saber antes de mexer:
-
-- **O 404 do `POST /api/events` em produção foi diagnosticado e corrigido**: não
-  era o painel do Render, era o `@newranews/types` não emitir JavaScript — o
-  servidor morria no boot e o Render mantinha a build anterior no ar. Ver a
-  primeira armadilha abaixo e o item 30 do `docs/progress.md`. **Conferir no
-  próximo deploy** que a rota responde 400 (e não 404) com corpo vazio.
-- **Não reintroduza espaço de anúncio** sem ler a §21 do plano: publicidade está
-  **cancelada por decisão**, não esquecida.
-- **`subscription_intent` continua sem call site**, e `premium-cta` **não deve
-  existir** antes de haver plano pago.
+- **A tela de métricas nasce mostrando quase zero**, e zero é honesto: a
+  ingestão entrou no ar em 22/08. O número começa a significar algo depois de
+  alguns dias de tráfego.
+- **A tabela de agregado diário fica para ~90 dias depois** — é quando o expurgo
+  começa a apagar evento cru e a comparação entre meses deixa de existir. Entra
+  sem retrabalho.
+- **Não reintroduza espaço de anúncio** sem ler a §21: publicidade está
+  **cancelada por decisão**, não esquecida. `subscription_intent` segue sem call
+  site e `premium-cta` não deve existir antes de haver plano pago.
 
 ### Armadilhas que já custaram caro
 

@@ -1,12 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SignJWT } from 'jose';
 import { buildTestApp } from '../helpers/test-server';
+import { getProductMetrics } from '../../src/services/product-metrics.service';
 import type { FastifyInstance } from 'fastify';
 
 vi.mock('../../src/services/metrics.service', () => ({
   getWeeklyMetrics: vi.fn(),
   getMonthlyMetrics: vi.fn(),
   getDashboardMetrics: vi.fn(),
+}));
+
+vi.mock('../../src/services/product-metrics.service', () => ({
+  getProductMetrics: vi.fn(),
+  DEFAULT_WINDOW_DAYS: 30,
 }));
 
 vi.mock('../../src/config/env', () => ({
@@ -255,5 +261,123 @@ describe('GET /api/metrics/dashboard (admin)', () => {
     const body = JSON.parse(res.body) as { data: { today: null } };
     expect(body.data).toBeDefined();
     expect(body.data.today).toBeNull();
+  });
+});
+
+/**
+ * Métricas de produto — mesmo guarda do `/dashboard`, e mais uma razão para
+ * ele: a resposta inclui **termo de busca digitado por leitor**. Já sai
+ * higienizado da origem, e ainda assim só deve chegar a quem administra.
+ */
+describe('GET /api/metrics/product (admin)', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const mockProduct = {
+    period: {
+      start: '2026-07-23T00:00:00.000Z',
+      end: '2026-08-22T00:00:00.000Z',
+      days: 30,
+    },
+    audience: { sessions: 12, newsletterSubscribers: 42, accounts: 7 },
+    byDay: [{ date: '2026-08-22', sessions: 3, events: 9 }],
+    byType: [{ type: 'homepage_view', count: 9 }],
+    storyOpensBySource: [{ source: 'hero', count: 4 }],
+    categoryViews: [{ category: 'HEALTH', count: 2 }],
+    readingDepth: { opened: 6, scroll25: 4, scroll50: 3, scroll90: 1 },
+    searchesWithoutResults: [{ query: 'eclipse', count: 2 }],
+  };
+
+  it('should return 401 without a token', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/product',
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('should return 403 for an authenticated non-admin user', async () => {
+    const token = await signToken({
+      sub: 'bbbbbbbb-0000-0000-0000-000000000002',
+      email: 'user@test.com',
+      role: 'USER',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/product',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(getProductMetrics).not.toHaveBeenCalled();
+  });
+
+  it('should return 200 with product metrics for an ADMIN', async () => {
+    vi.mocked(getProductMetrics).mockResolvedValue(mockProduct);
+    const token = await signToken({
+      sub: 'aaaaaaaa-0000-0000-0000-000000000001',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/product',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: typeof mockProduct };
+    expect(body.data.audience.newsletterSubscribers).toBe(42);
+    expect(body.data.storyOpensBySource[0]?.source).toBe('hero');
+    // O schema é o contrato: campo que ele não declara é descartado na
+    // serialização, sem erro nenhum.
+    expect(body.data.searchesWithoutResults[0]?.query).toBe('eclipse');
+    expect(body.data.readingDepth.scroll90).toBe(1);
+  });
+
+  it('should honour the requested window', async () => {
+    vi.mocked(getProductMetrics).mockResolvedValue(mockProduct);
+    const token = await signToken({
+      sub: 'aaaaaaaa-0000-0000-0000-000000000001',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
+
+    await app.inject({
+      method: 'GET',
+      url: '/api/metrics/product?days=7',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(getProductMetrics).toHaveBeenCalledWith(7);
+  });
+
+  it('should reject a window beyond the raw-event retention', async () => {
+    // 90 dias é quando o expurgo apaga o evento cru: uma janela maior mostraria
+    // queda onde houve apagamento.
+    const token = await signToken({
+      sub: 'aaaaaaaa-0000-0000-0000-000000000001',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/product?days=365',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });

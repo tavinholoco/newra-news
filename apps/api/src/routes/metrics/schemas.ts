@@ -50,6 +50,57 @@ const dashboardMetricsSchema = z.object({
 export const dashboardMetricsResponseSchema = z.object({ data: dashboardMetricsSchema });
 export type DashboardMetricsResponse = z.infer<typeof dashboardMetricsResponseSchema>;
 
+/**
+ * Métricas de produto. **O schema é o contrato** — campo que o serviço carrega e
+ * o schema não declara é buscado e descartado na serialização, sem erro nenhum
+ * (foi assim que a auditoria do briefing ficou invisível por um dia).
+ */
+const productMetricsSchema = z.object({
+  period: z.object({
+    start: z.string(),
+    end: z.string(),
+    days: z.number().int(),
+  }),
+  audience: z.object({
+    sessions: z.number().int(),
+    newsletterSubscribers: z.number().int(),
+    accounts: z.number().int(),
+  }),
+  byDay: z.array(
+    z.object({
+      date: z.string(),
+      sessions: z.number().int(),
+      events: z.number().int(),
+    }),
+  ),
+  byType: z.array(z.object({ type: z.string(), count: z.number().int() })),
+  storyOpensBySource: z.array(
+    z.object({ source: z.string(), count: z.number().int() }),
+  ),
+  categoryViews: z.array(
+    z.object({ category: z.string(), count: z.number().int() }),
+  ),
+  readingDepth: z.object({
+    opened: z.number().int(),
+    scroll25: z.number().int(),
+    scroll50: z.number().int(),
+    scroll90: z.number().int(),
+  }),
+  searchesWithoutResults: z.array(
+    z.object({ query: z.string(), count: z.number().int() }),
+  ),
+});
+
+export const productMetricsResponseSchema = z.object({
+  data: productMetricsSchema,
+});
+
+export const productQuerySchema = z.object({
+  // 90 é a retenção do evento cru: pedir mais devolveria uma janela que o
+  // expurgo já esvaziou, e a tela mostraria queda onde houve apagamento.
+  days: z.coerce.number().int().min(1).max(90).default(30),
+});
+
 export const weeklyQuerySchema = z.object({
   date: z
     .string()

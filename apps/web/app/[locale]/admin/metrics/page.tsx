@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
+import { ProductMetricsClient } from '@/components/dashboard/product-metrics-client';
 import { Link } from '@/i18n/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { alternatesFor } from '@/lib/seo';
@@ -30,6 +31,7 @@ export default async function AdminMetricsPage({ params }: Props) {
 
   const t = await getTranslations('dashboard');
   const tAdmin = await getTranslations('admin');
+  const tProduct = await getTranslations('productMetrics');
 
   // Sem busca no servidor: as métricas agora exigem JWT com role ADMIN, e o
   // token é assinado pela rota proxy (app/api/admin/metrics). O
@@ -53,6 +55,20 @@ export default async function AdminMetricsPage({ params }: Props) {
         </p>
       </div>
       <DashboardClient initialData={null} />
+
+      {/* Duas medições diferentes na mesma tela, e a divisória é o que impede
+          confundi-las: acima, saúde do pipeline; abaixo, comportamento de
+          gente. Uma cai quando a coleta falha; a outra, quando o produto não
+          engaja. */}
+      <div className='mt-12 border-t border-line pt-8'>
+        <h2 className='font-display text-2xl font-bold text-foreground'>
+          {tProduct('title')}
+        </h2>
+        <p className='mb-8 mt-2 text-muted-foreground'>
+          {tProduct('pageDescription')}
+        </p>
+        <ProductMetricsClient />
+      </div>
     </div>
   );
 }

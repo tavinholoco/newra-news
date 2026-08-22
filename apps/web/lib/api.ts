@@ -5,6 +5,7 @@ import type {
   PaginatedResponse,
   ApiResponse,
   DashboardMetrics,
+  ProductMetrics,
   Subscriber,
   FavoriteWithItem,
   FavoriteIds,
@@ -295,6 +296,17 @@ export async function runDailyPipeline(): Promise<RunPipelineResult> {
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const res = await fetchWebApi<ApiResponse<DashboardMetrics>>(
     '/api/admin/metrics',
+  );
+  return res.data;
+}
+
+/**
+ * Métricas de **produto**. O dashboard acima mede o pipeline; esta lê o
+ * `ProductEvent` — comportamento de gente.
+ */
+export async function getProductMetrics(days = 30): Promise<ProductMetrics> {
+  const res = await fetchWebApi<ApiResponse<ProductMetrics>>(
+    `/api/admin/product-metrics?days=${days}`,
   );
   return res.data;
 }

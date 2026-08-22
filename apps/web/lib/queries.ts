@@ -23,6 +23,7 @@ import {
   getArticleByDate,
   getLatestArticle,
   getDashboardMetrics,
+  getProductMetrics,
   getAccount,
   updatePreferences,
   updateNewsletterSubscription,
@@ -175,6 +176,20 @@ export function useDashboardMetrics(initialData?: DashboardMetrics) {
     queryKey: metricsKeys.dashboard(),
     queryFn: () => getDashboardMetrics(),
     initialData,
+  });
+}
+
+/**
+ * Métricas de produto.
+ *
+ * **A janela entra na chave**, senão trocar de 30 para 7 dias mostraria o
+ * número anterior enquanto a consulta nova não resolve — e o leitor
+ * concluiria que a janela menor tem o mesmo volume.
+ */
+export function useProductMetrics(days: number) {
+  return useQuery({
+    queryKey: [...metricsKeys.dashboard(), 'product', days],
+    queryFn: () => getProductMetrics(days),
   });
 }
 
