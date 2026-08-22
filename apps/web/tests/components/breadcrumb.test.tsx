@@ -42,6 +42,36 @@ describe('Breadcrumb', () => {
     );
   });
 
+  it('só o degrau atual encolhe — os ancestrais são shrink-0', () => {
+    // O `shrink-0` precisa estar no `li`, não só no `<a>`: quem o flex encolhe
+    // é o item da linha, e um `li` que encolhe com `min-w-0` clipa o próprio
+    // conteúdo. Em produção "Notícias" pedia 77px e recebia 51, comendo o
+    // chevron e o gap — a trilha saiu com os degraus grudados e sem separador.
+    renderWithIntl(<Breadcrumb steps={steps} ariaLabel='Trilha' />);
+
+    const itens = screen.getAllByRole('listitem');
+    const ancestrais = itens.slice(0, -1);
+    const atual = itens[itens.length - 1]!;
+
+    for (const li of ancestrais) {
+      expect(li.className).toContain('shrink-0');
+      expect(li.className).not.toContain('min-w-0');
+    }
+    expect(atual.className).toContain('min-w-0');
+    expect(atual.className).not.toContain('shrink-0');
+  });
+
+  it('cada degrau depois do primeiro tem um separador', () => {
+    const { container } = renderWithIntl(
+      <Breadcrumb steps={steps} ariaLabel='Trilha' />,
+    );
+
+    // Um a menos que os degraus: o primeiro não tem o que separar.
+    expect(container.querySelectorAll('li svg[aria-hidden="true"]')).toHaveLength(
+      steps.length - 1,
+    );
+  });
+
   it('é uma lista ordenada dentro de um nav rotulado', () => {
     renderWithIntl(<Breadcrumb steps={steps} ariaLabel='Trilha' />);
 
