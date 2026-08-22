@@ -325,6 +325,13 @@ Regras que não são óbvias no código:
   chamada é o que a §17 proíbe. O `useRef` guarda a montagem dupla do
   StrictMode — sem ele, a contagem de sessões sairia dobrada de todo ambiente
   de desenvolvimento.
+- **Profundidade de leitura mede o corpo do texto, não a página.** A tela
+  termina em relacionadas e num CTA; incluí-los faria "90% da página" ser
+  alcançável sem ler o último terço da matéria. Daí o `id` no `ArticleBody`.
+- **O guard do `requestAnimationFrame` é um booleano, não o id do frame.**
+  Zerar o id dentro do callback só funciona porque o rAF do navegador é
+  assíncrono: a atribuição acontece **depois** dele, e uma implementação
+  síncrona reescreveria o `null` e travaria o agendamento para sempre.
 - **`track()` nunca lança e nunca bloqueia**, e a fila é esvaziada **antes** do
   envio: falha de transporte perde o lote em vez de acumular memória presa.
 
@@ -478,12 +485,44 @@ Regras que não são óbvias no código:
 vive em `lib/ads.ts`.
 
 - **Sem inventário o `AdSlot` não renderiza nada**: nem caixa vazia, nem a
-  palavra "Publicidade". Hoje é sempre esse o caso (`NEXT_PUBLIC_ADS_ENABLED`).
+  palavra "Publicidade" (`NEXT_PUBLIC_ADS_ENABLED`).
 - **A altura é reservada antes de o criativo chegar**, e vai em `style` porque
   é dado: uma classe `min-h-[90px]` teria de existir literal no código para o
   Tailwind emitir a regra, o que duplicaria a tabela de alturas.
-- `ad_view`/`ad_click` entram com o `track()` da Fase 8 — medir impressão sem
-  ter onde gravar o evento seria código morto.
+- **São três estados, não dois** (Fase 8, PR 3):
+
+  | `NEXT_PUBLIC_AD_NETWORK` | Consentimento | O que renderiza |
+  |---|---|---|
+  | ausente | irrelevante | inventário **de casa** — a newsletter |
+  | presente | `granted` | o espaço de terceiro, rotulado "Publicidade" |
+  | presente | qualquer outro | **nada** |
+
+- **Inventário de casa não se chama "Publicidade".** Carimbar assim a promoção
+  da própria newsletter seria mentir sobre a natureza do espaço — mesma regra
+  que impede a matéria coletada de ser carimbada como escrita por IA.
+- **Rede sem consentimento não cai no criativo de casa.** A posição foi
+  vendida; preenchê-la com outra coisa entregaria ao anunciante um espaço que
+  ele pagou e não teve.
+- **`ad_view` é metade do elemento por um segundo** (`useInView`), não "apareceu
+  na tela". Sem a permanência, uma rolagem rápida contaria impressão em todos os
+  slots de uma vez, e a viewability medida seria a de quem não viu nada.
+
+### Consentimento (Fase 8, PR 3)
+
+- **O banner só existe quando há terceiro.** Quem exige consentimento prévio
+  não é "ter anúncio" — é carregar script que grava cookie e cruza comportamento
+  entre sites. Sem rede configurada não há tratamento a consentir, e perguntar
+  seria interromper a leitura de toda página sem portar decisão nenhuma.
+- **`isTrackingAllowed` e `isThirdPartyAllowed` discordam de propósito.** Para a
+  medição anônima, `unset` **permite** (legítimo interesse); para script de
+  terceiro, `unset` **nega** (consentimento prévio e expresso). É a diferença
+  entre os dois tratamentos, e está em duas funções para não virar um `if` que
+  alguém simplifica.
+- **Recusar vem primeiro e tem o mesmo peso visual.** Botão de recusa
+  escondido, apagado ou depois do aceite é consentimento obtido por desenho.
+- **`dialog` com `aria-modal='false'`, não `alertdialog`.** Ele não interrompe
+  tarefa em curso, e `alertdialog` moveria o foco à força — tirando do lugar
+  quem está lendo.
 
 ### Outras regras de estilo
 - Mobile-first com Tailwind

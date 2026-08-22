@@ -7,7 +7,12 @@ import {
 import { isTrackingAllowed } from './consent';
 import { getSessionId } from './session';
 
-export { isTrackingAllowed, readConsent, writeConsent } from './consent';
+export {
+  isTrackingAllowed,
+  isThirdPartyAllowed,
+  readConsent,
+  writeConsent,
+} from './consent';
 export type { ConsentDecision } from './consent';
 export { sanitizeSearchQuery } from './sanitize';
 

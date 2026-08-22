@@ -55,3 +55,31 @@ export const AD_MOBILE_FORMAT: Partial<Record<AdFormat, AdFormat>> = {
 export function hasAdInventory(_placement: AdPlacement): boolean {
   return process.env.NEXT_PUBLIC_ADS_ENABLED === 'true';
 }
+
+/**
+ * A rede de anúncio de terceiro configurada, se houver.
+ *
+ * **Hoje é sempre `null`, e é o que decide se há consentimento a pedir.** Quem
+ * exige consentimento não é "ter anúncio" — é carregar script de terceiro que
+ * grava cookie e cruza comportamento entre sites. Enquanto o inventário for de
+ * casa (a newsletter), não há terceiro, não há cookie e não há o que perguntar.
+ *
+ * É a mesma forma de `hasAdInventory`: a decisão mora numa função, e o dia em
+ * que existir conta de rede o comportamento muda por variável de ambiente, sem
+ * tocar em componente nenhum.
+ */
+export function getAdNetwork(): string | null {
+  return process.env.NEXT_PUBLIC_AD_NETWORK ?? null;
+}
+
+/**
+ * Há terceiro em jogo?
+ *
+ * É o gatilho do banner de consentimento e do bloqueio do script da rede.
+ * Falso hoje, e por isso o banner não aparece — pedir consentimento para um
+ * tratamento que não acontece é interromper a leitura sem portar decisão
+ * nenhuma, a mesma armadilha do slot que desenha caixa vazia sem inventário.
+ */
+export function hasThirdPartyAds(): boolean {
+  return getAdNetwork() !== null;
+}

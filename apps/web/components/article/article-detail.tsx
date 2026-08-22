@@ -13,6 +13,10 @@ import { NewsletterCta } from '@/components/monetization/newsletter-cta';
 import { formatArticleDate, readingTimeFromText } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import type { BreadcrumbStep } from '@/lib/json-ld';
+import { ScrollDepth } from '@/components/analytics/scroll-depth';
+
+/** `id` do corpo, para a `ScrollDepth` medir o texto e não a página. */
+const BODY_ID = 'briefing-body';
 
 interface ArticleDetailProps {
   article: ArticleWithSources;
@@ -111,7 +115,16 @@ export async function ArticleDetail({
       </div>
 
       <div className='mx-auto w-full max-w-narrow'>
-        <ArticleBody content={article.content} lede={article.summary} />
+        <ArticleBody
+          id={BODY_ID}
+          content={article.content}
+          lede={article.summary}
+        />
+        <ScrollDepth
+          contentId={article.id}
+          contentType='briefing'
+          targetId={BODY_ID}
+        />
       </div>
 
       <div className='mx-auto flex w-full max-w-narrow flex-col gap-block'>

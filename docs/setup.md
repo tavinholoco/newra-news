@@ -100,6 +100,8 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `CRON_SECRET` | ⚠️ | Token do cron Vercel (só relevante no deploy) |
 | `BACKEND_JOB_URL` | ⚠️ | URL de trigger do pipeline (só relevante no deploy) |
 | `BACKEND_JOB_SECRET` | ⚠️ | `JOB_SECRET` do backend (só relevante no deploy) |
+| `NEXT_PUBLIC_ADS_ENABLED` | ❌ | `true` liga os slots. Sem rede configurada, o que preenche é inventário **de casa** (a newsletter) |
+| `NEXT_PUBLIC_AD_NETWORK` | ❌ | Rede de anúncio de terceiro. **É ela que faz o banner de consentimento aparecer** — e, sem consentimento, nenhum slot renderiza |
 | `NEXTAUTH_URL` | ⚠️ | URL base do site p/ o next-auth (local: `http://localhost:3000`) |
 | `NEXTAUTH_SECRET` | ✅ | Secret do next-auth (gerar com `openssl rand -base64 32`) |
 | `AUTH_JWT_SECRET` | ✅ | Secret compartilhado com a API (**idêntico ao `AUTH_JWT_SECRET` do backend**) |

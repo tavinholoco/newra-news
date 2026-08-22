@@ -92,16 +92,16 @@ do dia mudou, ou há algo errado.
 - **Onde estamos:** V2.0 com as Fases 0 a 7 concluídas e a **Fase 8 em
   andamento** — os pré-requisitos, em três PRs. O PRD da V1 foi fechado em
   2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-22):** **PR 2 dos pré-requisitos da Fase 8** — a
-  camada de analytics: `track()`, o consentimento (DNT/GPC), a sessão em
-  `sessionStorage` e os **oito eventos** com call site pronto. Antes dele, o
-  **PR 1** —
+- **Última entrega (2026-08-22):** **PR 3, o último dos pré-requisitos da Fase
+  8** — inventário de casa no `AdSlot`, o banner de consentimento (gate de
+  terceiro), `ad_view`/`ad_click` e a profundidade de leitura. **13 dos 14
+  eventos instrumentados.** Antes dele, o **PR 2** (a camada) e o **PR 1** —
   eventos de produto, banco e API. `ProductEvent`, `POST /api/events` (pública e
   anônima), o catálogo dos 14 eventos em `packages/types`, e a retenção de 90
   dias dentro da etapa 8 do pipeline. Antes dele, a Fase 7 (SEO) foi fechada
   contra produção — item 25.
 - **Nada pendente do ciclo anterior.**
-- **Testes:** 1.000 em 93 suites (558 API em 43 + 442 web em 50 — todos passando).
+- **Testes:** 1.025 em 96 suites (559 API em 43 + 466 web em 53 — todos passando).
 
 ### Por onde continuar a Fase 8
 
@@ -114,7 +114,7 @@ Os três PRs, no mesmo corte da Fase 6:
 |---|---|---|
 | 1. Banco e API | `ProductEvent`, `POST /api/events`, catálogo tipado, retenção | ✅ |
 | 2. Camada e instrumentação | `lib/analytics/`, consentimento, os 8 eventos | ✅ |
-| 3. Inventário, slots e banner | ligar o inventário, `ad_view`/`ad_click`, o banner, `premium-cta` | próximo |
+| 3. Inventário, slots e banner | inventário de casa, `ad_view`/`ad_click`, o banner, profundidade | ✅ |
 
 **A camada de analytics vem antes de qualquer slot.** O `AdSlot` existe desde a
 Fase 3 e reserva altura; o que falta para ligá-lo não é criativo, é **onde
@@ -128,14 +128,18 @@ horas depois do merge — a tabela existe e o código do backend não subiu.
 **Conferir o deploy do Render antes de esperar qualquer número**, porque a
 camada mede para o vazio enquanto isso.
 
-Dois avisos para o PR 3:
+**Os três pré-requisitos estão entregues.** O que resta da §28 é o que depende
+de decisão de negócio, não de código:
 
-- **O banner de consentimento nasce lá**, junto do anúncio personalizado — que
-  é o primeiro uso que exige consentimento de verdade. A camada já obedece: ele
-  só precisa gravar `granted`/`denied`.
-- **`subscription_intent` continua sem call site.** O Newra Plus não existe, e
-  CTA que não leva a lugar nenhum é a armadilha do controle sem consequência.
-  Ou o PR 3 cria o funil, ou o evento fica de fora.
+- **Uma conta de rede de anúncio.** Com ela, `NEXT_PUBLIC_AD_NETWORK` liga o
+  banner, o gate de consentimento e o espaço de terceiro — tudo já escrito e
+  testado.
+- **Patrocínio da newsletter** (§21, fase 2) e **Newra Plus** (fase 3), que a
+  §11 dos slots deixou sem especificação por dependerem de base de usuários.
+  `subscription_intent` continua no catálogo sem call site: medir intenção de um
+  plano que não existe é evento morto.
+- **A tela de métricas de produto**, que é quem daria consumidor à tabela de
+  agregado diário que o PR 1 deliberadamente não criou.
 
 O que a Fase 7 entregou continua valendo, e o item 25 tem o detalhe: `lib/seo.ts`
 como fonte única de URL e metadata, JSON-LD, a trilha visível e

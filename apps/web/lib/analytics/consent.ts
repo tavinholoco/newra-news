@@ -88,3 +88,19 @@ export function isTrackingAllowed(): boolean {
   if (browserOptedOut()) return false;
   return readConsent() !== 'denied';
 }
+
+/**
+ * Pode carregar script de terceiro (rede de anúncio)?
+ *
+ * **Aqui `unset` nega**, ao contrário de `isTrackingAllowed`. É a diferença
+ * entre os dois tratamentos: medição anônima de primeira parte se apoia em
+ * legítimo interesse; carregar script que grava cookie e cruza comportamento
+ * entre sites exige **consentimento prévio e expresso**. Sem decisão, o script
+ * não carrega.
+ *
+ * Quem chama é o `AdSlot`, e o banner é quem grava a decisão.
+ */
+export function isThirdPartyAllowed(): boolean {
+  if (browserOptedOut()) return false;
+  return readConsent() === 'granted';
+}
