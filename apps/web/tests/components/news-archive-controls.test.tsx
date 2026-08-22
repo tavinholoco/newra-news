@@ -90,6 +90,8 @@ describe('NewsFilterBar', () => {
     source: null,
     period: 'all' as const,
     sort: 'recent' as const,
+    saved: false,
+    canFilterSaved: false,
     activeFilters: 0,
     onChange: vi.fn(),
     onClear: vi.fn(),

@@ -24,6 +24,15 @@ export interface NewsFilterState {
   source: string | null;
   period: NewsPeriod;
   sort: NewsSort;
+  /**
+   * "Somente salvos" (§7).
+   *
+   * É filtro como os outros — mora na URL, zera a página e entra na contagem
+   * de ativos —, mas com uma diferença: ele **troca a fonte de dados**. O
+   * acervo público não sabe quem está pedindo; a lista de salvos é por usuário
+   * e vem pela rota autenticada. Por isso ele não entra em `toApiFilters`.
+   */
+  saved: boolean;
   page: number;
 }
 
@@ -33,6 +42,7 @@ export const DEFAULT_NEWS_FILTERS: NewsFilterState = {
   source: null,
   period: 'all',
   sort: 'recent',
+  saved: false,
   page: 1,
 };
 
@@ -82,6 +92,7 @@ export function readNewsFilters(params: URLSearchParams): NewsFilterState {
     source: params.get('source') || null,
     period: isPeriod(period) ? period : 'all',
     sort: sort === 'oldest' ? 'oldest' : 'recent',
+    saved: params.get('saved') === '1',
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
 }
@@ -101,6 +112,7 @@ export function writeNewsFilters(state: NewsFilterState): URLSearchParams {
   if (state.source) params.set('source', state.source);
   if (state.period !== 'all') params.set('period', state.period);
   if (state.sort !== 'recent') params.set('sort', state.sort);
+  if (state.saved) params.set('saved', '1');
   if (state.page > 1) params.set('page', String(state.page));
 
   return params;
@@ -128,7 +140,11 @@ export function toApiFilters(
  * tela que mostra o acervo inteiro.
  */
 export function countActiveFilters(state: NewsFilterState): number {
-  return [state.category, state.search, state.source, state.period !== 'all']
-    .filter(Boolean)
-    .length;
+  return [
+    state.category,
+    state.search,
+    state.source,
+    state.period !== 'all',
+    state.saved,
+  ].filter(Boolean).length;
 }

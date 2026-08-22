@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import type { News, NewsFacets, PaginatedResponse } from '@newranews/types';
-import { useNewsFacets, useNewsList } from '@/lib/queries';
+import { useFavorites, useNewsFacets, useNewsList } from '@/lib/queries';
 import { useNewsFilters } from '@/lib/use-news-filters';
 import { countActiveFilters, toApiFilters } from '@/lib/news-filters';
 import { newsToStory } from '@/lib/story';
@@ -48,19 +49,43 @@ export function NewsPageClient({
   const tPagination = useTranslations('pagination');
   const { state, setFilters, setPage, clearFilters } = useNewsFilters();
 
+  const { status } = useSession();
+
   const activeFilters = countActiveFilters(state);
   const isPristine = activeFilters === 0 && state.page === 1;
+
+  /**
+   * "Somente salvos" só vale com sessão — a lista é por usuário, e sem ela não
+   * há o que mostrar. Deslogado, o `?saved=1` da URL não derruba a tela: ela
+   * mostra o acervo, como qualquer valor que a query string não consiga honrar.
+   */
+  const savedOnly = state.saved && status === 'authenticated';
 
   // `state` muda de identidade a cada leitura da URL; sem o memo, o objeto de
   // filtros seria novo a cada render e viraria uma chave de query diferente.
   const apiFilters = useMemo(() => toApiFilters(state), [state]);
 
-  const { data, isFetching, isError } = useNewsList(
+  const archive = useNewsList(
     { ...apiFilters, page: state.page, limit: PAGE_SIZE },
     // O dado do servidor é a primeira página sem filtro; com qualquer recorte
     // na URL ele não corresponde ao que se está pedindo.
     isPristine ? initialData : undefined,
+    !savedOnly,
   );
+
+  /**
+   * A mesma tela, outra fonte.
+   *
+   * O acervo é público e cacheável; a lista de salvos é **por usuário** e vem
+   * pela rota autenticada, que aceita as mesmas dimensões de filtro. As duas
+   * consultas nunca correm juntas — `enabled` desliga a que não está valendo.
+   */
+  const saved = useFavorites(
+    { ...apiFilters, type: 'NEWS' },
+    { page: state.page, limit: PAGE_SIZE, enabled: savedOnly },
+  );
+
+  const { isFetching, isError } = savedOnly ? saved : archive;
 
   const { data: facets } = useNewsFacets(
     apiFilters,
@@ -70,8 +95,16 @@ export function NewsPageClient({
   // Memo e não `data?.data ?? []`: o literal vazio é um array novo a cada
   // render enquanto a consulta não resolve, e ele é dependência dos dois memos
   // abaixo — que passariam a recalcular sempre.
-  const news = useMemo(() => data?.data ?? [], [data]);
-  const meta = data?.meta ?? {
+  const news: News[] = useMemo(() => {
+    if (!savedOnly) return archive.data?.data ?? [];
+    // `type: 'NEWS'` já restringe a consulta; o filtro aqui é o que convence o
+    // TypeScript de que a união não traz briefing.
+    return (saved.data?.data ?? []).flatMap((item) =>
+      item.itemType === 'NEWS' ? [item.news] : [],
+    );
+  }, [savedOnly, archive.data, saved.data]);
+
+  const meta = (savedOnly ? saved.data : archive.data)?.meta ?? {
     total: 0,
     page: state.page,
     limit: PAGE_SIZE,
@@ -110,9 +143,13 @@ export function NewsPageClient({
         onChange={(search) => setFilters({ search })}
       />
 
+      {/* As facetas contam o **acervo**. Com "somente salvos" ligado elas
+          prometeriam um número que o clique não devolve — o mesmo defeito da
+          pílula "Todas" da Fase 4 —, então a contagem sai e o controle fica. */}
       <CategoryNav
         selected={state.category}
         facets={facets}
+        showCounts={!savedOnly}
         onChange={(category) => setFilters({ category })}
       />
 
@@ -120,7 +157,10 @@ export function NewsPageClient({
         source={state.source}
         period={state.period}
         sort={state.sort}
+        saved={state.saved}
+        canFilterSaved={status === 'authenticated'}
         facets={facets}
+        showCounts={!savedOnly}
         activeFilters={activeFilters}
         onChange={setFilters}
         onClear={clearFilters}
@@ -153,15 +193,17 @@ export function NewsPageClient({
         <NewsEmptyState
           search={state.search}
           activeFilters={activeFilters}
+          savedOnly={savedOnly}
           onClear={clearFilters}
         />
       ) : (
         <NewsList
           stories={stories}
           highlight={state.search}
-          // Sem hero na busca nem em página interna: eleger um destaque ali
-          // seria a tela inventando uma edição que ninguém fez.
-          showLead={state.page === 1 && !state.search}
+          // Sem hero na busca, em página interna nem no recorte de salvos:
+          // eleger um destaque ali seria a tela inventando uma edição que
+          // ninguém fez.
+          showLead={state.page === 1 && !state.search && !savedOnly}
           renderAction={renderAction}
         />
       )}

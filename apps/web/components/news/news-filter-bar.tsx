@@ -2,7 +2,7 @@
 
 import { useId } from 'react';
 import { useTranslations } from 'next-intl';
-import { X } from 'lucide-react';
+import { Bookmark, X } from 'lucide-react';
 import type { NewsFacets, NewsSort } from '@newranews/types';
 import { NEWS_PERIODS, type NewsPeriod } from '@/lib/news-filters';
 import { cn } from '@/lib/utils';
@@ -11,12 +11,19 @@ interface NewsFilterBarProps {
   source: string | null;
   period: NewsPeriod;
   sort: NewsSort;
+  /** "Somente salvos" — o §7 adiado na Fase 4, servido pela rota autenticada. */
+  saved: boolean;
+  /** Sem sessão não há lista de salvos, e o controle não aparece. */
+  canFilterSaved: boolean;
   facets?: NewsFacets;
+  /** Ver `CategoryNav`: contagem do acervo não vale para o recorte de salvos. */
+  showCounts?: boolean;
   activeFilters: number;
   onChange: (patch: {
     source?: string | null;
     period?: NewsPeriod;
     sort?: NewsSort;
+    saved?: boolean;
   }) => void;
   onClear: () => void;
   className?: string;
@@ -43,7 +50,10 @@ export function NewsFilterBar({
   source,
   period,
   sort,
+  saved,
+  canFilterSaved,
   facets,
+  showCounts = true,
   activeFilters,
   onChange,
   onClear,
@@ -83,7 +93,7 @@ export function NewsFilterBar({
             <option value=''>{t('sourceAll')}</option>
             {sources.map((row) => (
               <option key={row.source} value={row.source}>
-                {row.source} ({row.count})
+                {showCounts ? `${row.source} (${row.count})` : row.source}
               </option>
             ))}
           </select>
@@ -130,6 +140,25 @@ export function NewsFilterBar({
           <option value='oldest'>{tSort('oldest')}</option>
         </select>
       </div>
+
+      {/* Um `aria-pressed` e não um checkbox: é uma pílula de estado ao lado
+          das outras, e o rótulo já diz o que ela faz. */}
+      {canFilterSaved ? (
+        <button
+          type='button'
+          aria-pressed={saved}
+          onClick={() => onChange({ saved: !saved })}
+          className={cn(
+            'inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-body-sm transition-colors duration-fast',
+            saved
+              ? 'border-brand-solid bg-brand-solid text-on-brand'
+              : 'border-line text-ink-secondary hover:border-line-strong hover:text-link',
+          )}
+        >
+          <Bookmark className={cn('size-3.5', saved && 'fill-current')} aria-hidden='true' />
+          {t('savedOnly')}
+        </button>
+      ) : null}
 
       {activeFilters > 0 ? (
         <button

@@ -8,6 +8,13 @@ interface CategoryNavProps {
   selected: Category | null;
   /** Contagem por categoria; `undefined` enquanto a primeira resposta não chega. */
   facets?: NewsFacets;
+  /**
+   * As facetas contam o **acervo**. Quando a lista vem de outra fonte — o
+   * recorte de salvos —, o número deixa de ser o que o clique devolve, e aí ele
+   * some: pílula sem contagem continua sendo um filtro utilizável, pílula com
+   * contagem errada é uma promessa quebrada.
+   */
+  showCounts?: boolean;
   onChange: (category: Category | null) => void;
   className?: string;
 }
@@ -28,6 +35,7 @@ interface CategoryNavProps {
 export function CategoryNav({
   selected,
   facets,
+  showCounts = true,
   onChange,
   className,
 }: CategoryNavProps) {
@@ -35,7 +43,7 @@ export function CategoryNav({
   const tCommon = useTranslations('common');
 
   const counts = new Map(
-    facets?.categories.map((row) => [row.category, row.count]),
+    showCounts ? facets?.categories.map((row) => [row.category, row.count]) : [],
   );
 
   // A soma das facetas, e **não** `facets.total`: cada pílula promete quantas
@@ -44,16 +52,17 @@ export function CategoryNav({
   // o número de Mundo e depois abriria o acervo inteiro. Os demais filtros
   // (busca, fonte, período) continuam valendo nos dois, porque o clique não
   // mexe neles.
-  const allCount = facets
-    ? facets.categories.reduce((sum, row) => sum + row.count, 0)
-    : undefined;
+  const allCount =
+    facets && showCounts
+      ? facets.categories.reduce((sum, row) => sum + row.count, 0)
+      : undefined;
 
   const items: Array<{ key: Category | null; label: string; count?: number }> = [
     { key: null, label: tCommon('all'), count: allCount },
     ...Object.values(Category).map((category) => ({
       key: category,
       label: t(category),
-      count: counts.get(category) ?? 0,
+      count: showCounts ? (counts.get(category) ?? 0) : undefined,
     })),
   ];
 

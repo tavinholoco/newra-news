@@ -103,7 +103,10 @@
     "sourceAll": "Todas as fontes",
     "sourceLabel": "Fonte",
     "title": "Notícias",
-    "viewAll": "Ver todas as notícias"
+    "viewAll": "Ver todas as notícias",
+    "savedOnly": "Somente salvos",
+    "emptySavedTitle": "Nada salvo neste recorte.",
+    "emptySavedDesc": "Você tem itens salvos, mas nenhum deles combina com os filtros atuais."
   },
   "article": {
     "aiDisclosureBody": "Este texto foi escrito por inteligência artificial a partir de {count, plural, one {# notícia publicada} other {# notícias publicadas}} por veículos jornalísticos, listadas abaixo. Nenhum trecho foi apurado pelo Newra News.",

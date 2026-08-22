@@ -103,7 +103,10 @@
     "sourceAll": "All sources",
     "sourceLabel": "Source",
     "title": "News",
-    "viewAll": "View all news"
+    "viewAll": "View all news",
+    "savedOnly": "Saved only",
+    "emptySavedTitle": "Nothing saved in this cut.",
+    "emptySavedDesc": "You have saved items, but none of them match the current filters."
   },
   "article": {
     "aiDisclosureBody": "This text was written by artificial intelligence from {count, plural, one {# story published} other {# stories published}} by news outlets, listed below. None of it was reported by Newra News.",

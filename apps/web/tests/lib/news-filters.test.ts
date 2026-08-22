@@ -29,6 +29,7 @@ describe('readNewsFilters', () => {
       source: 'G1',
       period: '7d',
       sort: 'oldest',
+      saved: false,
       page: 3,
     });
   });
@@ -77,6 +78,7 @@ describe('writeNewsFilters', () => {
       source: 'Agência Brasil',
       period: '30d' as const,
       sort: 'oldest' as const,
+      saved: true,
       page: 4,
     };
 
@@ -148,5 +150,31 @@ describe('countActiveFilters', () => {
       period: '7d' as const,
     };
     expect(countActiveFilters(state)).toBe(4);
+  });
+});
+
+describe('somente salvos', () => {
+  it('should read the flag from the URL', () => {
+    expect(readNewsFilters(new URLSearchParams('saved=1')).saved).toBe(true);
+    expect(readNewsFilters(new URLSearchParams('saved=talvez')).saved).toBe(false);
+    expect(readNewsFilters(new URLSearchParams('')).saved).toBe(false);
+  });
+
+  it('should stay out of the URL when it is off', () => {
+    expect(writeNewsFilters(DEFAULT_NEWS_FILTERS).toString()).toBe('');
+  });
+
+  it('should count as an active filter', () => {
+    // Ele esconde matéria, como categoria e período — e por isso entra no
+    // "limpar filtros" e na contagem que o botão mostra.
+    expect(countActiveFilters({ ...DEFAULT_NEWS_FILTERS, saved: true })).toBe(1);
+  });
+
+  it('should not travel to the archive API', () => {
+    // A rota pública não sabe quem está pedindo: "somente salvos" troca a fonte
+    // de dados, não o `where` da listagem.
+    expect(
+      toApiFilters({ ...DEFAULT_NEWS_FILTERS, saved: true }),
+    ).not.toHaveProperty('saved');
   });
 });
