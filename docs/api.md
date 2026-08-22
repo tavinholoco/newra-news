@@ -589,6 +589,44 @@ ADMIN.
 
 ---
 
+### GET /api/metrics/product (admin)
+
+Métricas de **produto** — comportamento de gente. O `/dashboard` acima mede o
+pipeline. Mesmo guarda: JWT com role ADMIN.
+
+**Query:** `days` (1 a 90, padrão 30). O teto é a retenção do evento cru — uma
+janela maior mostraria queda onde houve **apagamento**.
+
+**Resposta 200:**
+
+```json
+{
+  "data": {
+    "period": { "start": "...", "end": "...", "days": 30 },
+    "audience": { "sessions": 12, "newsletterSubscribers": 42, "accounts": 7 },
+    "byDay": [{ "date": "2026-08-22", "sessions": 3, "events": 9 }],
+    "byType": [{ "type": "homepage_view", "count": 9 }],
+    "storyOpensBySource": [{ "source": "hero", "count": 4 }],
+    "categoryViews": [{ "category": "HEALTH", "count": 2 }],
+    "readingDepth": { "opened": 6, "scroll25": 4, "scroll50": 3, "scroll90": 1 },
+    "searchesWithoutResults": [{ "query": "eclipse", "count": 2 }]
+  }
+}
+```
+
+> **`sessions` é volume de visita, não gente recorrente.** O `sessionId` morre ao
+> fechar a aba — é isso que mantém a medição anônima. Quem mede audiência
+> recorrente são `newsletterSubscribers` e `accounts`, que não vêm do
+> `ProductEvent`: são estado persistente.
+
+`searchesWithoutResults` traz **texto digitado por leitor** (higienizado na
+origem, truncado em 100). É mais uma razão para a rota ser admin-only. Teto de
+20 termos, do mais frequente.
+
+**Resposta 400:** `days` fora de 1–90. **401/403:** sem token ou sem role ADMIN.
+
+---
+
 ## Saúde
 
 ### GET /api/health

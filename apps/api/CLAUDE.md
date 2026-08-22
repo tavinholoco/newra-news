@@ -38,6 +38,9 @@
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
 - GET /api/metrics/dashboard — **admin (JWT + role ADMIN)**: hoje + última semana + último mês
+- GET /api/metrics/product — **admin**: métricas de **produto** (`ProductEvent`)
+  — audiência, leitura, cliques por origem, categorias e buscas sem resultado.
+  `days` de 1 a 90 (o teto é a retenção do evento cru)
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
   lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
@@ -214,6 +217,13 @@ Regras que não são óbvias no código:
   lembrar de olhar quando algo parasse — e ingestão sem expurgo é tabela que
   cresce para sempre. Corta por `occurredAt`, não `createdAt`: o que a §4 limita
   é há quanto tempo o comportamento aconteceu, não quando a linha chegou.
+- **`sessions` não mede recorrência, e não dá para consertar.** O `sessionId`
+  morre ao fechar a aba — é o que mantém a medição anônima. Quem mede audiência
+  recorrente são `Subscriber` e `User`, que a `/metrics/product` lê à parte.
+- **A agregação é em memória, a partir de uma consulta só.** SQL cru com
+  operadores de JSON é o que menos se testa; seis `groupBy` são seis idas ao
+  banco para uma tela. Mesma dívida consciente da `/api/favorites`, e vira a
+  consulta a otimizar quando a janela trouxer centenas de milhares de linhas.
 - **Não há tabela de agregado diário, e é de propósito.** A §4 pede um agregado
   que sobreviva à retenção, mas hoje ninguém o leria — tabela sem consumidor é
   a armadilha da pílula de contagem da Fase 4 em outra forma. Ela entra com a

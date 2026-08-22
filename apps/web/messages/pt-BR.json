@@ -1,135 +1,4 @@
 {
-  "site": {
-    "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar."
-  },
-  "nav": {
-    "about": "Sobre",
-    "admin": "Admin",
-    "articles": "Artigos",
-    "closeMenu": "Fechar menu",
-    "favorites": "Salvos",
-    "home": "Home",
-    "metrics": "Métricas",
-    "news": "Notícias",
-    "openMenu": "Abrir menu",
-    "secondary": "Navegação secundária",
-    "account": "Conta"
-  },
-  "shell": {
-    "breadcrumb": "Trilha de navegação",
-    "edition": "Edição de hoje",
-    "newsletter": "Newsletter",
-    "skipToContent": "Pular para o conteúdo"
-  },
-  "locale": {
-    "label": "Selecionar idioma",
-    "pt": "Português",
-    "en": "Inglês"
-  },
-  "categories": {
-    "TECHNOLOGY": "Tecnologia",
-    "POLITICS": "Política",
-    "ECONOMY": "Economia",
-    "SPORTS": "Esportes",
-    "SCIENCE": "Ciência",
-    "ENTERTAINMENT": "Entretenimento",
-    "WORLD": "Mundo",
-    "HEALTH": "Saúde"
-  },
-  "editorial": {
-    "readingTime": "{minutes} min de leitura",
-    "sourceLabel": "Ler em {source}"
-  },
-  "common": {
-    "all": "Todas",
-    "backToHome": "Voltar para a Home",
-    "categories": "Categorias",
-    "clearSearch": "Limpar busca",
-    "linkCopied": "Link copiado",
-    "loading": "Carregando...",
-    "next": "Próxima",
-    "previous": "Anterior",
-    "retry": "Tentar novamente",
-    "searchPlaceholder": "Buscar notícias...",
-    "share": "Compartilhar",
-    "sources": "{count, plural, one {# fonte} other {# fontes}}",
-    "sourcesConsulted": "{count, plural, one {# fonte consultada} other {# fontes consultadas}}"
-  },
-  "home": {
-    "latestNews": "Mais notícias",
-    "viewAll": "Ver todas",
-    "srHeading": "Newra News — a edição de hoje",
-    "topStories": "Principais notícias",
-    "trending": "Em alta",
-    "leadStory": "Destaque do dia",
-    "briefKicker": "Newra Daily Brief",
-    "briefCta": "Ler o briefing completo",
-    "briefAiDisclosure": "Resumo produzido por IA a partir das fontes listadas.",
-    "categoryViewAll": "Ver tudo em {category}",
-    "emptyTitle": "A edição de hoje ainda está sendo montada",
-    "emptyDesc": "Nenhuma notícia disponível no momento. Tente novamente em alguns minutos.",
-    "readStory": "Ler a matéria"
-  },
-  "news": {
-    "archiveDescription": "Todas as notícias coletadas pelo Newra News, por categoria, fonte e período.",
-    "archiveTitle": "Acervo",
-    "browseAll": "Ver o acervo inteiro",
-    "clearFilters": "Limpar filtros",
-    "collectedNotice": "Matéria publicada por {source}. O Newra News coleta e organiza; o texto e a apuração são do veículo original.",
-    "emptyArchiveDesc": "As notícias aparecem aqui assim que a primeira coleta do dia rodar.",
-    "emptyArchiveTitle": "O acervo ainda está vazio",
-    "emptyDesc": "Tente ajustar os filtros ou o termo de busca.",
-    "emptyFilterDesc": "Nenhuma matéria do acervo atende a esses filtros ao mesmo tempo.",
-    "emptySearchDesc": "Verifique a grafia ou tente uma palavra mais geral.",
-    "emptySearchTitle": "Nada encontrado para “{term}”",
-    "emptyTitle": "Nenhuma notícia encontrada",
-    "excerptLabel": "Trecho",
-    "filtersLabel": "Filtros do acervo",
-    "fullContentHint": "Conteúdo completo disponível na fonte original.",
-    "latestLabel": "Últimas",
-    "loadError": "Não foi possível carregar as notícias. Tente novamente.",
-    "notFoundDesc": "Esta notícia não existe ou foi removida.",
-    "notFoundTitle": "Notícia não encontrada",
-    "pageDescription": "Fique por dentro das últimas notícias do mundo.",
-    "periodLabel": "Período",
-    "readAtSource": "Leia na fonte",
-    "relatedTitle": "Leia também",
-    "resultCount": "{count, plural, =0 {Nenhuma notícia} one {# notícia} other {# notícias}}",
-    "resultCountFiltered": "{count, plural, =0 {Nenhuma notícia encontrada} one {# notícia encontrada} other {# notícias encontradas}}",
-    "searchHistory": "Buscas recentes",
-    "searchHistoryClear": "Limpar histórico",
-    "searchHistoryRemove": "Remover “{term}” do histórico",
-    "sortLabel": "Ordenar",
-    "sourceAll": "Todas as fontes",
-    "sourceLabel": "Fonte",
-    "title": "Notícias",
-    "viewAll": "Ver todas as notícias",
-    "savedOnly": "Somente salvos",
-    "emptySavedTitle": "Nada salvo neste recorte.",
-    "emptySavedDesc": "Você tem itens salvos, mas nenhum deles combina com os filtros atuais."
-  },
-  "article": {
-    "aiDisclosureBody": "Este texto foi escrito por inteligência artificial a partir de {count, plural, one {# notícia publicada} other {# notícias publicadas}} por veículos jornalísticos, listadas abaixo. Nenhum trecho foi apurado pelo Newra News.",
-    "aiDisclosureCaveat": "A IA resume e conecta o que as fontes publicaram; ela não verifica os fatos. Para o contexto completo de qualquer assunto, leia a matéria original.",
-    "aiDisclosureTitle": "Como este briefing foi produzido",
-    "briefKicker": "Newra Daily Brief",
-    "emptyDesc": "Os artigos diários aparecerão aqui quando disponíveis.",
-    "emptyTitle": "Nenhum artigo encontrado",
-    "generatedAtLabel": "Gerado em",
-    "historyIntro": "Um briefing por dia, desde que o pipeline começou a rodar.",
-    "loadError": "Não foi possível carregar os artigos. Tente novamente.",
-    "modelLabel": "Modelo",
-    "monthCount": "{count, plural, one {# briefing} other {# briefings}}",
-    "notFoundDesc": "Este artigo não existe ou ainda não foi publicado.",
-    "notFoundTitle": "Artigo não encontrado",
-    "pageDescription": "Todos os artigos diários gerados por IA sobre as principais notícias.",
-    "promptLabel": "Versão do prompt",
-    "sourcesLabel": "Fontes",
-    "sourcesTitle": "Fontes consultadas",
-    "title": "Histórico de Artigos",
-    "todayBadge": "Hoje",
-    "viewAll": "Ver todos os artigos"
-  },
   "about": {
     "heroTitle": "Sobre o Newra News",
     "heroDesc": "O Newra News é um portal de notícias inteligente que agrega as principais notícias do mundo e gera automaticamente um artigo diário com o resumo dos acontecimentos mais relevantes — tudo com ajuda de inteligência artificial.",
@@ -149,211 +18,6 @@
     "openSourceTitle": "Projeto Open Source",
     "openSourceDesc": "O código-fonte do Newra News está disponível no GitHub.",
     "viewOnGithub": "Ver no GitHub"
-  },
-  "dashboard": {
-    "title": "Dashboard de Métricas",
-    "pageDescription": "Desempenho do pipeline diário de notícias e dos artigos gerados por IA.",
-    "today": "Hoje",
-    "newsCollected": "Notícias coletadas",
-    "dailyArticle": "Artigo do dia",
-    "generated": "Gerado",
-    "pending": "Pendente",
-    "publishedHint": "Publicado na home e no histórico",
-    "runsAt": "O pipeline roda diariamente às 8h (BRT)",
-    "aiUsed": "IA utilizada",
-    "pipelineDuration": "Duração do pipeline",
-    "pipelineErrors": "Erros no pipeline",
-    "notRunYet": "O pipeline ainda não rodou hoje. Acompanhe após a execução diária (8h, horário de Brasília).",
-    "last7Days": "Últimos 7 dias",
-    "avgNewsPerDay": "Média de notícias/dia",
-    "articlesGenerated": "Artigos gerados",
-    "daysWithData": "{count, plural, one {# dia com dados} other {# dias com dados}}",
-    "successRate": "Taxa de sucesso",
-    "avgDuration": "Duração média",
-    "newsByCategory": "Notícias por categoria (7 dias)",
-    "aiUsage": "IA utilizada (7 dias)",
-    "last30Days": "Últimos 30 dias",
-    "failureDays": "Dias com falha",
-    "loadError": "Não foi possível carregar as métricas. Tente novamente.",
-    "noData": "Sem dados no período."
-  },
-  "favorites": {
-    "title": "Salvos",
-    "add": "Salvar",
-    "remove": "Remover dos salvos",
-    "loadError": "Não foi possível carregar o que você salvou.",
-    "emptyTitle": "Você ainda não salvou nada.",
-    "emptyHint": "Toque no marcador em uma notícia ou no briefing do dia para guardá-lo aqui.",
-    "description": "As notícias e os briefings que você guardou para ler depois."
-  },
-  "admin": {
-    "title": "Painel Admin",
-    "restrictedTitle": "Acesso restrito",
-    "restrictedDesc": "Esta área é exclusiva para administradores.",
-    "backHome": "Voltar para a Home",
-    "runPipeline": "Executar pipeline",
-    "runPipelineHint": "Dispara agora a coleta de notícias e a geração do artigo do dia.",
-    "runPipelineButton": "Executar agora",
-    "running": "Executando...",
-    "runSuccess": "Pipeline disparado com sucesso.",
-    "runError": "Não foi possível disparar o pipeline. Tente novamente.",
-    "newsListTitle": "Últimas notícias",
-    "delete": "Deletar",
-    "deleteError": "Não foi possível remover a notícia. Tente novamente.",
-    "loadError": "Não foi possível carregar as notícias.",
-    "empty": "Nenhuma notícia no momento.",
-    "totalNews": "{count, plural, one {# notícia} other {# notícias}} no total"
-  },
-  "auth": {
-    "signIn": "Entrar",
-    "signOut": "Sair",
-    "loading": "Carregando sessão",
-    "guest": "Usuário"
-  },
-  "signin": {
-    "title": "Entrar",
-    "hint": "Entre para salvar notícias e o briefing do dia, e para escolher seus assuntos.",
-    "google": "Continuar com Google",
-    "github": "Continuar com GitHub",
-    "backHome": "Voltar para a Home",
-    "error": "Não foi possível entrar. O serviço de autenticação não está configurado ou a tentativa foi cancelada. Tente novamente."
-  },
-  "theme": {
-    "enableDark": "Ativar modo escuro",
-    "enableLight": "Ativar modo claro",
-    "dark": "Modo escuro",
-    "light": "Modo claro"
-  },
-  "newsletter": {
-    "benefitBriefDesc": "Não é uma coletânea de manchetes. É um texto que conecta o que aconteceu, com as fontes consultadas listadas no fim.",
-    "benefitBriefTitle": "Um artigo, não uma lista",
-    "benefitRhythmDesc": "Enviado de manhã, todo dia. Sem notificação, sem sequência de e-mails, sem venda.",
-    "benefitRhythmTitle": "Uma vez por dia",
-    "benefitSourcesDesc": "Todo briefing traz de onde veio cada informação. Nada é afirmado sem origem.",
-    "benefitSourcesTitle": "Fontes à vista",
-    "ctaDescription": "Receba o Newra Daily no seu e-mail: o artigo do dia, escrito a partir das principais notícias, em uma leitura só.",
-    "ctaHeadline": "O mundo não cabe no seu feed. O resumo certo cabe na sua manhã.",
-    "ctaPrivacy": "Um e-mail por dia. Cancele quando quiser, em um clique.",
-    "emailLabel": "Seu e-mail",
-    "emailPlaceholder": "seu@email.com",
-    "error": "Não foi possível assinar agora. Tente novamente.",
-    "faqAiA": "Sim, e isso está declarado em todo artigo. A curadoria das fontes é automática e o texto é gerado por modelo de linguagem a partir delas.",
-    "faqAiQ": "O texto é escrito por IA?",
-    "faqCancelA": "Todo e-mail tem um link de cancelamento que funciona em um clique, sem login e sem pergunta.",
-    "faqCancelQ": "Como eu cancelo?",
-    "faqDataA": "Guardamos só o endereço, e usamos só para enviar o briefing. Não é compartilhado nem vendido.",
-    "faqDataQ": "O que vocês fazem com meu e-mail?",
-    "faqFrequencyA": "Uma vez por dia, de manhã. Só isso — não existe segundo envio nem série de boas-vindas.",
-    "faqFrequencyQ": "Com que frequência chega?",
-    "faqTitle": "Perguntas diretas",
-    "footerDesc": "Receba o artigo do dia no seu e-mail, direto das principais notícias.",
-    "footerTitle": "Newsletter",
-    "invalidDesc": "Não foi possível cancelar a inscrição com este link. Verifique o e-mail recebido ou tente novamente.",
-    "invalidEmail": "Informe um e-mail válido.",
-    "invalidTitle": "Link inválido ou já utilizado",
-    "landingLede": "Todo dia a IA lê as principais notícias do Brasil e do mundo e escreve um artigo único, com as fontes à vista. Você lê uma vez e sabe o que aconteceu.",
-    "landingTitle": "O Newra Daily na sua caixa de entrada",
-    "subscribe": "Assinar",
-    "success": "Você receberá o artigo do dia no seu e-mail!",
-    "unsubscribedDesc": "Você não receberá mais o artigo diário no seu e-mail. Se mudar de ideia, basta assinar novamente pelo rodapé do site.",
-    "unsubscribedTitle": "Inscrição cancelada",
-    "whatYouGet": "O que você recebe"
-  },
-  "footer": {
-    "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar.",
-    "navigation": "Navegação",
-    "aboutTitle": "Sobre o Projeto",
-    "items": {
-      "stack": "Next.js + Fastify",
-      "aiGenerated": "Artigos gerados por IA",
-      "updatedDaily": "Atualizado diariamente"
-    },
-    "rights": "Todos os direitos reservados.",
-    "poweredBy": "Powered by AI"
-  },
-  "notFound": {
-    "title": "Página não encontrada",
-    "description": "O endereço que você acessou não existe ou foi movido."
-  },
-  "errors": {
-    "genericTitle": "Algo deu errado",
-    "genericDesc": "Ocorreu um erro inesperado. Por favor, tente novamente.",
-    "newsTitle": "Não foi possível carregar as notícias",
-    "newsDesc": "Ocorreu um erro ao buscar as notícias. Por favor, tente novamente.",
-    "articlesTitle": "Não foi possível carregar os artigos",
-    "articlesDesc": "Ocorreu um erro ao buscar os artigos. Por favor, tente novamente.",
-    "dashboardTitle": "Não foi possível carregar as métricas",
-    "dashboardDesc": "Ocorreu um erro ao buscar os dados do pipeline. Por favor, tente novamente."
-  },
-  "metadata": {
-    "about": {
-      "title": "Sobre",
-      "description": "Conheça o Newra News, portal de notícias com artigo diário gerado por IA."
-    },
-    "admin": {
-      "title": "Admin"
-    },
-    "articles": {
-      "title": "Histórico de Artigos",
-      "description": "Todos os artigos diários gerados por IA sobre as principais notícias."
-    },
-    "dashboard": {
-      "title": "Métricas",
-      "description": "Acompanhe o desempenho do pipeline de notícias e dos artigos gerados por IA."
-    },
-    "favorites": {
-      "title": "Salvos"
-    },
-    "news": {
-      "title": "Notícias",
-      "description": "Todas as notícias do mundo em um só lugar."
-    },
-    "newsletter": {
-      "description": "Receba o artigo do dia do Newra News no seu e-mail: um resumo escrito por IA a partir das principais notícias, com as fontes à vista.",
-      "title": "Newsletter"
-    },
-    "newsletterUnsubscribe": {
-      "title": "Cancelar inscrição",
-      "description": "Cancele sua assinatura da newsletter do Newra News."
-    },
-    "signin": {
-      "title": "Entrar"
-    },
-    "account": {
-      "title": "Sua conta"
-    },
-    "preferences": {
-      "title": "Preferências"
-    },
-    "newsletterSettings": {
-      "title": "Newsletter"
-    }
-  },
-  "newsPeriod": {
-    "30d": "30 dias",
-    "7d": "7 dias",
-    "all": "Qualquer data",
-    "today": "Hoje"
-  },
-  "newsSort": {
-    "oldest": "Mais antigas",
-    "recent": "Mais recentes"
-  },
-  "categoryDescriptions": {
-    "ECONOMY": "Mercados, inflação, emprego e as decisões que mexem no seu bolso.",
-    "ENTERTAINMENT": "Cultura, streaming, música e o que as pessoas estão assistindo.",
-    "HEALTH": "Saúde pública, medicina, bem-estar e prevenção.",
-    "POLITICS": "Governo, eleições, políticas públicas e a disputa por poder.",
-    "SCIENCE": "Pesquisa, descobertas e o que a ciência mudou de ideia esta semana.",
-    "SPORTS": "Competições, resultados e os bastidores do esporte.",
-    "TECHNOLOGY": "Inovação, software, dispositivos e o efeito da tecnologia no dia a dia.",
-    "WORLD": "Conflitos, diplomacia e o que acontece fora do Brasil."
-  },
-  "pagination": {
-    "currentPage": "Página {page}, página atual",
-    "goToPage": "Ir para a página {page}",
-    "historyLabel": "Paginação do histórico",
-    "label": "Paginação do acervo"
   },
   "account": {
     "title": "Sua conta",
@@ -400,5 +64,366 @@
       "unsubscribe": "Cancelar inscrição",
       "error": "Não foi possível atualizar sua inscrição. Tente de novo."
     }
+  },
+  "admin": {
+    "title": "Painel Admin",
+    "restrictedTitle": "Acesso restrito",
+    "restrictedDesc": "Esta área é exclusiva para administradores.",
+    "backHome": "Voltar para a Home",
+    "runPipeline": "Executar pipeline",
+    "runPipelineHint": "Dispara agora a coleta de notícias e a geração do artigo do dia.",
+    "runPipelineButton": "Executar agora",
+    "running": "Executando...",
+    "runSuccess": "Pipeline disparado com sucesso.",
+    "runError": "Não foi possível disparar o pipeline. Tente novamente.",
+    "newsListTitle": "Últimas notícias",
+    "delete": "Deletar",
+    "deleteError": "Não foi possível remover a notícia. Tente novamente.",
+    "loadError": "Não foi possível carregar as notícias.",
+    "empty": "Nenhuma notícia no momento.",
+    "totalNews": "{count, plural, one {# notícia} other {# notícias}} no total"
+  },
+  "article": {
+    "aiDisclosureBody": "Este texto foi escrito por inteligência artificial a partir de {count, plural, one {# notícia publicada} other {# notícias publicadas}} por veículos jornalísticos, listadas abaixo. Nenhum trecho foi apurado pelo Newra News.",
+    "aiDisclosureCaveat": "A IA resume e conecta o que as fontes publicaram; ela não verifica os fatos. Para o contexto completo de qualquer assunto, leia a matéria original.",
+    "aiDisclosureTitle": "Como este briefing foi produzido",
+    "briefKicker": "Newra Daily Brief",
+    "emptyDesc": "Os artigos diários aparecerão aqui quando disponíveis.",
+    "emptyTitle": "Nenhum artigo encontrado",
+    "generatedAtLabel": "Gerado em",
+    "historyIntro": "Um briefing por dia, desde que o pipeline começou a rodar.",
+    "loadError": "Não foi possível carregar os artigos. Tente novamente.",
+    "modelLabel": "Modelo",
+    "monthCount": "{count, plural, one {# briefing} other {# briefings}}",
+    "notFoundDesc": "Este artigo não existe ou ainda não foi publicado.",
+    "notFoundTitle": "Artigo não encontrado",
+    "pageDescription": "Todos os artigos diários gerados por IA sobre as principais notícias.",
+    "promptLabel": "Versão do prompt",
+    "sourcesLabel": "Fontes",
+    "sourcesTitle": "Fontes consultadas",
+    "title": "Histórico de Artigos",
+    "todayBadge": "Hoje",
+    "viewAll": "Ver todos os artigos"
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signOut": "Sair",
+    "loading": "Carregando sessão",
+    "guest": "Usuário"
+  },
+  "categories": {
+    "TECHNOLOGY": "Tecnologia",
+    "POLITICS": "Política",
+    "ECONOMY": "Economia",
+    "SPORTS": "Esportes",
+    "SCIENCE": "Ciência",
+    "ENTERTAINMENT": "Entretenimento",
+    "WORLD": "Mundo",
+    "HEALTH": "Saúde"
+  },
+  "categoryDescriptions": {
+    "ECONOMY": "Mercados, inflação, emprego e as decisões que mexem no seu bolso.",
+    "ENTERTAINMENT": "Cultura, streaming, música e o que as pessoas estão assistindo.",
+    "HEALTH": "Saúde pública, medicina, bem-estar e prevenção.",
+    "POLITICS": "Governo, eleições, políticas públicas e a disputa por poder.",
+    "SCIENCE": "Pesquisa, descobertas e o que a ciência mudou de ideia esta semana.",
+    "SPORTS": "Competições, resultados e os bastidores do esporte.",
+    "TECHNOLOGY": "Inovação, software, dispositivos e o efeito da tecnologia no dia a dia.",
+    "WORLD": "Conflitos, diplomacia e o que acontece fora do Brasil."
+  },
+  "common": {
+    "all": "Todas",
+    "backToHome": "Voltar para a Home",
+    "categories": "Categorias",
+    "clearSearch": "Limpar busca",
+    "linkCopied": "Link copiado",
+    "loading": "Carregando...",
+    "next": "Próxima",
+    "previous": "Anterior",
+    "retry": "Tentar novamente",
+    "searchPlaceholder": "Buscar notícias...",
+    "share": "Compartilhar",
+    "sources": "{count, plural, one {# fonte} other {# fontes}}",
+    "sourcesConsulted": "{count, plural, one {# fonte consultada} other {# fontes consultadas}}"
+  },
+  "dashboard": {
+    "title": "Dashboard de Métricas",
+    "pageDescription": "Desempenho do pipeline diário de notícias e dos artigos gerados por IA.",
+    "today": "Hoje",
+    "newsCollected": "Notícias coletadas",
+    "dailyArticle": "Artigo do dia",
+    "generated": "Gerado",
+    "pending": "Pendente",
+    "publishedHint": "Publicado na home e no histórico",
+    "runsAt": "O pipeline roda diariamente às 8h (BRT)",
+    "aiUsed": "IA utilizada",
+    "pipelineDuration": "Duração do pipeline",
+    "pipelineErrors": "Erros no pipeline",
+    "notRunYet": "O pipeline ainda não rodou hoje. Acompanhe após a execução diária (8h, horário de Brasília).",
+    "last7Days": "Últimos 7 dias",
+    "avgNewsPerDay": "Média de notícias/dia",
+    "articlesGenerated": "Artigos gerados",
+    "daysWithData": "{count, plural, one {# dia com dados} other {# dias com dados}}",
+    "successRate": "Taxa de sucesso",
+    "avgDuration": "Duração média",
+    "newsByCategory": "Notícias por categoria (7 dias)",
+    "aiUsage": "IA utilizada (7 dias)",
+    "last30Days": "Últimos 30 dias",
+    "failureDays": "Dias com falha",
+    "loadError": "Não foi possível carregar as métricas. Tente novamente.",
+    "noData": "Sem dados no período."
+  },
+  "editorial": {
+    "readingTime": "{minutes} min de leitura",
+    "sourceLabel": "Ler em {source}"
+  },
+  "errors": {
+    "genericTitle": "Algo deu errado",
+    "genericDesc": "Ocorreu um erro inesperado. Por favor, tente novamente.",
+    "newsTitle": "Não foi possível carregar as notícias",
+    "newsDesc": "Ocorreu um erro ao buscar as notícias. Por favor, tente novamente.",
+    "articlesTitle": "Não foi possível carregar os artigos",
+    "articlesDesc": "Ocorreu um erro ao buscar os artigos. Por favor, tente novamente.",
+    "dashboardTitle": "Não foi possível carregar as métricas",
+    "dashboardDesc": "Ocorreu um erro ao buscar os dados do pipeline. Por favor, tente novamente."
+  },
+  "favorites": {
+    "title": "Salvos",
+    "add": "Salvar",
+    "remove": "Remover dos salvos",
+    "loadError": "Não foi possível carregar o que você salvou.",
+    "emptyTitle": "Você ainda não salvou nada.",
+    "emptyHint": "Toque no marcador em uma notícia ou no briefing do dia para guardá-lo aqui.",
+    "description": "As notícias e os briefings que você guardou para ler depois."
+  },
+  "footer": {
+    "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar.",
+    "navigation": "Navegação",
+    "aboutTitle": "Sobre o Projeto",
+    "items": {
+      "stack": "Next.js + Fastify",
+      "aiGenerated": "Artigos gerados por IA",
+      "updatedDaily": "Atualizado diariamente"
+    },
+    "rights": "Todos os direitos reservados.",
+    "poweredBy": "Powered by AI"
+  },
+  "home": {
+    "latestNews": "Mais notícias",
+    "viewAll": "Ver todas",
+    "srHeading": "Newra News — a edição de hoje",
+    "topStories": "Principais notícias",
+    "trending": "Em alta",
+    "leadStory": "Destaque do dia",
+    "briefKicker": "Newra Daily Brief",
+    "briefCta": "Ler o briefing completo",
+    "briefAiDisclosure": "Resumo produzido por IA a partir das fontes listadas.",
+    "categoryViewAll": "Ver tudo em {category}",
+    "emptyTitle": "A edição de hoje ainda está sendo montada",
+    "emptyDesc": "Nenhuma notícia disponível no momento. Tente novamente em alguns minutos.",
+    "readStory": "Ler a matéria"
+  },
+  "locale": {
+    "label": "Selecionar idioma",
+    "pt": "Português",
+    "en": "Inglês"
+  },
+  "metadata": {
+    "about": {
+      "title": "Sobre",
+      "description": "Conheça o Newra News, portal de notícias com artigo diário gerado por IA."
+    },
+    "admin": {
+      "title": "Admin"
+    },
+    "articles": {
+      "title": "Histórico de Artigos",
+      "description": "Todos os artigos diários gerados por IA sobre as principais notícias."
+    },
+    "dashboard": {
+      "title": "Métricas",
+      "description": "Acompanhe o desempenho do pipeline de notícias e dos artigos gerados por IA."
+    },
+    "favorites": {
+      "title": "Salvos"
+    },
+    "news": {
+      "title": "Notícias",
+      "description": "Todas as notícias do mundo em um só lugar."
+    },
+    "newsletter": {
+      "description": "Receba o artigo do dia do Newra News no seu e-mail: um resumo escrito por IA a partir das principais notícias, com as fontes à vista.",
+      "title": "Newsletter"
+    },
+    "newsletterUnsubscribe": {
+      "title": "Cancelar inscrição",
+      "description": "Cancele sua assinatura da newsletter do Newra News."
+    },
+    "signin": {
+      "title": "Entrar"
+    },
+    "account": {
+      "title": "Sua conta"
+    },
+    "preferences": {
+      "title": "Preferências"
+    },
+    "newsletterSettings": {
+      "title": "Newsletter"
+    }
+  },
+  "nav": {
+    "about": "Sobre",
+    "admin": "Admin",
+    "articles": "Artigos",
+    "closeMenu": "Fechar menu",
+    "favorites": "Salvos",
+    "home": "Home",
+    "metrics": "Métricas",
+    "news": "Notícias",
+    "openMenu": "Abrir menu",
+    "secondary": "Navegação secundária",
+    "account": "Conta"
+  },
+  "news": {
+    "archiveDescription": "Todas as notícias coletadas pelo Newra News, por categoria, fonte e período.",
+    "archiveTitle": "Acervo",
+    "browseAll": "Ver o acervo inteiro",
+    "clearFilters": "Limpar filtros",
+    "collectedNotice": "Matéria publicada por {source}. O Newra News coleta e organiza; o texto e a apuração são do veículo original.",
+    "emptyArchiveDesc": "As notícias aparecem aqui assim que a primeira coleta do dia rodar.",
+    "emptyArchiveTitle": "O acervo ainda está vazio",
+    "emptyDesc": "Tente ajustar os filtros ou o termo de busca.",
+    "emptyFilterDesc": "Nenhuma matéria do acervo atende a esses filtros ao mesmo tempo.",
+    "emptySearchDesc": "Verifique a grafia ou tente uma palavra mais geral.",
+    "emptySearchTitle": "Nada encontrado para “{term}”",
+    "emptyTitle": "Nenhuma notícia encontrada",
+    "excerptLabel": "Trecho",
+    "filtersLabel": "Filtros do acervo",
+    "fullContentHint": "Conteúdo completo disponível na fonte original.",
+    "latestLabel": "Últimas",
+    "loadError": "Não foi possível carregar as notícias. Tente novamente.",
+    "notFoundDesc": "Esta notícia não existe ou foi removida.",
+    "notFoundTitle": "Notícia não encontrada",
+    "pageDescription": "Fique por dentro das últimas notícias do mundo.",
+    "periodLabel": "Período",
+    "readAtSource": "Leia na fonte",
+    "relatedTitle": "Leia também",
+    "resultCount": "{count, plural, =0 {Nenhuma notícia} one {# notícia} other {# notícias}}",
+    "resultCountFiltered": "{count, plural, =0 {Nenhuma notícia encontrada} one {# notícia encontrada} other {# notícias encontradas}}",
+    "searchHistory": "Buscas recentes",
+    "searchHistoryClear": "Limpar histórico",
+    "searchHistoryRemove": "Remover “{term}” do histórico",
+    "sortLabel": "Ordenar",
+    "sourceAll": "Todas as fontes",
+    "sourceLabel": "Fonte",
+    "title": "Notícias",
+    "viewAll": "Ver todas as notícias",
+    "savedOnly": "Somente salvos",
+    "emptySavedTitle": "Nada salvo neste recorte.",
+    "emptySavedDesc": "Você tem itens salvos, mas nenhum deles combina com os filtros atuais."
+  },
+  "newsPeriod": {
+    "30d": "30 dias",
+    "7d": "7 dias",
+    "all": "Qualquer data",
+    "today": "Hoje"
+  },
+  "newsSort": {
+    "oldest": "Mais antigas",
+    "recent": "Mais recentes"
+  },
+  "newsletter": {
+    "benefitBriefDesc": "Não é uma coletânea de manchetes. É um texto que conecta o que aconteceu, com as fontes consultadas listadas no fim.",
+    "benefitBriefTitle": "Um artigo, não uma lista",
+    "benefitRhythmDesc": "Enviado de manhã, todo dia. Sem notificação, sem sequência de e-mails, sem venda.",
+    "benefitRhythmTitle": "Uma vez por dia",
+    "benefitSourcesDesc": "Todo briefing traz de onde veio cada informação. Nada é afirmado sem origem.",
+    "benefitSourcesTitle": "Fontes à vista",
+    "ctaDescription": "Receba o Newra Daily no seu e-mail: o artigo do dia, escrito a partir das principais notícias, em uma leitura só.",
+    "ctaHeadline": "O mundo não cabe no seu feed. O resumo certo cabe na sua manhã.",
+    "ctaPrivacy": "Um e-mail por dia. Cancele quando quiser, em um clique.",
+    "emailLabel": "Seu e-mail",
+    "emailPlaceholder": "seu@email.com",
+    "error": "Não foi possível assinar agora. Tente novamente.",
+    "faqAiA": "Sim, e isso está declarado em todo artigo. A curadoria das fontes é automática e o texto é gerado por modelo de linguagem a partir delas.",
+    "faqAiQ": "O texto é escrito por IA?",
+    "faqCancelA": "Todo e-mail tem um link de cancelamento que funciona em um clique, sem login e sem pergunta.",
+    "faqCancelQ": "Como eu cancelo?",
+    "faqDataA": "Guardamos só o endereço, e usamos só para enviar o briefing. Não é compartilhado nem vendido.",
+    "faqDataQ": "O que vocês fazem com meu e-mail?",
+    "faqFrequencyA": "Uma vez por dia, de manhã. Só isso — não existe segundo envio nem série de boas-vindas.",
+    "faqFrequencyQ": "Com que frequência chega?",
+    "faqTitle": "Perguntas diretas",
+    "footerDesc": "Receba o artigo do dia no seu e-mail, direto das principais notícias.",
+    "footerTitle": "Newsletter",
+    "invalidDesc": "Não foi possível cancelar a inscrição com este link. Verifique o e-mail recebido ou tente novamente.",
+    "invalidEmail": "Informe um e-mail válido.",
+    "invalidTitle": "Link inválido ou já utilizado",
+    "landingLede": "Todo dia a IA lê as principais notícias do Brasil e do mundo e escreve um artigo único, com as fontes à vista. Você lê uma vez e sabe o que aconteceu.",
+    "landingTitle": "O Newra Daily na sua caixa de entrada",
+    "subscribe": "Assinar",
+    "success": "Você receberá o artigo do dia no seu e-mail!",
+    "unsubscribedDesc": "Você não receberá mais o artigo diário no seu e-mail. Se mudar de ideia, basta assinar novamente pelo rodapé do site.",
+    "unsubscribedTitle": "Inscrição cancelada",
+    "whatYouGet": "O que você recebe"
+  },
+  "notFound": {
+    "title": "Página não encontrada",
+    "description": "O endereço que você acessou não existe ou foi movido."
+  },
+  "pagination": {
+    "currentPage": "Página {page}, página atual",
+    "goToPage": "Ir para a página {page}",
+    "historyLabel": "Paginação do histórico",
+    "label": "Paginação do acervo"
+  },
+  "productMetrics": {
+    "accounts": "Contas",
+    "accountsHint": "Quem loga volta por definição",
+    "audienceTitle": "Audiência",
+    "byCategoryTitle": "Categorias abertas",
+    "bySourceTitle": "Cliques por origem",
+    "eventsTitle": "Eventos por tipo",
+    "loadError": "Não foi possível carregar as métricas de produto.",
+    "noSearchGaps": "Nenhuma busca sem resultado na janela.",
+    "opened": "Aberturas",
+    "pageDescription": "Como as pessoas usam o site — o painel ao lado mede o pipeline.",
+    "readRate": "Leitura completa",
+    "readRateHint": "90% do texto sobre as aberturas",
+    "readingTitle": "Leitura",
+    "scroll25": "25% do texto",
+    "scroll50": "50% do texto",
+    "searchGapsHint": "O que as pessoas procuraram e o acervo não tinha.",
+    "searchGapsTitle": "Buscas sem resultado",
+    "sessions": "Sessões",
+    "sessionsHint": "Volume de visita — não diz quem voltou",
+    "subscribers": "Assinantes",
+    "subscribersHint": "É o número que um patrocinador pede",
+    "title": "Produto",
+    "windowDays": "{days} dias"
+  },
+  "shell": {
+    "breadcrumb": "Trilha de navegação",
+    "edition": "Edição de hoje",
+    "newsletter": "Newsletter",
+    "skipToContent": "Pular para o conteúdo"
+  },
+  "signin": {
+    "title": "Entrar",
+    "hint": "Entre para salvar notícias e o briefing do dia, e para escolher seus assuntos.",
+    "google": "Continuar com Google",
+    "github": "Continuar com GitHub",
+    "backHome": "Voltar para a Home",
+    "error": "Não foi possível entrar. O serviço de autenticação não está configurado ou a tentativa foi cancelada. Tente novamente."
+  },
+  "site": {
+    "description": "Portal de notícias inteligente com artigos diários gerados por IA, reunindo as principais notícias do dia em um único lugar."
+  },
+  "theme": {
+    "enableDark": "Ativar modo escuro",
+    "enableLight": "Ativar modo claro",
+    "dark": "Modo escuro",
+    "light": "Modo claro"
   }
 }

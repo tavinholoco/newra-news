@@ -61,13 +61,13 @@
 
 > `lib/seo.ts` virou a fonte única de URL e de metadata (canonical, `x-default`, `og:url` e os defaults que o Next **não** herda do layout); `lib/json-ld.ts` + `components/seo/json-ld.tsx` levam `Organization`, `WebSite`, `NewsArticle` e `BreadcrumbList`; a trilha visível nasceu espelhando o dado estruturado; e `/news-sitemap.xml` publica a janela de 48h do Google Notícias. A medição contra produção achou quatro defeitos que o checklist não previa — a imagem OG e o ícone do iOS inalcançáveis, `og:image`/`og:type`/`og:site_name` ausentes em toda página, e o briefing exibindo a véspera. 416 testes no web. Ver **item 25**.
 
-**Newra News V2.0 — Fase 8 (Medição de produto)** 🔶 **em andamento**
+**Newra News V2.0 — Fase 8 (Medição de produto)** ✅ **Concluída em 2026-08-22**
 
 > A fase se chamava **Monetização** e foi reescrita em 22/08/2026: **o site não exibe anúncio**. A camada de analytics saiu em três PRs (itens **26**, **27** e **28**) e ficou; o aparato de anúncio foi **removido** (item **29**). O que resta é a **tela de métricas de produto** — hoje o `ProductEvent` recebe evento e ninguém o lê.
 >
-> **Monetização virou planejamento** (§21 do plano): publicidade **cancelada**; newsletter patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e indeterminado. O gatilho para retomá-los é um número — sessões recorrentes —, e é a tela de métricas que o produz.
+> **Monetização virou planejamento** (§21 do plano): publicidade **cancelada**; newsletter patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e indeterminado. O gatilho para retomá-los é um número — **assinantes ativos e contas**, os dois persistentes —, e é a tela de métricas que o mostra.
 >
-> **O 404 do `/api/events` foi diagnosticado e corrigido** — e não era o deploy: o `@newranews/types` não emitia JavaScript, e o servidor morria no boot. Ver o **item 30**.
+> **A ingestão está no ar** desde 22/08: `POST /api/events` responde 201 em produção. O 404 anterior não era o deploy — era o `@newranews/types` não emitir JavaScript (item **30**). A tela de métricas fecha a fase no item **31**.
 
 ---
 
@@ -1945,10 +1945,10 @@ Newra Plus existir, e até lá não finge medir nada.
 
 #### O próximo passo
 
-**A tela de métricas de produto, versão mínima** — consulta o `ProductEvent`
-cru, agrupado por tipo e por dia, numa aba nova de `/admin/metrics`. Sem
-migration. É ela que produz o número de sessões recorrentes que destrava
-patrocínio e Plus.
+**A tela de métricas de produto, versão mínima** — entregue no **item 31**. E
+ela achou uma contradição neste parágrafo: "sessões recorrentes" **não é
+mensurável**, porque o `sessionId` morre ao fechar a aba. O gatilho passou a ser
+assinantes ativos e contas.
 
 ### 30. O 404 do `/api/events`: não era o Render ✅ 2026-08-22
 
@@ -2021,6 +2021,98 @@ nos dois sentidos: com a configuração antiga ela reprova; com a nova, passa.
 
 `POST https://newra-news-api.onrender.com/api/events` com `{"events":[]}` deve
 responder **400**. Se responder 404, a build no ar ainda é a antiga.
+
+### 31. V2.0 Fase 8 — a tela de métricas de produto ✅ Concluída em 2026-08-22
+
+> Branch `feat/v2-product-metrics`. **Fecha a Fase 8.** Era o único item aberto:
+> a camada gravava e ninguém lia.
+
+#### Antes de construir, a confirmação
+
+O item 30 previa conferir o deploy antes de montar a tela sobre suposição.
+Conferido em produção:
+
+| Requisição | Resposta |
+|---|---|
+| `POST /api/events` `{"events":[]}` | **400** — o schema rejeitando lote vazio |
+| evento válido | **201** `{"accepted":1}` |
+| `source` inventado | **400** |
+
+A rota está no ar e grava. (O evento válido do teste virou a primeira linha
+real da tabela.)
+
+#### A contradição que apareceu ao desenhar a tela
+
+O plano dizia que a tela produziria **"o número de sessões recorrentes"** que
+destrava patrocínio e Plus. **Ela não pode, e a impossibilidade é por desenho.**
+
+O `sessionId` vive em `sessionStorage` e morre ao fechar a aba — é exatamente
+isso que mantém a medição anônima e dispensa consentimento. Saber quem voltou
+exigiria identificador persistente, que a §4 dos slots proíbe. Construir a tela
+prometendo esse número seria a pílula de contagem da Fase 4 outra vez: um
+número que promete o que não entrega.
+
+**O gatilho foi corrigido no plano** para os dois números persistentes que a tela
+passou a mostrar: **assinantes ativos** (que é literalmente o que um
+patrocinador pede) e **contas criadas** (quem loga volta por definição). Sessões
+continuam na tela como **volume**, com a legenda dizendo isso.
+
+#### O que entrou
+
+| Peça | Papel |
+|---|---|
+| `services/product-metrics.service.ts` | a agregação |
+| `GET /api/metrics/product` | admin (JWT + role ADMIN), janela de 1 a 90 dias |
+| `app/api/admin/product-metrics/route.ts` | o proxy que assina o JWT |
+| `components/dashboard/product-metrics-client.tsx` | a tela, abaixo do painel do pipeline |
+
+A tela responde, na ordem: **audiência** (assinantes, contas, sessões),
+**leitura** (aberturas, 25%, 50% e a taxa de leitura completa), **cliques por
+origem**, **categorias abertas**, **eventos por tipo** e **buscas sem
+resultado**.
+
+> **Uma consulta e a agregação em memória, de propósito.** As alternativas eram
+> SQL cru com operadores de JSON — o que menos se consegue testar — ou seis
+> `groupBy`, que são seis idas ao banco para uma tela. É a mesma dívida
+> consciente da `/api/favorites`, com o mesmo aviso escrito no serviço: vira a
+> consulta a otimizar quando a janela trouxer centenas de milhares de linhas.
+
+> **A janela pára em 90 dias porque é a retenção do evento cru.** Uma janela
+> maior mostraria queda onde houve **apagamento** — e o leitor concluiria que o
+> site perdeu audiência.
+
+#### Decisões menores que valem registro
+
+- **A ordem dos cartões de audiência é deliberada**, e há teste para ela:
+  assinante e conta antes de sessão. Quem lê "sessões" primeiro conclui que tem
+  audiência recorrente sem ter.
+- **Erro e zero não se confundem.** Consulta que falha mostra aviso, não zero —
+  a mesma regra do `prefetch` que falha em `undefined`.
+- **A janela entra na chave do TanStack Query.** Sem isso, trocar de 30 para 7
+  dias mostraria o número anterior enquanto a consulta nova não resolve.
+
+#### O que **não** foi verificado no navegador, e por quê
+
+A tela exige sessão com role ADMIN. Ver o resultado real exigiria forjar um
+token de admin contra a **produção** com o segredo do `.env.local` — e isso é
+credencial de administrador do sistema no ar, não material de verificação.
+
+Verificado sem credencial: o proxy responde **401 sem sessão**, a rota da API
+responde 401/403/200 conforme o papel, a agregação está coberta por nove casos e
+a renderização por doze — incluindo o **estado vazio**, que é o de hoje.
+
+#### Números
+
+- **1.026 testes** (1.000 → 1.026): **575 na API** (+14) e **451 no web** (+12),
+  95 suites.
+
+#### O que fica em aberto
+
+- **A tabela de agregado diário**, reavaliável em ~90 dias: é quando o expurgo
+  começa a apagar evento cru e a comparação entre meses deixa de existir. Entra
+  sem retrabalho — o expurgo e a etapa 8 do pipeline já estão lá.
+- **A tela nasce mostrando quase zero**, e zero é honesto: a ingestão entrou no
+  ar hoje.
 
 ---
 

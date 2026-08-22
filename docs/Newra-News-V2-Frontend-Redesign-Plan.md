@@ -866,8 +866,12 @@ https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/dnr-executiv
 
 Nenhum dos itens abaixo se retoma por calendário. Todos dependem de **base de
 usuários recorrentes**, e quem vai dizer se ela existe é a tela de métricas de
-produto da Fase 8. Enquanto o `ProductEvent` não mostrar sessões recorrentes e
-assinantes de newsletter em volume, tudo aqui é planejamento.
+produto da Fase 8.
+
+**O número a observar é assinante ativo da newsletter e conta criada** — os dois
+persistentes. Sessão **não serve**: o identificador morre ao fechar a aba, de
+propósito, e por isso a medição anônima não sabe dizer quem voltou. Enquanto
+esses dois não crescerem, tudo aqui é planejamento.
 
 ## ~~Fase 1: publicidade leve~~ — **CANCELADA** (22/08/2026)
 
@@ -891,8 +895,8 @@ Isso tende a combinar melhor com uma publicação de nicho do que encher o site 
 banners — e, com a publicidade cancelada, passou a ser **o primeiro caminho de
 receita**, não o segundo.
 
-**O que falta antes:** número de assinantes para pôr numa proposta. É o que a
-métrica de `newsletter_signup` e de sessões recorrentes vai dizer.
+**O que falta antes:** número de assinantes para pôr numa proposta — e ele está
+no bloco de audiência da tela de métricas, vindo do `Subscriber`, não do evento.
 
 **O que já existe:** a landing `/newsletter`, o `Subscriber` no banco, o envio
 diário pela etapa 7.5 do pipeline, e o evento `newsletter_signup` medindo a
@@ -1120,7 +1124,10 @@ A V2.0 não deve ser avaliada apenas por “ficou bonito”.
 - profundidade de scroll;
 - artigos por sessão;
 - saves por usuário;
-- sessões recorrentes;
+- ~~sessões recorrentes~~ — **não mensurável** com esta camada, e é por desenho:
+  o `sessionId` morre ao fechar a aba. Quem mede audiência recorrente são
+  assinantes ativos e contas criadas, que a tela de métricas mostra ao lado das
+  sessões (§28, Fase 8);
 - newsletter signup rate;
 - share rate.
 
@@ -1681,6 +1688,18 @@ destrava patrocínio e Newra Plus** (§21): sem ela, "retomar quando houver base
 usuários recorrentes" fica sem como ser verificado — esperar-se-ia um número que
 ninguém calcula.
 
+> **Correção de 22/08/2026: "sessões recorrentes" não é mensurável, e não é
+> descuido.** Esta seção dizia que a tela produziria esse número. Ela não pode:
+> o `sessionId` vive em `sessionStorage` e morre ao fechar a aba — é exatamente
+> isso que mantém a medição anônima e dispensa consentimento. Saber quem voltou
+> exigiria um identificador persistente, que é o que a §4 dos slots proíbe.
+>
+> **O gatilho, corrigido:** os dois números **persistentes** que a tela mostra
+> ao lado das sessões — **assinantes ativos da newsletter** (que é literalmente
+> o número que um patrocinador pede) e **contas criadas** (quem loga volta por
+> definição). Sessões por dia continuam valendo como **volume**, e a tela diz
+> isso na própria legenda para os dois não serem confundidos.
+
 ### A tela de métricas de produto
 
 **Versão mínima, decidida em 22/08/2026:** consulta o `ProductEvent` cru,
@@ -1696,7 +1715,8 @@ Não confundir com o que já existe ali: o painel atual mede o **pipeline**
 | O briefing é lido ou só aberto? | `article_scroll_90` ÷ `briefing_open` |
 | O que procuram e não acham? | `search` com `resultCount: 0` |
 | Que editoria puxa audiência? | `category_view` |
-| **Tem gente voltando?** | sessões por dia |
+| **Tem gente voltando?** | assinantes ativos + contas (persistentes) |
+| Quanto tráfego há? | sessões por dia — **volume**, não recorrência |
 
 > **A tabela de agregado diário ficou de fora, e tem data para ser reavaliada.**
 > Ela serve para uma coisa: comparar meses **depois** que a retenção de 90 dias

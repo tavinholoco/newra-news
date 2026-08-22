@@ -1,9 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getDashboardMetrics } from '../../services/metrics.service';
+import { getProductMetrics } from '../../services/product-metrics.service';
 import { ForbiddenError } from '../../utils/errors';
 import { authPlugin } from '../../plugins/auth';
-import { dashboardMetricsResponseSchema, errorResponseSchema } from './schemas';
+import {
+  dashboardMetricsResponseSchema,
+  productMetricsResponseSchema,
+  productQuerySchema,
+  errorResponseSchema,
+} from './schemas';
 
 export async function metricsAdminRoutes(app: FastifyInstance) {
   // authPlugin encapsulado aqui: `/weekly` e `/monthly` seguem públicos em
@@ -32,4 +38,35 @@ export async function metricsAdminRoutes(app: FastifyInstance) {
       return { data };
     },
   );
+
+  /**
+   * Métricas de **produto** — comportamento de gente, não saúde de máquina.
+   *
+   * Mesmo guarda do `/dashboard`: JWT com role ADMIN. O que ela devolve inclui
+   * termo de busca digitado por leitor (já higienizado na origem), e isso só
+   * sai para quem administra.
+   */
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/product',
+    {
+      schema: {
+        summary: 'Product analytics for the admin dashboard',
+        tags: ['metrics'],
+        querystring: productQuerySchema,
+        response: {
+          200: productMetricsResponseSchema,
+          401: errorResponseSchema,
+          403: errorResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      if (request.user?.role !== 'ADMIN') {
+        throw new ForbiddenError('Admin access required');
+      }
+
+      return { data: await getProductMetrics(request.query.days) };
+    },
+  );
+
 }
