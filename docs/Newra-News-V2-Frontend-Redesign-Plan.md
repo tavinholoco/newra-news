@@ -1664,7 +1664,7 @@ medição.
 > BCP-47 da rota. As duas URLs continuam no `sitemap.xml` geral, com o `hreflang`
 > dizendo o que elas são.
 
-## Fase 8 — Medição de produto 🔶 em andamento
+## Fase 8 — Medição de produto ✅ Concluída em 2026-08-22, auditada em 23/08
 
 > **Esta fase se chamava "Monetização" e foi reescrita em 22/08/2026.** A
 > decisão: **não exibir anúncio no site**. O que sobra de monetização é
@@ -1674,7 +1674,9 @@ medição.
 [x] camada de analytics             (track(), sessão, DNT/GPC — item 27)
 [x] ingestão e retenção             (ProductEvent, POST /api/events — item 26)
 [x] instrumentação                  (12 eventos com call site — itens 27 e 28)
-[ ] tela de métricas de produto     (ler o que a camada mede)
+[x] tela de métricas de produto     (GET /api/metrics/product + aba no
+                                     /admin/metrics — item 31)
+[x] auditoria de fechamento         (o gate media cold start — item 32)
 ```
 
 ### Por que a fase mudou de nome
@@ -1743,18 +1745,1177 @@ uma chave que nada gravava. O direito de oposição fica com **DNT e Global
 Privacy Control**, que é o mecanismo padrão para medição anônima de primeira
 parte. Um controle explícito de opt-out na interface é item em aberto.
 
-## Fase 9 — Release
+## As quatro fases finais — por que a Fase 9 virou quatro
+
+> **Reescrita em 23/08/2026.** A §28 fechava com uma fase só: "Fase 9 —
+> Release", oito itens de checklist. Ela virou **quatro**: **9 (backend
+> review)**, **10 (frontend review)**, **11 (integração geral)** e **12 (ajustes
+> finos e release final)**. Os oito itens originais não sumiram — foram
+> distribuídos, e cada um ganhou dono e critério de saída.
+
+**Por que quatro e não uma.** Os oito itens da Fase 9 original eram todos de
+*verificação de saída*: regressão visual, QA mobile e desktop, Lighthouse,
+smoke, SEO, analytics, canary. Nenhum deles olha para **dentro** do que oito
+fases construíram. E o que este projeto aprendeu, fase após fase, é que a
+medição de saída acha **o que a tela mostra, não o que o código faz**:
+
+- a Fase 5 foi ao ar com o artigo carregando auditoria e 15 fontes e **servindo
+  sem elas** — o schema de resposta era o da V1, e o `fastify-type-provider-zod`
+  serializa pelo schema. Nenhum Lighthouse veria isso;
+- a Fase 7 achou a imagem OG e o ícone do iOS **inalcançáveis desde que
+  existem** — o matcher do middleware exclui o que tem extensão, e rota de
+  metadata gerada não tem;
+- a Fase 8 **morreu no boot em produção** porque um pacote do workspace não
+  emitia JavaScript. `tsc` verde, 1.026 testes verdes, e a rota nova devolvendo
+  404 num serviço que respondia 200 em todo o resto;
+- a auditoria de 23/08 achou o gate do Lighthouse medindo **cold start**, não
+  página — e ia reprovar na segunda às 09:00 UTC, quando ninguém está olhando.
+
+**Três dos quatro já estavam em produção quando foram achados**, e nenhum deles
+seria achado por "regressão visual" ou "QA mobile". É essa a lacuna que as
+Fases 9, 10 e 11 fecham: revisão **por camada** — backend, frontend, e a costura
+entre os dois, que é onde mora o defeito que nenhum dos dois lados enxerga
+sozinho. A Fase 12 é o fechamento: critérios de aceite, dívida decidida,
+documentação e release.
+
+### Anatomia de uma fase de revisão
+
+Uma fase de revisão tem dois modos de fracassar, e os dois já aconteceram neste
+projeto em outra forma:
+
+1. **A revisão que produz lista e não produz mudança.** É a tabela sem leitor da
+   Fase 8 e o `AdSlot` que nunca iria ao ar: trabalho que precisa ser mantido
+   verde para sempre sem decidir nada. Contra isso, a regra: **todo achado sai
+   da fase como uma de três coisas** — correção mergeada, **guarda no CI**, ou
+   dívida registrada com o gatilho. Nunca como item de lista.
+2. **A revisão que não termina.** "Revisar o backend" não tem critério de
+   parada. Contra isso: **cada fase abre com um inventário fechado**, enumerado
+   e com número. Revisou os 34 endpoints? O eixo fechou. "Revisou o backend" não
+   fecha nada.
+
+E uma regra de triagem, para o achado não virar discussão:
+
+| Classe | O que é | Para onde vai |
+|---|---|---|
+| **Bloqueia** | dado errado, dado vazando, tela quebrada, boot que morre | corrige na própria fase |
+| **Vira guarda** | defeito que o CI podia ter achado e não achou | teste ou passo de workflow, na própria fase |
+| **Vira dívida** | custo real, sem sintoma hoje | "O que ficou em aberto", **com o número que a torna urgente** |
+
+**A terceira coluna é a que costuma ser pulada.** Achado sem gatilho numérico
+("otimizar quando crescer") volta a ser achado na revisão seguinte. A
+`/api/favorites` e a agregação em memória da `/metrics/product` já estão escritas
+assim, com o número nomeado — é o padrão a seguir, não a exceção.
+
+### A camada de segurança e testes — obrigatória nas quatro
+
+**Cada uma das quatro fases carrega dois eixos que não são opcionais: `S`
+(segurança) e `T` (testes e guardas).** Eles existem separados dos outros eixos
+por um motivo: são os dois que a pressa de fechar um projeto come primeiro, e
+são os dois cujo custo de omissão só aparece depois do release.
+
+**A regra de triagem muda para achado de segurança.** As três classes da tabela
+acima valem para o resto; aqui há uma quarta:
+
+> **Achado de segurança não vira dívida sem aceite de risco escrito.** Ou é
+> corrigido, ou fica registrado com **qual é o risco, quem o aceita e o que
+> mudaria a decisão**. "Fica para depois" não é aceite — é o achado voltando na
+> próxima revisão com mais tempo de exposição.
+
+E a costura entre os dois eixos, que é o que os torna permanentes:
+
+> **Todo achado de segurança sai da fase com um teste.** Não o teste que prova
+> que o defeito existia — o que prova que **ele continua fechado**. É a
+> diferença entre auditoria (acontece uma vez) e guarda (roda em todo PR). O
+> `runtime-deps.test.ts` é o modelo: ele não conserta nada, ele impede que volte.
+
+**A superfície é dividida entre as fases, para não haver sobreposição nem
+buraco:**
+
+| Fase | Superfície de segurança | O que ela pergunta |
+|---|---|---|
+| **9** | **o servidor** | entrada, autorização, segredo, dado em repouso, e o terceiro que escreve no produto (a IA) |
+| **10** | **o navegador** | cabeçalho de resposta, injeção no DOM, o que vaza no bundle, o que a página carrega de fora |
+| **11** | **a costura** | em quem cada metade confia, e por quê — sessão, token, CORS, ambiente |
+| **12** | **o gate** | o que precisa estar verde para publicar, e o que roda sozinho depois |
+
+E a de testes, na mesma lógica: a **9** e a **10** cuidam da própria camada
+(unidade, rota, componente, cobertura); a **11** entrega o que nenhuma das duas
+consegue — **o fluxo ponta a ponta**; a **12** não escreve teste novo, **exige
+que a suíte inteira esteja verde e que o gate reprove quando deve**.
+
+> **A medição de cada fase é contra produção**, como manda o ritual do
+> `CLAUDE.md`. Revisão que só olha o repositório repete o erro que a auditoria da
+> Fase 8 corrigiu: o defeito estava no ar havia dias, e o `git log` não sabia.
+
+---
+
+## Fase 9 — Backend review
+
+**Objetivo:** varrer `apps/api`, `packages/database` e `packages/types` atrás do
+que oito fases de entrega deixaram passar — contrato, limite, consulta, pipeline
+e observabilidade — e sair com **guarda onde hoje há convenção**.
+
+**Inventário fechado:**
+
+| O que | Quanto |
+|---|---|
+| rotas registradas | **34** (23 GET, 7 POST, 2 PUT, 2 DELETE) |
+| serviços | 20 |
+| providers | 8 arquivos (3 em `news/`, 3 em `ai/`, 1 de newsletter, 1 de tipos) |
+| plugins | 5 (auth, cors, helmet, rate-limit, swagger) |
+| modelos Prisma | 12 + 8 enums |
+| migrations | 4 |
+| etapas do pipeline | 10 |
+| suítes / testes | 45 / 575 |
 
 ```text
-[ ] visual regression
-[ ] mobile QA
-[ ] desktop QA
-[ ] Lighthouse CI
-[ ] E2E smoke tests
-[ ] SEO validation
-[ ] analytics validation
-[ ] production canary
+    -- 9.1 contrato HTTP: o schema é o contrato --
+[ ] as 34 rotas conferidas contra docs/api.md
+[ ] schema de resposta × select do serviço, rota a rota
+[ ] códigos de erro por rota (401 × 403 × 404) e o que o 500 devolve
+[ ] guarda de deriva: rota registrada ⇒ rota documentada
+[ ] OpenAPI: o `servers` e a exposição pública de /api/docs
+
+    -- 9.S segurança do servidor (eixo obrigatório) --
+[ ] rate limit: o balde é por cliente ou é um só? (medir)
+[ ] CORS: métodos declarados × métodos que existem
+[ ] helmet: decidir a CSP (hoje `contentSecurityPolicy: false`)
+[ ] rotas /dev em produção: JOB_SECRET por query string
+[ ] o JWT: claims, escopo do `purpose`, expiração
+[ ] o que o error handler devolve num 500 do Prisma
+[ ] **injeção de prompt**: o feed RSS escreve no mesmo canal das instruções
+[ ] autorização rota a rota: quem exige ADMIN e quem só exige sessão
+[ ] dado pessoal em repouso e em log (Subscriber, User, PipelineEvent)
+[ ] advisories das dependências da API — 40 high em prod, medido em 23/08
+[ ] cada achado sai com o teste que o mantém fechado
+
+    -- 9.3 dados e consultas --
+[ ] índices × consultas que de fato rodam
+[ ] replay das 4 migrations em banco limpo (branch do Neon)
+[ ] o índice único de News.sourceUrl conferido nos dois ambientes
+[ ] projeção de crescimento do ProductEvent aos 90 dias
+[ ] as duas dívidas com gatilho: /favorites e /metrics/product
+
+    -- 9.4 pipeline --
+[ ] idempotência das 10 etapas, uma a uma
+[ ] o que é crítico e o que é não-crítico, e o que acontece ao falhar
+[ ] o dia sem artigo: o que a Home mostra
+[ ] retenção: os números do cleanup × os números da documentação
+
+    -- 9.5 observabilidade --
+[ ] error rate e latência da API — §26 promete, nada calcula
+[ ] correlação de requisição (hoje não existe)
+[ ] o que o PipelineLog não registra e devia
+
+    -- 9.T testes e guardas (eixo obrigatório) --
+[ ] cobertura por arquivo: onde estão os 6% que faltam
+[ ] teste que descreve comportamento × teste que repete implementação
+[ ] a guarda de build (runtime-deps): o que mais ela devia travar
+[ ] guarda de deriva rota ⇒ documentação (sai da 9.1)
+[ ] teste de autorização por rota: 401, 403 e o caminho feliz
+[ ] o caminho degradado do pipeline coberto, não só o feliz
 ```
+
+### 9.1 O contrato HTTP — "o que não está no schema não existe"
+
+Esta é a regra mais cara já aprendida no backend, e ela **não tem guarda**. O
+`article.service` carregava os campos de auditoria e as 15 fontes desde a Fase
+0.5; `articleItemSchema` era o da V1; o serializador do Fastify serializa pelo
+schema, e o dado ia do banco para o lixo na saída — com a `docs/api.md`
+descrevendo o comportamento certo, então nada denunciava a divergência.
+
+A revisão passa rota a rota comparando **três coisas que hoje só um humano
+compara**: o `select` do serviço, o schema Zod de resposta, e o que a
+`docs/api.md` promete.
+
+**A deriva já existe e é medível.** A `docs/api.md` documenta 32 endpoints; o
+`app.ts` registra 34. `POST /api/auth/upsert` está no código e **não está na
+documentação** — a rota pela qual todo usuário é criado.
+
+**A saída não é uma lista de correções, é uma guarda.** O Fastify já produz o
+documento OpenAPI a partir dos schemas Zod; um teste que enumere as rotas
+registradas e exija que cada uma apareça na `docs/api.md` torna a deriva
+impossível de mergear. Custa uma suíte pequena e fecha uma classe inteira de
+defeito.
+
+### 9.S Segurança do servidor: o balde de rate limit pode ser um só para o site inteiro
+
+**Esta é a suspeita mais séria que a análise levantou, e ela precisa ser medida
+antes de ser corrigida.**
+
+O `@fastify/rate-limit` usa `request.ip` como chave por padrão. O `buildApp` não
+define `trustProxy`, e o Fastify sem ele devolve o **peer do socket** — que
+atrás do proxy do Render não é o visitante. Some a isso o desenho do frontend:
+**todo o tráfego server-side sai da Vercel**, e a ingestão de eventos passa pela
+rota `/api/events` do Next justamente para o `sendBeacon` não precisar de
+preflight. Ou seja, a maior parte das requisições chega à API de um punhado de
+IPs de saída, não do IP de quem está lendo o site.
+
+Se a suspeita se confirmar, a consequência é direta e silenciosa: **o limite de
+30/min da `/api/events` vira um teto global de ingestão**, e a tela de métricas
+que fechou a Fase 8 passa a subcontar sem nenhum sinal — 429 numa chamada de
+`sendBeacon` não tem retorno para o cliente ler. É o mesmo padrão de defeito que
+este projeto já pagou três vezes: o sintoma não se parece com a causa.
+
+**Como medir, e não deduzir:** duas máquinas em redes diferentes batendo na
+`/api/health` dentro da mesma janela de 60s, comparando o `x-ratelimit-remaining`
+das duas. Contador compartilhado ⇒ balde único. (A sondagem de 23/08 mostrou
+`99` na primeira requisição de uma janela fria, o que diz que o balde **não**
+está sendo consumido pelo health check do Render — e não resolve a pergunta.)
+
+O resto do eixo é inventário, e três itens já têm achado:
+
+- **`methods: ['GET', 'POST']` no CORS, e existem 2 PUT e 2 DELETE.** Funciona
+  hoje porque toda mutação passa pelo BFF do Next, server-side, onde CORS não se
+  aplica. Isso é uma **dependência não declarada** entre as duas metades — e ela
+  é revisitada na Fase 11, porque é lá que ela vive.
+- **`/api/docs` é público em produção, e o `servers` do OpenAPI anuncia
+  `http://<HOST>:<PORT>`** — em produção, `http://0.0.0.0:3001`. Ou o documento
+  aponta para a URL real, ou a UI não fica pública. Do jeito que está, é uma
+  vitrine que dá o endereço errado.
+- **O painel `/dev/dashboard` aceita o `JOB_SECRET` por query string.** Secret em
+  query string entra em log de acesso, em histórico e em `Referer`. Header ou
+  nada.
+- **O `purpose` do JWT é verificado numa rota e ignorado nas outras.** O token de
+  `auth-upsert` passa no `authPlugin` de `/api/favorites` do mesmo jeito. Hoje os
+  dois são assinados pelo mesmo servidor de confiança, então não há exploração —
+  mas a claim existe justamente para escopar, e escopo que só uma rota honra não
+  é escopo.
+
+#### O feed escreve no mesmo canal das instruções
+
+**Este é o risco de segurança mais próprio deste produto, e ele não tem
+mitigação nenhuma hoje.**
+
+O `formatNewsItems` concatena título, fonte, descrição e conteúdo de cada
+notícia num texto corrido, e esse texto é colado logo abaixo de "NOTÍCIAS DO
+DIA:" no `ARTICLE_USER_PROMPT`. **Não há delimitador, não há escape, e não há
+fronteira dizendo ao modelo onde acabam as instruções e começa o material.** O
+`stripHtml` limpa marcação — não limpa instrução.
+
+O que torna isso diferente de um risco teórico é o que vem depois: o texto
+gerado **vai ao ar sozinho**. Não há revisão humana entre a resposta do modelo e
+a publicação — o Stage 7 persiste, o 7.5 manda por e-mail para os assinantes, e
+a Home passa a exibir. Uma manchete construída para instruir o modelo entra pela
+mesma porta por onde entra a notícia real, e sai assinada pelo site.
+
+A superfície é grande e não é controlada por este projeto: 13 feeds RSS mais a
+NewsData.io, centenas de itens por dia, texto escrito por terceiros.
+
+A revisão não precisa resolver o problema inteiro — precisa **decidir a
+fronteira**, e as opções são conhecidas e baratas:
+
+- delimitar o material com marcadores explícitos e instruir o modelo a tratar
+  tudo entre eles como **dado, nunca como instrução**;
+- higienizar na ingestão o que se parece com instrução (o `feed-text.ts` já é o
+  lugar onde o texto do feed é limpo uma vez só);
+- validar a **saída**: o `parseMarkdownResponse` já espera um formato — título
+  `# `, corpo em Markdown. Saída fora do formato é sinal, e hoje ela é aceita.
+
+O teste que fica é o da regra: um item de feed com texto de instrução no título
+**não muda a forma da saída**.
+
+### 9.3 Dados: o que o índice promete e o que a consulta pede
+
+O schema é bem documentado — os comentários do `Favorite`, do `BriefingSource` e
+do `ProductEvent` explicam decisões que nenhum ORM explicaria. O que falta é
+confrontá-lo com o que roda.
+
+- **Replay das migrations em banco limpo.** A Fase 0 já achou uma `0_init` que
+  não replicava (banner do CLI colado no SQL) e um `migration_lock.toml`
+  faltando. São quatro migrations agora, e o banco local está **baselinado com
+  `migrate resolve`** — que marca como aplicada sem executar o SQL. Ou seja:
+  **ninguém nunca rodou as quatro do zero.** Uma branch do Neon resolve isso sem
+  tocar em produção — cria, aplica as quatro, compara o schema resultante com o
+  `schema.prisma`, descarta.
+- **O índice único de `News.sourceUrl` existe em produção e não no local.** A
+  revisão confirma em que estado cada ambiente está e escreve o resultado — hoje
+  isso é conhecimento oral registrado numa armadilha do `CLAUDE.md`.
+- **As duas dívidas com gatilho ganham o número.** A `/api/favorites` resolve os
+  salvos inteiros antes de paginar; a `/metrics/product` agrega em memória a
+  partir de uma consulta só. As duas estão documentadas como conscientes — o que
+  falta é **medir o ponto em que doem**: quantos favoritos por conta, quantos
+  eventos na janela de 90 dias. Sem o número, a dívida é uma frase.
+
+### 9.4 O pipeline: o que acontece no dia em que ele não roda
+
+Dez etapas, com retry, fallback de IA, expurgo e renormalização. O que a revisão
+persegue não é o caminho feliz — é o degradado:
+
+- **um dia sem artigo.** O acervo tem gap conhecido (89 artigos em 90 dias). A
+  Home chama `getHome`: o que ela desenha quando o briefing do dia não existe?
+- **falha parcial.** A newsletter é etapa 7.5 e não-crítica; o cleanup é etapa 8.
+  Se a 6 falha, a 8 roda? Se rodar, ela apaga notícia de um dia que não gerou
+  briefing?
+- **idempotência.** O `NewsletterLog.date` protege o envio duplicado; o
+  `skipDuplicates` protege a persistência; a renormalização é idempotente por
+  desenho. Cada uma dessas afirmações vale um teste que ainda não existe, ou a
+  confirmação de que já existe.
+- **retenção.** News 30d, PipelineLog 30d, Article 90d, ProductEvent 90d por
+  `occurredAt`. Conferir os números do código contra os quatro lugares que os
+  documentam.
+
+### 9.5 Observabilidade: §26 promete dois números que ninguém calcula
+
+A §26 lista, como métrica técnica de sucesso da V2, **error rate** e **API
+latency**. Uma varredura por `latency`, `responseTime`, `errorRate`, `p95` e
+`onResponse` em `apps/api/src` não devolve nada: **não há instrumentação
+nenhuma**. Existe observabilidade rica do *pipeline* (PipelineLog,
+PipelineEvent, painel dev) e zero da *API como serviço*.
+
+É a armadilha da tabela sem leitor, invertida: **um número prometido que ninguém
+produz**. A regra deste projeto já resolveu um caso idêntico — a §26 tinha
+"sessões recorrentes", e ele foi **riscado com o motivo** quando ficou claro que
+a camada não podia medi-lo.
+
+A decisão desta fase é a mesma bifurcação: **medir ou riscar.** Medir é barato
+(um hook `onResponse` com rota, status e duração, e a etapa 9 agregando o dia);
+riscar é honesto. O que não pode é continuar na lista sem dono — a Fase 12 vai
+cobrar os dois números.
+
+### 9.T Testes e guardas: 94% de cobertura não é a pergunta
+
+A cobertura do backend é 94% de linhas, muito acima do piso de 70. A pergunta
+útil não é a porcentagem, é **o que os testes afirmam**. A guarda de build
+(`tests/build/runtime-deps.test.ts`) é o exemplo do que se procura: ela é
+estática de propósito, porque `turbo test` não constrói o `apps/api` e uma
+guarda que dependesse do `dist` nunca rodaria no CI. É esse tipo de teste que a
+fase quer multiplicar — e a §9.1 já nomeou o próximo.
+
+Três lacunas que a análise já enxerga:
+
+- **Autorização não tem matriz.** Cada rota protegida tem teste, mas não há um
+  lugar onde se leia *quem pode o quê*. Uma tabela — rota × anônimo × usuário ×
+  admin — vira teste parametrizado, e é o que impede que uma rota nova nasça sem
+  guarda. Foi assim que a `DELETE /api/news/:id` ganhou o 403 no P3.
+- **O caminho degradado do pipeline é pouco coberto.** A §9.4 lista quatro
+  cenários (dia sem artigo, falha parcial, idempotência, retenção). Cada
+  afirmação daquelas ou tem teste, ou vira teste.
+- **Achado de segurança sem teste é auditoria, não guarda.** Vale para os quatro
+  itens da §9.S: rate limit por cliente, secret fora da query string, escopo do
+  `purpose` e a fronteira do prompt. Quatro achados, quatro testes.
+
+> **Saída da Fase 9.** Correções que bloqueiam, mergeadas; guardas novas, verdes
+> no CI; dívida com gatilho numérico. **A verificação é contra produção** e, como
+> backend não muda pixel, ela é a do `CLAUDE.md`: probe de uma rota que só existe
+> na versão nova (o `uptime` mente sobre deploy) e gate do Lighthouse verde — a
+> API acordada é pré-requisito das duas rotas que o gate mede.
+
+---
+## Fase 10 — Frontend review
+
+**Objetivo:** varrer `apps/web` atrás do que a entrega tela a tela não vê —
+fronteira servidor/cliente, acessibilidade além do que o Lighthouse mede,
+consistência de token, estado e erro, i18n e peso de JavaScript.
+
+**Inventário fechado:**
+
+| O que | Quanto |
+|---|---|
+| páginas | **15** (rotas `[locale]`) |
+| componentes | **75**, dos quais **53 são `'use client'`** |
+| módulos de `lib/` | 21 |
+| rotas de BFF (`app/api/`) | 12 |
+| chaves de i18n | 337 por locale, 2 locales |
+| telas na baseline visual | 12 rotas, 3 larguras, 42 imagens |
+| suítes / testes | 50 / 451 |
+
+```text
+    -- 10.1 fronteira servidor/cliente --
+[ ] os 53 'use client': quais são causa e quais são contágio
+[ ] first-load JS por rota, lido do output do build
+[ ] a fronteira desce até a folha interativa onde der
+
+    -- 10.2 acessibilidade além do Lighthouse --
+[ ] foco na troca de rota e na troca de filtro
+[ ] anúncio de resultado (aria-live) na busca e nos filtros da /news
+[ ] leitor de tela nas telas que nasceram depois da auditoria da Fase 7
+[ ] zoom 200% e prefers-reduced-motion nas 15 páginas
+[ ] erro de formulário: como ele é anunciado
+
+    -- 10.3 token e consistência visual --
+[ ] escape de token: cor, espaçamento e tipografia fora da escala
+[ ] dark mode nas 15 páginas (a baseline cobre 2)
+[ ] os critérios visuais da §31, um a um, com evidência
+
+    -- 10.4 estado, dado e erro --
+[ ] loading / error / empty / not-found por rota — a matriz
+[ ] todo initialData: de onde vem e o que acontece quando falha
+[ ] staleTime × revalidate: os dois relógios contam a mesma coisa?
+
+    -- 10.5 i18n --
+[ ] as 337 chaves: string órfã e string faltando no en
+[ ] data, número e plural com locale em todas as telas novas
+[ ] hreflang e a decisão pt-BR-only do news sitemap
+
+    -- 10.6 performance de frontend --
+[ ] o LCP de cada rota: qual elemento é, e ele é prioritário?
+[ ] espaço reservado × CLS nos blocos que carregam depois
+[ ] remotePatterns: hoje o otimizador aceita qualquer host
+[ ] a /news em 90 — ler o audit antes de culpar o aquecimento
+
+    -- 10.S segurança do navegador (eixo obrigatório) --
+[ ] cabeçalhos de resposta: a API tem o conjunto, o site não tem nenhum
+[ ] CSP do site — e o script inline do tema, que ela precisa acomodar
+[ ] os dois dangerouslySetInnerHTML: auditar e travar o terceiro
+[ ] NEXT_PUBLIC_*: o que vai para o bundle é sempre público
+[ ] link externo com rel noopener (hoje 4 de 4 — virar guarda)
+[ ] cookie da sessão: flags e duração
+[ ] advisories do web — o `next` só é corrigido numa major
+
+    -- 10.T testes e guardas (eixo obrigatório) --
+[ ] limiar de cobertura no web (hoje só a API tem)
+[ ] o que as 50 suítes não cobrem: a matriz de 10.4
+[ ] guarda de acessibilidade na suíte (a11y do componente, não só do render)
+[ ] os achados de 10.S saem com teste
+```
+
+### 10.1 A fronteira servidor/cliente — o Risco 3 da §32, medido
+
+A §32 nomeia o Risco 3: "transformar tudo em client-side", com mitigação
+"Server Components por padrão". Hoje **53 dos 75 componentes** são `'use
+client'` — e na camada editorial, que é o coração da V2, são **21 de 28**.
+
+**Isso não é descuido, é estrutural**, e o `apps/web/CLAUDE.md` já explica a
+causa: componente importado por client component *precisa* ser client, e o
+`useTranslations` do next-intl é client. Uma folha interativa no topo da árvore
+arrasta tudo abaixo dela.
+
+Por isso o eixo **não é "reduzir a contagem"** — contagem não é sintoma. É:
+
+1. **medir o peso**, lendo o first-load JS por rota do output do `next build`;
+2. **separar causa de contágio** — quais componentes são client porque têm
+   estado ou evento (causa) e quais são client porque alguém acima os importou
+   (contágio);
+3. **descer a fronteira** onde o contágio for evitável, e **registrar por que
+   não deu** onde não for.
+
+A regra que sai da fase: *a fronteira vive na menor folha interativa*. Sem um
+número de partida, "otimizar client components" é opinião.
+
+### 10.2 Acessibilidade: o Lighthouse já dá 100, e isso não é o teto
+
+Cinco rotas medidas, **acessibilidade 100 em todas**. Também é verdade que
+auditoria automática cobre uma fração do WCAG — e este projeto já reprovou duas
+vezes em `heading-order`, que é justamente do que ela pega.
+
+O que a revisão persegue é o que a máquina não vê:
+
+- **Foco na navegação.** A `/news` da Fase 4 pôs o estado na URL: trocar
+  categoria, buscar ou paginar re-renderiza a lista. Para quem navega por
+  teclado ou lê por leitor de tela, **para onde vai o foco**, e como a pessoa
+  sabe que o resultado mudou? Contagem que muda em silêncio é a mesma promessa
+  quebrada da pílula "Todas" — só que para quem não vê a tela.
+- **As telas novas.** A auditoria de teclado da Fase 7 mediu 40 focáveis. Depois
+  dela nasceram o ecossistema de conta (Fase 6 entrou antes, mas as telas de
+  preferência têm formulário) e a tela de métricas de produto (Fase 8). Elas não
+  passaram por leitor de tela.
+- **Zoom a 200% e `prefers-reduced-motion`**, nas 15 páginas. A §14 define motion
+  design; o respeito à preferência do sistema é o que falta confirmar tela a
+  tela.
+- **Erro de formulário.** Há quatro formulários (inscrição, preferências,
+  newsletter da conta, busca). Como cada um anuncia erro?
+
+### 10.3 Token e dark mode: a baseline cobre duas telas de doze
+
+A suíte já proíbe boa parte do desvio — `design-tokens.test.ts` e `cn.test.ts`
+existem por causa de dois defeitos reais (o `tailwind-merge` que não distingue
+tamanho de cor, e o token cru que some do HTML sem erro). O que falta é
+cobertura de **superfície**.
+
+**O dark mode é o buraco medível.** A baseline versionada tem 42 imagens, e
+**apenas 6 são de tema escuro** — `home`, `news` e `article-detail`, em 375 e
+1440. **As outras nove rotas nunca foram capturadas no escuro**, e o dark mode é
+onde token errado aparece: um `bg-white` esquecido é invisível no claro e
+ilegível no escuro. Foi exatamente esse o bug da Fase 5 da V1.
+
+Decisão do eixo: **ou a captura de dark passa a cobrir as 12 rotas** (o conjunto
+vai para ~66 imagens, e o diff continua determinístico), **ou fica escrito quais
+telas não têm referência escura e por quê**.
+
+Aqui também se fecham os sete critérios visuais da §31, que estão todos
+desmarcados desde que o documento nasceu. Cada um vira evidência: captura,
+medição, ou risco.
+
+### 10.4 A matriz de estado — quinze rotas, seis com fronteira
+
+Das 15 páginas, **6 têm `loading.tsx` ou `error.tsx`**:
+
+| Rota | loading | error | not-found |
+|---|---|---|---|
+| `/[locale]` | sim | sim | sim |
+| `/news`, `/article` | sim | sim | — |
+| `/news/[id]`, `/article/[date]` | sim | — | sim |
+| `/admin/metrics` | sim | sim | — |
+| **as outras nove** | — | — | — |
+
+Entre as nove estão `/favorites` e as três telas de conta — autenticadas,
+`force-dynamic`, e com busca no cliente. **A ausência pode estar certa**: se o
+componente desenha o próprio esqueleto e o próprio erro (o `favorites-list` faz
+isso), a fronteira de rota seria redundante. O que falta não é
+necessariamente arquivo — **é a resposta escrita**. Hoje ninguém sabe dizer,
+sem abrir o componente, o que cada tela mostra enquanto carrega e quando falha.
+
+A matriz é o entregável: quinze linhas, quatro colunas (carregando, erro,
+vazio, não encontrado), preenchida com onde o estado mora.
+
+E junto dela, o item que já custou uma tela em produção: **todo `initialData`
+auditado**. A regra está escrita (`prefetch` falha em `undefined`, nunca em
+valor vazio; `.catch(() => null)` só onde o servidor renderiza), e a revisão
+confere se ela vale em todos os pontos, não só na `/news` que a ensinou.
+
+### 10.5 i18n: paridade de chave não é paridade de sentido
+
+A suíte já garante que as 337 chaves existem nos dois locales e que todo
+namespace usado existe. O que ela não garante é que o `en` **diz a coisa certa**
+nas telas que nasceram depois — e que não há string órfã acumulada de oito
+fases. Duas varreduras baratas, uma decisão registrada (o news sitemap é
+pt-BR-only, e é decisão sobre conteúdo, não descuido).
+
+### 10.6 Performance: o otimizador de imagem aceita qualquer host
+
+`next.config.js` declara `remotePatterns` com `hostname: '**'` — **qualquer host
+HTTPS**. Isso é o que faz o acervo funcionar (as imagens vêm de dezenas de
+veículos, e a lista muda quando `rss-sources.ts` muda), e é também um
+otimizador de imagem aberto: qualquer um pode pedir ao domínio do site que
+processe e sirva imagem de terceiro, no custo e no nome do projeto.
+
+Não há resposta óbvia. As saídas são **derivar a lista de hosts das fontes
+configuradas** (o dado já existe, e o acoplamento é honesto), ou **aceitar e
+registrar** com o gatilho — que aqui é custo de otimização na Vercel.
+
+O resto é medição por rota: qual elemento é o LCP e se ele tem prioridade;
+onde o espaço reservado protege o CLS (a lição que sobreviveu à remoção do
+anúncio, hoje aplicada no `story-image` e no `story-card`); e o audit da
+`/news`, que raspa o piso em 90 e já está sinalizada para não ser confundida
+com cold start se cair.
+
+### 10.S Segurança do navegador: a API está protegida, o site não
+
+**Medido em produção, em 23/08:**
+
+| Cabeçalho | API (`onrender.com`) | Site (`vercel.app`) |
+|---|---|---|
+| `strict-transport-security` | sim | sim (da Vercel) |
+| `x-content-type-options` | `nosniff` | **ausente** |
+| `x-frame-options` | `SAMEORIGIN` | **ausente** |
+| `referrer-policy` | `no-referrer` | **ausente** |
+| `cross-origin-opener-policy` | `same-origin` | **ausente** |
+| `content-security-policy` | desligada no helmet | **ausente** |
+
+A assimetria é o achado: **o helmet protege a superfície que quase não tem
+navegador — JSON servido para uma máquina — e a superfície que as pessoas de
+fato abrem não tem nenhum cabeçalho de defesa**, porque o `next.config.js` não
+declara `headers()`. Não é descuido de configuração: é a consequência de a
+segurança ter sido pensada no app onde a biblioteca existia.
+
+O que a fase decide:
+
+- **O conjunto base** — `X-Content-Type-Options`, `Referrer-Policy`,
+  `X-Frame-Options` (ou `frame-ancestors`) e `Permissions-Policy` — é barato e
+  não tem contraindicação. Entra.
+- **A CSP é a decisão de verdade, e ela tem um obstáculo concreto**: o
+  `theme-init` injeta um script **inline** de propósito (é o que evita o FOUC de
+  tema, e mover para arquivo externo devolveria o flash). Uma CSP sem
+  `unsafe-inline` exige nonce ou hash — o hash é estável porque o script é uma
+  constante. A alternativa honesta é começar em `Content-Security-Policy-Report-
+  Only`, medir o que quebra, e só então aplicar.
+- **Os dois `dangerouslySetInnerHTML` ficam auditados e travados.** Hoje são o
+  `json-ld` (payload montado por `lib/json-ld.ts` e serializado com escape) e o
+  `theme-init` (constante estática). Nenhum dos dois recebe conteúdo externo — e
+  é exatamente isso que uma guarda deve congelar, porque o terceiro uso é que
+  seria o problema.
+
+> **Uma coisa que a revisão confirmou e vale registrar como saudável:** o
+> `article-body` **não é um renderizador de Markdown** — ele quebra o texto em
+> blocos e devolve nós de React. A decisão foi tomada por peso de bundle —
+> `react-markdown` custaria ~40 kB na rota mais lida —, e ela **também é a
+> mitigação de XSS** do texto gerado
+> por IA: não há caminho de HTML externo para o DOM. Se um dia o prompt passar a
+> pedir listas ou destaques e alguém trouxer `react-markdown`, essa propriedade
+> se perde junto — e é isso que precisa estar escrito, não a ausência de defeito
+> hoje.
+
+Os quatro links externos (`source-badge`, `source-list`, `news-detail`, `about`)
+já têm `rel='noopener noreferrer'` — **4 de 4**. Resultado limpo vira guarda, não
+comemoração: um teste que reprove `target='_blank'` sem `rel` custa cinco linhas
+e vale para todo componente futuro.
+
+### 10.T Testes e guardas: a cobertura do web não existe
+
+O CI roda `pnpm turbo test:coverage` com limiar de 70%. **O `@newranews/web` não
+tem o script `test:coverage`** — então o passo mede só a API, e o badge de
+cobertura do README fala por um app só. São 451 testes no web sem piso nenhum: o
+número pode cair sem que nada reprove.
+
+Isso é guarda, não relatório. Acrescentar o script e escolher o piso a partir do
+que hoje é medido — o padrão que a API já seguiu quando o piso de 70 foi fixado
+com 94 medidos.
+
+Duas guardas a mais, que vêm dos outros eixos:
+
+- **A matriz de estado da §10.4 vira teste**, não tabela. Tela que promete
+  esqueleto e não desenha esqueleto é regressão silenciosa.
+- **Acessibilidade dentro da suíte.** O Lighthouse mede a página montada, uma
+  vez por semana, em cinco rotas. Uma verificação de a11y no teste de componente
+  pega a classe que o `heading-order` já reprovou duas vezes — no PR, e não na
+  segunda de manhã.
+
+> **Saída da Fase 10.** A matriz de estado preenchida, o dark mode decidido, o
+> peso de JS por rota registrado, **os cabeçalhos de segurança no site** e o
+> piso de cobertura do web no CI, mais os critérios visuais da §31 com
+> evidência. **Verificação:** Lighthouse por rota + **recaptura da baseline** —
+> esta fase mexe em pixel, ao contrário da 9.
+
+---
+## Fase 11 — Integração geral review
+
+**Objetivo:** revisar **a costura** — o que só quebra quando as duas metades se
+encontram, e que nenhuma das duas revisões anteriores consegue ver sozinha.
+
+Esta é a fase mais importante das quatro, e a razão é histórica: **os quatro
+defeitos mais caros deste projeto foram todos de costura.** O schema que
+descartava o que o serviço carregava; o pacote que compilava e não emitia; o
+middleware que engolia a rota de metadata; o gate que media o cold start da API
+ao medir a página. Em nenhum dos quatro o backend estava errado sozinho, nem o
+frontend.
+
+**Inventário fechado:**
+
+| Costura | Quanto |
+|---|---|
+| tipos compartilhados (`packages/types`) | o contrato inteiro |
+| rotas de BFF no Next | 12 (5 delas via `proxyToApi`) |
+| chamadas server-side → API | prefetch de cada página estática |
+| chamadas client-side → API | as que passam por `fetchWebApi` |
+| hops da camada de analytics | 6, do clique ao gráfico |
+| fluxos de usuário (§25) | 3 vivos + o de admin |
+
+```text
+    -- 11.1 o contrato de tipos, ponta a ponta --
+[ ] schema Zod × tipo compartilhado, rota a rota
+[ ] estender a guarda SchemaMatchesSharedType além de /events
+[ ] os dois enums Category: a ponte continua num lugar só?
+
+    -- 11.2 a camada BFF --
+[ ] as 12 rotas: auth, status, formato de erro
+[ ] timeout de fetch (hoje não existe em lugar nenhum)
+[ ] CORS × BFF: declarar o acoplamento ou consertar a lista
+
+    -- 11.3 latência, cache e cold start --
+[ ] quem de fato espera a API acordar — medir, não supor
+[ ] Cache-Control: 5 rotas têm, a /news não
+[ ] cache hit rate do CDN (§26 promete, nada mede)
+
+    -- 11.T smoke E2E (eixo obrigatório de testes) --
+[ ] configurar o Playwright (instalado, sem config e sem spec)
+[ ] os 3 fluxos vivos da §25 + o de admin
+[ ] onde roda: pós-deploy contra produção, e o que faz ao reprovar
+[ ] os casos negativos: anônimo, sessão expirada, papel errado
+
+    -- 11.5 analytics ponta a ponta --
+[ ] os 12 eventos: cada um chega ao banco?
+[ ] tipo instrumentado que nunca apareceu = call site morto
+[ ] a primeira leitura honesta da tela de métricas
+
+    -- 11.6 auth e sessão ponta a ponta --
+[ ] sessão do next-auth × expiração do JWT × o que o usuário vê
+[ ] role ADMIN: as três portas concordam?
+[ ] o caminho do ADMIN_EMAILS, do login ao banco
+
+    -- 11.7 deploy e ambiente --
+[ ] paridade de env: render.yaml × o que a API exige
+[ ] a ordem dos dois deploys, e a rota nova que nasce sem dado
+[ ] o job de migration × o boot da API
+
+    -- 11.S segurança da costura (eixo obrigatório) --
+[ ] em quem cada metade confia, e por quê — o mapa
+[ ] o BFF é a única porta autenticada? provar, não supor
+[ ] segredo compartilhado: rotação, e o que quebra ao rodar
+[ ] a rota de eventos: anônima de propósito, e sem identidade acidental
+[ ] LGPD: o dado que sai do produto (newsletter, e-mail, log)
+```
+
+### 11.1 O contrato de tipos: uma guarda existe, e só numa rota
+
+`packages/types` é a fonte única — a API valida com Zod, o web consome o tipo
+TypeScript. **Nada verifica que os dois concordam**, exceto num lugar:
+`routes/events/schemas.ts`, onde `SchemaMatchesSharedType` é uma guarda de
+compilação. E ela **já pagou o próprio custo**: na primeira execução reprovou um
+`z.nativeEnum(Category)` importado do Prisma, porque aquele `Category` é união
+de literais e o de `packages/types` é enum nominal.
+
+Todas as outras rotas podem derivar em silêncio: o schema diz uma coisa, o tipo
+diz outra, os dois compilam, e o defeito aparece como campo `undefined` numa
+tela — ou, pior, como campo que **existe no tipo e nunca chega**, que foi
+exatamente o caso do artigo na Fase 5.
+
+**Estender essa guarda às rotas editoriais, de notícia, de artigo e de conta é o
+item de maior valor da fase.** É a diferença entre uma convenção mantida por
+disciplina e uma que o `tsc` recusa quebrar.
+
+### 11.2 A camada BFF: doze rotas e nenhum timeout
+
+O desenho está certo e bem justificado — o browser nunca fala autenticado com a
+API, `proxyToApi` concentra a assinatura do JWT, e a rota de eventos existe
+justamente porque o `sendBeacon` não sabe fazer preflight. O que a revisão
+persegue são as bordas:
+
+- **Nenhuma chamada `fetch` do web tem timeout.** Nem em `lib/api.ts`, nem em
+  `api-proxy.ts`, nem nas rotas de BFF. Some isso ao plano free do Render, que
+  hiberna: uma API dormindo (ou pendurada) segura a função da Vercel até o
+  limite dela. Um `AbortSignal.timeout` com fallback explícito transforma
+  "página que nunca responde" em "página que diz que não conseguiu".
+- **A lista de métodos do CORS.** O backend permite `GET` e `POST`; existem 2
+  PUT e 2 DELETE, e eles só funcionam porque passam pelo BFF. Ou o acoplamento
+  vira comentário no plugin de CORS ("mutação não é chamada do browser, por
+  desenho"), ou a lista passa a refletir a superfície real. O que não serve é o
+  estado atual, em que a política está certa por acidente.
+- **O formato do erro.** As 12 rotas repassam o status; repassam o *corpo* de
+  erro do mesmo jeito? Quem lê `{ error }` e quem lê outra coisa?
+
+### 11.3 O cold start: o gate foi consertado, o leitor não
+
+A auditoria da Fase 8 consertou **a medição** — o workflow aquece antes de
+medir, e o gate ficou verde em 92·90·97·97·91. Ela não consertou **a causa**: a
+API continua hibernando com ~15 min sem tráfego, e a primeira requisição que
+dispara a regeneração da ISR continua esperando 4,9 s contra 0,22 s de uma
+quente.
+
+A pergunta que a fase precisa responder — **medindo, não supondo** — é *quem*
+espera. A ISR do Next serve a cópia velha e regenera atrás; se isso valer em
+todos os casos, ninguém espera, e o custo é só do gate (já resolvido). Se houver
+caminho em que o visitante espera (primeira renderização de uma rota, cache
+despejado, deploy novo), então há um leitor real pagando 5 s de espera às 3 da
+manhã — e aí a saída é keep-alive, plano pago, ou aceitar com o número escrito.
+
+Junto disso, dois números que a §26 promete:
+
+- **`Cache-Control` existe em 5 rotas** (`/home`, `/trending`, `/news/facets`,
+  `/news/:id/related`, `/favorites`) e **não existe na `/api/news`**, que é a
+  mais chamada do acervo. A decisão de header-por-rota é boa e está justificada;
+  falta aplicá-la onde vale.
+- **Cache hit rate** é métrica de sucesso na §26 e ninguém a mede. Mesma
+  bifurcação da §9.5: medir ou riscar.
+
+### 11.T O smoke E2E: o Playwright está instalado e nunca foi usado
+
+`@playwright/test` está no `devDependencies` do web desde alguma fase. **Não há
+`playwright.config`, não há um único `.spec.ts`.** Uma dependência instalada que
+não executa nada é a mesma armadilha do código que ninguém roda — só que sem nem
+o benefício de já ter sido escrita.
+
+O escopo sai da §25, com o Fluxo 4 fora (Premium está adiado):
+
+| Fluxo | O que o smoke prova |
+|---|---|
+| **Visitante** | Home carrega, hero abre matéria, briefing abre, categoria filtra |
+| **Leitor recorrente** | busca devolve, filtro bate com a contagem, paginação anda |
+| **Newsletter** | inscrição responde, cancelamento por token responde |
+| **Conta** | login, salvar, `/favorites` lista, preferência persiste |
+| **Admin** | `/admin/metrics` carrega para ADMIN e barra o resto |
+
+Duas decisões de desenho, e elas importam mais que a lista:
+
+1. **Onde roda.** A cultura deste projeto é medir contra produção, e três dos
+   quatro defeitos caros estavam no ar. Um smoke **pós-deploy contra produção**
+   pega a classe certa de problema — inclusive a que a §11.7 descreve, dos dois
+   deploys que não terminam juntos. Um E2E contra build local no CI pega
+   regressão antes do merge, mas precisa da API e do Postgres de pé (o job de
+   testes já sobe Postgres, então é viável). **A recomendação é começar pelo
+   pós-deploy**: é o que teria achado a `/news` com as oito categorias zeradas.
+2. **O que ele faz ao reprovar.** Smoke que falha e não avisa ninguém é o gate
+   de segunda 09:00 outra vez. Falhar o workflow é o mínimo; o passo seguinte é
+   decidir se reprovação pós-deploy dispara rollback (§12.6).
+
+Os fluxos com login pedem uma conta de teste e um segredo — o mesmo tipo de
+decisão que o `JOB_SECRET` e o `CRON_SECRET` já resolveram.
+
+### 11.5 Analytics: seis hops, e a primeira leitura honesta
+
+O evento atravessa: clique → `track()` → `sendBeacon` → rota `/api/events` do
+Next → `POST /api/events` da API → Postgres → `/api/metrics/product` → gráfico.
+**Cada hop pode perder tudo em silêncio** — `sendBeacon` não devolve status, a
+rota do Next responde 502 para o log e ninguém lê, e um 429 da API é
+indistinguível de "ninguém clicou".
+
+Duas verificações concretas:
+
+- **Os 12 eventos, um a um**, do call site até a linha no banco. Tipo
+  instrumentado que **nunca apareceu** no acervo é call site morto — e é
+  exatamente o tipo de coisa que só a leitura acha, porque o código compila.
+- **A primeira leitura honesta da tela.** A ingestão entrou no ar em 22/08; na
+  Fase 11 haverá algumas semanas de tráfego. É a primeira vez que os números
+  significam algo — e é onde a suspeita da §9.S se confirma ou cai: se todo
+  beacon divide um balde de 30/min, a tela subconta.
+
+### 11.6 Auth: três portas para o mesmo `role`
+
+O `role` ADMIN é conferido em três lugares — na página (sessão do next-auth), na
+rota de BFF (sessão + role antes de assinar), e na API (claim do JWT). Três
+portas para a mesma decisão é o desenho certo (defesa em profundidade), e
+também três lugares para discordarem.
+
+A revisão segue um usuário: `ADMIN_EMAILS` → `upsert` → `User.role` no banco →
+claim no JWT → o que a tela mostra. E as bordas: a sessão do next-auth dura
+muito mais que a hora do JWT — o token é assinado a cada chamada, então não
+expira na prática, mas **o que o usuário vê se a assinatura falhar** (env
+ausente, por exemplo) precisa ser uma tela, não um stack trace.
+
+### 11.7 Ambiente: o `render.yaml` não declara o que a API precisa
+
+**Achado da análise, e é do tipo que só aparece quando alguém recria o
+serviço:** o `render.yaml` declara 15 variáveis e **não declara
+`AUTH_JWT_SECRET` nem `ADMIN_EMAILS`**. As duas estão documentadas no
+`.env.example` e no `setup.md`, e estão configuradas à mão no painel do Render
+(foi assim que o login de produção passou a funcionar em 16/08).
+
+Enquanto o serviço atual existir, funciona. Recriado a partir do blueprint, ele
+sobe **sem autenticação configurada** — e o `verifyAuthJwt` falha fechado, então
+o sintoma seria toda rota de conta devolvendo 401 num serviço saudável, com
+health check verde. Exatamente o formato de defeito que este projeto já
+catalogou duas vezes.
+
+A correção é uma linha por variável, com `sync: false`. O resto do eixo é a
+armadilha já conhecida — os dois deploys disparam juntos e não terminam juntos —
+que aqui ganha o teste que faltava: **o smoke da §11.T rodando depois dos dois**.
+
+### 11.S Segurança da costura: em quem cada metade confia
+
+As Fases 9 e 10 olham cada lado por dentro. Aqui a pergunta é outra e mais
+difícil de responder olhando um repositório só: **qual é a suposição de
+confiança entre as duas metades, e ela está escrita em algum lugar?**
+
+Hoje a resposta existe, mas espalhada em comentários. Reunida, ela é assim:
+
+| Quem chama | Como se autentica | O que a API supõe |
+|---|---|---|
+| navegador → Next (BFF) | cookie de sessão do next-auth | — |
+| Next (BFF) → API | JWT HS256, `AUTH_JWT_SECRET` compartilhado | quem assinou é servidor de confiança |
+| navegador → API (direto) | nada — só rotas públicas | mutação nunca vem por aqui |
+| cron da Vercel → API | `JOB_SECRET` | quem tem o segredo pode disparar o pipeline |
+
+**A terceira linha é a suposição não declarada**, e ela é o que faz o
+`methods: ['GET', 'POST']` do CORS funcionar apesar de existirem 2 PUT e 2
+DELETE. Uma suposição que só é verdadeira por hábito é a que quebra quando
+alguém adiciona uma chamada direta do cliente — e o sintoma seria um preflight
+falhando em produção, exatamente como o bug da barra final no `CORS_ORIGIN` em
+16/08.
+
+O eixo entrega o mapa acima **no código**, como comentário no plugin de CORS e
+no `api-proxy.ts`, e o transforma em teste onde der: *nenhuma chamada do
+navegador usa método fora da lista do CORS* é verificável estaticamente.
+
+Os outros três itens:
+
+- **Rotação do segredo compartilhado.** `AUTH_JWT_SECRET` é o mesmo nos dois
+  serviços. Trocá-lo exige trocar nos dois **ao mesmo tempo**, e os dois deploys
+  não terminam juntos — ou seja, há uma janela em que toda rota de conta
+  devolve 401. Isso precisa estar escrito no runbook da §12.6 antes de alguém
+  precisar rodar às pressas.
+- **A rota de eventos continua anônima.** Ela existe sem sessão, sem JWT e sem
+  cabeçalho de identificação **de propósito** — é a §4 dos slots. O risco não é
+  ataque, é deriva: um `userId` acrescentado "para melhorar a métrica" mudaria a
+  natureza jurídica da tabela inteira. A guarda é um teste que reprova
+  identidade no payload.
+- **O dado que sai do produto.** E-mail de assinante (Resend), e-mail em
+  `User`, e o que os `PipelineEvent` gravam em `context`. A varredura é curta e
+  a pergunta é só uma: **algum log guarda dado pessoal que ninguém precisa?**
+
+### O que a §11.T acrescenta ao smoke
+
+O smoke da §11.T não prova só que o caminho feliz funciona. **Os casos negativos
+são os que protegem a autorização**, e são baratos de escrever junto:
+
+- anônimo em `/favorites` e `/account` → sign-in, não conteúdo;
+- usuário comum em `/admin/metrics` → acesso restrito, não painel;
+- token expirado ou ausente na rota de BFF → 401, e uma tela, não um stack
+  trace.
+
+São as três portas da §11.6, verificadas de fora — que é o único lugar de onde
+dá para ver as três concordando.
+
+> **Saída da Fase 11.** A guarda de tipo estendida, o smoke E2E existindo e
+> verde (com os casos negativos), o timeout no BFF, a paridade de env no
+> blueprint, o mapa de confiança escrito no código, e a leitura de analytics
+> registrada. **Verificação:** o ritual completo — Lighthouse por rota, baseline
+> visual, e o smoke, que passa a ser parte dele.
+
+---
+## Fase 12 — Ajustes finos e release final
+
+**Objetivo:** fechar. Não é mais revisão — é decidir cada coisa que ficou em
+aberto, provar cada critério que o plano prometeu, e publicar um release que
+alguém consiga apontar.
+
+**O que diferencia esta fase das três anteriores:** as Fases 9, 10 e 11 acham
+coisas. A 12 **não pode achar** — se ela achar defeito grande, ela não é a 12,
+é a continuação da fase que o deixou passar. O trabalho aqui é de fechamento, e
+o inventário é o dos documentos, não o do código.
+
+```text
+    -- 12.1 os critérios de aceite --
+[ ] §31 Visual: os 7, com evidência ou risco
+[ ] §31 UX: os 6, com evidência
+[ ] §31 Performance: os 5, com número
+[ ] §31 Monetização: reescrever — 4 critérios falam de anúncio cancelado
+
+    -- 12.2 as métricas de sucesso --
+[ ] §26 Técnica: error rate, latência e cache hit rate — medir ou riscar
+[ ] §26 Produto: o que a tela de métricas já mostra, com a data da leitura
+[ ] §26 Monetização: marcar como adiada, conforme §21
+
+    -- 12.3 a dívida --
+[ ] cada item de "O que ficou em aberto" com decisão: entra, fica ou morre
+[ ] os achados das Fases 9–11 que viraram dívida, com gatilho
+[ ] a data do agregado diário (~90 dias da ingestão: ~20/11/2026)
+[ ] o controle de opt-out na interface — item da Fase 8, ainda aberto
+
+    -- 12.4 documentação de release --
+[ ] README: screenshots e texto ainda são da V1
+[ ] docs/api.md, docs/setup.md, docs/architecture.md, diagramas
+[ ] docs/presentation.md — a peça de portfólio
+[ ] CHANGELOG e a tag v2.0.0 (o repositório não tem nenhuma tag)
+
+    -- 12.5 o ritual final --
+[ ] Lighthouse por rota, contra produção quente
+[ ] baseline visual completa — e a decisão das larguras
+[ ] smoke E2E verde
+[ ] validação de SEO e leitura de analytics
+
+    -- 12.6 canary e rollback --
+[ ] o runbook que não existe: o que fazer quando quebra às 3 da manhã
+[ ] promoção de preview na Vercel × build congelada no Render
+[ ] o que o smoke reprovado dispara
+
+    -- 12.7 o dia seguinte --
+[ ] o que roda sozinho depois do release, e quem olha
+
+    -- 12.S o gate de segurança do release (eixo obrigatório) --
+[ ] os achados de 9.S, 10.S e 11.S: corrigidos ou com aceite escrito
+[ ] varredura de dependência — hoje não existe nenhuma
+[ ] gitleaks conferido contra o histórico, não só contra o PR
+[ ] segredos de produção: inventário, dono e rotação
+[ ] LGPD: a página que explica o que é medido e como se opor
+
+    -- 12.T a suíte no dia do release (eixo obrigatório) --
+[ ] suíte inteira verde, sem cache, nos dois apps
+[ ] o gate reprova quando deve — provar com uma falha proposital
+[ ] smoke pós-deploy verde contra produção
+[ ] cobertura: os dois pisos no CI, não um
+```
+
+### 12.1 Os critérios de aceite: 24 caixas, nenhuma marcada, 4 obsoletas
+
+A §31 tem 24 critérios e **nenhum está marcado** — nem depois de oito fases
+entregues. Isso não é desleixo: eles nunca tiveram dono, porque a fase que os
+fecharia era a "Release" de oito linhas.
+
+Cada um vira uma de três coisas: **evidência** (captura, medição, teste),
+**risco aceito** (com o motivo), ou **critério riscado** (com o motivo).
+
+E quatro deles precisam ser **reescritos antes de serem avaliados**: o bloco
+"Monetização" fala de ad slots que não quebram o layout e de anúncios claramente
+identificados. **Publicidade foi cancelada por decisão em 22/08**, o código foi
+removido, e avaliar um critério sobre algo que não existe é a mesma armadilha do
+controle que não muda nada. O bloco vira o que sobrou de verdade: CTA de
+newsletter consistente, e espaço conceitual para o futuro que a §21 descreve.
+
+### 12.2 As métricas: três números prometidos que ninguém produz
+
+A §26 promete, como métrica **técnica** de sucesso: Lighthouse, Core Web Vitals,
+**error rate**, **API latency**, image transfer size e **cache hit rate**. Os
+dois primeiros o gate mede toda segunda. Os três em negrito **não têm
+instrumentação nenhuma** — a §9.5 e a §11.3 já os nomeiam, e é aqui que a
+decisão se fecha.
+
+O precedente existe e é bom: "sessões recorrentes" foi **riscado com o motivo**
+quando ficou claro que a camada não podia medi-lo, e a §26 hoje carrega o
+riscado à vista. Métrica que sobrevive à V2.0 sem produtor é promessa que o
+próximo leitor do documento vai cobrar.
+
+### 12.3 A dívida: cada item com decisão, e a data que já existe
+
+A lista de "O que ficou em aberto" do `CLAUDE.md` tem quatro itens, e as Fases
+9–11 vão acrescentar. Aqui cada um recebe veredito. Dois já têm gatilho escrito
+e não precisam de discussão — só de registro:
+
+- **a tabela de agregado diário** entra quando a retenção de 90 dias começar a
+  apagar evento cru. A ingestão subiu em 22/08/2026: a data é **~20/11/2026**.
+  Escrever a data é o que impede que ela seja redescoberta como surpresa;
+- **o controle de opt-out na interface.** Sem terceiro, a oposição fica com DNT
+  e Global Privacy Control, que é o mecanismo padrão para medição anônima de
+  primeira parte. Um controle explícito continua sendo item em aberto desde a
+  Fase 8, e merece decisão — não silêncio.
+
+### 12.4 A documentação ainda descreve a V1
+
+O `README.md` é a porta do projeto, e ele **não passou pela V2**:
+
+- as três capturas em `docs/screenshots/` são de **16/08/2026** — o desenho
+  anterior ao redesign inteiro;
+- o texto descreve "Home com feed de notícias" e "busca e filtros por categoria
+  em tempo real". A V2 tem hero editorial, Daily Brief, trending, seções por
+  categoria e um acervo com facetas. Nada disso aparece.
+
+E o repositório **não tem uma única tag**, nem `CHANGELOG`. Oito fases, 128 PRs,
+e nenhum ponto que alguém possa apontar e dizer "isto é a V2.0". A tag
+`v2.0.0` com nota de release é o artefato que fecha o trabalho — e, num projeto
+de portfólio, é metade do valor.
+
+O resto é conferência: `docs/api.md` (que a guarda da §9.1 passa a proteger),
+`setup.md`, `architecture.md`, os quatro diagramas Mermaid, e o
+`docs/presentation.md`.
+
+### 12.5 O ritual final, com uma decisão pendente sobre a baseline
+
+Lighthouse por rota contra produção quente; smoke E2E verde; validação de SEO;
+leitura de analytics. Tudo isso já tem mecanismo depois das Fases 9–11.
+
+**A decisão pendente é a das larguras.** A §30 pede cinco (375, 768, 1024, 1440,
+1920); o script suporta as cinco; **o conjunto versionado usa três**. Não há
+nada errado nisso — três larguras que sempre batem valem mais que cinco que
+ninguém recaptura —, mas o documento e o repositório precisam dizer a mesma
+coisa. Ou a §30 passa a pedir três, ou a captura passa a fazer cinco.
+
+### 12.6 Canary e rollback: o runbook que não existe
+
+"Production canary" era um item de checklist sem definição. Numa Vercel + Render
+com plano free, ele significa uma coisa concreta:
+
+- **Vercel** promove um deployment de preview; reverter é promover o anterior;
+- **Render** já congela a build anterior quando o health check reprova — foi
+  assim que o `ERR_MODULE_NOT_FOUND` da Fase 8 virou "rota nova dá 404" em vez
+  de "site fora do ar". O comportamento de rollback existe; o que não existe é
+  ele estar **escrito**.
+
+O entregável não é infraestrutura nova, é **um runbook curto**: o que quebra
+mais provavelmente (pipeline, boot da API, deploy fora de ordem), como se
+reconhece cada um (probe de rota nova, não `uptime`; `/api/dev/logs` para o
+pipeline), e o que se faz. Este projeto já pagou por três desses diagnósticos —
+o valor está em não redescobri-los.
+
+### 12.7 O dia seguinte
+
+O que continua rodando sozinho depois do release, e o que cada coisa prova:
+
+| Mecanismo | Quando | O que ele guarda |
+|---|---|---|
+| pipeline diário | 08:00 BRT | o produto inteiro |
+| gate do Lighthouse | segunda 09:00 UTC | as quatro categorias ≥ 90 |
+| smoke E2E | pós-deploy | os fluxos da §25 |
+| expurgo (etapa 8) | diário | retenção e LGPD |
+| renormalização (8.5) | diário | o acervo convergindo sozinho |
+
+**Nenhum deles depende de alguém lembrar** — que é o critério que a auditoria da
+Fase 8 estabeleceu quando trocou "o `CLAUDE.md` mandava aquecer" por um passo de
+workflow.
+
+### 12.S O gate de segurança: o que precisa estar verde para publicar
+
+A Fase 12 **não caça vulnerabilidade** — isso foi trabalho das três anteriores.
+Ela faz três coisas:
+
+**1. Fecha a conta dos achados.** Cada item de `9.S`, `10.S` e `11.S` está numa
+de duas colunas: **corrigido com teste**, ou **aceito com risco escrito** —
+qual é o risco, quem aceita, e o que mudaria a decisão. Achado de segurança sem
+uma das duas bloqueia o release. É a única classe de achado que bloqueia.
+
+**2. Fecha a lacuna que nenhuma fase cobre: a dependência.** O CI tem
+**gitleaks** (segredo no commit) e mais nada. Não há `dependabot.yml`, não há
+`pnpm audit` em nenhum workflow, não há CodeQL. São dois apps, dezenas de
+dependências diretas e um `pnpm-lock.yaml` que ninguém audita.
+
+> **A varredura foi rodada em 23/08, ao planejar estas fases, e o resultado é
+> grande demais para ficar só aqui.** `pnpm audit`: **116 advisories** no total
+> (1 critical, 46 high); restringindo a dependências de **produção**, **102, com
+> 40 high em 13 pacotes**. O critical é do `vitest` (servidor de UI, dev), mas
+> entre os high de produção estão **`next`** — corrigido só a partir da 15, e o
+> projeto está na 14 — e **`fastify`**, corrigido a partir da 5, com o projeto
+> na 4.
+>
+> **Isso muda o cronograma.** Duas majors de framework não são "ajuste fino de
+> release": são trabalho com risco próprio, e fazê-las na Fase 12 seria mexer
+> na fundação depois de as três revisões terem certificado o que está em cima.
+> Por isso a medição entra em **9.S** (API) e **10.S** (web), onde cada lado
+> pode decidir e testar sozinho, e a **12.S fica com o gate** — o passo no CI e
+> a conferência de que nada regrediu.
+
+A escolha do mecanismo continua barata:
+`pnpm audit --audit-level=high` como passo do CI é uma linha; o Dependabot é um
+arquivo. **O que não serve é o release sair sem que ninguém tenha olhado.**
+
+**3. Fecha a conta de LGPD.** A medição é anônima por construção e a §21
+cancelou o anúncio, então não há tratamento que exija consentimento prévio — mas
+**o direito de oposição hoje depende de o visitante saber que DNT e Global
+Privacy Control funcionam**, e nada na interface diz isso. O controle explícito
+de opt-out é item aberto desde a Fase 8. A decisão mínima do release é uma
+página ou seção dizendo **o que é medido, por quanto tempo, e como se opor**.
+
+### 12.T A suíte no dia do release: o gate precisa saber reprovar
+
+O eixo de testes da Fase 12 não escreve teste novo. Ele verifica **três
+propriedades do próprio mecanismo**, que ninguém verificou até hoje:
+
+- **A suíte inteira verde, sem cache, nos dois apps.** O `turbo` guarda
+  resultado; um `--force` no dia do release é o que separa "está verde" de
+  "estava verde".
+- **O gate reprova quando deve.** Um gate que nunca reprovou não está provado —
+  está sem evidência. A auditoria da Fase 8 descobriu isso pelo caminho ruim: o
+  gate do Lighthouse **ia** reprovar, por infraestrutura, sem que ninguém
+  soubesse. Uma falha proposital e temporária (um limiar movido, um teste
+  invertido, em branch descartável) prova que o vermelho aparece.
+- **Os dois pisos de cobertura no CI**, não um — o do web nasce na §10.T, e aqui
+  se confirma que ele de fato reprova.
+
+> **Saída da Fase 12.** Tag `v2.0.0`, nota de release, §31 e §26 fechadas com
+> evidência ou risca, README no desenho novo, runbook escrito, dívida com data,
+> **achados de segurança corrigidos ou com aceite escrito**, e varredura de
+> dependência no CI. **A V2.0 acaba aqui.**
+
+---
+
+## Ordem, paralelismo e branches
+
+```text
+Fase 9 (backend)  ─┐
+                   ├─► Fase 11 (integração) ─► Fase 12 (release)
+Fase 10 (frontend) ─┘
+```
+
+**As Fases 9 e 10 correm em paralelo**, pelo mesmo argumento que a Fase 0.5 já
+usou: `apps/api` e `apps/web` não conflitam em arquivo. **A Fase 11 não abre
+antes das duas estarem mergeadas** — revisar a costura de um lado que ainda vai
+mudar é revisar duas vezes. A Fase 12 não abre antes da 11, porque metade do que
+ela fecha são os achados das três.
+
+Branches, seguindo a §29:
+
+```text
+review/v2-backend        # Fase 9
+review/v2-frontend       # Fase 10
+review/v2-integration    # Fase 11 — depois das duas mergeadas
+release/v2.0             # Fase 12
+```
+
+**Uma fase de revisão não é um PR.** Cada eixo que produzir correção ou guarda
+sai no seu próprio PR, com o mesmo checklist da §29 (objetivo, capturas, testes,
+acessibilidade, performance, alteração de API). A branch da fase é o guarda-chuva
+do trabalho, não a unidade de entrega — um PR de 40 arquivos misturando CORS,
+índice de banco e cobertura de teste é irrevisável, e revisão irrevisável é
+como o defeito passa.
+
+**Os eixos `S` e `T` saem em PR próprio, sempre.** Correção de segurança
+misturada com refatoração é a que ninguém consegue revisar de verdade — e é a
+única classe de mudança em que "passou no CI" não basta. **Nenhum dos dois eixos
+é adiável para a fase seguinte:** a 10 não herda o `S` da 9, e a 12 não é o
+depósito do que as três anteriores não fizeram. Fase que fecha com `S` ou `T`
+em aberto não fechou.
+
+**E o registro.** Cada fase fecha em `docs/progress.md` no formato dos itens 11
+a 32: o que foi achado, o que foi corrigido, o que virou guarda, o que virou
+dívida — e o número. É esse registro que faz a próxima revisão começar de onde
+esta parou, em vez de redescobrir.
 
 ---
 
@@ -1774,7 +2935,18 @@ feat/v2-article
 feat/v2-monetization
 feat/v2-seo
 feat/v2-analytics
+
+review/v2-backend            # Fase 9  ─┐ paralelas: apps diferentes
+review/v2-frontend           # Fase 10 ─┘
+review/v2-integration        # Fase 11 — depois das duas mergeadas
+release/v2.0                 # Fase 12
 ```
+
+**As quatro últimas são de revisão, e a unidade de entrega muda.** Nas fases de
+feature, a branch é o PR. Nas de revisão, a branch é o guarda-chuva: **cada eixo
+que produzir correção ou guarda sai no seu próprio PR**, com o mesmo checklist
+abaixo. Um PR de 40 arquivos misturando CORS, índice de banco e cobertura de
+teste é irrevisável — e revisão irrevisável é exatamente como o defeito passa.
 
 A primeira é a única de backend. Ela existe porque a lista original era toda de
 frontend e nenhuma fase da §28 comportava `GET /api/home`, `/api/trending` e
