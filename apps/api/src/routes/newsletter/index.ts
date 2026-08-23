@@ -1,12 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { env } from '../../config/env';
 import {
   subscribeToNewsletter,
   unsubscribeFromNewsletter,
   sendDailyNewsletter,
 } from '../../services/newsletter.service';
-import { UnauthorizedError } from '../../utils/errors';
+import { assertJobSecret } from '../../utils/job-secret';
 import {
   subscribeBodySchema,
   subscribeResponseSchema,
@@ -66,14 +65,7 @@ export async function newsletterRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      const auth = request.headers.authorization;
-      if (!auth || !auth.startsWith('Bearer ')) {
-        throw new UnauthorizedError('Invalid or missing token');
-      }
-      const token = auth.slice(7);
-      if (token !== env.JOB_SECRET) {
-        throw new UnauthorizedError('Invalid or missing token');
-      }
+      assertJobSecret(request);
       const result = await sendDailyNewsletter();
       return { data: result };
     },

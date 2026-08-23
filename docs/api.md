@@ -478,7 +478,14 @@ curl -X POST "$API/api/jobs/renormalize-news" -H "Authorization: Bearer $JOB_SEC
 
 ### GET /api/jobs/:pipelineId
 
-Consulta o status de execução de um pipeline.
+Consulta o status de execução de um pipeline. **Requer o `JOB_SECRET`**, como o
+disparo.
+
+> **Era pública até a revisão da Fase 9**, e devolvia `error` — a mensagem crua
+> da falha, com o que quer que o provider de IA ou o Prisma tenham dito. Fechar
+> não custou acesso a ninguém: o `pipelineId` só sai da resposta do
+> `POST /api/jobs/daily-pipeline`, que já exigia o segredo, e nada no browser
+> chama esta rota.
 
 **Resposta 200:**
 ```json

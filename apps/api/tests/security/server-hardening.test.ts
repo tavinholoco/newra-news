@@ -28,6 +28,26 @@ vi.mock('@newranews/database', async () => {
   };
 });
 
+// O `env` é lido na carga do módulo. Sem este mock, `AUTH_JWT_SECRET` chega
+// vazio, `verifyAuthJwt` recusa **todo** token por 'auth não configurada', e os
+// testes de escopo do `purpose` passariam sem exercitar escopo nenhum — teste
+// que passa pelo motivo errado é pior que teste ausente.
+vi.mock('../../src/config/env', () => ({
+  env: {
+    NODE_ENV: 'test',
+    HOST: '0.0.0.0',
+    PORT: 3001,
+    CORS_ORIGIN: 'https://newra-news-web.vercel.app',
+    AUTH_JWT_SECRET: 'test-auth-jwt-secret',
+    JOB_SECRET: 'test-job-secret',
+    GEMINI_MODEL: 'gemini-2.5-flash',
+    GROQ_MODEL: 'openai/gpt-oss-20b',
+    SITE_URL: 'http://localhost:3000',
+    ADMIN_EMAILS: '',
+  },
+}));
+
+
 const JWT_SECRET = 'test-auth-jwt-secret';
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {
@@ -41,8 +61,6 @@ async function signToken(payload: Record<string, unknown>): Promise<string> {
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  process.env.AUTH_JWT_SECRET = JWT_SECRET;
-  process.env.CORS_ORIGIN = 'https://newra-news-web.vercel.app';
   app = await buildTestApp();
   await app.ready();
 });
@@ -193,6 +211,20 @@ describe('9.S — o `purpose` do JWT escopa, e escopa nos dois sentidos', () => 
    * exploração (quem assina os dois é o mesmo servidor), mas escopo conferido
    * num lugar só é convenção, não guarda.
    */
+  it('lets an ordinary session token through — the harness is not vacuous', async () => {
+    // Sem esta asserção, as três de baixo passariam mesmo com o JWT quebrado
+    // por qualquer motivo, e a guarda de escopo não guardaria nada.
+    const token = await signToken({ sub: 'user-1', email: 'reader@test.com' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/favorites/ids',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).not.toBe(401);
+  });
+
   it('rejects an auth-upsert token on a session route', async () => {
     const token = await signToken({
       sub: 'user-1',
