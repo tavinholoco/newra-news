@@ -188,9 +188,7 @@ Regras que não são óbvias no código:
 
 - **O vocabulário mora em `packages/types`, não aqui e não no web.** A API valida
   o mesmo conjunto que o web escreve; um `source` novo declarado só de um lado
-  passaria pelo build dos dois e viraria 400 em produção. Por isso `AdPlacement`
-  e `AdFormat` **saíram** de `apps/web/lib/ads.ts` — lá ficou a tabela de
-  alturas, que é decisão de layout e só o web usa.
+  passaria pelo build dos dois e viraria 400 em produção.
 - **`SchemaMatchesSharedType` é uma guarda de compilação, e ela já pagou.** Na
   primeira execução ela reprovou o `z.nativeEnum(Category)` importado do Prisma:
   aquele `Category` é união de literais e o de `packages/types` é um `enum` TS,

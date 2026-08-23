@@ -61,7 +61,7 @@
 
 > `lib/seo.ts` virou a fonte única de URL e de metadata (canonical, `x-default`, `og:url` e os defaults que o Next **não** herda do layout); `lib/json-ld.ts` + `components/seo/json-ld.tsx` levam `Organization`, `WebSite`, `NewsArticle` e `BreadcrumbList`; a trilha visível nasceu espelhando o dado estruturado; e `/news-sitemap.xml` publica a janela de 48h do Google Notícias. A medição contra produção achou quatro defeitos que o checklist não previa — a imagem OG e o ícone do iOS inalcançáveis, `og:image`/`og:type`/`og:site_name` ausentes em toda página, e o briefing exibindo a véspera. 416 testes no web. Ver **item 25**.
 
-**Newra News V2.0 — Fase 8 (Medição de produto)** ✅ **Concluída em 2026-08-22**
+**Newra News V2.0 — Fase 8 (Medição de produto)** ✅ **Concluída em 2026-08-22**, auditada em 23/08
 
 > A fase se chamava **Monetização** e foi reescrita em 22/08/2026: **o site não exibe anúncio**. A camada de analytics saiu em três PRs (itens **26**, **27** e **28**) e ficou; o aparato de anúncio foi **removido** (item **29**). O que resta é a **tela de métricas de produto** — hoje o `ProductEvent` recebe evento e ninguém o lê.
 >
@@ -2113,6 +2113,88 @@ a renderização por doze — incluindo o **estado vazio**, que é o de hoje.
   sem retrabalho — o expurgo e a etapa 8 do pipeline já estão lá.
 - **A tela nasce mostrando quase zero**, e zero é honesto: a ingestão entrou no
   ar hoje.
+
+### 32. Auditoria de fechamento da Fase 8 ✅ 2026-08-23
+
+> Branch `fix/lighthouse-warmup`. **A fase estava entregue; a auditoria achou um
+> defeito operacional e duas derivas de documentação.**
+
+#### O que está no ar, conferido
+
+| Verificação | Resultado |
+|---|---|
+| `POST /api/events` `{"events":[]}` | **400** — o schema rejeitando |
+| evento válido | **201** `{"accepted":1}` |
+| `GET /api/metrics/product` sem token | **401** — a rota existe e guarda |
+| `data-ad-placement` no HTML da Home | **0** — nenhum slot sobrou |
+| Testes locais | 1.026 (575 API + 451 web) |
+
+#### O defeito: o gate media o cold start, não a página
+
+A primeira execução do Lighthouse deu **81** de performance na `/en` — doze
+pontos abaixo do piso. O `CLAUDE.md` mandava aquecer e remedir, e foi o que fiz:
+a `/en` subiu para 93 e **a `/pt-BR` caiu para 81**. O problema não sumiu,
+**migrou para a página que estava fria**.
+
+A causa ficou clara cruzando as rotas:
+
+| Rota | Chama a API? | Score |
+|---|---|---|
+| `/pt-BR/about` | não | 97, 97 — estável |
+| `/pt-BR`, `/en` | sim (`getHome`) | oscila 81 ↔ 94 |
+
+**A API roda no plano free do Render, que hiberna com ~15 min sem tráfego.** As
+duas páginas que a consultam regeneram a ISR sob demanda, e a requisição que
+dispara a regeneração espera a API acordar. Medido: **4,9 s na primeira passada
+contra 0,22 s na terceira**.
+
+Ou seja: **o gate semanal de segunda 09:00 UTC ia reprovar por infraestrutura**,
+e num horário em que ninguém está olhando — exatamente quando a API está há
+horas dormindo.
+
+#### A correção é mecanismo, não instrução
+
+O `CLAUDE.md` mandava um humano aquecer o site **desde a Fase 6**. Passo que
+depende de alguém lembrar não roda na segunda às 09:00.
+
+O workflow ganhou o passo **"Warm production before measuring"**: duas passadas
+em cada URL, lidas do próprio `.lighthouserc.json` (para as duas listas não
+derivarem), com `curl -f` para uma rota quebrada falhar alto em vez de ser
+aquecida e depois medida como score ruim.
+
+**Provado na própria branch:**
+
+| Rota | Performance | Acessibilidade | Best practices | SEO |
+|---|---|---|---|---|
+| `/pt-BR` | 92 | 100 | 100 | 100 |
+| `/pt-BR/news` | 90 | 100 | 100 | 100 |
+| `/pt-BR/article` | 97 | 100 | 100 | 100 |
+| `/pt-BR/about` | 97 | 100 | 100 | 100 |
+| `/en` | 91 | 100 | 100 | 100 |
+
+Gate verde, ninguém em 81. **A `/news` em 90 raspa o piso** — fica registrado
+para não ser confundido com o aquecimento se cair.
+
+#### As duas derivas de documentação
+
+- **`apps/api/CLAUDE.md`** dizia que a tabela de alturas "ficou em
+  `apps/web/lib/ads.ts`" — arquivo removido no item 29.
+- **`docs/v2/04-analytics-e-slots.md`** ainda listava `ad_view` e `ad_click` no
+  catálogo (são doze eventos, não catorze) e descrevia a Parte 2 como
+  especificação corrente. Ela virou **histórica**, com a lição que sobrevive:
+  espaço reservado antes de o conteúdo chegar é o que protege o CLS — aplicado
+  hoje no `story-image` e no `story-card`, sem anúncio nenhum.
+
+#### A baseline visual não foi recapturada, e não por esquecimento
+
+A Fase 8 **não mudou um pixel de rota pública**: os dois `AdSlot` da Home já
+não renderizavam em produção (`NEXT_PUBLIC_ADS_ENABLED` nunca foi ligado lá) —
+medido, zero `data-ad-placement` no HTML — e o `newsletter-cta` só trocou de
+pasta. Recapturar agora traria só a diferença de conteúdo do dia, que é ruído.
+
+#### Estado do projeto após a auditoria
+
+**Fases 0 a 8 concluídas.** A próxima é a **9 (Release)**.
 
 ---
 

@@ -37,11 +37,21 @@ categoria cair, o relatório completo vem por
 `gh run download <run-id> -D <dir>` e o audit reprovado está em
 `lhr-*.json` → `categories.<cat>.auditRefs` com `score < 1`.
 
-> **Aqueça o site antes de medir, ou você mede o deploy.** Rodado minutos após o
-> merge, o Lighthouse pega a **regeneração da ISR**: na Fase 6 a `/pt-BR` deu 83
-> de performance (execuções 0,64 · 0,83 · 0,83) enquanto a `/en` — a mesma
-> página — deu 94. Dois `curl` na rota e uma segunda execução devolveram 94, sem
-> mudar uma linha. Um `curl` em cada rota medida resolve.
+> **O workflow aquece sozinho desde 23/08 — não aqueça à mão.** O passo "Warm
+> production before measuring" bate duas vezes em cada URL do
+> `.lighthouserc.json` antes do collect.
+>
+> **A causa é a API dormir, e só ficou clara na auditoria da Fase 8.** O plano
+> free do Render hiberna com ~15 min sem tráfego; `/pt-BR` e `/en` chamam
+> `getHome`, então a requisição que dispara a regeneração da ISR espera a API
+> acordar — medido: **4,9 s na primeira passada contra 0,22 s na terceira**, e a
+> performance cai para ~81. **O sintoma migra**: em duas execuções seguidas o 81
+> saiu primeiro na `/en` e depois na `/pt-BR`, sempre na que estava fria. A
+> `/pt-BR/about`, única rota medida que não chama a API, ficou em 97 nas duas.
+>
+> Com o aquecimento no workflow: **92 · 90 · 97 · 97 · 91**, gate verde.
+> A `/news` em 90 raspa o piso — se ela cair, olhe o audit antes de culpar o
+> aquecimento.
 
 **2. Baseline visual** (§30) — de produção, com as mesmas larguras do conjunto
 versionado, senão o diff vira ruído:
@@ -89,11 +99,12 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as Fases 0 a 7 concluídas e a **Fase 8 em
-  andamento** — os pré-requisitos, em três PRs. O PRD da V1 foi fechado em
-  2026-08-15; a V2 é o redesign editorial em cima dele.
-- **Última entrega (2026-08-22):** **a tela de métricas de produto** — fecha a
-  **Fase 8**. `GET /api/metrics/product` (admin) e um bloco novo no
+- **Onde estamos:** V2.0 com as **Fases 0 a 8 concluídas**; a Fase 8 foi
+  auditada em 23/08. **A próxima é a Fase 9 (Release).**
+- **Última entrega (2026-08-23):** a **auditoria de fechamento da Fase 8**, que
+  achou o gate do Lighthouse medindo *cold start* e não página — o workflow
+  passou a aquecer sozinho. Antes dela, **a tela de métricas de produto** fechou
+  a **Fase 8**. `GET /api/metrics/product` (admin) e um bloco novo no
   `/admin/metrics`: audiência, leitura, cliques por origem, categorias e buscas
   sem resultado. Antes dela, o anúncio foi cancelado (item 29) e o `/api/events`
   foi consertado (item 30) — **a ingestão está no ar**, respondendo 201 em
