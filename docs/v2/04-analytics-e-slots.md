@@ -69,9 +69,16 @@ Os 14 da §18.5, com payload fechado. `EventBase` (`sessionId`, `locale`,
 | `favorite_add` | `storyId`, `category`, `origin` | clique no marcador de salvar | **saves por usuário** |
 | `share` | `contentId`, `contentType`, `channel` | menu de compartilhar | **share rate** |
 | `newsletter_signup` | `origin` | inscrição confirmada | **taxa de inscrição** |
-| `ad_view` | `placement`, `format` | slot ≥50% visível por ≥1s | **viewability** |
-| `ad_click` | `placement`, `format` | clique no slot | **CTR de anúncios** |
 | `subscription_intent` | `origin`, `plan` | clique no CTA premium | funil do Newra Plus |
+
+> **São doze, e a lista original tinha catorze.** `ad_view` e `ad_click` saíram
+> em 22/08/2026 com a decisão de o site **não exibir anúncio** — e saíram do
+> tipo compartilhado e do Zod da API junto, porque evento sem emissor é a mesma
+> armadilha da tabela sem leitor. `subscription_intent` continua na lista **sem
+> call site**, esperando um plano pago existir.
+>
+> Os **doze restantes estão instrumentados** e a ingestão está no ar. Quem os lê
+> é a tela de métricas de produto (§28, Fase 8).
 
 Valores fechados:
 
@@ -120,7 +127,19 @@ está fechado aqui para a Fase 3 já poder chamar `track()`.
 
 ---
 
-# Parte 2 — Slots de monetização
+# Parte 2 — Slots de monetização — **HISTÓRICA**
+
+> **Seção histórica desde 22/08/2026: o site não exibe anúncio.** O `AdSlot`, o
+> inventário de `lib/ads.ts`, o banner de consentimento e o hook de viewability
+> **foram removidos** — ~750 linhas que nunca iriam ao ar.
+>
+> **O que esta parte ensinou continua valendo**, e está aplicado no site: espaço
+> reservado **antes** de o conteúdo chegar é o que protege o CLS. É por isso que
+> o `story-image` reserva proporção e o `story-card` reserva altura, sem anúncio
+> nenhum.
+>
+> Decisão e registro: §21 do plano e itens 28 e 29 do `docs/progress.md`.
+
 
 ## 7. Por que agora
 

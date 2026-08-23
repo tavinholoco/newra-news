@@ -6,6 +6,11 @@ name: Lighthouse CI
 # — o que passou a ser verdade em 21/08, quando `configPath` entrou nos inputs
 # da action e a fase de assert começou a rodar de fato. Ver o comentário lá.
 #
+# **O workflow aquece a produção antes de medir**, e não é zelo: a API roda no
+# plano free do Render e hiberna com ~15 min sem tráfego, então a primeira
+# requisição a uma página que a consulta paga o custo de acordá-la. Sem o
+# aquecimento o gate mede o deploy, não a página — ver o comentário do passo.
+#
 # As rotas auditadas são apenas as de URL estável. As páginas de detalhe
 # (`/news/[id]` e `/article/[date]`) ficam de fora de propósito: os ids de
 # notícia são removidos pelo estágio de cleanup do pipeline e a data do artigo
@@ -24,6 +29,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # Aquecer antes de medir, ou o gate mede o **deploy** e não a página.
+      #
+      # A API roda no plano free do Render, que hiberna com ~15 min sem
+      # tráfego. As páginas que a consultam (`/pt-BR` e `/en` chamam `getHome`)
+      # regeneram a ISR sob demanda, e a requisição que dispara a regeneração
+      # espera a API acordar — medido: **4,9 s na primeira passada, 0,22 s na
+      # terceira**. Nessa condição a performance cai para ~81, doze pontos
+      # abaixo do piso.
+      #
+      # O sintoma migra: em duas execuções seguidas em 22 e 23/08, o 81 saiu
+      # primeiro na `/en` e depois na `/pt-BR` — sempre na que estava fria. Isso
+      # é medição de infraestrutura, não de qualidade, e fazia o gate semanal
+      # reprovar por um motivo que não é regressão.
+      #
+      # O `CLAUDE.md` mandava aquecer à mão desde a Fase 6. Passo que depende de
+      # alguém lembrar não roda na segunda às 09:00 — este passo é o mecanismo.
+      #
+      # `-f` para o passo falhar se uma rota estiver quebrada: aquecer um 500
+      # em silêncio e depois medi-lo daria um score ruim sem explicação.
+      - name: Warm production before measuring
+        run: |
+          urls=$(jq -r '.ci.collect.url[]' .lighthouserc.json)
+          for pass in 1 2; do
+            for url in $urls; do
+              code=$(curl -sS -f -o /dev/null -w '%{http_code} %{time_total}s' "$url") \
+                && echo "passada $pass  $url  $code"
+            done
+          done
+
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v12
         with:
