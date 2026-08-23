@@ -34,18 +34,29 @@
   serve para *inspecionar* (`dryRun`, o padrão, devolve o relatório sem gravar)
   e para casos pontuais, não é o mecanismo. Corpo: `dryRun`, `limit`, `sources`,
   `categoryMode` (`clear-only` por padrão)
-- GET /api/jobs/:pipelineId — status de execução do pipeline
+- GET /api/jobs/:pipelineId — status de execução do pipeline (**Bearer `JOB_SECRET`**;
+  era pública e devolvia a mensagem crua da falha — Fase 9)
 - GET /api/metrics/weekly — métricas agregadas dos últimos 7 dias
 - GET /api/metrics/monthly — métricas do mês completo
 - GET /api/metrics/dashboard — **admin (JWT + role ADMIN)**: hoje + última semana + último mês
 - GET /api/metrics/product — **admin**: métricas de **produto** (`ProductEvent`)
   — audiência, leitura, cliques por origem, categorias e buscas sem resultado.
   `days` de 1 a 90 (o teto é a retenção do evento cru)
+- GET /api/metrics/http — **admin**: error rate, taxa de 4xx e latência
+  (p50/p95/p99/max) do processo que está no ar, mais a lista por rota. As duas
+  métricas técnicas da §26, que até a Fase 9 ninguém produzia. **Em memória** —
+  ver "Observabilidade da API" abaixo
+- POST /api/auth/upsert — cria o usuário no primeiro sign-in. Exige JWT com
+  `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
   lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
-- GET /dev/dashboard — página HTML dev-only (JOB_SECRET via header ou `?secret=`): runs, erros e status dos providers
+- GET /dev/dashboard — página HTML dev-only: runs, erros e status dos providers.
+  **`?secret=` saiu na Fase 9** — segredo em query string entra em log de acesso,
+  histórico e `Referer`. Entra por `Authorization: Bearer` (curl) ou por
+  `POST /dev/dashboard/session` (o formulário da página), que devolve um cookie
+  `HttpOnly` com uma **assinatura de prazo**, nunca o segredo
 
 ## Editorial (V2)
 - Serviços em `services/{home,trending,related}.service.ts`, mapper compartilhado
@@ -220,12 +231,123 @@ Regras que não são óbvias no código:
   recorrente são `Subscriber` e `User`, que a `/metrics/product` lê à parte.
 - **A agregação é em memória, a partir de uma consulta só.** SQL cru com
   operadores de JSON é o que menos se testa; seis `groupBy` são seis idas ao
-  banco para uma tela. Mesma dívida consciente da `/api/favorites`, e vira a
-  consulta a otimizar quando a janela trouxer centenas de milhares de linhas.
+  banco para uma tela. Mesma dívida consciente da `/api/favorites`, e a Fase 9
+  deu o número que faltava: **~200.000 linhas na janela de 90 dias** (≈60 MB de
+  objetos numa requisição, num plano de 512 MB) — a ~4 eventos por pageview,
+  **~550 pageviews/dia**. Aí vira agregação em SQL.
 - **Não há tabela de agregado diário, e é de propósito.** A §4 pede um agregado
   que sobreviva à retenção, mas hoje ninguém o leria — tabela sem consumidor é
   a armadilha da pílula de contagem da Fase 4 em outra forma. Ela entra com a
   tela que a exibir.
+
+## Segurança do servidor (revisão da Fase 9)
+
+Sete achados, sete guardas. O que está abaixo é o que **não** é óbvio lendo o
+código corrigido — o motivo pelo qual ele está daquele jeito.
+
+- **`trustProxy: 1` no `buildApp`, e é `1` e não `true`.** Sem `trustProxy`,
+  `request.ip` é o peer do socket; atrás do proxy do Render, o proxy. Medido em
+  produção: três requisições com `X-Forwarded-For` diferentes na mesma janela
+  consumiram o **mesmo** balde (98/97/96). Como todo o tráfego server-side sai
+  da Vercel, o teto de 30/min da `/api/events` era teto **global** de ingestão.
+  `true` confiaria na ponta esquerda do XFF, que o cliente escreve — trocar por
+  `true` reabre o buraco por outro lado.
+- **A CSP global é `default-src 'none'`**, que é a que cabe num JSON. **Não
+  afrouxe o global para caber uma página**: foi assim que o projeto ficou com
+  `contentSecurityPolicy: false`. A única página HTML (`/dev/dashboard`) declara
+  a sua por resposta, com nonce, e a UI do Swagger tem a dela sob o prefixo.
+- **A UI do Swagger não é registrada em produção.** O documento OpenAPI continua
+  sendo gerado sempre (é dele que as guardas leem); o que sai é a UI. Isso
+  também tira `@fastify/static` — e as duas advisories **high** dele — do
+  processo em produção. O `servers` sai de `API_PUBLIC_URL`; sem ele, anunciava
+  `http://0.0.0.0:3001`.
+- **O `purpose` do JWT é conferido no plugin, e é simétrico.** `authPlugin()`
+  recusa token que traga `purpose`; `authPlugin(app, { purpose: 'auth-upsert' })`
+  recusa o de sessão. Conferir `purpose` dentro de um handler é o que havia
+  antes, e escopo que só uma rota honra não é escopo.
+- **O 5xx não conta o interior do servidor.** `AppError` fala (o servidor
+  escolheu aquela mensagem) e o 4xx do Fastify fala (descreve a requisição de
+  quem chamou); o 5xx devolve frase fixa mais `x-request-id`, e o erro inteiro
+  vai para o log. Erro de Prisma carrega nome de tabela, trecho de SQL e, em
+  falha de conexão, a string de conexão.
+- **`content-type` com caractere de controle é recusado com 415 na porta.**
+  Mitigação de uma advisory **high** da `fastify@4` (bypass de validação de
+  corpo por TAB no `Content-Type`), corrigida upstream só na `fastify@5`. Sai
+  quando a major entrar.
+- **`assertJobSecret` compara em tempo constante**, e é o **único** lugar que
+  compara o `JOB_SECRET`. Havia três cópias inline; duas não passavam por aqui.
+
+### A fronteira do prompt — o feed escreve no mesmo canal das instruções
+
+**É o risco mais próprio deste produto**, porque a saída do modelo vai ao ar
+sozinha: o Stage 7 persiste, o 7.5 manda e-mail aos assinantes, a Home exibe.
+Nenhuma revisão humana no meio, e o material é escrito por terceiros — 13 feeds
+RSS mais a NewsData.io, centenas de itens por dia.
+
+Três camadas, e as três precisam continuar existindo:
+
+1. **fronteira declarada** — o material vai entre `MATERIAL_START` e
+   `MATERIAL_END`, e o system prompt manda tratar o que está entre eles como
+   dado, nunca como instrução;
+2. **o material não falsifica a fronteira** — `neutralizeMaterialDelimiters`
+   troca um delimitador escrito dentro de um item, e a quebra de linha some (é
+   com ela que se falsifica o rótulo de campo do item seguinte). É a única
+   camada que trata *bypass*; as outras tratam persuasão;
+3. **a saída fora do formato é recusada** — `parseMarkdownResponse` exige o
+   `# ` e um corpo, e lança `MalformedArticleError`. Antes ela aceitava
+   qualquer coisa: sem `# `, pegava a primeira linha não vazia como título.
+
+**O que a camada 2 deliberadamente não faz: filtrar frase suspeita.** Lista de
+palavra proibida em texto jornalístico é falso positivo garantido — uma matéria
+*sobre* injeção de prompt seria a primeira censurada — e não fecha nada, porque
+a mesma ordem se escreve de mil maneiras. Há teste afirmando isso.
+
+**`buildArticleUserPrompt` é o único lugar que monta o prompt.** Cada provider
+fazia `ARTICLE_USER_PROMPT + formatNewsItems(items)` por conta própria; um
+terceiro provider nasceria sem o fechamento do bloco, e material sem fechamento
+segue até o fim do texto — a condição exata que a fronteira existe para impedir.
+
+**O sufixo entra no hash de `ARTICLE_PROMPT_VERSION`.** Mexer na fronteira é
+mudança de segurança, e dois briefings gerados sob regras diferentes precisam
+ser distinguíveis pelo campo de auditoria que a §18.4 grava.
+
+## Observabilidade da API
+
+`GET /api/metrics/http` (admin) e o `x-request-id` em toda resposta.
+
+- **Nada é persistido, e é decisão.** A alternativa era uma escrita no Prisma
+  por requisição para responder algo que se pergunta uma vez por semana — a
+  armadilha da tabela sem leitor, de novo. **Gatilho para persistir:** mais de
+  uma instância no Render, ou a primeira pergunta que exija comparar duas
+  semanas.
+- **`since` e `uptimeSeconds` não são enfeite.** A janela zera a cada deploy e a
+  cada hibernação; sem eles, `errorRate: 0` logo depois de um deploy pareceria
+  saúde e seria ausência de amostra.
+- **A chave é o padrão da rota** (`GET /api/news/:id`), nunca a URL. URL crua
+  seria uma linha por notícia e um mapa sem teto.
+- **Os percentis vêm de histograma**, então são o **teto do balde** em que o
+  percentil cai. O `max` é o valor real, e é ele que denuncia o cold start.
+- **O `x-request-id` de quem chama é respeitado**, o que permite seguir uma
+  requisição do BFF até aqui. O BFF ainda não o envia — costura da Fase 11.
+
+## As guardas que enumeram a superfície
+
+Três testes desta fase seguem o mesmo formato, e é o formato que impede buraco
+novo: **enumeram a superfície e exigem decisão para cada item.**
+
+| Guarda | Enumera | Exige |
+|---|---|---|
+| `tests/routes/api-docs-drift.test.ts` | as rotas do roteador | linha na `docs/api.md` |
+| `tests/routes/response-schema-contract.test.ts` | as colunas do Prisma | campo no schema de resposta, ou motivo escrito |
+| `tests/security/authorization-matrix.test.ts` | as rotas do roteador | linha na matriz de autorização |
+
+**Cada uma tem uma asserção que segura as outras**: um parser que devolvesse
+lista vazia faria a guarda passar para sempre, então há um teste afirmando que a
+enumeração encontra algo. Ao copiar o padrão, copie essa parte também.
+
+**Guarda sobre migration é estática** (lê o `.sql`, não aplica): a suíte roda
+sem banco de propósito. O replay de verdade é manual, e o de 23/08 está no item
+34 do `docs/progress.md`.
 
 ## Providers
 ```

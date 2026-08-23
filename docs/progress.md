@@ -13,6 +13,10 @@
 > NewsAPI substituída pela NewsData.io — provider ativo em produção desde 2026-08-16: 3 chaves ok (NewsData/Gemini/Groq), 8 categorias preenchidas, 491 notícias/dia.
 > Checklist completo da Fase 5 fechado: UI/UX (item 7), code review geral, loading states + error boundaries e apresentação de portfólio (`docs/presentation.md`); typecheck adicionado ao CI.
 
+**Newra News V2.0 — Fase 9 (Backend review)** ✅ Concluída em 2026-08-23 — **os seis eixos da §28 fechados**
+
+> `review/v2-backend`. O balde de rate limit era **um só para a internet inteira** (medido em produção), o feed RSS escrevia no mesmo canal das instruções da IA, e o 500 devolvia a mensagem interna de qualquer erro. Sete achados de segurança, cada um com a guarda que o mantém fechado. Advisories de produção da API 21 → 6; 575 testes em 45 suítes → **728 em 54**. Ver **item 34**.
+
 **Newra News V2.0 — Fase 0 (Discovery técnico)** ✅ Concluída em 2026-08-20
 
 > Entregáveis em `docs/v2/` (5 documentos + baseline visual). Checklist da §28 do plano fechado. Ver **item 11**.
@@ -2309,6 +2313,256 @@ de suíte herdada.
   §28 — "As quatro fases finais", com "Anatomia de uma fase de revisão", "A
   camada de segurança e testes" e uma seção por fase.
 - **A ordem:** 9 ‖ 10 → 11 → 12, em "Ordem, paralelismo e branches".
+
+---
+
+### 34. V2.0 Fase 9 — Backend review ✅ Concluída em 2026-08-23
+
+> Branch `review/v2-backend`. Os seis eixos da §28 fechados: **9.1** (contrato
+> HTTP), **9.S** (segurança do servidor), **9.3** (dados e consultas), **9.4**
+> (pipeline), **9.5** (observabilidade) e **9.T** (testes e guardas).
+>
+> **575 testes em 45 suítes → 728 em 54.** Cobertura da API: 98,03% → **98,71%
+> stmts**, 93,48% → **93,32% branch**, 98,76% → **99,45% funcs**. Advisories de
+> produção em `apps/api`: **21 → 6** (16 high → 3); no repo inteiro, 102 → 83
+> (40 high → 25).
+
+#### 9.S — o balde de rate limit era um só para a internet inteira
+
+**A suspeita mais séria do plano, confirmada por medição em produção.** Três
+requisições com `X-Forwarded-For` diferentes na mesma janela de 60s devolveram
+`x-ratelimit-remaining` **98, 97 e 96** — um contador só. Sem `trustProxy`, o
+Fastify usa o peer do socket como `request.ip`, e atrás do proxy do Render o
+peer é o proxy.
+
+A consequência era exatamente a que a §9.S previu, e silenciosa: todo o tráfego
+server-side sai da Vercel, e a ingestão de eventos passa pela rota
+`/api/events` do Next. Com balde único, o teto de 30/min daquela rota era **teto
+global de ingestão**, e a tela de métricas que fechou a Fase 8 subcontaria sem
+sinal nenhum — 429 num `sendBeacon` não tem retorno que o cliente leia.
+
+`trustProxy: 1`, e não `true`: `true` confia na ponta **esquerda** do
+`X-Forwarded-For`, que é escrita pelo cliente, e escapar do limite seria mandar
+um IP novo por requisição. Com `1`, só o último hop conta. As três guardas estão
+em `tests/security/server-hardening.test.ts`, e a primeira delas foi verificada
+reprovando com o `trustProxy` removido.
+
+#### 9.S — o feed escrevia no mesmo canal das instruções da IA
+
+Sem delimitador, sem escape, e a saída **publica sozinha** (Stage 7 persiste,
+7.5 manda e-mail aos assinantes, a Home exibe). A revisão não resolveu o
+problema inteiro — decidiu a fronteira, em três camadas:
+
+1. **fronteira declarada** — o material vai entre `MATERIAL_START` e
+   `MATERIAL_END`, e o system prompt manda tratar tudo ali como dado, nunca como
+   instrução;
+2. **o material não falsifica a fronteira** —
+   `neutralizeMaterialDelimiters` neutraliza um delimitador escrito dentro de um
+   item (o único ataque que é *bypass* e não persuasão) e some com a quebra de
+   linha, que é como se falsifica o rótulo de campo do item seguinte;
+3. **a saída fora do formato é recusada** — `parseMarkdownResponse` aceitava
+   qualquer coisa: sem `# `, pegava a primeira linha não vazia como título e
+   seguia em frente. Uma resposta que obedecesse ao material em vez das
+   instruções virava briefing publicado com o pipeline registrando sucesso.
+
+**O que a camada 2 deliberadamente não faz:** filtrar frases suspeitas. Lista de
+palavra proibida em texto jornalístico é falso positivo garantido — uma matéria
+*sobre* injeção de prompt seria a primeira censurada — e não fecha nada, porque
+a mesma ordem se escreve de mil maneiras. Há teste para isso também.
+
+A montagem do prompt saiu dos dois providers para `buildArticleUserPrompt`: cada
+um fazia `ARTICLE_USER_PROMPT + formatNewsItems(items)` por conta própria, e um
+terceiro provider nasceria sem o fechamento do bloco — que é a condição que a
+fronteira existe para impedir. O sufixo entra no hash de
+`ARTICLE_PROMPT_VERSION`, senão mexer na fronteira não mudaria a versão gravada
+e dois briefings sob regras diferentes ficariam indistinguíveis.
+
+#### 9.S — os outros cinco achados
+
+| Achado | O que era | O que ficou |
+|---|---|---|
+| `purpose` do JWT | conferido **dentro** do handler do `/api/auth/upsert` e ignorado nas outras; o token de upsert passava no `/api/favorites` | conferência no plugin, **simétrica** (a sessão recusa `purpose`, o upsert recusa a sessão). Nenhuma ponta do frontend mudou — o BFF já assinava a sessão sem `purpose` |
+| `/dev/dashboard` | aceitava o `JOB_SECRET` por `?secret=` — log de acesso, histórico, `Referer` | POST com o segredo no corpo; o que fica no browser é uma **assinatura com prazo** em cookie `HttpOnly`, nunca o segredo |
+| erro 500 | devolvia `error.message` de qualquer erro (nome de tabela, trecho de SQL, string de conexão em falha de Prisma) e **não logava nada** | frase fixa + `x-request-id`; o erro inteiro vai para o log |
+| CORS | `['GET', 'POST']`, com 2 PUT e 2 DELETE registrados | declara o que existe, com guarda que compara a lista com o roteador |
+| CSP | `contentSecurityPolicy: false` | `default-src 'none'`, que é a que cabe num JSON; a única página HTML declara a sua, por nonce |
+
+Além deles, montar a matriz de autorização (9.T) achou **`GET /api/jobs/:pipelineId`
+público** devolvendo `log.error` — a mensagem crua da falha do pipeline. É o
+mesmo vazamento que o error handler fechou para o 500, por outra porta. Fechar
+não custou acesso: o `pipelineId` só existe na resposta do disparo, que já
+exigia o segredo. E havia **três cópias** da checagem do `JOB_SECRET`, duas
+delas sem passar pelo `assertJobSecret` — que agora compara em tempo constante.
+
+#### 9.S — advisories: 21 → 6, e o aceite de risco das que sobram
+
+`pnpm audit --prod` filtrado por `apps/api`. Overrides de `fast-uri`,
+`brace-expansion` e `yaml` — todos patch/minor — fecharam 15 das 21, sendo 13
+**high**. As seis restantes, com o aceite escrito que a §28 exige:
+
+| Advisory | Risco hoje | O que mudaria a decisão |
+|---|---|---|
+| `fastify` — bypass de validação por `content-type` com tab (**high**) | **mitigado**: `content-type` com caractere de controle é recusado com 415 na porta, antes de o parser ser escolhido. Guarda em `tests/security/content-type-bypass.test.ts` | a major `fastify@5`, que é dívida da Fase 12 |
+| `fastify` — DoS em `sendWebStream` (low) e spoof de `request.protocol`/`host` (moderate) | a API não usa `sendWebStream`; `protocol`/`host` não decidem nada, e o `trustProxy: 1` limita o alcance a um hop | idem |
+| `find-my-way` — DDoS com HTTP/2 (**high**) | **não alcançável**: a API não serve HTTP/2 (`buildApp` não passa `http2`) | servir HTTP/2 |
+| `@fastify/static` × 2 — travessia de caminho e bypass de route guard (**high**/moderate) | **não alcançável em produção**: o pacote só entra pela UI do Swagger, que deixou de ser registrada em produção nesta fase | reabrir a UI em produção, ou `@fastify/swagger-ui` passar a suportar `@fastify/static@10` |
+
+> **Quem aceita:** Pedro Levi, 23/08/2026. As três da `fastify` saem juntas na
+> major da Fase 12; as três de alcance zero saem quando o alcance mudar.
+
+#### 9.1 — a `docs/api.md` documentava 32 rotas e o roteador registrava 34
+
+`POST /api/auth/upsert` — a rota pela qual **todo usuário é criado** — não
+estava escrita em lugar nenhum. Documentada, junto com o escopo do `purpose`.
+
+Mas a saída do eixo não é a correção, é a guarda, e são duas:
+
+- **`api-docs-drift.test.ts`** enumera o roteador e exige que cada rota apareça
+  na `docs/api.md`, e que o documento não descreva rota que sumiu. A terceira
+  asserção é a que segura as outras duas: um parser que devolvesse vazio faria
+  as duas passarem para sempre.
+- **`response-schema-contract.test.ts`** confere o schema de resposta contra **a
+  coluna do Prisma**, e não contra o `select` do serviço. É a guarda que não
+  existia quando o `articleItemSchema` da V1 descartou os campos de auditoria e
+  as 15 fontes que o serviço já carregava. Coluna nova reprova até alguém
+  decidir se ela sai na resposta ou entra na lista de omitidas — com o motivo
+  escrito.
+
+O `servers` do OpenAPI anunciava `http://0.0.0.0:3001` em produção, que é o bind
+e não é endereço de ninguém. Passou a sair de `API_PUBLIC_URL`, e a **UI**
+deixou de ser registrada em produção — o documento continua sendo gerado sempre,
+porque é dele que as guardas leem.
+
+#### 9.3 — as quatro migrations nunca tinham rodado do zero
+
+O banco local está baselinado com `migrate resolve`, que marca como aplicada sem
+executar o SQL; produção recebeu `migrate deploy` uma vez, sem ninguém comparar o
+resultado. O replay em banco limpo (23/08): as quatro aplicaram, e
+`prisma migrate diff` contra o `schema.prisma` devolveu **"No difference
+detected"**.
+
+O replay também virou fato o que era conhecimento oral: o índice único de
+`News.sourceUrl` **existe** no que as migrations produzem e **não existe** no
+banco local — 5 índices contra 4. É por isso que só o ambiente de
+desenvolvimento acumula título repetido.
+
+O replay não cabe no CI (a suíte roda sem banco, de propósito), então ficou
+guarda **estática** em `tests/build/migrations.test.ts`: `migration.sql` não
+vazio, sem saída de CLI colada dentro — o defeito que a Fase 0 achou —,
+`migration_lock.toml` com provider, e a constraint única presente.
+
+**Índices × consultas que de fato rodam.** Medido contra produção: **6.221
+notícias**, **513/dia**. Com a retenção de 30 dias, o teto do acervo é ~15.400
+linhas — `News` é tabela **limitada**, não crescente. O plano da listagem com
+filtro de categoria é `Index Scan Backward` no `publishedAt` com filtro, e nesse
+tamanho não há índice faltando. O composto `(category, publishedAt)` entra
+quando a retenção crescer ou o volume diário dobrar, e não antes.
+
+#### 9.4 — o dia em que o pipeline não roda
+
+As quatro perguntas da §9.4, agora com teste
+(`tests/services/pipeline-degraded.test.ts`, 17 asserções):
+
+- **se a etapa 6 falha, a 8 não roda** — e isso é o certo: no dia sem briefing o
+  cleanup **não apaga acervo** de um produto que já está degradado. As notícias
+  do dia entram assim mesmo (a 4 vem antes da 6), o run é marcado `FAILED` com
+  `errorStage: 6`, e feed vazio aborta na 5 em vez de mandar o modelo inventar o
+  dia;
+- **falha não-crítica não derruba o resto**: newsletter que estoura não impede
+  cleanup nem métricas, cleanup que estoura não impede renormalização, e o run
+  fecha `SUCCESS`. A newsletter não conta como `pipelineError` e o cleanup
+  conta — distinção de produto, não de código;
+- **idempotência**: o `findFirst` cobre `SUCCESS` e `RUNNING` no mesmo predicado
+  (dois runs simultâneos disputariam o mesmo `upsert` do dia), o `skipDuplicates`
+  se apoia na constraint única, e as fontes do briefing são substituídas na
+  **mesma transação** — sem isso, uma falha entre o delete e o create deixaria o
+  briefing sem fonte nenhuma;
+- **retenção**: os quatro números (News 30d, PipelineLog 30d, Article 90d,
+  ProductEvent 90d por `occurredAt`) têm teste. Quatro documentos os descrevem;
+  este é o único que reprova quando o código discordar.
+
+Do lado da Home, o dia sem artigo com acervo cheio: `briefing: null` e o resto
+desenha. O schema declara `nullable()` — se não declarasse, a rota devolveria
+500 num dia em que o produto só estava degradado.
+
+#### 9.5 — medir, e não riscar
+
+A §26 promete **error rate** e **API latency**, e não havia instrumentação
+nenhuma: observabilidade rica do *pipeline*, zero da *API como serviço*. A §9.5
+punha a decisão como bifurcação. **Medir saiu mais barato que riscar**: um
+`onResponse`, um contador por padrão de rota e um histograma por bucket, mais o
+`x-request-id` em toda resposta (o que liga o relato de fora à linha do log,
+agora que o 500 não conta mais o que aconteceu).
+
+`GET /api/metrics/http` (admin) devolve error rate, taxa de 4xx, p50/p95/p99/max
+e a lista por rota. **Nada é persistido**, e o preço está escrito na resposta:
+`since` e `uptimeSeconds` dizem de quanto tempo a janela fala, porque um
+`errorRate: 0` logo depois de um deploy pareceria saúde e seria só ausência de
+amostra.
+
+> **O gatilho para persistir:** mais de uma instância no Render, ou a primeira
+> pergunta que exija comparar duas semanas. Antes disso, uma escrita no Prisma
+> por requisição para responder algo que se pergunta uma vez por semana é a
+> tabela sem leitor de novo.
+
+#### 9.T — o que os testes afirmam, não a porcentagem
+
+- **A matriz de autorização** (`tests/security/authorization-matrix.test.ts`):
+  rota × anônimo × sessão × admin × `JOB_SECRET` × token de upsert. O que a
+  torna guarda e não documentação é ser **exaustiva sobre o roteador** — o
+  último teste enumera as rotas registradas e exige linha para cada uma. Rota
+  nova sem decisão de autorização reprova o CI. Foi montá-la que achou o
+  `GET /api/jobs/:pipelineId`.
+- **Uma correção de harness que valia mais que um achado:** as guardas de escopo
+  do `purpose` estavam passando **pelo motivo errado**. O `env` é lido na carga
+  do módulo, então setar `AUTH_JWT_SECRET` num `beforeAll` chega tarde,
+  `verifyAuthJwt` recusava todo token por "auth não configurada", e o 401 vinha
+  de graça. Teste que passa pelo motivo errado é pior que teste ausente: o `env`
+  virou mock e há asserção de caminho feliz provando que o harness exercita o
+  que diz exercitar.
+- **`GET /api/news` nunca serializou uma linha.** `listNews` estava mockado em
+  `{ data: [], total: 0 }` na suíte inteira, então a rota mais chamada do produto
+  passava sempre por `data: []`. Com a lista vazia, a suíte não podia achar a
+  versão daquele defeito da Fase 5 nesta rota.
+- **Onde estavam os 6% que faltavam**, medido e não estimado: `env.ts` 64% (o
+  `process.exit(1)` do boot, que não roda em processo de teste),
+  `daily-pipeline.job.ts` 84% (o callback de erro do cron), uma linha
+  inalcançável do histograma — e `src/providers/types.ts`, um arquivo **só de
+  `interface`** que não emite JavaScript e era medido como 0% sobre 18 linhas
+  inexistentes. Excluído por não ter o que cobrir; é a única exclusão desse
+  tipo, por arquivo e não por padrão.
+
+#### As duas dívidas ganharam o número que faltava
+
+A §9.3 pedia que elas deixassem de ser frase:
+
+- **`/api/favorites` resolve os salvos inteiros antes de paginar.** É o que faz
+  o `meta.total` prometer o que a lista mostra. O ponto em que dói é **~5.000
+  salvos numa conta**: aí o `IN` da hidratação carrega 5 mil ids para devolver
+  20 linhas. E é observável sem instrumentação nova — `GET /api/account` já
+  devolve `saved: { news, articles }`.
+- **`/metrics/product` agrega em memória a partir de uma consulta só.** O ponto
+  em que dói é **~200.000 linhas na janela de 90 dias** (≈60 MB de objetos numa
+  requisição, num plano de 512 MB) — o que, a ~4 eventos por pageview, são
+  **~550 pageviews/dia**. Abaixo disso, uma consulta e uma agregação em memória
+  custam menos que seis `groupBy`.
+
+#### Verificação
+
+| Verificação | Resultado |
+|---|---|
+| `pnpm lint` (monorepo) | 5 tarefas, 0 falhas |
+| `pnpm build` (monorepo) | 4 tarefas, 0 falhas |
+| `pnpm test` (monorepo) | 4 tarefas, 0 falhas |
+| `pnpm test` (API) | **728 testes em 54 suítes** |
+| `pnpm test:coverage` (API) | **98,71% stmts · 93,32% branch · 99,45% funcs** |
+| `pnpm audit --prod` (`apps/api`) | **21 → 6** advisories (16 high → 3) |
+| replay das 4 migrations em banco limpo | aplicadas; `migrate diff` = "No difference detected" |
+| balde de rate limit em produção | **medido**: 98 / 97 / 96 com XFF distintos — balde único, confirmado |
+
+**A verificação contra produção pós-merge** (probe de rota nova e gate do
+Lighthouse) é o ritual do `CLAUDE.md` e roda depois do deploy — ver a seção
+"Fechar uma fase".
 
 ---
 
