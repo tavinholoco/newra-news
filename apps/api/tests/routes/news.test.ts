@@ -45,6 +45,57 @@ describe('GET /api/news', () => {
     expect(body.meta.totalPages).toBeTypeOf('number');
   });
 
+  it('should serialize a real row through the response schema', async () => {
+    const id = 'a0000000-0000-0000-0000-000000000001';
+    // **A listagem nunca tinha serializado uma linha de verdade.** O
+    // `listNews` estava mockado em `{ data: [], total: 0 }` em toda a suíte, e
+    // a rota mais chamada do produto passava por `data: []` — o `map` que
+    // converte as datas ficava sem execução, e o schema de resposta sem
+    // exercício.
+    //
+    // Isso importa porque o `fastify-type-provider-zod` serializa **pelo
+    // schema**: campo que o serviço carrega e o schema não declara é
+    // descartado em silêncio. Com a lista sempre vazia, a suíte não podia
+    // achar a versão deste defeito que custou um dia de produção na Fase 5.
+    vi.mocked(listNews).mockResolvedValueOnce({
+      data: [
+        {
+          id: id,
+          title: 'Manchete',
+          description: 'Resumo',
+          content: 'Corpo',
+          source: 'G1',
+          sourceUrl: 'https://g1.globo.com/x',
+          imageUrl: 'https://g1.globo.com/x.jpg',
+          category: 'TECHNOLOGY',
+          publishedAt: new Date('2026-08-23T10:00:00.000Z'),
+          createdAt: new Date('2026-08-23T10:05:00.000Z'),
+          updatedAt: new Date('2026-08-23T10:06:00.000Z'),
+        },
+      ],
+      total: 1,
+    } as never);
+
+    const res = await app.inject({ method: 'GET', url: '/api/news' });
+    const body = JSON.parse(res.body) as { data: Record<string, unknown>[] };
+    const [item] = body.data;
+
+    expect(res.statusCode).toBe(200);
+    expect(item).toEqual({
+      id: id,
+      title: 'Manchete',
+      description: 'Resumo',
+      content: 'Corpo',
+      source: 'G1',
+      sourceUrl: 'https://g1.globo.com/x',
+      imageUrl: 'https://g1.globo.com/x.jpg',
+      category: 'TECHNOLOGY',
+      publishedAt: '2026-08-23T10:00:00.000Z',
+      createdAt: '2026-08-23T10:05:00.000Z',
+      updatedAt: '2026-08-23T10:06:00.000Z',
+    });
+  });
+
   it('should accept custom pagination params', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/news?page=2&limit=5' });
     expect(res.statusCode).toBe(200);
