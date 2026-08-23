@@ -629,6 +629,50 @@ origem, truncado em 100). É mais uma razão para a rota ser admin-only. Teto de
 
 ## Saúde
 
+### GET /api/metrics/http (admin)
+
+As duas métricas técnicas que a §26 do plano promete — **error rate** e **API
+latency** — na única forma em que elas existem: a janela do processo que está no
+ar. Até a Fase 9 não havia instrumentação nenhuma, e os dois números eram uma
+promessa sem produtor.
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "since": "ISO string",
+    "uptimeSeconds": 3600,
+    "totalRequests": 1284,
+    "errorRate": 0.0008,
+    "clientErrorRate": 0.012,
+    "latencyMs": { "avg": 42, "p50": 50, "p95": 250, "p99": 500, "max": 4903 },
+    "routes": [
+      { "route": "GET /api/news", "count": 812, "errorRate": 0, "avgMs": 38, "p95Ms": 100, "maxMs": 940 }
+    ]
+  }
+}
+```
+
+> **`since` e `uptimeSeconds` não são enfeite.** A janela é em memória: **zera a
+> cada deploy e a cada hibernação** (o plano free do Render dorme com ~15 min
+> sem tráfego), e com mais de uma instância cada uma responde a sua. Sem esses
+> dois campos, um `errorRate: 0` logo depois de um deploy pareceria saúde e
+> seria só ausência de amostra.
+>
+> **Por que em memória:** a alternativa era uma escrita no Prisma por
+> requisição para responder a uma pergunta que se faz uma vez por semana — a
+> armadilha da tabela sem leitor, de novo. **O gatilho para persistir** é mais
+> de uma instância no Render, ou a primeira pergunta que exija comparar duas
+> semanas.
+
+> Os percentis vêm de histograma, então são **o teto do bucket** em que o
+> percentil cai (`50, 100, 250, 500, 1000, 2500, 5000` ms), não o valor exato.
+> Guardar amostra para responder exato seria memória proporcional ao tráfego.
+
+**Resposta 401/403:** sem token, ou sem `role: ADMIN`.
+
+---
+
 ### GET /api/health
 
 Healthcheck do servidor (usado pelo UptimeRobot).
@@ -824,6 +868,49 @@ Remove um item salvo. `itemType` na URL é minúsculo: `news` ou `article`.
 **Resposta 404:** `{ "error": "Favorite not found" }` — não estava salvo.
 
 **Resposta 401 (todas):** token ausente ou inválido.
+
+---
+
+## Autenticação
+
+> A API não tem sessão própria: quem autentica é o frontend (next-auth), e o
+> que atravessa a fronteira é um **JWT HS256 assinado com o `AUTH_JWT_SECRET`
+> compartilhado**. Todas as rotas protegidas o exigem em
+> `Authorization: Bearer <jwt>`.
+
+### POST /api/auth/upsert
+
+Cria (ou atualiza) o usuário na primeira vez que ele entra. É chamada pelo
+callback `jwt` do next-auth, server-side, **não pelo browser**.
+
+**Requer um token com `purpose: "auth-upsert"`** — e é o único endpoint que o
+aceita. O token de sessão (que não carrega `purpose`) é recusado aqui com 401, e
+o de `auth-upsert` é recusado em todas as outras rotas protegidas. Até a revisão
+da Fase 9 essa checagem existia só dentro deste handler, e o token de upsert
+passava no `/api/favorites` como se fosse de sessão.
+
+**Body:** `{ "email": string, "name"?: string | null, "image"?: string | null }`
+
+**Resposta 200:**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "email": "string",
+    "name": "string | null",
+    "image": "string | null",
+    "role": "USER | ADMIN"
+  }
+}
+```
+
+> O `role` sai de `ADMIN_EMAILS`: o e-mail listado ali nasce `ADMIN`. É este
+> valor que o frontend grava na sessão e reassina nos tokens seguintes, e é por
+> ele que o `DELETE /api/news/:id` e as métricas de admin decidem.
+
+**Resposta 401:** token ausente, inválido, com o `purpose` errado, ou com um
+`email` que não bate com o do corpo — sem essa amarração, um token válido
+criaria usuário para outro e-mail.
 
 ---
 
