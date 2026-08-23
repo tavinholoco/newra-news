@@ -268,16 +268,60 @@ describe('GET /dev/dashboard', () => {
   it('should return 401 with a wrong secret', async () => {
     const res = await app.inject({
       method: 'GET',
-      url: '/dev/dashboard?secret=wrong-secret',
+      url: '/dev/dashboard',
+      headers: { authorization: 'Bearer wrong-secret' },
     });
 
     expect(res.statusCode).toBe(401);
   });
 
-  it('should render the HTML dashboard when the secret is passed as query param', async () => {
+  // ── O segredo saiu da query string na revisao da Fase 9 ───────────────────
+  //
+  // `?secret=` entra em log de acesso do proxy, em historico do browser e no
+  // `Referer` de qualquer link que a pagina abra — tres canais que ninguem
+  // controla depois. Este teste e a guarda que impede a volta: ele falha no
+  // instante em que alguem reintroduzir a leitura da query.
+
+  it('should NOT accept the secret as a query param', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/dev/dashboard?secret=test-secret',
+    });
+
+    expect(res.statusCode).toBe(401);
+    // E a resposta nao pode ecoar o segredo de volta na pagina.
+    expect(res.body).not.toContain('test-secret');
+  });
+
+  it('should render the login form (not the dashboard) when unauthenticated', async () => {
+    const res = await app.inject({ method: 'GET', url: '/dev/dashboard' });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('<form');
+    expect(res.body).not.toContain('Ultimos runs');
+  });
+
+  it('should render the HTML dashboard for a session cookie issued by POST', async () => {
+    const login = await app.inject({
+      method: 'POST',
+      url: '/dev/dashboard/session',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'secret=test-secret',
+    });
+
+    expect(login.statusCode).toBe(303);
+    const setCookie = String(login.headers['set-cookie']);
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Strict');
+    // O cookie e uma assinatura com prazo, nunca o proprio segredo.
+    expect(setCookie).not.toContain('test-secret');
+
+    const cookie = setCookie.split(';')[0] ?? '';
+    const res = await app.inject({
+      method: 'GET',
+      url: '/dev/dashboard',
+      headers: { cookie },
     });
 
     expect(res.statusCode).toBe(200);
@@ -288,6 +332,35 @@ describe('GET /dev/dashboard', () => {
     expect(res.body).toContain('SUCCESS');
     expect(res.body).toContain('FAILED');
     expect(res.body).toContain('Gemini API error 500: boom');
+  });
+
+  it('should not issue a session cookie for a wrong secret', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/dev/dashboard/session',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: 'secret=wrong-secret',
+    });
+
+    expect(res.statusCode).toBe(303);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('should declare a nonce-based CSP for the page', async () => {
+    // A CSP global e `default-src 'none'`, que mata o estilo inline da pagina.
+    // A excecao e por resposta e por nonce — nao afrouxando a global.
+    const res = await app.inject({
+      method: 'GET',
+      url: '/dev/dashboard',
+      headers: { authorization: 'Bearer test-secret' },
+    });
+
+    const csp = String(res.headers['content-security-policy']);
+    const nonce = /style-src 'nonce-([^']+)'/.exec(csp)?.[1];
+
+    expect(nonce).toBeTruthy();
+    expect(res.body).toContain(`<style nonce="${nonce}">`);
+    expect(csp).toContain("default-src 'none'");
   });
 
   it('should also accept the secret via Authorization header', async () => {
@@ -314,7 +387,8 @@ describe('GET /dev/dashboard', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: '/dev/dashboard?secret=test-secret',
+      url: '/dev/dashboard',
+      headers: { authorization: 'Bearer test-secret' },
     });
 
     expect(res.statusCode).toBe(200);

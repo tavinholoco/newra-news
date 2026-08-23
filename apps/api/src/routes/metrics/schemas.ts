@@ -115,4 +115,38 @@ export const monthlyQuerySchema = z.object({
     .optional(),
 });
 
+/**
+ * Metricas de HTTP do processo (§9.5).
+ *
+ * `since` e `uptimeSeconds` nao sao enfeite: sao o que diz **de quanto tempo**
+ * a janela fala. Sem eles, um `errorRate: 0` logo depois de um deploy pareceria
+ * saude e seria so ausencia de amostra.
+ */
+const httpMetricsRouteSchema = z.object({
+  route: z.string(),
+  count: z.number(),
+  errorRate: z.number(),
+  avgMs: z.number(),
+  p95Ms: z.number(),
+  maxMs: z.number(),
+});
+
+export const httpMetricsSchema = z.object({
+  since: z.string(),
+  uptimeSeconds: z.number(),
+  totalRequests: z.number(),
+  errorRate: z.number(),
+  clientErrorRate: z.number(),
+  latencyMs: z.object({
+    avg: z.number(),
+    p50: z.number(),
+    p95: z.number(),
+    p99: z.number(),
+    max: z.number(),
+  }),
+  routes: z.array(httpMetricsRouteSchema),
+});
+
+export const httpMetricsResponseSchema = z.object({ data: httpMetricsSchema });
+
 export { errorResponseSchema } from '../../utils/schemas';

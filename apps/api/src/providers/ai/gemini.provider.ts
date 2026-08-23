@@ -1,8 +1,8 @@
 import { env } from '../../config/env';
-import { ARTICLE_SYSTEM_PROMPT, ARTICLE_USER_PROMPT } from '../../config/ai-prompts';
+import { ARTICLE_SYSTEM_PROMPT } from '../../config/ai-prompts';
 import {
   attachRetryAfter,
-  formatNewsItems,
+  buildArticleUserPrompt,
   parseMarkdownResponse,
   withRetry,
 } from './ai-utils';
@@ -20,7 +20,7 @@ interface GeminiApiResponse {
 }
 
 async function requestArticle(newsItems: RawNewsItem[]): Promise<GeneratedArticle> {
-  const userPrompt = ARTICLE_USER_PROMPT + formatNewsItems(newsItems);
+  const userPrompt = buildArticleUserPrompt(newsItems);
   const url = `${GEMINI_BASE_URL}/${env.GEMINI_MODEL}:generateContent`;
 
   const controller = new AbortController();

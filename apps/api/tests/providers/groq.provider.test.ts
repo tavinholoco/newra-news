@@ -15,7 +15,7 @@ Este é o primeiro parágrafo com o resumo do artigo.
 
 ## Seção Principal
 
-Conteúdo detalhado do artigo aqui.`;
+Conteúdo detalhado do artigo aqui, com a extensão que um briefing de verdade tem. O parser passou a recusar resposta curta demais na revisão da Fase 9, porque resposta curta é o formato de uma recusa do modelo ou do eco de uma instrução vinda no material — e não o de um artigo. O texto abaixo existe só para o fixture cruzar esse piso sem depender de número mágico espalhado pelos testes.`;
 
 function makeFetchMock(markdown = MOCK_MARKDOWN) {
   return vi.fn().mockResolvedValue(successResponse(markdown));

@@ -21,5 +21,13 @@
   "devDependencies": {
     "turbo": "^2.3.0",
     "prettier": "^3.4.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri@2": "^2.4.4",
+      "fast-uri@3": "^3.1.5",
+      "brace-expansion@2": "^2.1.4",
+      "yaml@2": "^2.8.3"
+    }
   }
 }
