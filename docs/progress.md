@@ -69,6 +69,10 @@
 >
 > **A ingestão está no ar** desde 22/08: `POST /api/events` responde 201 em produção. O 404 anterior não era o deploy — era o `@newranews/types` não emitir JavaScript (item **30**). A tela de métricas fecha a fase no item **31**.
 
+**Newra News V2.0 — as fases finais replanejadas** ✅ **2026-08-23**
+
+> A "Fase 9 — Release" da §28 virou **quatro**: **9 (backend review)**, **10 (frontend review)**, **11 (integração geral)** e **12 (ajustes finos e release final)**, cada uma com inventário fechado, eixos de **segurança (`S`)** e **testes (`T`)** obrigatórios, e critério de saída. O planejamento achou quinze coisas verificadas antes de qualquer código — entre elas o site **sem nenhum cabeçalho de segurança**, o feed RSS escrevendo **no mesmo canal das instruções da IA**, e **40 advisories high** em dependências de produção. Suíte, build e produção conferidos: a Fase 9 pode abrir. Ver **item 33**.
+
 ---
 
 ## Plano de Ação — Continuar o Desenvolvimento (atualizado 2026-08-16)
@@ -2194,7 +2198,117 @@ pasta. Recapturar agora traria só a diferença de conteúdo do dia, que é ruí
 
 #### Estado do projeto após a auditoria
 
-**Fases 0 a 8 concluídas.** A próxima é a **9 (Release)**.
+**Fases 0 a 8 concluídas.** A próxima é a **9 (Backend review)** — a antiga
+"Fase 9 — Release" virou quatro fases no item **33**.
+
+---
+
+### 33. A Fase 9 virou quatro — o plano das fases finais ✅ 2026-08-23
+
+> Branch `docs/v2-final-phases`. **Nenhuma linha de código de produto.** A §28 do
+> plano fechava com uma fase de oito itens de checklist ("Fase 9 — Release") e
+> passou a ter quatro fases planejadas: **9 (backend review)**, **10 (frontend
+> review)**, **11 (integração geral)** e **12 (ajustes finos e release final)**.
+
+#### Por que quatro
+
+Os oito itens da Fase 9 original eram todos de *verificação de saída* —
+regressão visual, QA, Lighthouse, smoke, SEO, analytics, canary. Nenhum olha
+para dentro do que oito fases construíram, e **os quatro defeitos mais caros
+deste projeto não seriam achados por nenhum deles**: o schema que descartava o
+que o serviço carregava (Fase 5), a imagem OG inalcançável (Fase 7), o pacote
+que compilava sem emitir JavaScript (Fase 8) e o gate medindo cold start (item
+32). Três dos quatro já estavam **em produção** quando foram achados.
+
+#### A anatomia, e a camada obrigatória
+
+Cada fase de revisão abre com **inventário fechado** (senão não tem critério de
+parada) e fecha com a regra de triagem: **todo achado sai como correção
+mergeada, guarda no CI, ou dívida com gatilho numérico** — nunca como item de
+lista.
+
+Sobre isso, **duas trilhas obrigatórias em todas as quatro fases**: o eixo `S`
+(segurança) e o eixo `T` (testes e guardas), com duas regras próprias:
+
+- **achado de segurança não vira dívida sem aceite de risco escrito** — qual é o
+  risco, quem aceita, o que mudaria a decisão;
+- **todo achado de segurança sai com o teste que o mantém fechado** — o
+  `runtime-deps.test.ts` é o modelo: não conserta nada, impede que volte.
+
+A superfície é dividida para não haver sobreposição nem buraco: **9** cuida do
+servidor, **10** do navegador, **11** da costura, **12** do gate. Nenhum dos dois
+eixos é adiável para a fase seguinte.
+
+#### O que a análise já achou, planejando
+
+Não era o objetivo, mas a varredura para montar o inventário achou quinze coisas
+verificadas. As que mais pesam:
+
+| Achado | Fase | Como foi verificado |
+|---|---|---|
+| **O site não tem cabeçalho de segurança nenhum** — a API tem o conjunto do helmet | 10.S | medido em produção |
+| **O feed RSS escreve no mesmo canal das instruções da IA** — sem delimitador, sem escape, e a saída publica sozinha | 9.S | leitura de `ai-prompts.ts` + `formatNewsItems` |
+| **116 advisories** (`pnpm audit`), **102 em produção, 40 high** — `next` só corrigido na 15, `fastify` na 5 | 9.S/10.S | `pnpm audit --prod` |
+| `POST /api/auth/upsert` no código e ausente da `docs/api.md` (34 rotas × 32 documentadas) | 9.1 | comparação rota a rota |
+| Sem `trustProxy` e com todo tráfego server-side saindo da Vercel, o balde de rate limit **pode ser um só** — o teto de 30/min da `/api/events` viraria teto global de ingestão | 9.S | **hipótese**, com experimento definido |
+| CORS permite só `GET`/`POST`, e existem 2 PUT + 2 DELETE — funcionam por passarem pelo BFF | 9.S/11.S | leitura + contagem de rotas |
+| `render.yaml` não declara `AUTH_JWT_SECRET` nem `ADMIN_EMAILS` | 11.7 | leitura do blueprint |
+| Nenhuma chamada `fetch` do web tem timeout, com a API hibernando no plano free | 11.2 | varredura por `AbortSignal`/`timeout` |
+| Playwright instalado, **sem config e sem uma única spec** | 11.T | `find` por `playwright.config` e `*.spec.ts` |
+| `@newranews/web` sem `test:coverage` — o piso de 70% do CI mede só a API | 10.T | leitura do `package.json` |
+| §26 promete **error rate, API latency e cache hit rate**; nenhuma instrumentação existe | 9.5/11.3/12.2 | varredura por `onResponse`, `latency`, `p95` |
+| 53 de 75 componentes são `'use client'` (21 de 28 na camada editorial) | 10.1 | contagem |
+| Baseline com 6 imagens escuras em 3 rotas; **9 rotas sem referência dark** | 10.3 | contagem em `docs/v2/baseline-v2/` |
+| `remotePatterns: hostname: '**'` — otimizador de imagem aberto a qualquer host | 10.6 | leitura do `next.config.js` |
+| Zero tags e nenhum CHANGELOG; README com capturas e texto da V1 (16/08) | 12.4 | `git tag` + `ls docs/screenshots` |
+
+**Uma coisa saudável, registrada de propósito:** o `article-body` não é um
+renderizador de Markdown — devolve nós de React —, e a decisão tomada por peso
+de bundle **também é a mitigação de XSS** do texto gerado por IA. Isso precisa
+estar escrito, porque trocar por `react-markdown` um dia perderia a propriedade
+junto.
+
+#### A varredura de dependência mudou o cronograma
+
+O plano original punha a varredura na Fase 12, como gate. Rodada em 23/08, ela
+devolveu **40 advisories high em dependências de produção**, e dois deles só se
+resolvem em **major de framework** (`next` 14 → 15, `fastify` 4 → 5). Major de
+framework na fase de ajuste fino seria mexer na fundação depois de as três
+revisões terem certificado o que está em cima. A medição passou para **9.S** e
+**10.S**; a **12.S** ficou com o gate.
+
+#### Certificação de que a Fase 9 pode abrir
+
+Rodado nesta branch, em 23/08:
+
+| Verificação | Resultado |
+|---|---|
+| `turbo lint` + `turbo typecheck` | **10 tarefas, 0 falhas** |
+| `turbo test` (API, sem cache) | **575 testes em 45 suítes** |
+| `turbo test` (web) | **451 testes em 50 suítes** |
+| `turbo test:coverage` (API, sem cache) | **98,03% stmts · 93,48% branch · 98,76% funcs** |
+| `turbo build` | **4 tarefas, 0 falhas** |
+| `GET /api/health` em produção | **200** |
+| `origin/main` | PR #129 mergeado (`3e60b61`) |
+
+**1.026 testes verdes, build limpo, produção no ar.** A Fase 9 abre sem dívida
+de suíte herdada.
+
+#### Correções de deriva incluídas
+
+- A §28 marcava a **Fase 8 como "🔶 em andamento"** com a tela de métricas
+  desmarcada, embora ela esteja concluída desde 22/08 e auditada em 23/08.
+  Passou a ✅, com os itens 31 e 32 referenciados no checklist.
+- A §29 ganhou as quatro branches novas (`review/v2-*`, `release/v2.0`) e a
+  regra de que, em fase de revisão, **a branch é guarda-chuva e cada eixo sai em
+  PR próprio** — com `S` e `T` sempre separados.
+
+#### Onde ficou
+
+- **O plano das quatro fases:** `docs/Newra-News-V2-Frontend-Redesign-Plan.md`,
+  §28 — "As quatro fases finais", com "Anatomia de uma fase de revisão", "A
+  camada de segurança e testes" e uma seção por fase.
+- **A ordem:** 9 ‖ 10 → 11 → 12, em "Ordem, paralelismo e branches".
 
 ---
 

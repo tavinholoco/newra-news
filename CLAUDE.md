@@ -100,7 +100,10 @@ do dia mudou, ou há algo errado.
 ## Status Atual
 
 - **Onde estamos:** V2.0 com as **Fases 0 a 8 concluídas**; a Fase 8 foi
-  auditada em 23/08. **A próxima é a Fase 9 (Release).**
+  auditada em 23/08. **A próxima é a Fase 9 (Backend review).** A antiga "Fase 9
+  — Release" foi reescrita em 23/08 e virou **quatro**: **9 (backend review)**,
+  **10 (frontend review)**, **11 (integração geral)** e **12 (ajustes finos e
+  release final)** — §28 do plano.
 - **Última entrega (2026-08-23):** a **auditoria de fechamento da Fase 8**, que
   achou o gate do Lighthouse medindo *cold start* e não página — o workflow
   passou a aquecer sozinho. Antes dela, **a tela de métricas de produto** fechou
@@ -115,17 +118,39 @@ do dia mudou, ou há algo errado.
 - **Testes:** 1.026 em 95 suites (575 API em 45 + 451 web em 50 — todos
   passando).
 
-### Por onde começar a Fase 9 (Release)
+### Por onde começar a Fase 9 (Backend review)
 
-**A Fase 8 está fechada.** Leia os itens **26 a 31** do `docs/progress.md` — a
-camada de analytics, o cancelamento do anúncio, o conserto do empacotamento e a
-tela de métricas.
+**A Fase 8 está fechada.** Leia os itens **26 a 32** do `docs/progress.md` — a
+camada de analytics, o cancelamento do anúncio, o conserto do empacotamento, a
+tela de métricas e a auditoria de fechamento.
 
-O checklist da Fase 9 está na §28: regressão visual, QA mobile e desktop,
-Lighthouse CI, smoke E2E, validação de SEO e de analytics, e canary de produção.
-**Boa parte já existe** — a baseline visual (§30), o gate do Lighthouse e a
-validação de SEO da Fase 7 —, então vale começar levantando o que de fato falta
-em vez de refazer.
+**O plano das quatro fases finais está na §28**, com inventário fechado,
+checklist por eixo e critério de saída para cada uma. Antes de abrir a 9, leia
+duas coisas de lá:
+
+- **"Anatomia de uma fase de revisão"** — a regra que vale para as três de
+  revisão: **todo achado sai como correção mergeada, guarda no CI, ou dívida com
+  gatilho numérico**. Nunca como item de lista. E cada fase abre com inventário
+  fechado, senão não tem critério de parada.
+- **"A camada de segurança e testes"** — os eixos **`S`** e **`T`** são
+  obrigatórios nas quatro fases e **não são adiáveis para a seguinte**. Achado de
+  segurança **não vira dívida sem aceite de risco escrito**, e **sai sempre com o
+  teste que o mantém fechado**. Os dois eixos saem em PR próprio.
+- **A ordem:** 9 e 10 correm **em paralelo** (apps diferentes, sem conflito de
+  arquivo); a 11 só abre com as duas mergeadas; a 12 só depois da 11.
+
+**Três achados de segurança já verificados** esperam a fase que os cobre — estão
+no item **33** do `docs/progress.md` com o método de verificação: o **site não
+tem nenhum cabeçalho de segurança** (a API tem o conjunto do helmet); o **feed
+RSS escreve no mesmo canal das instruções da IA**, e a saída é publicada sem
+revisão humana; e **40 advisories high em dependências de produção**, dois deles
+só corrigíveis em major (`next` 14→15, `fastify` 4→5).
+
+**Boa parte dos oito itens da antiga Fase 9 já existe** — a baseline visual
+(§30), o gate do Lighthouse e a validação de SEO da Fase 7. O que **não** existe
+e a §28 nomeia: o smoke E2E (o Playwright está instalado sem config e sem uma
+única spec), o limiar de cobertura do web, a guarda de deriva da `docs/api.md`,
+e a extensão do `SchemaMatchesSharedType` para além da rota de eventos.
 
 Três coisas a saber:
 
