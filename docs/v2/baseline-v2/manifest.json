@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-22T02:54:26.877Z",
+  "capturedAt": "2026-08-24T15:06:41.802Z",
   "baseUrl": "https://newra-news-web.vercel.app",
   "format": "jpeg",
   "viewports": [
@@ -70,19 +70,25 @@
     },
     {
       "file": "news-detail--375.jpg",
-      "route": "/pt-BR/news/253ee67a-dcc0-4e76-9695-fa83f9072c65",
+      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--768.jpg",
-      "route": "/pt-BR/news/253ee67a-dcc0-4e76-9695-fa83f9072c65",
+      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--1440.jpg",
-      "route": "/pt-BR/news/253ee67a-dcc0-4e76-9695-fa83f9072c65",
+      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "news-detail--1440-dark.jpg",
+      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
       "status": 200,
       "ok": true
     },
@@ -100,6 +106,12 @@
     },
     {
       "file": "article-history--1440.jpg",
+      "route": "/pt-BR/article",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "article-history--1440-dark.jpg",
       "route": "/pt-BR/article",
       "status": 200,
       "ok": true
@@ -123,6 +135,12 @@
       "ok": true
     },
     {
+      "file": "about--1440-dark.jpg",
+      "route": "/pt-BR/about",
+      "status": 200,
+      "ok": true
+    },
+    {
       "file": "newsletter--375.jpg",
       "route": "/pt-BR/newsletter",
       "status": 200,
@@ -136,6 +154,12 @@
     },
     {
       "file": "newsletter--1440.jpg",
+      "route": "/pt-BR/newsletter",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "newsletter--1440-dark.jpg",
       "route": "/pt-BR/newsletter",
       "status": 200,
       "ok": true
@@ -159,6 +183,12 @@
       "ok": true
     },
     {
+      "file": "signin--1440-dark.jpg",
+      "route": "/pt-BR/signin",
+      "status": 200,
+      "ok": true
+    },
+    {
       "file": "favorites-anon--375.jpg",
       "route": "/pt-BR/favorites",
       "status": 200,
@@ -172,6 +202,12 @@
     },
     {
       "file": "favorites-anon--1440.jpg",
+      "route": "/pt-BR/favorites",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "file": "favorites-anon--1440-dark.jpg",
       "route": "/pt-BR/favorites",
       "status": 200,
       "ok": true
@@ -195,6 +231,12 @@
       "ok": true
     },
     {
+      "file": "newsletter-unsubscribe--1440-dark.jpg",
+      "route": "/pt-BR/newsletter/unsubscribe",
+      "status": 200,
+      "ok": true
+    },
+    {
       "file": "not-found--375.jpg",
       "route": "/pt-BR/rota-que-nao-existe",
       "status": 404,
@@ -208,6 +250,12 @@
     },
     {
       "file": "not-found--1440.jpg",
+      "route": "/pt-BR/rota-que-nao-existe",
+      "status": 404,
+      "ok": true
+    },
+    {
+      "file": "not-found--1440-dark.jpg",
       "route": "/pt-BR/rota-que-nao-existe",
       "status": 404,
       "ok": true
@@ -231,32 +279,38 @@
       "ok": true
     },
     {
+      "file": "home-en--1440-dark.jpg",
+      "route": "/en",
+      "status": 200,
+      "ok": true
+    },
+    {
       "file": "article-detail--375.jpg",
-      "route": "/pt-BR/article/2026-08-21",
+      "route": "/pt-BR/article/2026-08-24",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--375-dark.jpg",
-      "route": "/pt-BR/article/2026-08-21",
+      "route": "/pt-BR/article/2026-08-24",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--768.jpg",
-      "route": "/pt-BR/article/2026-08-21",
+      "route": "/pt-BR/article/2026-08-24",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--1440.jpg",
-      "route": "/pt-BR/article/2026-08-21",
+      "route": "/pt-BR/article/2026-08-24",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--1440-dark.jpg",
-      "route": "/pt-BR/article/2026-08-21",
+      "route": "/pt-BR/article/2026-08-24",
       "status": 200,
       "ok": true
     }

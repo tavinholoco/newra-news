@@ -45,11 +45,25 @@ const VIEWPORTS = WIDTHS
 const FORMAT = process.env.FORMAT === 'jpeg' ? 'jpeg' : 'png';
 const QUALITY = Number(process.env.QUALITY ?? 82);
 
-// Rotas com captura em dark mode além do claro. O dark é uma opção real de
-// leitura na V2 (§4.2), mas capturar as 11 rotas nos 2 temas dobraria o peso do
-// diretório sem acrescentar informação nova nas páginas de formulário.
-const DARK_ROUTES = new Set(['home', 'news', 'article-detail']);
-const DARK_VIEWPORTS = new Set(['375', '1440']);
+// **Toda rota tem referência escura desde a revisão 10.3.** Antes eram tres
+// (home, news, article-detail), e nove telas nunca tinham sido capturadas no
+// escuro. A justificativa de entao — "nao acrescenta informacao nova nas
+// paginas de formulario" — nao se sustentou: o dark e exatamente onde token
+// errado aparece, porque um `bg-white` esquecido e invisivel no claro e
+// ilegivel no escuro, e foi esse o bug da Fase 5 da V1.
+//
+// O peso fica controlado pela largura, nao pela rota: **1440 para todas**, e as
+// tres telas de conteudo mantem tambem o 375, que e onde a hierarquia
+// tipografica aperta. Sao 9 imagens a mais, e o diff continua deterministico.
+const DARK_VIEWPORTS_POR_ROTA = new Set(['home', 'news', 'article-detail']);
+const DARK_VIEWPORTS = new Set(['1440']);
+const DARK_VIEWPORTS_EXTRA = new Set(['375']);
+
+/** Esta rota, nesta largura, tambem e capturada no escuro? */
+function capturaDark(slug, viewport) {
+  if (DARK_VIEWPORTS.has(viewport)) return true;
+  return DARK_VIEWPORTS_POR_ROTA.has(slug) && DARK_VIEWPORTS_EXTRA.has(viewport);
+}
 
 /** Desliga animação/transição/caret para o screenshot ser determinístico. */
 const FREEZE_CSS = `
@@ -174,7 +188,7 @@ async function main() {
       console.log(`\n${route.slug} — ${route.url}`);
       for (const viewport of VIEWPORTS) {
         results.push(await capture(browser, route, viewport, 'light'));
-        if (DARK_ROUTES.has(route.slug) && DARK_VIEWPORTS.has(viewport.name)) {
+        if (capturaDark(route.slug, viewport.name)) {
           results.push(await capture(browser, route, viewport, 'dark'));
         }
       }

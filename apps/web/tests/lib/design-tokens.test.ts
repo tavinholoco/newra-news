@@ -68,6 +68,46 @@ describe('camada semântica dos tokens', () => {
     expect(findMatches(raw)).toEqual([]);
   });
 
+  it('nenhuma cor fixa de tema, fora dos quatro véus declarados', () => {
+    /**
+     * **O buraco que a revisão 10.3 achou na própria guarda.** A varredura de
+     * cor crua acima exige sufixo numérico (`-\d{2,3}`), então
+     * `bg-white`, `text-black` e os cinzas neutros (`gray`, `slate`, `zinc`,
+     * `neutral`, `stone`) passavam batido — e são justamente as classes que
+     * **somem no claro e ficam ilegíveis no escuro**. Foi esse o bug da Fase 5
+     * da V1, e a baseline não pegava porque nove das doze rotas não tinham
+     * captura escura nenhuma.
+     *
+     * As quatro ocorrências que existem hoje são **véu sobre conteúdo**, não
+     * superfície: preto translúcido por cima de uma foto ou por cima da página.
+     * Véu não inverte com o tema — a foto é a mesma nos dois —, e por isso são
+     * exceção declarada em vez de exceção esquecida.
+     */
+    const VEUS_PERMITIDOS: Record<string, string> = {
+      'components/editorial/save-button.tsx':
+        'véu sobre a foto do card: `bg-black/40` + `text-white` precisam ser fixos porque a imagem é a mesma nos dois temas',
+      'components/layout/mobile-nav.tsx':
+        'véu do menu mobile sobre a página: `bg-black/30`',
+    };
+
+    const FIXAS =
+      /\b(?:bg|text|border|ring|from|to|via|divide|decoration|outline)-(?:white|black)(?:\/\d+)?\b/;
+    const NEUTRAS =
+      /\b(?:bg|text|border|ring|from|to|via|divide)-(?:gray|slate|zinc|neutral|stone)-\d{2,3}\b/g;
+
+    // Cinza neutro do Tailwind nao tem desculpa: a escala semantica tem
+    // superficie, linha e tres niveis de texto, todos redeclarados no `.dark`.
+    expect(findMatches(NEUTRAS)).toEqual([]);
+
+    // Sem a flag `g` no teste por arquivo: `RegExp.test` com `g` guarda
+    // `lastIndex` entre chamadas e pula arquivo sim, arquivo nao.
+    const arquivosComFixa = SOURCES.filter(({ source }) => FIXAS.test(source))
+      .map(({ file }) => file.split(String.fromCharCode(92)).join('/'))
+      .sort();
+
+    expect(arquivosComFixa).toEqual(Object.keys(VEUS_PERMITIDOS).sort());
+  });
+
   it('o radius fica nos 5 níveis da escala', () => {
     // `rounded-xl`/`2xl`/`3xl`/`4xl` continuam existindo como utility do
     // Tailwind, com valores fora da escala. Manter dois nomes para o mesmo

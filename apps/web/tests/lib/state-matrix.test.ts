@@ -285,6 +285,43 @@ describe('a matriz de estado das rotas', () => {
     expect(semNoindex).toEqual([]);
   });
 
+  it('a folha de estilo é importada na raiz, senão a 404 vai ao ar sem CSS', () => {
+    /**
+     * **O defeito que a cobertura escura da §10.3 pôs à vista.** A 404 —
+     * a página que **todo endereço errado do site alcança**, inclusive os com
+     * prefixo de idioma — renderizava com **zero CSS**: Times New Roman, link
+     * azul sublinhado e fundo branco mesmo no tema escuro. Medido em produção:
+     * o HTML dela não tinha `<link rel="stylesheet">` nenhum, enquanto a Home
+     * carregava 56 kB.
+     *
+     * A causa é de empacotamento, não de escrita: o `globals.css` era importado
+     * pelo `app/[locale]/layout.tsx`, e o Next prende o chunk à entrada que o
+     * importa. A rota `_not-found` da raiz **não passa por aquele layout**.
+     * Importar o mesmo arquivo nos dois lugares não resolve — o Next deduplica
+     * e o chunk continua onde estava. Ele precisa morar **só** na raiz.
+     *
+     * E estava assim na baseline versionada havia fases, na captura clara, sem
+     * ninguém notar.
+     */
+    const raiz = readFileSync(path.resolve(WEB_ROOT, 'app/layout.tsx'), 'utf8');
+    const localeLayout = readFileSync(path.join(APP, 'layout.tsx'), 'utf8');
+
+    expect(raiz).toContain("import '@/styles/globals.css'");
+
+    const importaNoLocale = /^import '@\/styles\/globals\.css';/m.test(localeLayout);
+    expect(importaNoLocale).toBe(false);
+  });
+
+  it('a 404 da raiz aplica o tema salvo', () => {
+    // Ela renderiza fora do layout de idioma, então precisa do próprio
+    // `ThemeInit` — sem ele é a única tela do site onde o tema escuro
+    // escolhido não vale.
+    const notFound = readFileSync(path.resolve(WEB_ROOT, 'app/not-found.tsx'), 'utf8');
+
+    expect(notFound).toContain('<ThemeInit />');
+    expect(notFound).toMatch(/<html[\s\S]*?<body/);
+  });
+
   it('as telas atrás de sessão são dinâmicas', () => {
     // `redirect()` de sessão numa página SSG seria assado no HTML estático e
     // valeria para todo mundo. O guard vive no layout do segmento.

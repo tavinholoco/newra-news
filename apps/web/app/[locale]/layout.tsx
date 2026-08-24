@@ -7,7 +7,9 @@ import {
   getTranslations,
   setRequestLocale,
 } from 'next-intl/server';
-import '@/styles/globals.css';
+// O `globals.css` subiu para `app/layout.tsx` na revisao 10.3: importado
+// aqui, o chunk ficava preso a esta entrada e a rota `_not-found` da raiz —
+// que nao passa por este layout — ia ao ar sem uma linha de CSS.
 import { cn } from '@/lib/utils';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
