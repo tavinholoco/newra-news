@@ -112,8 +112,26 @@ export async function proxyToApi(
   }
 
   const body = await backendResponse.json().catch(() => null);
-  return NextResponse.json(
+  const response = NextResponse.json(
     body ?? { error: `Upstream API returned ${backendResponse.status}` },
     { status: backendResponse.status },
   );
+
+  /**
+   * **E o id volta.** A metade que faltava, e a revisão do próprio código foi
+   * quem a expôs.
+   *
+   * Repassar o `x-request-id` de entrada, sozinho, não liga nada: quem chama
+   * este BFF é o **navegador**, e navegador não manda esse cabeçalho. A API
+   * gera o dela (`genReqId`) e a ecoa em toda resposta desde a Fase 9 — mas o
+   * proxy montava uma resposta nova e o id morria aqui.
+   *
+   * Devolvê-lo é o que fecha o circuito que o `x-request-id` existe para
+   * fechar: alguém relata "deu erro agora", lê o id na aba de rede, e ele acha
+   * a linha do log da API. Sem isto, o id existe e não alcança ninguém.
+   */
+  const upstreamId = backendResponse.headers.get('x-request-id');
+  if (upstreamId) response.headers.set('x-request-id', upstreamId);
+
+  return response;
 }

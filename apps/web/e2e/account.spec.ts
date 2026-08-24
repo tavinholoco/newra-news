@@ -81,13 +81,19 @@ test.describe('conta', () => {
     await expect(page.locator('main')).not.toContainText(/p95|error rate/i);
   });
 
-  test('leitor comum é barrado no BFF de admin — a segunda porta', async ({
-    request,
-    context,
-    baseURL,
-  }) => {
-    await signIn(context, baseURL as string, READER);
-    const response = await request.get('/api/admin/metrics', { failOnStatusCode: false });
+  test('leitor comum é barrado no BFF de admin — a segunda porta', async ({ page }) => {
+    /**
+     * **`page.request`, e não a fixture `request`.**
+     *
+     * A fixture `request` do Playwright é um contexto de rede **próprio**: ela
+     * não compartilha cookie com o `BrowserContext`, então a sessão forjada no
+     * `beforeEach` não chega nela. O teste devolveria 401 e passaria pela
+     * metade errada da porta — provando "não sei quem você é" onde o que
+     * importa provar é "sei, e não pode".
+     */
+    const response = await page.request.get('/api/admin/metrics', {
+      failOnStatusCode: false,
+    });
 
     // 403 e não 401: há sessão, falta papel. A distinção é o que separa "não
     // sei quem você é" de "sei, e não pode".

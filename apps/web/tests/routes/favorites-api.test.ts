@@ -21,6 +21,7 @@ function mockFetchOk(payload: unknown) {
     vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue(payload),
     }),
   );
@@ -118,6 +119,7 @@ describe('favorites proxy routes', () => {
       vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
+        headers: new Headers(),
         json: vi.fn().mockResolvedValue({ error: 'Favorite not found' }),
       }),
     );

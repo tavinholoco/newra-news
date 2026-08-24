@@ -18,8 +18,9 @@ import { join } from 'node:path';
  *
  * As três asserções abaixo escrevem a convenção como regra:
  *
- * 1. **o segredo compartilhado tem dois usuários, e são nominais** — quem
- *    assina JWT é o BFF e o callback de sign-in, mais ninguém;
+ * 1. **o segredo compartilhado tem três módulos nominais, e nenhum a mais** —
+ *    `lib/jwt.ts`, que é quem o lê, e os dois que assinam com ele: o BFF
+ *    (`lib/api-proxy.ts`) e o callback de sign-in (`lib/auth.ts`);
  * 2. **o cliente HTTP do navegador para a API só usa método público** — GET e
  *    POST, que é o que o CORS permite de fato para o navegador;
  * 3. **PUT e DELETE existem, e só atravessando o BFF** — as quatro rotas de
@@ -91,7 +92,7 @@ function methodOf(call: string): string {
 }
 
 describe('a fronteira de confiança entre o site e a API', () => {
-  it('keeps the shared secret in the two modules that are supposed to hold it', () => {
+  it('keeps the shared secret in the three modules that are supposed to hold it', () => {
     const holders = [join(WEB_ROOT, 'lib'), join(WEB_ROOT, 'app'), join(WEB_ROOT, 'components')]
       .flatMap(collectFiles)
       .filter((file) => {

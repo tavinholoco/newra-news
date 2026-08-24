@@ -200,6 +200,7 @@ describe('BFF — o que o proxy repassa e o que ele devolve', () => {
       vi.fn().mockResolvedValue({
         ok: false,
         status: 503,
+        headers: new Headers(),
         json: vi.fn().mockRejectedValue(new SyntaxError('not json')),
       }),
     );
@@ -220,6 +221,7 @@ describe('BFF — o que o proxy repassa e o que ele devolve', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ data: {} }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -241,6 +243,7 @@ describe('BFF — o que o proxy repassa e o que ele devolve', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ data: {} }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -255,10 +258,36 @@ describe('BFF — o que o proxy repassa e o que ele devolve', () => {
     );
   });
 
+  it('gives the request id back to the caller', async () => {
+    /**
+     * A metade que faltava, e sem ela a outra não serve para nada: quem chama
+     * este BFF é o navegador, e navegador não manda `x-request-id`. Quem gera é
+     * a API; devolvê-lo ao cliente é o que permite alguém relatar "deu erro
+     * agora" com um id que acha a linha do log.
+     */
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: new Headers({ 'x-request-id': 'id-gerado-pela-api' }),
+        json: vi.fn().mockResolvedValue({ error: 'Internal server error' }),
+      }),
+    );
+
+    const res = await proxyToApi(
+      new Request('http://localhost:3000/api/account'),
+      '/account',
+    );
+
+    expect(res.headers.get('x-request-id')).toBe('id-gerado-pela-api');
+  });
+
   it('never caches a per-user response', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ data: {} }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -288,6 +317,7 @@ describe('BFF — o que o proxy repassa e o que ele devolve', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue({ data: {} }),
     });
     vi.stubGlobal('fetch', fetchMock);
