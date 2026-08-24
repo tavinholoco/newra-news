@@ -2143,7 +2143,7 @@ consistência de token, estado e erro, i18n e peso de JavaScript.
 > media um app só. **Duas propostas do próprio plano foram medidas e caíram**:
 > derivar os hosts de imagem das fontes configuradas (quebraria 22,4% das
 > imagens) e descer a fronteira do `story-image` (+0,33 kB, não −).
-> **451 testes em 50 suítes → 524 em 57.**
+> **451 testes em 50 suítes → 522 em 57.**
 
 **Inventário fechado:**
 
@@ -2201,7 +2201,7 @@ consistência de token, estado e erro, i18n e peso de JavaScript.
 [x] advisories: 83 -> 36 movendo a CLI; as 8 high do `next` com aceite escrito
 
     -- 10.T testes e guardas (eixo obrigatorio) --
-[x] limiar de cobertura no web: 70%, com 72,32% medidos
+[x] limiar de cobertura no web: 70%, com 72,35% medidos
 [x] a matriz de 10.4 virou teste, nao tabela
 [x] guarda de acessibilidade na suite (movimento, foco, heading, formulario)
 [x] os achados de 10.S saem com teste — quatro suites em tests/security/
@@ -2435,12 +2435,15 @@ middleware que engolia a rota de metadata; o gate que media o cold start da API
 ao medir a página. Em nenhum dos quatro o backend estava errado sozinho, nem o
 frontend.
 
-**Inventário fechado:**
+**Inventário fechado** — reconferido contra o código e contra produção em
+24/08/2026, ao fechar a Fase 10. Duas linhas derivaram desde que a §28 foi
+escrita e estão corrigidas abaixo: o BFF tem **6** rotas por `proxyToApi` (eram 5)
+e o `Cache-Control` editorial cobre **4** rotas (eram 5). O resto confere.
 
 | Costura | Quanto |
 |---|---|
 | tipos compartilhados (`packages/types`) | o contrato inteiro |
-| rotas de BFF no Next | 12 (5 delas via `proxyToApi`) |
+| rotas de BFF no Next | 12 (**6** delas via `proxyToApi`) |
 | chamadas server-side → API | prefetch de cada página estática |
 | chamadas client-side → API | as que passam por `fetchWebApi` |
 | hops da camada de analytics | 6, do clique ao gráfico |
@@ -2459,7 +2462,7 @@ frontend.
 
     -- 11.3 latência, cache e cold start --
 [ ] quem de fato espera a API acordar — medir, não supor
-[ ] Cache-Control: 5 rotas têm, a /news não
+[ ] Cache-Control: **4** rotas têm (home, trending, facets, related), a /news e a /articles não
 [ ] cache hit rate do CDN (§26 promete, nada mede)
 
     -- 11.T smoke E2E (eixo obrigatório de testes) --
@@ -2710,9 +2713,11 @@ o inventário é o dos documentos, não o do código.
 
 ```text
     -- 12.1 os critérios de aceite --
-[ ] §31 Visual: os 7, com evidência ou risco
+[x] §31 Visual: os 7, **fechados na Fase 10.3** com evidência medida
 [ ] §31 UX: os 6, com evidência
-[ ] §31 Performance: os 5, com número
+[ ] §31 Performance: os 5, com número — **o LCP já tem o dele e reprova**:
+    medido pós-merge da Fase 10, as cinco rotas ficam entre 2,57 s e 2,94 s,
+    e o critério pede < 2,5 s
 [ ] §31 Monetização: reescrever — 4 critérios falam de anúncio cancelado
 
     -- 12.2 as métricas de sucesso --
@@ -2760,11 +2765,17 @@ o inventário é o dos documentos, não o do código.
 [ ] cobertura: os dois pisos no CI, não um
 ```
 
-### 12.1 Os critérios de aceite: 24 caixas, nenhuma marcada, 4 obsoletas
+### 12.1 Os critérios de aceite: 24 caixas, 7 fechadas, 4 obsoletas
 
-A §31 tem 24 critérios e **nenhum está marcado** — nem depois de oito fases
-entregues. Isso não é desleixo: eles nunca tiveram dono, porque a fase que os
-fecharia era a "Release" de oito linhas.
+A §31 tem 24 critérios e nenhum estava marcado depois de oito fases entregues.
+Isso não era desleixo: eles nunca tiveram dono, porque a fase que os fecharia era
+a "Release" de oito linhas.
+
+> **Os 7 do bloco Visual foram fechados na Fase 10.3**, em 24/08/2026, cada um
+> com evidência medida — laranja em 0,22% da área da dobra, hero 8,2× a
+> miniatura e 2,75× a manchete do card, briefing como único bloco em
+> `bg-surface-accent`. **Restam 17**, e um deles já tem número e reprova: o
+> "LCP alvo < 2,5 s" mede entre 2,57 s e 2,94 s nas cinco rotas do gate.
 
 Cada um vira uma de três coisas: **evidência** (captura, medição, teste),
 **risco aceito** (com o motivo), ou **critério riscado** (com o motivo).
@@ -2954,11 +2965,17 @@ release/v2.0             # Fase 12
 ```
 
 **Uma fase de revisão não é um PR.** Cada eixo que produzir correção ou guarda
-sai no seu próprio PR, com o mesmo checklist da §29 (objetivo, capturas, testes,
-acessibilidade, performance, alteração de API). A branch da fase é o guarda-chuva
-do trabalho, não a unidade de entrega — um PR de 40 arquivos misturando CORS,
-índice de banco e cobertura de teste é irrevisável, e revisão irrevisável é
-como o defeito passa.
+sai como unidade revisável própria, com o mesmo checklist da §29 (objetivo,
+capturas, testes, acessibilidade, performance, alteração de API) — um bloco de 40
+arquivos misturando CORS, índice de banco e cobertura de teste é irrevisável, e
+revisão irrevisável é como o defeito passa.
+
+> **Como isso saiu na prática, nas duas fases já fechadas.** A 9 (PR #131) e a 10
+> (PR #133) foram entregues como **um PR guarda-chuva por fase, com um commit por
+> eixo** — a pedido, e nas duas. A intenção da regra (uma unidade revisável por
+> eixo, nunca um amontoado) foi cumprida **pelo commit**, não pelo PR: dez
+> commits na 10, cada um com um assunto e o seu porquê. Fica registrado assim
+> para a fase seguinte não receber duas instruções diferentes.
 
 **Os eixos `S` e `T` saem em PR próprio, sempre.** Correção de segurança
 misturada com refatoração é a que ninguém consegue revisar de verdade — e é a

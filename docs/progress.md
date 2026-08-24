@@ -2915,7 +2915,7 @@ O CI roda `pnpm turbo test:coverage` com piso de 70%, e o `@newranews/web` **nã
 tinha o script** — o passo media só a API, e o badge do README falava por um app
 só. Eram 451 testes sem piso nenhum.
 
-**Medido ao fixar: 72,32% stmts · 88,82% branch · 71,32% funcs.** O piso é o
+**Medido ao fixar: 72,35% stmts · 88,86% branch · 71,42% funcs.** O piso é o
 mesmo 70 da API, mas **a folga aqui é fina e está escrito por quê**: lá o piso
 ficou 24 pontos abaixo do medido, aqui pouco mais de um em `functions`. Onde
 falta cobertura é sabido — `lib/queries.ts` mede 28% de funções, invólucros finos
@@ -2932,14 +2932,100 @@ caminho feliz — que é a mitigação que aquela nota prescreve.
 
 | | Antes | Depois |
 |---|---|---|
-| testes / suítes do web | 451 / 50 | **524 / 57** |
-| cobertura do web no CI | **não medida** | 72,32% stmts, piso 70 |
+| testes / suítes do web | 451 / 50 | **522 / 57** |
+| cobertura do web no CI | **não medida** | 72,35% stmts, piso 70 |
 | advisories de produção (`pnpm audit --prod`) | 83 | **36** |
 | cabeçalhos de defesa no site | **0** | 6 |
 | imagens da baseline / escuras | 43 / 6 | **51 / 15** |
 | suítes em `tests/security/` | 0 | 3 |
 
-**Total do monorepo: 1.252 testes** (728 API + 524 web).
+**Total do monorepo: 1.250 testes** (728 API + 522 web).
+
+#### Verificação pós-merge (24/08/2026, contra produção)
+
+O ritual do `CLAUDE.md`, depois do merge do PR #133 e dos dois deploys.
+
+**O deploy subiu, provado pelo que só existe na versão nova:** os seis
+cabeçalhos na resposta da `vercel.app`, com o `connect-src` resolvido para
+`https://newra-news-api.onrender.com` — o que também prova que a Vercel leu a
+env no build.
+
+| Verificação | Resultado |
+|---|---|
+| a 404 carrega CSS | **sim** — os dois chunks, inclusive o de 56 kB; status **404**; `ThemeInit` presente |
+| hosts de imagem da cauda longa | **5 de 5 servem WebP real** — `p2.trrsf.com`, `estadao`, `oantagonista`, `glbimg`, `bbci` |
+| violações de CSP na `/news` | **zero** |
+| região de resultados | presente, `tabIndex=-1`, nome acessível `"6.441 notícias"` |
+| `sizes` do hero em produção | `(max-width: 1280px) 62vw, 800px` |
+
+**Lighthouse (run [32749923100](https://github.com/tavinholoco/newra-news/actions/runs/32749923100)), mediana de 3 execuções:**
+
+| Rota | perf | antes | LCP | CLS | TBT | a11y · BP · SEO |
+|---|---|---|---|---|---|---|
+| `/pt-BR` | 92 | 92 | 2,94 s | 0,000 | 249 ms | 100 · 100 · 100 |
+| `/pt-BR/news` | **94** | 93 | **2,82 s** | 0,000 | 175 ms | 100 · 100 · 100 |
+| `/pt-BR/article` | 96 | 96 | 2,57 s | 0,002 | 123 ms | 100 · 100 · 100 |
+| `/pt-BR/about` | 97 | 97 | 2,59 s | 0,000 | 76 ms | 100 · 100 · 100 |
+| `/en` | **94** | 92 | 2,89 s | 0,000 | 150 ms | 100 · 100 · 100 |
+
+**A `/news` foi de 3,2 s para 2,82 s de LCP** — é o efeito do `sizes` limitado, e
+é o único número de performance que esta fase se propôs a mover.
+
+**O `csp-xss` do Lighthouse passa (score 1) e best-practices fica em 100 nas
+cinco rotas.** A CSP com `'unsafe-inline'` no `script-src` **não custa ponto** —
+o que ela cobra é o que está escrito no aceite, não pontuação.
+
+> **Um número para a Fase 12, medido aqui:** o critério de performance da §31 diz
+> **"LCP alvo < 2,5 s"**, e **nenhuma das cinco rotas alcança** — a melhor é a
+> `/article` com 2,57 s. É LCP de laboratório com throttling simulado, mais
+> pessimista que campo, mas o critério não faz essa ressalva. A §31 Performance é
+> da 12; o número já está aqui para ela não redescobrir.
+
+**Baseline recapturada de produção:** 51 capturas, e o diff é exatamente o
+esperado — **as quatro imagens da `not-found`** (a correção do CSS) e as quatro
+da Home em 1440 (onde o `sizes` do hero mudou de variante). Nenhuma outra tela
+se mexeu, que é o que a captura determinística promete.
+
+#### Certificação de que a Fase 11 pode abrir
+
+Rodado na `main`, depois do merge, em 24/08:
+
+| Verificação | Resultado |
+|---|---|
+| `turbo lint typecheck test build --force --concurrency=1` | **12 tarefas, 0 falhas** |
+| suítes | **54 API + 57 web** |
+| `turbo test:coverage --force` | API **98,71%** · web **72,35%** — os dois com piso |
+| `GET /api/health` | **200** |
+| `GET /pt-BR` | **200**, com os seis cabeçalhos |
+| gate do Lighthouse | **verde**, cinco rotas acima do piso |
+| `origin/main` | PR #133 mergeado (`1a63757`) |
+
+**1.250 testes verdes, build limpo, produção no ar. A Fase 11 abre sem dívida de
+suíte herdada.**
+
+**O inventário da §28 para a Fase 11 foi reconferido**, porque a regra da fase é
+abrir com inventário fechado. Duas linhas tinham derivado e estão corrigidas no
+plano: o BFF tem **6** rotas por `proxyToApi` (o plano dizia 5) e o
+`Cache-Control` editorial cobre **4** rotas — `/api/home`, `/api/trending`,
+`/api/news/facets` e `/api/news/:id/related` — e não 5. Conferido nas duas
+pontas: as chamadas de `withEditorialCache` no código e o header em produção.
+
+As demais premissas continuam valendo, e cada uma foi medida e não suposta:
+
+| Premissa da §28 | Estado em 24/08 |
+|---|---|
+| nenhuma chamada `fetch` do web tem timeout | **confirmado** — zero `AbortSignal`/`AbortController` no `apps/web` |
+| Playwright instalado, sem config e sem spec | **confirmado** — zero `playwright.config`, zero `*.spec.ts` |
+| `SchemaMatchesSharedType` só numa rota | **confirmado** — só em `routes/events/schemas.ts` |
+| dois enums `Category` | **confirmado** — `schema.prisma` e `packages/types/src/news.ts` |
+| `render.yaml` não declara `AUTH_JWT_SECRET` nem `ADMIN_EMAILS` | **confirmado** |
+| 12 eventos no catálogo de analytics | **confirmado** — os três `article_scroll_*` contam |
+| 12 rotas de BFF | **confirmado** |
+
+> **A Fase 10 deixa uma peça pronta para a 11.2.** O `ApiError` já separa "a API
+> não respondeu" de "a API disse não" — o que falta ali é **quem decide em
+> quanto tempo desistir**, que é o item de timeout. A metade difícil já está
+> feita.
 
 #### O que a Fase 11 vai cobrar daqui
 
