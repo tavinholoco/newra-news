@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import { redactEmails } from '../../utils/redact';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -45,8 +46,18 @@ export async function sendEmailWithResend({
       const errorBody = await response
         .text()
         .catch(() => 'unable to read error body');
+      /**
+       * **O corpo do terceiro é redigido antes de virar mensagem de erro.**
+       *
+       * Esta mensagem não morre aqui: `sendDailyNewsletter` guarda a primeira
+       * delas em `NewsletterLog.error`, uma coluna que ninguém lê e que o
+       * cleanup do pipeline não expurga. Em falha de destinatário o Resend ecoa
+       * o endereço no corpo — e era assim que o e-mail de um assinante ia parar
+       * num log permanente, inclusive depois de ele cancelar a inscrição.
+       * Achado da §11.S; ver `utils/redact.ts`.
+       */
       throw new Error(
-        `Resend API error ${response.status}: ${errorBody.slice(0, 200)}`,
+        `Resend API error ${response.status}: ${redactEmails(errorBody).slice(0, 200)}`,
       );
     }
   } finally {

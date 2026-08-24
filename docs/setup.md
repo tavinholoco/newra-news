@@ -285,3 +285,35 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 - **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.
+
+### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
+
+**O segredo é o mesmo nos dois serviços** — o web assina o JWT, a API valida —,
+e **os dois deploys disparam juntos e não terminam juntos**. Trocá-lo sem
+procedimento abre uma janela em que toda rota de conta devolve 401: o web já
+assina com o segredo novo e a API ainda valida com o velho, ou o contrário.
+
+Não há como fazer a troca sem janela com um segredo só. **O que dá para fazer é
+escolher onde ela cai**, e o procedimento é este:
+
+1. **Gerar** o valor novo: `openssl rand -base64 48`.
+2. **Trocar na API primeiro** (painel do Render → `AUTH_JWT_SECRET` → Save). O
+   Render reinicia o serviço; a partir daí, todo token assinado com o segredo
+   velho é recusado. **Começa a janela.**
+3. **Trocar na Vercel** (Settings → Environment Variables → `AUTH_JWT_SECRET`) e
+   **redeployar** — variável de ambiente só entra num build novo.
+4. **Fechar a janela** conferindo uma rota autenticada: entrar no site e abrir
+   `/pt-BR/favorites`. Lista carregando = os dois lados combinam.
+
+**Por que a API primeiro, e não o web:** a janela é a mesma nos dois sentidos,
+mas o sintoma não é. Trocando a API antes, o efeito é 401 nas telas de conta —
+alto e imediato. Trocando o web antes, o `POST /api/auth/upsert` do sign-in
+passa a falhar em silêncio, e desde a revisão da Fase 11 isso é retentado a cada
+cinco minutos: a falha ficaria escondida atrás de uma retentativa.
+
+**A janela não desloga ninguém.** O cookie de sessão do next-auth é assinado com
+`NEXTAUTH_SECRET`, que é outro segredo e não muda aqui. O que para de funcionar
+é a ponte para a API, e ela volta sozinha quando o segundo lado subir.
+
+> **`NEXTAUTH_SECRET` é o oposto:** trocá-lo **invalida toda sessão viva** e
+> desloga todo mundo. Não há janela — há um evento. Só com motivo.
