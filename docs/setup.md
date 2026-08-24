@@ -282,6 +282,44 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 - **Frontend** → Vercel (repo conectado; cron em `vercel.json`)
 - **Backend** → Render (blueprint `render.yaml`; deploy automático a partir da `main`)
 - **Banco** → Neon (PostgreSQL serverless); migrations aplicadas pelo workflow `migrate.yml` (`pnpm db:migrate:deploy`), disparado em push na `main` quando o schema ou as migrations mudam
-- **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min
+- **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min.
+  **Conferido funcionando em 24/08/2026** (§11.3): o `uptime` cresceu
+  continuamente ao longo de 17 min sem tráfego nosso, e a primeira resposta
+  depois disso saiu em 0,29 s — não os ~4,9 s de um cold start. Ele **não é
+  garantia**: é um serviço de terceiro em plano gratuito, e foi justamente uma
+  falha dele que a auditoria da Fase 8 mediu. Por isso o aquecimento no workflow
+  do Lighthouse e o prazo de 8 s do `lib/timeouts.ts` continuam existindo
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.
+
+### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
+
+**O segredo é o mesmo nos dois serviços** — o web assina o JWT, a API valida —,
+e **os dois deploys disparam juntos e não terminam juntos**. Trocá-lo sem
+procedimento abre uma janela em que toda rota de conta devolve 401: o web já
+assina com o segredo novo e a API ainda valida com o velho, ou o contrário.
+
+Não há como fazer a troca sem janela com um segredo só. **O que dá para fazer é
+escolher onde ela cai**, e o procedimento é este:
+
+1. **Gerar** o valor novo: `openssl rand -base64 48`.
+2. **Trocar na API primeiro** (painel do Render → `AUTH_JWT_SECRET` → Save). O
+   Render reinicia o serviço; a partir daí, todo token assinado com o segredo
+   velho é recusado. **Começa a janela.**
+3. **Trocar na Vercel** (Settings → Environment Variables → `AUTH_JWT_SECRET`) e
+   **redeployar** — variável de ambiente só entra num build novo.
+4. **Fechar a janela** conferindo uma rota autenticada: entrar no site e abrir
+   `/pt-BR/favorites`. Lista carregando = os dois lados combinam.
+
+**Por que a API primeiro, e não o web:** a janela é a mesma nos dois sentidos,
+mas o sintoma não é. Trocando a API antes, o efeito é 401 nas telas de conta —
+alto e imediato. Trocando o web antes, o `POST /api/auth/upsert` do sign-in
+passa a falhar em silêncio, e desde a revisão da Fase 11 isso é retentado a cada
+cinco minutos: a falha ficaria escondida atrás de uma retentativa.
+
+**A janela não desloga ninguém.** O cookie de sessão do next-auth é assinado com
+`NEXTAUTH_SECRET`, que é outro segredo e não muda aqui. O que para de funcionar
+é a ponte para a API, e ela volta sozinha quando o segundo lado subir.
+
+> **`NEXTAUTH_SECRET` é o oposto:** trocá-lo **invalida toda sessão viva** e
+> desloga todo mundo. Não há janela — há um evento. Só com motivo.

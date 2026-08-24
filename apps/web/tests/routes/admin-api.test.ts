@@ -28,6 +28,10 @@ function mockFetchOk(payload: unknown, status = 200) {
     vi.fn().mockResolvedValue({
       ok: status < 400,
       status,
+      // `Response` sempre tem `headers`, e o proxy lê o `x-request-id` de lá
+      // para devolvê-lo a quem chamou. Mock sem `headers` é mock que descreve
+      // uma resposta que não existe.
+      headers: new Headers(),
       json: vi.fn().mockResolvedValue(payload),
     }),
   );

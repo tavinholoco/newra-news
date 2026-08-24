@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { ApiResponse, AuthUpsertResult } from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 export const upsertBodySchema = z.object({
   email: z.string().email(),
@@ -16,5 +18,7 @@ export const upsertResponseSchema = z.object({
     role: z.enum(['USER', 'ADMIN']),
   }),
 });
+
+assertContract<typeof upsertResponseSchema, ApiResponse<AuthUpsertResult>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

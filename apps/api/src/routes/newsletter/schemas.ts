@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { ApiResponse, Subscriber } from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 const subscriberItemSchema = z.object({
   id: z.string().uuid(),
@@ -31,5 +33,7 @@ export const sendNewsletterResponseSchema = z.object({
     failed: z.number().int(),
   }),
 });
+
+assertContract<typeof subscribeResponseSchema, ApiResponse<Subscriber>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

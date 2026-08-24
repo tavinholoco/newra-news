@@ -2423,7 +2423,7 @@ Duas guardas a mais, que vêm dos outros eixos:
 > esta fase mexe em pixel, ao contrário da 9.
 
 ---
-## Fase 11 — Integração geral review
+## Fase 11 — Integração geral review ✅ Concluída em 2026-08-24 — branch `review/v2-integration`
 
 **Objetivo:** revisar **a costura** — o que só quebra quando as duas metades se
 encontram, e que nenhuma das duas revisões anteriores consegue ver sozinha.
@@ -2451,48 +2451,56 @@ e o `Cache-Control` editorial cobre **4** rotas (eram 5). O resto confere.
 
 ```text
     -- 11.1 o contrato de tipos, ponta a ponta --
-[ ] schema Zod × tipo compartilhado, rota a rota
-[ ] estender a guarda SchemaMatchesSharedType além de /events
-[ ] os dois enums Category: a ponte continua num lugar só?
+[x] schema Zod × tipo compartilhado, rota a rota (assertContract em 20 respostas)
+[x] estender a guarda SchemaMatchesSharedType além de /events
+[x] os dois enums Category: a ponte continua num lugar só? (sim, e agora com guarda)
 
     -- 11.2 a camada BFF --
-[ ] as 12 rotas: auth, status, formato de erro
-[ ] timeout de fetch (hoje não existe em lugar nenhum)
-[ ] CORS × BFF: declarar o acoplamento ou consertar a lista
+[x] as 12 rotas: auth, status, formato de erro (3 tinham cópia própria do proxy)
+[x] timeout de fetch (hoje não existe em lugar nenhum)
+[x] CORS × BFF: declarar o acoplamento ou consertar a lista
 
     -- 11.3 latência, cache e cold start --
-[ ] quem de fato espera a API acordar — medir, não supor
-[ ] Cache-Control: **4** rotas têm (home, trending, facets, related), a /news e a /articles não
-[ ] cache hit rate do CDN (§26 promete, nada mede)
+[x] quem de fato espera a API acordar — medido: **hoje ninguém, a API não hiberna**
+[x] Cache-Control: medido `cf-cache-status: DYNAMIC` — proposta derrubada
+[x] cache hit rate do CDN — riscado, com a medição no lugar
 
     -- 11.T smoke E2E (eixo obrigatório de testes) --
-[ ] configurar o Playwright (instalado, sem config e sem spec)
-[ ] os 3 fluxos vivos da §25 + o de admin
-[ ] onde roda: pós-deploy contra produção, e o que faz ao reprovar
-[ ] os casos negativos: anônimo, sessão expirada, papel errado
+[x] configurar o Playwright (instalado, sem config e sem spec)
+[x] os 3 fluxos vivos da §25 + o de admin (29 specs em 5 arquivos)
+[x] onde roda: pós-deploy contra produção, e o que faz ao reprovar
+[x] os casos negativos: anônimo, sessão expirada, papel errado
 
     -- 11.5 analytics ponta a ponta --
-[ ] os 12 eventos: cada um chega ao banco?
-[ ] tipo instrumentado que nunca apareceu = call site morto
-[ ] a primeira leitura honesta da tela de métricas
+[x] os 12 eventos: cada um chega ao banco? (cadeia provada, `accepted: 1`)
+[x] tipo instrumentado que nunca apareceu = call site morto
+[ ] a primeira leitura honesta da tela de métricas — **passa para a 12.2**
 
     -- 11.6 auth e sessão ponta a ponta --
-[ ] sessão do next-auth × expiração do JWT × o que o usuário vê
-[ ] role ADMIN: as três portas concordam?
-[ ] o caminho do ADMIN_EMAILS, do login ao banco
+[x] sessão do next-auth × expiração do JWT × o que o usuário vê
+[x] role ADMIN: as três portas concordam? (a da API tinha 4 cópias)
+[x] o caminho do ADMIN_EMAILS, do login ao banco
 
     -- 11.7 deploy e ambiente --
-[ ] paridade de env: render.yaml × o que a API exige
-[ ] a ordem dos dois deploys, e a rota nova que nasce sem dado
-[ ] o job de migration × o boot da API
+[x] paridade de env: render.yaml × o que a API exige
+[x] a ordem dos dois deploys, e a rota nova que nasce sem dado (é o smoke)
+[x] o job de migration × o boot da API
 
     -- 11.S segurança da costura (eixo obrigatório) --
-[ ] em quem cada metade confia, e por quê — o mapa
-[ ] o BFF é a única porta autenticada? provar, não supor
-[ ] segredo compartilhado: rotação, e o que quebra ao rodar
-[ ] a rota de eventos: anônima de propósito, e sem identidade acidental
-[ ] LGPD: o dado que sai do produto (newsletter, e-mail, log)
+[x] em quem cada metade confia, e por quê — o mapa, no plugin de CORS
+[x] o BFF é a única porta autenticada? provar, não supor
+[x] segredo compartilhado: rotação, e o que quebra ao rodar (runbook em setup.md §9.1)
+[x] a rota de eventos: anônima de propósito, e sem identidade acidental
+[x] LGPD: o dado que sai do produto (newsletter, e-mail, log)
 ```
+
+> **O único item que não fechou, e por quê.** *"A primeira leitura honesta da
+> tela de métricas"* exige credencial de admin de produção, que é do dono do
+> projeto e não do agente que conduziu a fase. Tudo que **prepara** essa leitura
+> foi feito e está registrado no item 36 do `docs/progress.md`: a cadeia de
+> ingestão provada ponta a ponta, o balde compartilhado medido, e o número que
+> diz quando a subcontagem começa. A leitura em si passa para a **12.2**, que já
+> é o eixo de "o que a §26 promete e ninguém mede".
 
 ### 11.1 O contrato de tipos: uma guarda existe, e só numa rota
 

@@ -12,7 +12,14 @@ export const rssSources: RssSource[] = [
   { name: 'G1', url: 'https://g1.globo.com/rss/g1/' },
   { name: 'Folha de S.Paulo', url: 'https://feeds.folha.uol.com.br/mundo/rss091.xml' },
   { name: 'BBC Brasil', url: 'https://feeds.bbci.co.uk/portuguese/rss.xml' },
-  { name: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
+  // **A `Reuters` saiu em 24/08/2026, e não era URL errada: o domínio não
+  // existe.** `feeds.reuters.com` devolve NXDOMAIN — a Reuters desligou os
+  // feeds RSS públicos, e não há substituto. A fonte foi medida em zero itens
+  // ao mapear o acervo na Fase 10, e continuou na lista porque
+  // `Promise.allSettled` no `fetchFromRss` descarta a rejeição em silêncio:
+  // cada execução do pipeline gastava uma resolução de DNS fadada a falhar e
+  // ninguém via. O aviso por fonte que o provider passou a emitir é o que
+  // torna a próxima visível.
 
   // Feeds especializados — categoria fixa no source
   { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', category: Category.TECHNOLOGY },

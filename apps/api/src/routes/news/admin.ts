@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { deleteNews } from '../../services/news.service';
-import { ForbiddenError, NotFoundError } from '../../utils/errors';
-import { authPlugin } from '../../plugins/auth';
+import { NotFoundError } from '../../utils/errors';
+import { authPlugin, requireAdmin } from '../../plugins/auth';
 import {
   newsParamsSchema,
   deleteNewsResponseSchema,
@@ -30,9 +30,7 @@ export async function newsAdminRoutes(app: FastifyInstance) {
     async (request) => {
       // O JWT é assinado pelo frontend com o role vindo da sessão (que segue
       // ADMIN_EMAILS); só ADMIN pode deletar notícias.
-      if (request.user?.role !== 'ADMIN') {
-        throw new ForbiddenError('Admin access required');
-      }
+      requireAdmin(request);
 
       const deleted = await deleteNews(request.params.id);
       if (!deleted) throw new NotFoundError('News');

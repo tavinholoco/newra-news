@@ -32,6 +32,21 @@ export interface AccountProfile {
   createdAt: string;
 }
 
+/**
+ * O que `POST /api/auth/upsert` devolve.
+ *
+ * **É a rota pela qual todo usuário é criado**, e a única do produto que o web
+ * chama sem passar pelo BFF — quem a chama é o callback `jwt` do next-auth, no
+ * servidor, com um token de `purpose: 'auth-upsert'`. Até a revisão da Fase 11
+ * ela era o único contrato que o web lia por um tipo escrito à mão dentro da
+ * função, o que a deixava fora da guarda de deriva justamente no caminho da
+ * identidade.
+ *
+ * Não traz `createdAt`: quem cria a conta acabou de vê-la nascer, e o campo já
+ * vem no `AccountOverview` para quem precisa dele.
+ */
+export type AuthUpsertResult = Omit<AccountProfile, 'createdAt'>;
+
 /** Quantos itens de cada tipo o leitor salvou. */
 export interface SavedCounts {
   news: number;

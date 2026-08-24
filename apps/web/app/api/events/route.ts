@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { API_TIMEOUT_MS } from '@/lib/timeouts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -25,6 +26,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const backendResponse = await fetch(`${API_BASE_URL}/events`, {
       method: 'POST',
+      // O prazo importa aqui **mais** que nas outras rotas, e por um motivo
+      // invertido: ninguém está esperando esta resposta. Sem timeout, uma API
+      // dormindo prenderia a função da Vercel pelo tempo inteiro dela para
+      // gravar um evento que já não interessa a ninguém — e o custo é da
+      // plataforma, não da tela.
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
       headers: { 'Content-Type': 'application/json' },
       body,
     });

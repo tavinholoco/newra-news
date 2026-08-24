@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import type {
+  AccountOverview,
+  ApiResponse,
+  NewsletterStatus,
+  UserPreferences,
+} from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 import { categorySchema } from '../news/schemas';
 
 export const themePreferenceSchema = z.enum(['LIGHT', 'DARK', 'SYSTEM']);
@@ -57,6 +64,10 @@ export const accountOverviewResponseSchema = z.object({
     }),
   }),
 });
+
+assertContract<typeof preferencesResponseSchema, ApiResponse<UserPreferences>>(true);
+assertContract<typeof newsletterStatusResponseSchema, ApiResponse<NewsletterStatus>>(true);
+assertContract<typeof accountOverviewResponseSchema, ApiResponse<AccountOverview>>(true);
 
 export type UpdatePreferencesBody = z.infer<typeof updatePreferencesBodySchema>;
 export type UpdateNewsletterBody = z.infer<typeof updateNewsletterBodySchema>;

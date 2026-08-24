@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { verifyAuthJwt } from '../utils/jwt';
+import { ForbiddenError } from '../utils/errors';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -79,6 +80,27 @@ export async function authPlugin(app: FastifyInstance, opts: AuthPluginOptions =
       purpose,
     };
   });
+}
+
+/**
+ * A **terceira porta** do papel ADMIN, e a única que decide de verdade.
+ *
+ * São três, e é defesa em profundidade, não redundância: a página do Next
+ * esconde a tela (sessão do next-auth), o BFF recusa antes de assinar
+ * (`proxyToApi` com `requireRole`), e esta recusa o token. As duas primeiras
+ * são conveniência — quem tiver `AUTH_JWT_SECRET` fala direto com a API e pula
+ * as duas. **Esta é a que sobra**, e por isso não pode ser a que alguém esquece.
+ *
+ * Havia quatro cópias inline de `if (request.user?.role !== 'ADMIN')` — o mesmo
+ * padrão que a revisão da 11.2 encontrou do lado do BFF, onde três rotas de
+ * admin tinham cada uma a sua cópia do proxy e as cópias já divergiam. Uma
+ * função, quatro chamadas, e a matriz de autorização da Fase 9 continua
+ * enumerando o roteador e exigindo linha para cada rota.
+ */
+export function requireAdmin(request: FastifyRequest): void {
+  if (request.user?.role !== 'ADMIN') {
+    throw new ForbiddenError('Admin access required');
+  }
 }
 
 export default fp(authPlugin);

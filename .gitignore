@@ -40,6 +40,13 @@ coverage/
 lh-report.json
 .lighthouseci/
 
+# Playwright — relatorios e rastros do smoke E2E (secao 11.T do plano). Sao
+# artefatos de execucao: o CI os anexa como artifact quando reprova, e
+# localmente eles reaparecem a cada rodada.
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+
 # Misc
 *.tsbuildinfo
 

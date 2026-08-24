@@ -288,12 +288,53 @@ describe('extractImageUrl', () => {
 });
 
 describe('fetchFeedXml encoding', () => {
+  /**
+   * **Fonte que não rende nada tem de avisar.**
+   *
+   * `Promise.allSettled` no `fetchFromRss` é o certo — um feed fora do ar não
+   * pode derrubar a coleta do dia — mas ele descarta a rejeição sem rastro. A
+   * `Reuters` ficou na lista devolvendo **zero itens** até a medição do acervo
+   * a expor em 24/08/2026: `feeds.reuters.com` responde NXDOMAIN desde que a
+   * Reuters desligou os feeds públicos, e cada execução gastava uma resolução
+   * de DNS fadada a falhar sem ninguém ver.
+   */
+  it('warns when a source fails, instead of swallowing it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockFetch.mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
+
+    const result = await fetchFromRss([sourceWithCategory]);
+
+    // A coleta continua: uma fonte morta não derruba as outras doze.
+    expect(result).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('TechCrunch'),
+      expect.anything(),
+    );
+    warn.mockRestore();
+  });
+
+  it('warns when a source answers with nothing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockFetchResponse();
+    mockParseString.mockResolvedValue({ items: [] });
+
+    await fetchFromRss([sourceWithoutCategory]);
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('zero itens'));
+    warn.mockRestore();
+  });
+
   it('should detect charset from Content-Type header', async () => {
     mockFetchResponse('text/xml; charset=UTF-8', '<?xml version="1.0"?><rss/>');
 
     await fetchFromRss([sourceWithCategory]);
 
-    expect(mockFetch).toHaveBeenCalledWith(sourceWithCategory.url);
+    // O segundo argumento é o `signal` do prazo por feed (§11.S): sem ele, um
+    // feed que aceita a conexão e não responde prende a etapa 1 do pipeline, e
+    // treze fontes em paralelo significam que basta uma.
+    expect(mockFetch).toHaveBeenCalledWith(sourceWithCategory.url, {
+      signal: expect.any(AbortSignal),
+    });
     expect(mockParseString).toHaveBeenCalled();
   });
 

@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import type { EventSource } from '@newranews/types';
 import { Mail } from 'lucide-react';
 import { SubscribeForm } from '@/components/newsletter/subscribe-form';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,19 @@ interface NewsletterCtaProps {
    * bloco contido, para dentro de uma coluna.
    */
   variant?: 'band' | 'panel';
+  /**
+   * De onde veio a inscrição, para o `newsletter_signup`.
+   *
+   * **Era fixo em `'article-cta'`, inclusive na `/newsletter`** — a página cuja
+   * razão de existir é converter. O vocabulário tem o valor para ela
+   * (`newsletter-landing`) e ele nunca foi emitido: toda inscrição da landing
+   * entrava na conta do CTA de fim de matéria.
+   *
+   * O `origin` existe exatamente para não somar canais diferentes num número
+   * só; misturar a landing com o CTA esconde justamente o que a métrica
+   * responde, que é **qual canal converte**.
+   */
+  origin?: Extract<EventSource, 'article-cta' | 'newsletter-landing'>;
   className?: string;
 }
 
@@ -21,6 +35,7 @@ interface NewsletterCtaProps {
  */
 export async function NewsletterCta({
   variant = 'band',
+  origin = 'article-cta',
   className,
 }: NewsletterCtaProps) {
   const t = await getTranslations('newsletter');
@@ -51,7 +66,7 @@ export async function NewsletterCta({
         </div>
 
         <div className={cn('w-full', variant === 'band' && 'lg:max-w-md')}>
-          <SubscribeForm origin='article-cta' />
+          <SubscribeForm origin={origin} />
           <p className='mt-3 text-meta text-on-brand/70'>{t('ctaPrivacy')}</p>
         </div>
       </div>

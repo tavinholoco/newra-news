@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import type {
+  ApiResponse,
+  DailyBriefing,
+  EditorialStory,
+  HomeResponse,
+} from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 const CATEGORIES = [
   'TECHNOLOGY',
@@ -89,5 +96,17 @@ export const relatedQuerySchema = z.object({
 export const editorialStoryListSchema = z.object({
   data: z.array(editorialStorySchema),
 });
+
+/**
+ * As três respostas editoriais contra os tipos que a Home e as listagens leem.
+ *
+ * `editorialStorySchema` e `dailyBriefingSchema` são conferidos à parte dos
+ * envelopes porque são reusados: a `/home`, a `/trending` e a `/news/:id/related`
+ * servem a mesma peça, e um campo perdido aqui apareceria em três telas.
+ */
+assertContract<typeof editorialStorySchema, EditorialStory>(true);
+assertContract<typeof dailyBriefingSchema, DailyBriefing>(true);
+assertContract<typeof homeResponseSchema, ApiResponse<HomeResponse>>(true);
+assertContract<typeof editorialStoryListSchema, ApiResponse<EditorialStory[]>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

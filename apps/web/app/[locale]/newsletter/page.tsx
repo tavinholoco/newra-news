@@ -63,7 +63,7 @@ export default async function NewsletterPage({ params }: Props) {
       </header>
 
       <div className='mt-section'>
-        <NewsletterCta />
+        <NewsletterCta origin='newsletter-landing' />
       </div>
 
       <section className='mt-section'>

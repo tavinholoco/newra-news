@@ -1,4 +1,12 @@
 import { z } from 'zod';
+import type {
+  ApiResponse,
+  DeleteNewsResult,
+  News,
+  NewsFacets,
+  PaginatedResponse,
+} from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 const CATEGORIES = [
   'TECHNOLOGY',
@@ -103,6 +111,17 @@ export const deleteNewsResponseSchema = z.object({
     id: z.string().uuid(),
   }),
 });
+
+/**
+ * O que esta rota serializa é o que o web declara (§11.1).
+ *
+ * Quatro respostas, quatro linhas. Coluna acrescentada ao `newsItemSchema` sem
+ * o campo correspondente em `News` — ou o contrário — reprova o `typecheck`.
+ */
+assertContract<typeof listNewsResponseSchema, PaginatedResponse<News>>(true);
+assertContract<typeof getNewsByIdResponseSchema, ApiResponse<News>>(true);
+assertContract<typeof newsFacetsResponseSchema, ApiResponse<NewsFacets>>(true);
+assertContract<typeof deleteNewsResponseSchema, ApiResponse<DeleteNewsResult>>(true);
 
 export type ListNewsQuery = z.infer<typeof listNewsQuerySchema>;
 export type ListNewsResponse = z.infer<typeof listNewsResponseSchema>;

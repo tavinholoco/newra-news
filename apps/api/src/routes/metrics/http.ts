@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { ForbiddenError } from '../../utils/errors';
-import { authPlugin } from '../../plugins/auth';
+import { authPlugin, requireAdmin } from '../../plugins/auth';
 import { getHttpMetrics } from '../../plugins/observability';
 import { errorResponseSchema, httpMetricsResponseSchema } from './schemas';
 
@@ -30,9 +29,7 @@ export async function metricsHttpRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      if (request.user?.role !== 'ADMIN') {
-        throw new ForbiddenError('Admin access required');
-      }
+      requireAdmin(request);
 
       return { data: getHttpMetrics() };
     },

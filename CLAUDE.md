@@ -41,6 +41,14 @@ categoria cair, o relatório completo vem por
 > production before measuring" bate duas vezes em cada URL do
 > `.lighthouserc.json` antes do collect.
 >
+> **Medido em 24/08: a API não estava hibernando.** O `uptime` do `/api/health`
+> cresceu 1.878 s ao longo de uma janela de relógio de 1.881 s **sem uma única
+> requisição minha nos últimos 17 min**, e a primeira resposta depois disso saiu
+> em **0,29 s**. O keep-alive do `docs/setup.md` §9 (UptimeRobot a cada 5 min)
+> está de pé. O aquecimento fica — keep-alive de terceiro em plano gratuito não
+> é garantia, e já falhou —, mas **"deve ser a API dormindo" precisa de sonda
+> antes de virar conclusão.**
+>
 > **A causa é a API dormir, e só ficou clara na auditoria da Fase 8.** O plano
 > free do Render hiberna com ~15 min sem tráfego; `/pt-BR` e `/en` chamam
 > `getHome`, então a requisição que dispara a regeneração da ISR espera a API
@@ -91,6 +99,20 @@ do dia mudou, ou há algo errado.
 > está no ar **antes** de medir — foi assim que a `/news` foi para produção com
 > as oito categorias zeradas.
 
+**3. Smoke E2E** (§11.T) — desde a Fase 11, e ele **roda sozinho em todo push na
+`main`**, esperando 7 min pelos dois deploys. Para disparar à mão:
+
+```bash
+gh workflow run "Smoke E2E" --ref main
+```
+
+29 specs contra produção: os fluxos da §25 mais os casos negativos de
+autorização. É o passo que pega a classe de defeito que os outros dois não
+pegam — o desencontro entre os dois deploys. Localmente,
+`pnpm --filter @newranews/web test:e2e` mede o mesmo alvo; `SMOKE_BASE_URL`
+troca para um build local. **Ele não faz parte do `pnpm test`**: `turbo test` é
+a suíte de unidade, que roda sem rede.
+
 ## Convenções de Código
 - TypeScript estrito: sem `any`, sem `@ts-ignore`
 - Imports absolutos com alias: `@newranews/database`, `@newranews/types`
@@ -120,86 +142,124 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as **Fases 0 a 10 concluídas**. A **Fase 11
-  (integração geral)** é a próxima e pode abrir — ela dependia de 9 e 10
-  mergeadas, e as duas fecharam. A **12 (ajustes finos e release)** depois da 11
-  — §28 do plano.
-- **Última entrega (2026-08-24):** a **Fase 10 (frontend review)**, com os sete
-  eixos da §28 fechados. Onze achados, e o mais visível é o mais antigo: **a 404
-  do site ia ao ar sem uma linha de CSS** — fonte serifada do navegador, link
-  azul, fundo branco no tema escuro — porque o `globals.css` era importado pelo
-  layout de idioma, e a rota `_not-found` da raiz não passa por ele. Estava
-  assim desde que a página existe, e estava na baseline versionada. Junto:
-  **o site sem cabeçalho de defesa nenhum** (seis agora, com a CSP decidida
-  medindo os 63 scripts inline da Home), **a CLI do `shadcn` na árvore de
-  produção** (47 das 83 advisories eram só dela), **quatro telas confundindo "a
-  API não respondeu" com "não existe"** — inclusive a Home, que guardava
-  "sem notícias hoje" por uma hora na ISR — e o **`prefers-reduced-motion`
-  declarado e desobedecido** nas duas listagens paginadas. **Advisories de
-  produção do web: 83 → 36**, com aceite escrito para as 8 *high* do `next`.
-  **451 testes em 50 suítes → 522 em 57.** Detalhe no item **35** do
-  `docs/progress.md`.
+- **Onde estamos:** V2.0 com as **Fases 0 a 11 concluídas**. A **Fase 12
+  (ajustes finos e release final)** é a próxima e pode abrir — ela dependia da
+  11, que fechou. §28 do plano.
+- **Última entrega (2026-08-24):** a **Fase 11 (integração geral)**, com os oito
+  eixos da §28 fechados — menos um item que depende de credencial de produção e
+  passou para a 12.2. **Quinze achados, e o padrão é o mesmo: nenhum tem sintoma
+  de erro** — mais três medições que derrubaram suposições do próprio plano,
+  inclusive a de que a API está hibernando (não está: `uptime` contínuo por 17
+  min sem tráfego, primeira resposta em 0,29 s). O de maior alcance estava escrito à vista de todos: **`revalidate =
+  3600` nas duas telas de leitura não fazia nada** — rota com segmento dinâmico
+  e sem `generateStaticParams` é `ƒ` no build, renderizada a cada requisição, e
+  a `/news/[id]` respondia `x-vercel-cache: MISS` nas três tentativas enquanto a
+  Home respondia `HIT` ao lado. Junto: **nenhuma chamada `fetch` do web tinha
+  prazo**, com a API hibernando; **três rotas de admin com a sua própria cópia
+  do proxy**, já divergentes; **a sessão apontando para um usuário que a API não
+  conhece** quando o upsert falhava; **o balde de ingestão de eventos é um só
+  para todos os leitores** (45 requisições em 12 s → 35 × 429); e **um log
+  guardando e-mail de assinante** que ninguém lê, que o cleanup não expurga e
+  que sobrevive ao cancelamento. **O smoke E2E existe pela primeira vez** — 29
+  specs contra produção — e a primeira execução reprovou três, corretamente:
+  anônimo em rota de conta respondia **200 com `<meta refresh>` de 1 segundo**,
+  não 307. **1.250 testes em 111 suítes → 1.314 em 122.** Detalhe no item **36**
+  do `docs/progress.md`.
 
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.250 em 111 suites (**728 API em 54** + **522 web em 57** — todos
-  passando). Cobertura: API **98,71% stmts · 93,32% branch · 99,45% funcs**;
-  web **72,35% stmts · 88,86% branch · 71,42% funcs** — com piso de 70% no CI
-  desde a Fase 10, que antes media só a API.
+- **Testes:** 1.314 em 122 suites (**756 API em 59** + **558 web em 63** — todos
+  passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
+  pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura: API
+  **98,72% stmts · 93,30% branch · 99,46% funcs**; web **72,50% stmts · 89,25%
+  branch · 71,42% funcs** — com piso de 70% no CI desde a Fase 10, que antes
+  media só a API.
 
-### Por onde começar a Fase 11 (Integração geral)
+### Por onde começar a Fase 12 (Ajustes finos e release final)
 
-**As Fases 9 e 10 estão fechadas.** Leia os itens **34** e **35** do
-`docs/progress.md` — a 11 é a costura entre as duas metades, e cada um dos dois
-registra o que deixou pendente para ela.
+**As Fases 9, 10 e 11 estão fechadas.** Leia os itens **34**, **35** e **36** do
+`docs/progress.md` — a 12 é o fechamento, e cada um dos três registra o que
+deixou pendente para ela.
 
-**O plano das quatro fases finais está na §28.** Antes de abrir a 11, leia de lá
-as mesmas três coisas que a 9 e a 10 leram:
+**O plano das quatro fases finais está na §28.** Antes de abrir a 12, leia de lá
+as mesmas três coisas que as outras leram:
 
 - **"Anatomia de uma fase de revisão"** — **todo achado sai como correção
   mergeada, guarda no CI, ou dívida com gatilho numérico**. Nunca como item de
   lista. E a fase abre com inventário fechado, senão não tem critério de parada.
 - **"A camada de segurança e testes"** — os eixos **`S`** e **`T`** são
-  obrigatórios e **não são adiáveis**. Achado de segurança **não vira dívida sem
-  aceite de risco escrito**, e **sai sempre com o teste que o mantém fechado**.
-- **A seção da Fase 11**, e só ela. Cada fase tem inventário próprio.
+  obrigatórios e **não são adiáveis**. Na 12 eles mudam de natureza: `S` é **o
+  gate** (o que precisa estar verde para publicar) e `T` **não escreve teste
+  novo** — exige a suíte inteira verde e que o gate reprove quando deve.
+- **A seção da Fase 12**, e só ela. Cada fase tem inventário próprio.
 
-**A superfície da 11 é a costura**: em quem cada metade confia, e por quê —
-sessão, token, CORS, ambiente. E a camada de testes dela é a única que entrega o
-que nenhuma das outras consegue: **o fluxo ponta a ponta** (o Playwright está
-instalado desde sempre, sem config e sem uma única spec — item 33).
+**A 12 não caça vulnerabilidade** — isso foi trabalho das três anteriores. Ela
+decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e da
+§26, e publica.
 
-**O que 9 e 10 deixaram explicitamente para a 11**, e é bom não redescobrir:
+**O que a 11 deixou explicitamente para a 12**, e é bom não redescobrir:
 
-- **A sessão aponta para um usuário que a API pode não conhecer.** Quando o
-  upsert de `lib/auth.ts` falha, `token.id` cai no id do **provedor**, que não é
-  o id da API. O comportamento de hoje está **congelado em teste**
-  (`tests/lib/auth.test.ts`) para que a decisão da 11 seja mudança visível.
-- **o CORS declara PUT e DELETE**, mas toda mutação continua passando pelo BFF
-  do Next, server-side. A dependência não declarada entre as metades é item da
-  **11.S** — na 9 ela só deixou de estar quebrada por acidente.
-- **o `x-request-id` é propagado pela API**, e o BFF ainda não o envia.
-- **Nenhuma chamada `fetch` do web tem timeout**, com a API hibernando no plano
-  free (item 33). O `ApiError` da Fase 10 já distingue "não respondeu" de "disse
-  não" — falta quem decida em quanto tempo desistir.
-- **A `Reuters` devolve zero itens** do feed configurado, medido em 24/08 ao
-  mapear as 87 fontes do acervo. É config do `apps/api`, e a 9 já fechou.
+- **A primeira leitura honesta da tela de métricas** é o único item da 11 que não
+  fechou: exige credencial de admin de produção. Tudo que a prepara está feito —
+  a cadeia de ingestão provada ponta a ponta (`accepted: 1`), o balde
+  compartilhado medido, e o gatilho de subcontagem **observável sem
+  instrumentação nova**: 429 em `POST /api/events` dentro de
+  `GET /api/metrics/http`.
+- **Os fluxos autenticados do smoke** (6 dos 29 specs) ficam pulados até os
+  quatro segredos serem configurados — e o pulo é impresso pelo workflow. Ligá-los
+  põe o `NEXTAUTH_SECRET` de produção no runner do CI; a decisão é de quem é dono
+  do segredo. `apps/web/e2e/support/session.ts` documenta.
+- **Rollback pós-deploy** (§12.6). O smoke falha e avisa; reverter sozinho exige
+  distinguir "o deploy quebrou" de "a API estava dormindo", e este projeto já
+  cometeu o erro oposto com o gate do Lighthouse medindo cold start.
+- **A `fastify@5`** e as três advisories que esperam a major (item 34).
+- **`LCP alvo < 2,5 s` da §31, e nenhuma das cinco rotas alcança** — medido na
+  Fase 10, a melhor é a `/article` com 2,57 s.
 
-**O que a Fase 10 deixou pronto e a 11 pode aproveitar:** quatro guardas
-exaustivas novas no web, no mesmo formato da 9 — dependência de produção ⇒
-consumidor declarado, rota ⇒ linha na matriz de estado, componente editorial com
-heading fixo ⇒ razão escrita, e cada premissa do aceite de risco do `next` ⇒
-teste que reprova quando ela deixar de valer.
-
-**Duas dívidas compartilham o mesmo gatilho, e é o Next 15:** as 8 advisories
+**Três dívidas compartilham o mesmo gatilho, e é o Next 15:** as 8 advisories
 *high* do `next` (nenhuma alcança esta configuração hoje — a tabela está no item
-35) e o **soft 404**, onde `notFound()` em rota com `revalidate` e
-`not-found.tsx` aninhado responde **200**. Quem segura o segundo é o `noindex`
-no caminho de falta, e essa linha tem guarda.
+35), o **soft 404** (`notFound()` em rota com `revalidate` e `not-found.tsx`
+aninhado responde **200**; quem segura o estrago é o `noindex` no caminho de
+falta, e essa linha tem guarda) e o **meta refresh do `redirect()`** — que é da
+mesma família e a 11 cobriu no caso comum, pelo middleware.
+
+**O que a 11 deixou pronto e a 12 pode aproveitar:** o smoke E2E, que passa a ser
+parte do ritual de fechar fase; e seis guardas exaustivas novas — resposta de
+rota ⇒ contrato de tipo declarado, `fetch` ⇒ prazo declarado, página com
+`revalidate` ⇒ jeito de ser guardada, evento do catálogo ⇒ call site, variável do
+schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 
 ### Armadilhas que já custaram caro
 
+- **`revalidate` só significa alguma coisa onde a rota é guardada.** Rota com
+  segmento dinâmico e **sem `generateStaticParams`** é marcada `ƒ` no build —
+  renderizada a cada requisição —, e o `export const revalidate` do arquivo
+  passa a valer só para o cache de dados, nunca para o HTML. Não há erro,
+  nem aviso: a tabela do build diz `ƒ` e a linha no topo do arquivo diz 3600.
+  Medido em produção: `/news/[id]` em `x-vercel-cache: MISS` nas três
+  tentativas, com `private, no-cache, no-store`, enquanto a Home respondia
+  `HIT` com `Age: 1491`. `generateStaticParams` devolvendo `[]` é o que liga a
+  ISR sem assar nada no build. Guarda em `tests/lib/rendering-mode.test.ts`.
+- **`redirect()` de server component em rota com `loading.tsx` vira `<meta
+  refresh>`, não 307.** O `loading.tsx` do segmento faz o Next despachar a
+  casca na hora; quando o `redirect()` resolve, a resposta já começou e não há
+  mais como mandar status. A saída dele é
+  `<meta http-equiv="refresh" content="1;url=…">` — **um segundo** de espera,
+  status 200, e um salto a mais se o alvo não levar prefixo de idioma. É a
+  mesma família do soft 404. Quem decide antes de renderizar é o
+  `middleware.ts`, e ele pergunta **só se existe cookie de sessão**, nunca se
+  ele é válido: validar na borda exigiria o `NEXTAUTH_SECRET` ali, e o modo de
+  falha (variável ausente → todo mundo deslogado) é muito pior.
+- **Guarda estática que varre fonte precisa tirar comentário e declaração de
+  tipo antes do regex.** Aconteceu **quatro vezes na Fase 11**, nas duas
+  direções: um `201` dentro de prosa contado como declaração de rota; um
+  `assertContract` **comentado** contando como asserção presente — a guarda
+  passou verde exatamente sobre o defeito que existe para achar; um
+  `proxyToApi` citado num JSDoc que dizia *não* usá-lo, reprovando o que estava
+  certo; e um literal de vocabulário vivo dentro de um `Extract<...>` numa
+  `interface`, contado como emissão. **Só se descobre insistindo em ver a
+  guarda falhar** — escreva o teste, quebre o código, confirme a reprovação.
 - **Rota fora do layout de idioma não recebe o CSS, e nada acusa.** O Next
   prende o chunk de um `.css` à **entrada que o importa**, e o `_not-found` da
   raiz não passa por `app/[locale]/layout.tsx`. Resultado medido em produção: a
@@ -357,6 +417,24 @@ no caminho de falta, e essa linha tem guarda.
 
 ### O que ficou em aberto
 
+- **O teto de ingestão de eventos é um balde só para todos os leitores.** O
+  caminho que carrega o tráfego é navegador → BFF do Next → API, e o IP que
+  chega na API é o da função da Vercel — o `trustProxy: 1` da Fase 9 consertou
+  o caminho direto, este é o outro. Medido: 45 requisições pelo BFF em **12
+  segundos** devolveram 10 × 400 e **35 × 429**. O número fica em 30, e não por
+  folga: com lote de 20 ele já permite 600 eventos/min, o que alcança as 200 mil
+  linhas da dívida da `/metrics/product` em ~5h30 — dobrá-lo não compra
+  proteção. **Gatilho, e é observável sem instrumentação nova:** 429 em
+  `POST /api/events` dentro de `GET /api/metrics/http`.
+- **`NewsletterLog` é a única tabela do produto fora do expurgo.** Uma linha por
+  dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
+  ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser
+  gravada ali.
+- **Os fluxos autenticados do smoke E2E** (6 dos 29 specs) ficam pulados até
+  `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL` e `E2E_ADMIN_USER_ID`
+  existirem como segredos do repositório — e o pulo é impresso pelo workflow.
+  Ligá-los põe o `NEXTAUTH_SECRET` de produção no runner do CI, e a decisão é de
+  quem é dono do segredo. `apps/web/e2e/support/session.ts` documenta.
 - **Trilha nas listagens** (`/news`, `/article`). Marcação de trilha pede
   trilha visível, e ali o segundo degrau seria a própria página — o
   `editorial-nav` já diz onde se está. Se um dia entrar, a lista de
@@ -397,8 +475,9 @@ no caminho de falta, e essa linha tem guarda.
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 24. É lá que mora o detalhe — este bloco é orientação, não
-  changelog.
+  itens 11 a 36 — e as quatro fases finais são **34** (backend review), **35**
+  (frontend review) e **36** (integração). É lá que mora o detalhe — este bloco
+  é orientação, não changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,
   analytics e slots) e o plano `docs/Newra-News-V2-Frontend-Redesign-Plan.md`.
