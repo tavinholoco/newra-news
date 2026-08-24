@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Article, PaginatedResponse } from '@newranews/types';
 import { useArticleList } from '@/lib/queries';
+import { useResultsFocus } from '@/lib/use-results-focus';
 import { Pagination } from '@/components/editorial/pagination';
 import { ArticleGrid } from './article-grid';
 
@@ -29,28 +30,44 @@ export function ArticlePageClient({ initialData }: ArticlePageClientProps) {
   const articles = data?.data ?? [];
   const meta = data?.meta ?? { total: 0, page: 1, limit: 9, totalPages: 0 };
 
-  function handlePageChange(newPage: number) {
-    setPage(newPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  // Mesma regra da `/news`: virar a página leva o foco junto com a viewport, e
+  // respeita `prefers-reduced-motion` — que o `scrollTo({ behavior: 'smooth' })`
+  // daqui ignorava, porque `behavior` explícito vence a regra de CSS.
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const countId = useId();
+  useResultsFocus(page, resultsRef);
 
   return (
     <div className='flex flex-col gap-6'>
-      {isError ? (
-        <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
-          {t('loadError')}
+      <div
+        ref={resultsRef}
+        tabIndex={-1}
+        role='region'
+        aria-labelledby={countId}
+        className='flex flex-col gap-6 outline-none'
+      >
+        {/* O nome da região é a contagem do histórico: ao receber foco, o
+            leitor de tela anuncia quantos briefings estão listados. */}
+        <p id={countId} aria-live='polite' className='sr-only'>
+          {t('resultCount', { count: meta.total })}
         </p>
-      ) : null}
-      <ArticleGrid
-        articles={articles}
-        isLoading={isFetching && articles.length === 0}
-      />
+
+        {isError ? (
+          <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
+            {t('loadError')}
+          </p>
+        ) : null}
+        <ArticleGrid
+          articles={articles}
+          isLoading={isFetching && articles.length === 0}
+        />
+      </div>
       <Pagination
         page={meta.page}
         totalPages={meta.totalPages}
         disabled={isFetching}
         label={tPagination('historyLabel')}
-        onChange={handlePageChange}
+        onChange={setPage}
       />
     </div>
   );

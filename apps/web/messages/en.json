@@ -99,6 +99,7 @@
     "notFoundTitle": "Article not found",
     "pageDescription": "All daily AI-generated articles about the top news.",
     "promptLabel": "Prompt version",
+    "resultCount": "{count, plural, =0 {No briefings} one {# briefing} other {# briefings}}",
     "sourcesLabel": "Sources",
     "sourcesTitle": "Sources consulted",
     "title": "Article Archive",

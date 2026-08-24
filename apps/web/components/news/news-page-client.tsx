@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import type { News, NewsFacets, PaginatedResponse } from '@newranews/types';
@@ -8,6 +8,7 @@ import { useFavorites, useNewsFacets, useNewsList } from '@/lib/queries';
 import { useNewsFilters } from '@/lib/use-news-filters';
 import { countActiveFilters, toApiFilters } from '@/lib/news-filters';
 import { newsToStory } from '@/lib/story';
+import { useResultsFocus } from '@/lib/use-results-focus';
 import { SaveButton } from '@/components/editorial/save-button';
 import { CategoryNav } from './category-nav';
 import { NewsArchiveHeader } from './news-archive-header';
@@ -165,17 +166,16 @@ export function NewsPageClient({
     [categoryById],
   );
 
-  // Virar a página sem rolar deixa o leitor no meio de uma lista nova, olhando
-  // para a matéria número 12 de outro conjunto. A primeira renderização não
-  // rola: ninguém pediu.
-  const firstRender = useRef(true);
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [state.page]);
+  /**
+   * Virar a página sem rolar deixa o leitor no meio de uma lista nova, olhando
+   * para a matéria número 12 de outro conjunto — e rolar **sem levar o foco**
+   * deixa quem usa teclado com a viewport num lugar e o cursor em outro. O
+   * hook faz as duas coisas e respeita `prefers-reduced-motion`, que o
+   * `scrollTo({ behavior: 'smooth' })` daqui ignorava.
+   */
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const countId = useId();
+  useResultsFocus(state.page, resultsRef);
 
   const showSkeleton = isFetching && news.length === 0;
 
@@ -217,8 +217,20 @@ export function NewsPageClient({
           Fica de fora enquanto o esqueleto está no ar. Sem resposta ainda,
           `meta.total` é zero, e a linha anunciaria "Nenhuma notícia encontrada"
           logo acima de uma lista que está justamente carregando. */}
+      {/* A região é o alvo do foco ao virar a página, e o nome dela é a
+          própria contagem: recebendo foco, o leitor de tela anuncia "1.234
+          notícias encontradas" — que é exatamente o que mudou. `tabIndex={-1}`
+          a torna focável por programa sem entrar na ordem de Tab. */}
+      <div
+        ref={resultsRef}
+        tabIndex={-1}
+        role='region'
+        aria-labelledby={countId}
+        className='flex flex-col gap-6 outline-none'
+      >
       {showSkeleton ? null : (
         <p
+          id={countId}
           aria-live='polite'
           className='border-t border-line pt-4 text-body-sm text-ink-secondary'
         >
@@ -252,6 +264,7 @@ export function NewsPageClient({
           renderAction={renderAction}
         />
       )}
+      </div>
 
       <Pagination
         page={meta.page}

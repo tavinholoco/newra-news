@@ -99,6 +99,7 @@
     "notFoundTitle": "Artigo não encontrado",
     "pageDescription": "Todos os artigos diários gerados por IA sobre as principais notícias.",
     "promptLabel": "Versão do prompt",
+    "resultCount": "{count, plural, =0 {Nenhum briefing} one {# briefing} other {# briefings}}",
     "sourcesLabel": "Fontes",
     "sourcesTitle": "Fontes consultadas",
     "title": "Histórico de Artigos",
