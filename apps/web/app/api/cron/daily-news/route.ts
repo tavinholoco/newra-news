@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
+import { PIPELINE_TRIGGER_TIMEOUT_MS } from '@/lib/timeouts';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -21,6 +22,12 @@ export async function GET(request: Request) {
   try {
     const response = await fetch(jobUrl, {
       method: 'POST',
+      // O que se espera aqui é o **aceite**, não a execução: a rota da API
+      // responde `{ status: 'started' }` e o pipeline segue no servidor. Os
+      // 20 s cabem no `maxDuration = 30` desta rota e ainda deixam margem para
+      // o cold start do Render, que é quem atende o cron das 11h UTC — a essa
+      // hora a API costuma estar dormindo.
+      signal: AbortSignal.timeout(PIPELINE_TRIGGER_TIMEOUT_MS),
       headers: {
         Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}`,
       },

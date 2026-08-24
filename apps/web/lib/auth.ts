@@ -3,6 +3,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import GitHubProvider from 'next-auth/providers/github';
 import type { ApiResponse, AuthUpsertResult } from '@newranews/types';
 import { signAuthJwt } from '@/lib/jwt';
+import { API_TIMEOUT_MS } from '@/lib/timeouts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -61,6 +62,11 @@ export const authOptions: NextAuthOptions = {
 
           const response = await fetch(`${API_BASE_URL}/auth/upsert`, {
             method: 'POST',
+            // Este é o `fetch` mais caro do produto para o leitor: ele acontece
+            // **dentro do callback de sign-in**, com a pessoa olhando uma tela
+            // de carregamento do provedor OAuth. Sem prazo, uma API dormindo
+            // pendurava o login inteiro.
+            signal: AbortSignal.timeout(API_TIMEOUT_MS),
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${jwt}`,

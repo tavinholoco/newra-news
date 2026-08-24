@@ -1,40 +1,15 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { signAuthJwt } from '@/lib/jwt';
+import { proxyToApi } from '@/lib/api-proxy';
 
 export const dynamic = 'force-dynamic';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
-
 /**
- * Proxy admin-only para GET /api/metrics/dashboard: valida sessão + role
- * ADMIN, assina o JWT com o role (a API exige `role === 'ADMIN'` no payload)
- * e repassa para o backend. O browser nunca vê o AUTH_JWT_SECRET.
+ * Métricas do pipeline (admin) — `GET /api/metrics/dashboard`.
+ *
+ * O dado é operacional e deixou de ser público na V2, então a rota da API exige
+ * JWT com `role: 'ADMIN'`. Quem confere a sessão, o papel e assina o token é o
+ * `proxyToApi`: até a revisão da Fase 11 esta rota tinha a sua própria cópia
+ * dessa lógica, e as cópias já discordavam entre si.
  */
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (session.user.role !== 'ADMIN') {
-    return NextResponse.json(
-      { error: 'Admin access required' },
-      { status: 403 },
-    );
-  }
-
-  const jwt = await signAuthJwt({
-    sub: session.user.id,
-    email: session.user.email ?? '',
-    role: session.user.role,
-  });
-
-  const backendResponse = await fetch(`${API_BASE_URL}/metrics/dashboard`, {
-    headers: { Authorization: `Bearer ${jwt}` },
-    cache: 'no-store',
-  });
-
-  const body = await backendResponse.json().catch(() => null);
-  return NextResponse.json(body, { status: backendResponse.status });
+export async function GET(request: Request) {
+  return proxyToApi(request, '/metrics/dashboard', 'GET', { requireRole: 'ADMIN' });
 }

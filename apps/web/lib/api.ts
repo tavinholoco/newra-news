@@ -22,6 +22,11 @@ import type {
   NewsFilters,
   NewsFacets,
 } from '@newranews/types';
+import {
+  API_TIMEOUT_MS,
+  BFF_TIMEOUT_MS,
+  PIPELINE_TRIGGER_TIMEOUT_MS,
+} from '@/lib/timeouts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -114,12 +119,20 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
+      // O prazo do servidor do Next para a API. Sem ele, uma API dormindo ou
+      // pendurada segurava a função até o limite da Vercel, e a tela era uma
+      // página que nunca respondia — ver `lib/timeouts.ts` para os números.
+      signal: options?.signal ?? AbortSignal.timeout(API_TIMEOUT_MS),
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,
       },
     });
   } catch (cause) {
+    // Estourar o prazo cai aqui, e vira `status: null` — "não houve resposta",
+    // que é literalmente o que aconteceu. É o que faz a Home manter a última
+    // página boa em vez de assar "sem notícias hoje" por uma hora, e o detalhe
+    // não virar 404 sobre uma matéria que existe.
     throw new ApiError(`API unreachable: ${endpoint}`, null, cause);
   }
 
@@ -299,6 +312,11 @@ async function fetchWebApi<T>(endpoint: string, options?: RequestInit): Promise<
   try {
     response = await fetch(endpoint, {
       ...options,
+      // O prazo **de fora**, e ele é maior que o de dentro de propósito: assim
+      // quem desiste primeiro é sempre o BFF, que ainda está vivo para devolver
+      // um status. Se os dois estourassem juntos, o navegador ficaria com uma
+      // requisição abortada — sem status, sem corpo, nada a dizer na tela.
+      signal: options?.signal ?? AbortSignal.timeout(BFF_TIMEOUT_MS),
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,
@@ -409,15 +427,23 @@ export async function updateNewsletterSubscription(
 // ── Admin (painel dev) ─────────────────────────────────────────────────
 // Rotas proxy do Next que validam sessão + role ADMIN server-side.
 
-/** Dispara o pipeline manualmente (admin). Retorna o corpo da rota do cron. */
+/**
+ * Dispara o pipeline manualmente (admin). Retorna o corpo da rota do cron.
+ *
+ * **Passava por `fetch` cru e lançava `Error` de texto corrido**, como o
+ * `deleteNewsAdmin` abaixo — as duas únicas chamadas do web que ficaram de fora
+ * quando o `ApiError` nasceu, porque não respondem no envelope `{ data }`. Sem
+ * timeout e sem status, elas eram exatamente o par de pontos que a revisão 10.4
+ * corrigiu no resto do app. Agora usam o mesmo cliente.
+ *
+ * O prazo é o do disparo, não o da execução: a rota responde
+ * `{ status: 'started' }` e o pipeline segue no servidor.
+ */
 export async function runDailyPipeline(): Promise<RunPipelineResult> {
-  const response = await fetch('/api/admin/run-pipeline', { method: 'POST' });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json() as Promise<RunPipelineResult>;
+  return fetchWebApi<RunPipelineResult>('/api/admin/run-pipeline', {
+    method: 'POST',
+    signal: AbortSignal.timeout(PIPELINE_TRIGGER_TIMEOUT_MS),
+  });
 }
 
 /**
@@ -445,13 +471,10 @@ export async function getProductMetrics(days = 30): Promise<ProductMetrics> {
 
 /** Remove uma notícia (admin). */
 export async function deleteNewsAdmin(id: string): Promise<DeleteNewsResult> {
-  const response = await fetch(`/api/admin/news/${id}`, { method: 'DELETE' });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
-  }
-
-  const res = (await response.json()) as ApiResponse<DeleteNewsResult>;
+  const res = await fetchWebApi<ApiResponse<DeleteNewsResult>>(
+    `/api/admin/news/${id}`,
+    { method: 'DELETE' },
+  );
   return res.data;
 }
 
