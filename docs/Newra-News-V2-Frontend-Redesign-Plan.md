@@ -2129,11 +2129,21 @@ Três lacunas que a análise já enxerga:
 > API acordada é pré-requisito das duas rotas que o gate mede.
 
 ---
-## Fase 10 — Frontend review
+## Fase 10 — Frontend review ✅ Concluída em 2026-08-24 — branch `review/v2-frontend`
 
 **Objetivo:** varrer `apps/web` atrás do que a entrega tela a tela não vê —
 fronteira servidor/cliente, acessibilidade além do que o Lighthouse mede,
 consistência de token, estado e erro, i18n e peso de JavaScript.
+
+> **O detalhe está no item 35 do `docs/progress.md`.** O resumo: **onze achados**
+> — a 404 que ia ao ar sem uma linha de CSS, o site sem cabeçalho de defesa
+> nenhum, a CLI de scaffolding na árvore de produção (47 das 83 advisories),
+> quatro lugares onde "a API não respondeu" virava "não existe", o
+> `prefers-reduced-motion` declarado e desobedecido, e o piso de cobertura que
+> media um app só. **Duas propostas do próprio plano foram medidas e caíram**:
+> derivar os hosts de imagem das fontes configuradas (quebraria 22,4% das
+> imagens) e descer a fronteira do `story-image` (+0,33 kB, não −).
+> **451 testes em 50 suítes → 524 em 57.**
 
 **Inventário fechado:**
 
@@ -2149,52 +2159,52 @@ consistência de token, estado e erro, i18n e peso de JavaScript.
 
 ```text
     -- 10.1 fronteira servidor/cliente --
-[ ] os 53 'use client': quais são causa e quais são contágio
-[ ] first-load JS por rota, lido do output do build
-[ ] a fronteira desce até a folha interativa onde der
+[x] os 52 'use client': 44 causa, 6 so-i18n, 2 contagio estrutural
+[x] first-load JS por rota (87,5 kB na /about a 167 kB na /news/[id])
+[x] a fronteira desce ate a folha interativa onde der — medido que nao paga
 
-    -- 10.2 acessibilidade além do Lighthouse --
-[ ] foco na troca de rota e na troca de filtro
-[ ] anúncio de resultado (aria-live) na busca e nos filtros da /news
-[ ] leitor de tela nas telas que nasceram depois da auditoria da Fase 7
-[ ] zoom 200% e prefers-reduced-motion nas 15 páginas
-[ ] erro de formulário: como ele é anunciado
+    -- 10.2 acessibilidade alem do Lighthouse --
+[x] foco na troca de pagina: ia para lugar nenhum (useResultsFocus)
+[x] anuncio de resultado (aria-live) na /news e agora tambem na /article
+[x] telas novas: formulario de conta, preferencias e metricas conferidos
+[x] zoom 200% (viewport 640) sem estouro; prefers-reduced-motion era ignorado
+[x] erro de formulario: anunciado uma vez e orfao do campo (aria-describedby)
 
-    -- 10.3 token e consistência visual --
-[ ] escape de token: cor, espaçamento e tipografia fora da escala
-[ ] dark mode nas 15 páginas (a baseline cobre 2)
-[ ] os critérios visuais da §31, um a um, com evidência
+    -- 10.3 token e consistencia visual --
+[x] escape de token: `bg-white`/`text-black`/cinzas neutros passavam batido
+[x] dark mode nas 12 rotas da baseline (eram 3) — 15 imagens escuras
+[x] os sete criterios visuais da §31, um a um, com evidencia
 
     -- 10.4 estado, dado e erro --
-[ ] loading / error / empty / not-found por rota — a matriz
-[ ] todo initialData: de onde vem e o que acontece quando falha
-[ ] staleTime × revalidate: os dois relógios contam a mesma coisa?
+[x] a matriz de 15 linhas x 4 colunas, e ela virou teste
+[x] todo initialData auditado; 4 catches pessimistas corrigidos
+[x] staleTime x revalidate: contam coisas diferentes, e de proposito
 
     -- 10.5 i18n --
-[ ] as 337 chaves: string órfã e string faltando no en
-[ ] data, número e plural com locale em todas as telas novas
-[ ] hreflang e a decisão pt-BR-only do news sitemap
+[x] 337 = 337, zero orfa, zero faltando (a guarda ja existia e passa)
+[x] plural e locale nas chaves novas (`unavailable*`, `article.resultCount`)
+[x] hreflang reciproco e a decisao pt-BR-only do news sitemap, reconfirmados
 
     -- 10.6 performance de frontend --
-[ ] o LCP de cada rota: qual elemento é, e ele é prioritário?
-[ ] espaço reservado × CLS nos blocos que carregam depois
-[ ] remotePatterns: hoje o otimizador aceita qualquer host
-[ ] a /news em 90 — ler o audit antes de culpar o aquecimento
+[x] LCP da /news: e o hero, com fetchpriority=high — 65% e Load Delay
+[x] CLS medido em 0 nas 5 rotas do gate
+[x] remotePatterns: aceite de risco escrito, com o numero e a saida nomeada
+[x] o audit da /news lido: `uses-responsive-images` era `sizes`, nao aquecimento
 
-    -- 10.S segurança do navegador (eixo obrigatório) --
-[ ] cabeçalhos de resposta: a API tem o conjunto, o site não tem nenhum
-[ ] CSP do site — e o script inline do tema, que ela precisa acomodar
-[ ] os dois dangerouslySetInnerHTML: auditar e travar o terceiro
-[ ] NEXT_PUBLIC_*: o que vai para o bundle é sempre público
-[ ] link externo com rel noopener (hoje 4 de 4 — virar guarda)
-[ ] cookie da sessão: flags e duração
-[ ] advisories do web — o `next` só é corrigido numa major
+    -- 10.S seguranca do navegador (eixo obrigatorio) --
+[x] cabecalhos de resposta: os seis, com guarda estatica
+[x] CSP do site — 63 scripts inline medidos, e a decisao escrita
+[x] os dois dangerouslySetInnerHTML travados, e o terceiro reprova
+[x] NEXT_PUBLIC_*: duas, as duas enderecos, com guarda
+[x] link externo com rel noopener — 4 de 4, virou guarda
+[x] cookie da sessao: flags conferidas, duracao agora explicita
+[x] advisories: 83 -> 36 movendo a CLI; as 8 high do `next` com aceite escrito
 
-    -- 10.T testes e guardas (eixo obrigatório) --
-[ ] limiar de cobertura no web (hoje só a API tem)
-[ ] o que as 50 suítes não cobrem: a matriz de 10.4
-[ ] guarda de acessibilidade na suíte (a11y do componente, não só do render)
-[ ] os achados de 10.S saem com teste
+    -- 10.T testes e guardas (eixo obrigatorio) --
+[x] limiar de cobertura no web: 70%, com 72,32% medidos
+[x] a matriz de 10.4 virou teste, nao tabela
+[x] guarda de acessibilidade na suite (movimento, foco, heading, formulario)
+[x] os achados de 10.S saem com teste — quatro suites em tests/security/
 ```
 
 ### 10.1 A fronteira servidor/cliente — o Risco 3 da §32, medido
@@ -3047,13 +3057,38 @@ Executar visual regression após cada etapa relevante.
 
 ## Visual
 
-- [ ] Newra possui identidade editorial própria.
-- [ ] Laranja está presente sem dominar a interface.
-- [ ] Home tem hierarquia clara de importância.
-- [ ] Hero é visualmente dominante.
-- [ ] Daily Brief é reconhecido como principal diferencial.
-- [ ] Desktop não parece uma grade de cards SaaS.
-- [ ] Mobile mantém hierarquia sem virar uma versão empobrecida do desktop.
+> **Fechados na Fase 10.3, em 24/08/2026, com evidência para cada um.** O
+> conjunto versionado da baseline (`docs/v2/baseline-v2/`) passou a cobrir as
+> **12 rotas nos dois temas** — 51 imagens, 15 escuras —, e as medições abaixo
+> saíram do DOM de produção a 1280×1600.
+
+- [x] **Newra possui identidade editorial própria.** Masthead de três linhas
+  (§10), Newsreader nas manchetes e Inter na interface, escala tipográfica por
+  papel e nenhum cartão com sombra. Evidência: `home--1440.jpg` e
+  `home--1440-dark.jpg`.
+- [x] **Laranja está presente sem dominar a interface.** Medido na dobra da
+  Home: **0,22% da área** tem fundo de marca (4 elementos de 322 visíveis) e
+  **6 elementos de texto** usam laranja. Ele é acento de link, ícone e um botão
+  sólido — nunca superfície de leitura. A regra que sustenta isso é de token
+  (`--brand-accent` não vai em texto) e tem guarda em `design-tokens.test.ts`.
+- [x] **Home tem hierarquia clara de importância.** `h1` (sr-only) → `h2` por
+  seção → `h3` nos cards, com `heading-order` verde no Lighthouse e nível por
+  prop nos cards de grade — guarda em `a11y-guards.test.tsx`, que exige razão
+  escrita para cada um dos sete componentes que fixam nível.
+- [x] **Hero é visualmente dominante.** Medido: imagem de **790 px** contra
+  miniaturas de **96 px** (8,2×) e manchete de **44 px** contra **16 px** dos
+  cards (2,75×).
+- [x] **Daily Brief é reconhecido como principal diferencial.** É o **único**
+  bloco da Home sobre `bg-surface-accent` — conferido no DOM: exatamente uma
+  ocorrência —, com kicker e ícone próprios, e a tela dele é a única com
+  `ai-disclosure` e `source-list`.
+- [x] **Desktop não parece uma grade de cards SaaS.** A `/news` separa itens por
+  régua, não por cartão, e a suíte **proíbe sombra em conteúdo editorial** (só
+  `shadow-overlay` e `shadow-modal`, ambos de camada flutuante). Evidência:
+  `news--1440.jpg`.
+- [x] **Mobile mantém hierarquia sem virar uma versão empobrecida do desktop.**
+  As 12 rotas têm captura em 375; reflow a 200% de zoom (viewport de 640 px)
+  conferido sem estouro horizontal na Home, na `/news` e na `/about`.
 
 ## UX
 

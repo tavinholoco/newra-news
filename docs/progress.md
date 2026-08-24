@@ -2652,6 +2652,299 @@ escondia:
 
 ---
 
+### 35. V2.0 Fase 10 — Frontend review ✅ Concluída em 2026-08-24
+
+> Branch `review/v2-frontend`. Os sete eixos da §28 fechados. **Onze achados**,
+> todos saindo como correção mergeada ou guarda no CI — e **duas propostas do
+> próprio plano medidas e derrubadas**, que é o que uma fase de revisão deveria
+> produzir tanto quanto correção.
+
+#### Inventário, conferido na abertura
+
+| O que | Quanto |
+|---|---|
+| páginas | 15 (rotas `[locale]`) |
+| componentes | 75, dos quais **52** são `'use client'` |
+| módulos de `lib/` | 21 |
+| rotas de BFF | 12 |
+| chaves de i18n | 337 por locale, **paridade exata, zero órfã** |
+| baseline visual | 12 rotas × 3 larguras — **43 imagens, 6 escuras** |
+| suítes / testes | 50 / 451 |
+
+**First-load JS por rota**, lido do build (compartilhado: 87,3 kB):
+
+| Rota | First Load JS | | Rota | First Load JS |
+|---|---|---|---|---|
+| `/about` | **87,5 kB** | | `/admin/metrics` | 137 kB |
+| `/newsletter/unsubscribe` | 98,7 kB | | `/admin` · `/signin` · `/article` | 139 kB |
+| `/newsletter` | 122 kB | | `/[locale]` | 146 kB |
+| `/account/newsletter` | 128 kB | | `/account` · `/favorites` | 156 kB |
+| `/account/preferences` | 129 kB | | `/news` | 164 kB |
+| | | | `/article/[date]` · `/news/[id]` | 166–167 kB |
+
+#### 10.S — o site não tinha cabeçalho de defesa nenhum
+
+A assimetria que o item 33 já apontava, agora corrigida: a API carrega o
+conjunto do helmet desde a Fase 2 e uma CSP de verdade desde a Fase 9; o site
+respondia **sem** `x-content-type-options`, `x-frame-options`,
+`referrer-policy`, `cross-origin-opener-policy` e CSP. O que torna isso
+reincidente é que **nada acusa** — sem `headers()` o build passa, o lint passa,
+a suíte passa e as 15 páginas renderizam igual. Só um `curl -I` sabe.
+
+**A CSP foi decidida medindo, não supondo.** O HTML de produção da Home tem
+**63 scripts inline**: um é o `theme-init` (constante, hashável), um é o
+`ld+json`, e os **61 restantes são chunks de Flight do App Router**, cujo
+conteúdo é o payload daquela página — muda por rota e por regeneração da ISR.
+Hash não fecha conjunto que muda; nonce fecharia, mas exige cabeçalho por
+requisição, e ler `headers()` numa página do App Router a torna dinâmica.
+Seriam as 15 páginas estáticas trocadas por render sob demanda para endurecer
+uma diretiva. `script-src` fica com `'unsafe-inline'` e **a razão está escrita**.
+
+O que sobra ainda paga: sem curinga nem `https:` no `script-src`, um
+`<script src>` injetado não executa; `object-src 'none'` mata plugin;
+`base-uri 'self'` mata sequestro por `<base>`; `frame-ancestors 'none'` mata
+clickjacking.
+
+Verificado contra um build de produção servido localmente: os seis cabeçalhos na
+resposta de seis rotas, **zero evento `securitypolicyviolation`**, o script de
+tema executando, 26 imagens carregando pelo otimizador e um `fetch` do navegador
+para a API passando pelo `connect-src`.
+
+#### 10.S — uma CLI de scaffolding estava na árvore de produção
+
+O `shadcn` estava em `dependencies` e **nenhuma linha do produto o importa** —
+é a CLI que gera componente. Dali ele arrastava `@modelcontextprotocol/sdk`,
+`express`, `hono`, `ts-morph` e `@dotenvx/dotenvx` para a árvore de produção, e
+toda advisory dessa subárvore contava como advisory de produção deste app.
+
+**`pnpm audit --prod`: 83 → 36**, com 10 das *high* indo junto.
+
+A guarda é o formato exaustivo que a Fase 9 firmou: **dependência de produção ⇒
+consumidor declarado**, uma linha cada. Dependência nova reprova a suíte até
+alguém escrever quem a importa em runtime — e escrever a linha é o que expõe o
+"ninguém".
+
+#### 10.S — o aceite de risco das 8 advisories *high* do `next`
+
+As 21 advisories restantes do `next` só têm correção em **15.x**, que arrasta
+`next-intl` 3 → 4 e `params` assíncrono nas 15 páginas. É fase própria, não item
+de revisão — então é dívida com aceite escrito. **O que torna o aceite honesto é
+que nenhuma das oito alcança esta configuração**, e cada "não alcança" é uma
+afirmação sobre o código:
+
+| Advisory | Por que não alcança |
+|---|---|
+| 3× DoS por Server Components / deserialização de RSC | não há Server Action |
+| DoS no App Router via Server Actions | não há Server Action |
+| SSRF em Server Actions em *custom server* | nem um nem outro |
+| SSRF por upgrade de WebSocket | o app não serve WebSocket |
+| Bypass de middleware no **Pages Router** com i18n | o app é App Router |
+| SSRF em `rewrites` com host do atacante | não há `rewrites` |
+
+**Cada premissa virou teste.** No dia em que alguém escrever a primeira Server
+Action ou o primeiro `rewrite`, o aceite deixa de valer — e isso aparece no PR,
+não numa varredura seis meses depois.
+
+#### 10.4 — "a API disse não" e "a API não respondeu" eram a mesma coisa
+
+O maior achado do eixo, e ele tinha causa única: `fetchApi` lançava um `Error` de
+texto corrido, então **nenhum chamador conseguia perguntar qual das duas
+aconteceu** — e os quatro pontos auditados colapsavam no pessimista.
+
+| Onde | O que a tela **afirmava** |
+|---|---|
+| **Home** | "sem notícias hoje" — e a ISR guardava a afirmação por **uma hora** |
+| `/news/[id]` e `/article/[date]` | **404 numa matéria que existe**, cacheado, e o buscador via o mesmo |
+| cancelamento da newsletter | **"link inválido"** para quem só pegou a API dormindo |
+
+A terceira é a mais cara: quem chega ali quer sair, e ser informado de que o
+próprio link de descadastro não presta é ser mandado embora sem sair.
+
+`ApiError` carrega o status, com `null` significando "não houve resposta". A Home
+**deixou de ter `catch`**: na revalidação o Next mantém a última página boa e
+tenta de novo; no build ele falha — e falhar é o que se quer, porque a Vercel
+preserva o deploy anterior e o `CLAUDE.md` já registra que os dois deploys
+disparam juntos e não terminam juntos. Antes esse desencontro nascia como Home
+vazia em produção; agora nasce como build vermelho.
+
+**A linha entre os dois casos de detalhe foi traçada contra a API real, não
+suposta:** id fora do formato UUID devolve **400** com o erro do Zod, UUID válido
+sem linha devolve **404**. Os dois significam que o recurso não pode existir, e
+tratar só o 404 mandaria a URL digitada errada para a página de erro — que
+responde 200 dizendo "algo deu errado" onde o certo é "não encontrada".
+
+A auditoria também removeu `getLatestArticle`/`useLatestArticle`: mortos desde a
+V1, nenhuma tela os chama, e o que restava neles era um `try/catch` apagando
+qualquer falha — o padrão que a revisão foi caçar, mantido vivo por código morto.
+
+**A matriz de estado saiu como teste, não como tabela**: 15 linhas, 4 colunas, e
+tela que promete esqueleto e não desenha esqueleto reprova.
+
+**`staleTime` × `revalidate`:** contam coisas diferentes, e de propósito. O HTML
+da ISR pode ter até **1 h**; o cliente considera o dado fresco por **5 min** e
+então rebusca. O primeiro é a idade máxima do que chega pronto; o segundo, a
+janela em que a tela se corrige sozinha. Nenhum ajuste — a nota existe para a
+pergunta não voltar.
+
+#### 10.4 — o soft 404, que não deu para corrigir aqui
+
+`notFound()` dentro de rota com `revalidate` e `not-found.tsx` **aninhado**
+responde **HTTP 200**, não 404. Conferido que **não é o middleware**:
+`/pt-BR/rota-que-nao-existe` passa pela mesma reescrita do `next-intl` e responde
+404 corretamente. Só o Next 15 corrige — mesma dívida das advisories.
+
+**O que segura o estrago é o `noindex` no `generateMetadata` do caminho de
+falta**, e essa linha ganhou guarda, porque ninguém lembraria de mantê-la.
+
+#### 10.2 — a preferência declarada e desobedecida
+
+O `globals.css` derruba animação e `scroll-behavior` sob
+`prefers-reduced-motion`, o que dava a impressão de que a preferência valia em
+todo lugar. **Não valia:** `scrollTo({ behavior: 'smooth' })` passa por cima da
+regra de CSS, e as duas listagens paginadas faziam exatamente isso — os dois
+únicos lugares do produto com rolagem programática.
+
+As mesmas duas linhas tinham um segundo problema: rolavam a janela e **deixavam
+o foco no botão de paginação**, agora fora da tela. Para quem usa teclado, o
+próximo Tab salta de volta ao rodapé sem explicação; para quem usa leitor de
+tela, **nada anuncia que a página mudou**. Mover o foco para a região de
+resultados resolve os dois, e a região é nomeada pela contagem — conferido no
+navegador: clicar na página 2 leva o foco para lá e o nome acessível lê
+"2.373 notícias".
+
+**O erro do formulário era anunciado uma vez e ficava órfão do campo.** O
+`role='alert'` dispara quando a mensagem aparece — e foi isso que a auditoria da
+Fase 7 conferiu. Mas quem volta ao campo ouve só "e-mail, entrada inválida":
+`aria-invalid` diz *que* está errado e nada dizia *o quê*. O formulário aparece
+duas vezes na mesma página, então o id da descrição é por instância.
+
+Reflow a 200% de zoom (viewport de 640 px) conferido sem estouro horizontal.
+
+#### 10.3 — a 404 ia ao ar sem uma linha de CSS
+
+**Nove das doze rotas nunca tinham sido capturadas no escuro**, e a razão escrita
+ao lado da configuração — "não acrescenta informação nova nas páginas de
+formulário" — não sobreviveu à medição: o escuro é exatamente onde token errado
+aparece. Toda rota passou a ter referência escura em 1440, e as três telas de
+conteúdo mantêm o 375. **51 imagens, 15 escuras.**
+
+A primeira captura achou algo maior que um token. **A 404 — a página que todo
+endereço errado do site alcança, inclusive os com prefixo de idioma —
+renderizava com folha de estilo nenhuma**: Times New Roman, link azul
+sublinhado, fundo branco mesmo no tema escuro. Conferido em produção: o HTML
+dela não tinha `<link rel="stylesheet">` nenhum, enquanto a Home carregava 56 kB.
+
+E o comentário no arquivo **afirmava o contrário do que acontece**: dizia que as
+rotas sem locale são redirecionadas e que o 404 localizado seria o usado, e que
+aquele era "apenas o fallback final". No App Router, caminho que não casa com
+arquivo de rota nenhum não cai dentro do segmento `[locale]` — o roteador não
+casa nada e renderiza o `not-found` da **raiz**.
+
+A causa é de empacotamento: o `globals.css` era importado pelo layout de idioma,
+e o Next prende o chunk à entrada que o importa. Importar nos dois lugares **não
+resolve** — o Next deduplica e o chunk continua onde estava; medido, a 404 seguia
+recebendo 3,4 kB de `@font-face` e nada mais. Ele precisa morar **só** na raiz.
+A página também precisava do próprio `ThemeInit`.
+
+**Estava assim desde que a página existe, e estava na baseline versionada**, na
+captura clara, sem ninguém olhar.
+
+E a varredura de cor crua tinha um buraco: exigia sufixo numérico, então
+`bg-white`, `text-black` e os cinzas neutros passavam batido — as classes que
+somem no claro e ficam ilegíveis no escuro. As quatro ocorrências que existem são
+**véu sobre conteúdo** (preto translúcido sobre foto ou sobre a página), que deve
+ser fixo nos dois temas; viraram exceção declarada, e uma quinta reprova.
+
+#### 10.6 — o otimizador aberto, e a lista que teria quebrado 22% das imagens
+
+**Aqui a revisão do próprio código pegou o erro antes de ele ir ao ar**, e o
+motivo de ele ter passado vale mais que a correção: a primeira medição amostrou
+**100 itens por fonte**, que é exatamente a amostra que esconde o problema.
+
+Varrendo o acervo inteiro — 3.000 de 6.441 itens — o quadro se inverte. **O
+pipeline não ingere só os 13 feeds RSS: ingere também a NewsData.io**, que agrega
+centenas de veículos.
+
+| Medida | Valor |
+|---|---|
+| fontes distintas no acervo | **87** — só **12** em `rss-sources.ts` |
+| hosts de imagem distintos | **95**, com 81 deles abaixo de 50 itens |
+| cobertura da lista fechada | **77,6%** |
+| imagens que virariam placeholder | **22,4% — 491 de 2.191**, em silêncio |
+
+Ou seja: a primeira saída da §10.6 **não existe** — enumerar hosts de um agregador
+de terceiro é lista que nasce incompleta. Fica a segunda, aceitar e registrar,
+agora apoiada num número.
+
+O que limita o custo do abuso, já que o host não pode: teto de `deviceSizes`
+(**6** transformações por URL em vez de 8 × 8), **um** formato, e
+`minimumCacheTTL` de 30 dias contra o default de **60 segundos**. **Gatilho:** o
+aviso de cota de otimização de imagem da Vercel — ordem de grandeza conhecida,
+**~4.700 imagens de origem distintas por mês** só do tráfego legítimo. A saída,
+se apertar, é proxy próprio com URL assinada, não lista de hosts.
+
+**O audit da `/news` foi lido, e desmentiu duas suposições.** O LCP **é** o hero
+e ele **tem** `fetchpriority=high`; 65% do tempo é *Load Delay*. E o reflexo de
+ligar AVIF está errado aqui: cada formato **dobra** as variantes por imagem, e
+todo MISS paga o download da origem — que naquela imagem pesa **2,8 MB** para
+virar 79 kB servidos. O que estava de fato superdimensionado era o `sizes`:
+`66vw` num monitor de 2560 px pede 1.690 px para desenhar 790. Todo `sizes`
+agora termina em largura fixa, e o hero usa **62vw**, medido nas duas pontas da
+faixa fluida (634 px de 1024 · 800 px de 1280).
+
+#### 10.1 — o Risco 3 da §32 não se materializou
+
+Dos **52** client components: **44 são causa** (estado, evento ou API de
+navegador), **6 são i18n** (o `useTranslations` do next-intl v3 é client-only) e
+**2 são contágio estrutural**. Tirar o `'use client'` do `story-image` foi
+tentado e **revertido**: o mesmo componente é consumido por cards client em toda
+rota que tem hero, então a diretiva não tira nada do bundle e ainda duplica o
+módulo entre os grafos — **+0,33 kB na `/news/[id]`**, medido nos dois sentidos.
+
+#### 10.T — o gate de cobertura media um app só
+
+O CI roda `pnpm turbo test:coverage` com piso de 70%, e o `@newranews/web` **não
+tinha o script** — o passo media só a API, e o badge do README falava por um app
+só. Eram 451 testes sem piso nenhum.
+
+**Medido ao fixar: 72,32% stmts · 88,82% branch · 71,32% funcs.** O piso é o
+mesmo 70 da API, mas **a folga aqui é fina e está escrito por quê**: lá o piso
+ficou 24 pontos abaixo do medido, aqui pouco mais de um em `functions`. Onde
+falta cobertura é sabido — `lib/queries.ts` mede 28% de funções, invólucros finos
+de `useQuery` exercitados pelos testes de componente.
+
+O maior buraco real foi preenchido: **`lib/auth.ts` media 41%** e é o caminho de
+identidade. Agora 100%. Escrever esses testes esbarrou na armadilha que o
+`CLAUDE.md` registra do lado da API, pela outra ponta: **no jsdom a assinatura
+HS256 do `jose` lança**, o `catch` do callback engole, e toda asserção sobre o
+caminho de falha passaria pelo motivo errado. Quem expôs foi a asserção de
+caminho feliz — que é a mitigação que aquela nota prescreve.
+
+#### Números
+
+| | Antes | Depois |
+|---|---|---|
+| testes / suítes do web | 451 / 50 | **524 / 57** |
+| cobertura do web no CI | **não medida** | 72,32% stmts, piso 70 |
+| advisories de produção (`pnpm audit --prod`) | 83 | **36** |
+| cabeçalhos de defesa no site | **0** | 6 |
+| imagens da baseline / escuras | 43 / 6 | **51 / 15** |
+| suítes em `tests/security/` | 0 | 3 |
+
+**Total do monorepo: 1.252 testes** (728 API + 524 web).
+
+#### O que a Fase 11 vai cobrar daqui
+
+- **A costura da sessão.** Quando o upsert falha, `token.id` cai no id do
+  *provedor*, que não é o id da API — a sessão passa a apontar para um usuário
+  que a API não conhece. O comportamento de hoje está **congelado em teste** para
+  que a decisão da 11 seja mudança visível, e não descoberta.
+- **O soft 404** e as advisories do `next` compartilham a mesma dívida: Next 15.
+- **A `Reuters` devolve zero itens** — medido ao mapear as fontes. É configuração
+  do `apps/api`, e a Fase 9 já fechou; entra como item de acervo para a 11.
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
