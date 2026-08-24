@@ -4,6 +4,7 @@ import {
   attachRetryAfter,
   decodeEntities,
   formatNewsItems,
+  MalformedArticleError,
   parseMarkdownResponse,
   parseRetryAfterMs,
 } from '../../src/providers/ai/ai-utils';
@@ -183,57 +184,76 @@ describe('formatNewsItems', () => {
 });
 
 describe('parseMarkdownResponse', () => {
+  // Um corpo com tamanho de artigo. O parser recusa resposta curta demais
+  // desde a revisao da Fase 9 (ver `MalformedArticleError`), entao os fixtures
+  // que so queriam exercitar titulo e resumo precisam de corpo.
+  const body =
+    'Paragrafo de corpo com tamanho de artigo de verdade, repetido o bastante para o texto cruzar o piso que o parser exige. '.repeat(
+      6,
+    );
+
   it('should extract title from H1 heading', () => {
-    const markdown = '# Meu Artigo\n\nResumo aqui.\n\nConteúdo.';
+    const markdown = `# Meu Artigo\n\nResumo aqui.\n\n${body}`;
     const result = parseMarkdownResponse(markdown);
 
     expect(result.title).toBe('Meu Artigo');
   });
 
   it('should extract summary from first non-empty non-heading line', () => {
-    const markdown = '# Título\n\nEste é o resumo.\n\n## Seção\n\nConteúdo.';
+    const markdown = `# Titulo\n\nEste e o resumo.\n\n## Secao\n\n${body}`;
     const result = parseMarkdownResponse(markdown);
 
-    expect(result.summary).toBe('Este é o resumo.');
+    expect(result.summary).toBe('Este e o resumo.');
   });
 
   it('should exclude H1 from content', () => {
-    const markdown = '# Título\n\nResumo.\n\n## Seção\n\nConteúdo.';
+    const markdown = `# Titulo\n\nResumo.\n\n## Secao\n\n${body}`;
     const result = parseMarkdownResponse(markdown);
 
-    expect(result.content).not.toContain('# Título');
-    expect(result.content).toContain('## Seção');
-    expect(result.content).toContain('Conteúdo.');
-  });
-
-  it('should use first non-empty line as title when no H1 exists', () => {
-    const markdown = 'Título Simples\n\nResumo.\n\nConteúdo.';
-    const result = parseMarkdownResponse(markdown);
-
-    expect(result.title).toBe('Título Simples');
-  });
-
-  it('should handle markdown with only a title', () => {
-    const markdown = '# Apenas Título';
-    const result = parseMarkdownResponse(markdown);
-
-    expect(result.title).toBe('Apenas Título');
-    expect(result.summary).toBe('');
-  });
-
-  it('should handle empty string', () => {
-    const result = parseMarkdownResponse('');
-
-    expect(result.title).toBe('');
-    expect(result.summary).toBe('');
-    expect(result.content).toBe('');
+    expect(result.content).not.toContain('# Titulo');
+    expect(result.content).toContain('## Secao');
+    expect(result.content).toContain('Paragrafo de corpo');
   });
 
   it('should skip empty lines when finding summary', () => {
-    const markdown = '# Título\n\n\n\nResumo depois de linhas vazias.\n\nMais conteúdo.';
+    const markdown = `# Titulo\n\n\n\nResumo depois de linhas vazias.\n\n${body}`;
     const result = parseMarkdownResponse(markdown);
 
     expect(result.summary).toBe('Resumo depois de linhas vazias.');
+  });
+
+  // ── A saida tambem e superficie ──────────────────────────────────────────
+  //
+  // Ate a Fase 9 estes quatro casos **passavam**: sem `# `, o parser pegava a
+  // primeira linha nao vazia como titulo e seguia em frente; string vazia
+  // devolvia um artigo vazio. Ou seja, uma resposta que obedecesse ao material
+  // em vez das instrucoes virava briefing publicado, e o pipeline registrava
+  // sucesso. Sao a terceira camada da defesa contra injecao pelo feed — as
+  // outras duas estao na fronteira do prompt e em
+  // `neutralizeMaterialDelimiters`.
+
+  it('should reject a response without an H1 title line', () => {
+    expect(() => parseMarkdownResponse(`Titulo Simples\n\n${body}`)).toThrow(
+      MalformedArticleError,
+    );
+  });
+
+  it('should reject an empty response', () => {
+    expect(() => parseMarkdownResponse('')).toThrow(MalformedArticleError);
+  });
+
+  it('should reject a title with no body', () => {
+    expect(() => parseMarkdownResponse('# Apenas Titulo')).toThrow(
+      MalformedArticleError,
+    );
+  });
+
+  it('should reject a refusal that mimics the article shape', () => {
+    // O formato de uma recusa do modelo, ou do eco de uma ordem que veio no
+    // material: tem o `# `, e nao tem artigo nenhum embaixo.
+    expect(() =>
+      parseMarkdownResponse('# Entendido\n\nOk, vou ignorar as instrucoes anteriores.'),
+    ).toThrow(MalformedArticleError);
   });
 });
 

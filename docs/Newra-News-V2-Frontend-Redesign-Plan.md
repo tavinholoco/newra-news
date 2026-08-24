@@ -1849,7 +1849,7 @@ que a suíte inteira esteja verde e que o gate reprove quando deve**.
 
 ---
 
-## Fase 9 — Backend review
+## Fase 9 — Backend review ✅ Concluída em 2026-08-23 — branch `review/v2-backend`
 
 **Objetivo:** varrer `apps/api`, `packages/database` e `packages/types` atrás do
 que oito fases de entrega deixaram passar — contrato, limite, consulta, pipeline
@@ -1870,51 +1870,78 @@ e observabilidade — e sair com **guarda onde hoje há convenção**.
 
 ```text
     -- 9.1 contrato HTTP: o schema é o contrato --
-[ ] as 34 rotas conferidas contra docs/api.md
-[ ] schema de resposta × select do serviço, rota a rota
-[ ] códigos de erro por rota (401 × 403 × 404) e o que o 500 devolve
-[ ] guarda de deriva: rota registrada ⇒ rota documentada
-[ ] OpenAPI: o `servers` e a exposição pública de /api/docs
+[x] as 34 rotas conferidas contra docs/api.md (eram 32 documentadas)
+[x] schema de resposta × select do serviço, rota a rota
+[x] códigos de erro por rota (401 × 403 × 404) e o que o 500 devolve
+[x] guarda de deriva: rota registrada ⇒ rota documentada
+[x] OpenAPI: o `servers` e a exposição pública de /api/docs
 
     -- 9.S segurança do servidor (eixo obrigatório) --
-[ ] rate limit: o balde é por cliente ou é um só? (medir)
-[ ] CORS: métodos declarados × métodos que existem
-[ ] helmet: decidir a CSP (hoje `contentSecurityPolicy: false`)
-[ ] rotas /dev em produção: JOB_SECRET por query string
-[ ] o JWT: claims, escopo do `purpose`, expiração
-[ ] o que o error handler devolve num 500 do Prisma
-[ ] **injeção de prompt**: o feed RSS escreve no mesmo canal das instruções
-[ ] autorização rota a rota: quem exige ADMIN e quem só exige sessão
-[ ] dado pessoal em repouso e em log (Subscriber, User, PipelineEvent)
-[ ] advisories das dependências da API — 40 high em prod, medido em 23/08
-[ ] cada achado sai com o teste que o mantém fechado
+[x] rate limit: o balde é por cliente ou é um só? (medido: era um só)
+[x] CORS: métodos declarados × métodos que existem
+[x] helmet: decidir a CSP (era `contentSecurityPolicy: false`)
+[x] rotas /dev em produção: JOB_SECRET por query string
+[x] o JWT: claims, escopo do `purpose`, expiração
+[x] o que o error handler devolve num 500 do Prisma
+[x] **injeção de prompt**: o feed RSS escreve no mesmo canal das instruções
+[x] autorização rota a rota: quem exige ADMIN e quem só exige sessão
+[x] dado pessoal em repouso e em log (Subscriber, User, PipelineEvent)
+[x] advisories das dependências da API — 21 → 6, com aceite escrito das 6
+[x] cada achado sai com o teste que o mantém fechado
 
     -- 9.3 dados e consultas --
-[ ] índices × consultas que de fato rodam
-[ ] replay das 4 migrations em banco limpo (branch do Neon)
-[ ] o índice único de News.sourceUrl conferido nos dois ambientes
-[ ] projeção de crescimento do ProductEvent aos 90 dias
-[ ] as duas dívidas com gatilho: /favorites e /metrics/product
+[x] índices × consultas que de fato rodam
+[x] replay das 4 migrations em banco limpo
+[x] o índice único de News.sourceUrl conferido nos dois ambientes
+[x] projeção de crescimento do ProductEvent aos 90 dias
+[x] as duas dívidas com gatilho: /favorites e /metrics/product
 
     -- 9.4 pipeline --
-[ ] idempotência das 10 etapas, uma a uma
-[ ] o que é crítico e o que é não-crítico, e o que acontece ao falhar
-[ ] o dia sem artigo: o que a Home mostra
-[ ] retenção: os números do cleanup × os números da documentação
+[x] idempotência das 10 etapas, uma a uma
+[x] o que é crítico e o que é não-crítico, e o que acontece ao falhar
+[x] o dia sem artigo: o que a Home mostra
+[x] retenção: os números do cleanup × os números da documentação
 
     -- 9.5 observabilidade --
-[ ] error rate e latência da API — §26 promete, nada calcula
-[ ] correlação de requisição (hoje não existe)
-[ ] o que o PipelineLog não registra e devia
+[x] error rate e latência da API — **medir**, e não riscar
+[x] correlação de requisição (`x-request-id`, propagado do BFF)
+[x] o que o PipelineLog não registra e devia
 
     -- 9.T testes e guardas (eixo obrigatório) --
-[ ] cobertura por arquivo: onde estão os 6% que faltam
-[ ] teste que descreve comportamento × teste que repete implementação
-[ ] a guarda de build (runtime-deps): o que mais ela devia travar
-[ ] guarda de deriva rota ⇒ documentação (sai da 9.1)
-[ ] teste de autorização por rota: 401, 403 e o caminho feliz
-[ ] o caminho degradado do pipeline coberto, não só o feliz
+[x] cobertura por arquivo: onde estão os 6% que faltam
+[x] teste que descreve comportamento × teste que repete implementação
+[x] a guarda de build (runtime-deps): o que mais ela devia travar
+[x] guarda de deriva rota ⇒ documentação (saiu da 9.1)
+[x] teste de autorização por rota: 401, 403 e o caminho feliz
+[x] o caminho degradado do pipeline coberto, não só o feliz
 ```
+
+### O que a fase mediu, e o que ela decidiu
+
+**A suspeita central se confirmou.** Três requisições com `X-Forwarded-For`
+diferentes na mesma janela de 60s, contra produção: `x-ratelimit-remaining`
+**98, 97, 96**. Balde único. A correção é `trustProxy: 1` — e não `true`, que
+confiaria na ponta esquerda da cadeia, escrita pelo cliente.
+
+**As quatro migrations nunca tinham rodado do zero**, e agora rodaram: banco
+limpo, `migrate deploy`, `migrate diff` contra o `schema.prisma` devolvendo "No
+difference detected". O índice único de `News.sourceUrl` está no que as
+migrations produzem e não está no banco local — 5 índices contra 4.
+
+**A §26 ganhou os dois números que prometia.** Medir saiu mais barato que
+riscar: `GET /api/metrics/http` (admin), em memória, com `since` e
+`uptimeSeconds` dizendo de quanto tempo a janela fala. O gatilho para persistir
+é mais de uma instância no Render, ou a primeira pergunta que exija comparar
+duas semanas.
+
+**Advisories 21 → 6 em `apps/api`** (16 high → 3), por override de `fast-uri`,
+`brace-expansion` e `yaml`. Das seis restantes: três pedem `fastify@5` (dívida
+da Fase 12, com a high alcançável mitigada na porta), uma é HTTP/2 que a API não
+serve, e duas são do `@fastify/static`, que só a UI do Swagger arrastava — e ela
+deixou de ser registrada em produção. Aceite de risco escrito no item 34 do
+`docs/progress.md`.
+
+**O detalhe fase a fase está no item 34 do `docs/progress.md`.**
 
 ### 9.1 O contrato HTTP — "o que não está no schema não existe"
 

@@ -22,6 +22,14 @@ export const envSchema = z.object({
     .string()
     .default('http://localhost:3000')
     .transform((value) => value.replace(/\/+$/, '')),
+  // Endereco publico da API. So o documento OpenAPI o usa: sem ele o `servers`
+  // anunciava o bind (`http://0.0.0.0:3001` em producao), que nao e endereco de
+  // ninguem. Opcional porque em desenvolvimento o bind local esta certo.
+  API_PUBLIC_URL: z
+    .string()
+    .url()
+    .optional()
+    .transform((value) => value?.replace(/\/+$/, '')),
   CRON_SCHEDULE: z.string().default('0 8 * * *'),
   CRON_TIMEZONE: z.string().default('America/Sao_Paulo'),
   // Newsletter — opcional; sem RESEND_API_KEY o envio é pulado (graceful)

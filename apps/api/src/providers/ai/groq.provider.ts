@@ -1,8 +1,8 @@
 import { env } from '../../config/env';
-import { ARTICLE_SYSTEM_PROMPT, ARTICLE_USER_PROMPT } from '../../config/ai-prompts';
+import { ARTICLE_SYSTEM_PROMPT } from '../../config/ai-prompts';
 import {
   attachRetryAfter,
-  formatNewsItems,
+  buildArticleUserPrompt,
   parseMarkdownResponse,
   withRetry,
 } from './ai-utils';
@@ -20,7 +20,7 @@ interface GroqApiResponse {
 }
 
 async function requestArticle(newsItems: RawNewsItem[]): Promise<GeneratedArticle> {
-  const userPrompt = ARTICLE_USER_PROMPT + formatNewsItems(newsItems);
+  const userPrompt = buildArticleUserPrompt(newsItems);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

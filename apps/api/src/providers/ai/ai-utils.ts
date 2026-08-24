@@ -1,3 +1,9 @@
+import {
+  ARTICLE_USER_PROMPT,
+  ARTICLE_USER_PROMPT_SUFFIX,
+  MATERIAL_END,
+  MATERIAL_START,
+} from '../../config/ai-prompts';
 import type { RawNewsItem, GeneratedArticle } from '../types';
 
 const MAX_DESCRIPTION_LENGTH = 300;
@@ -77,33 +83,117 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max - 1) + '…';
 }
 
+/**
+ * Neutraliza o que, dentro do material, se parece com o **envelope** do prompt.
+ *
+ * `stripHtml` limpa marcação; não limpa instrução. E o material aqui é escrito
+ * por terceiros — 13 feeds RSS mais a NewsData.io, centenas de itens por dia —
+ * e vai colado no mesmo texto que carrega as instruções do modelo. O que sai
+ * dali é publicado **sem revisão humana**: o Stage 7 persiste, o 7.5 manda por
+ * e-mail para os assinantes e a Home passa a exibir. Uma manchete construída
+ * para instruir o modelo entra pela porta da notícia e sai assinada pelo site.
+ *
+ * A defesa tem três camadas, e esta é a segunda:
+ *
+ * 1. **fronteira declarada** — o material vai entre `MATERIAL_START` e
+ *    `MATERIAL_END`, e o system prompt manda tratar tudo ali como dado;
+ * 2. **o material não pode falsificar a fronteira** (esta função) — quem
+ *    escrevesse o próprio `MATERIAL_END` sairia do bloco, e o resto do texto
+ *    dele viraria instrução. É a única coisa aqui que é *bypass*, e não
+ *    persuasão, e por isso é a única tratada por substituição literal. Quebra
+ *    de linha some pela mesma razão: é com ela que se falsifica o rótulo de um
+ *    campo do item seguinte.
+ * 3. **validação da saída** — `parseMarkdownResponse` recusa resposta fora do
+ *    formato (ver lá).
+ *
+ * **O que esta função deliberadamente não faz:** filtrar frases suspeitas
+ * ("ignore as instruções acima"). Lista de palavra proibida em texto
+ * jornalístico é falso positivo garantido — uma matéria *sobre* injeção de
+ * prompt seria censurada — e não fecha nada: a mesma ordem se escreve de mil
+ * maneiras. Quem trata disso é a camada 1, que não depende de adivinhar a
+ * forma.
+ */
+export function neutralizeMaterialDelimiters(text: string): string {
+  return text.split(MATERIAL_START).join('[…]').split(MATERIAL_END).join('[…]');
+}
+
 export function formatNewsItems(newsItems: RawNewsItem[]): string {
   return newsItems
     .map((item, index) => {
-      const cleanDescription = truncate(stripHtml(item.description), MAX_DESCRIPTION_LENGTH);
+      const safe = (value: string): string =>
+        neutralizeMaterialDelimiters(value)
+          .replace(/[\r\n]+/g, ' ')
+          .trim();
+      const cleanDescription = truncate(
+        safe(stripHtml(item.description)),
+        MAX_DESCRIPTION_LENGTH,
+      );
       const cleanContent = item.content
-        ? truncate(stripHtml(item.content), MAX_CONTENT_LENGTH)
+        ? truncate(safe(stripHtml(item.content)), MAX_CONTENT_LENGTH)
         : 'N/A';
-      return `${index + 1}. TÍTULO: ${item.title}\nFONTE: ${item.source}\nCATEGORIA: ${item.category}\nDATA: ${item.publishedAt.toISOString()}\nDESCRIÇÃO: ${cleanDescription}\nCONTEÚDO: ${cleanContent}`;
+      return `${index + 1}. TÍTULO: ${safe(item.title)}\nFONTE: ${safe(item.source)}\nCATEGORIA: ${item.category}\nDATA: ${item.publishedAt.toISOString()}\nDESCRIÇÃO: ${cleanDescription}\nCONTEÚDO: ${cleanContent}`;
     })
     .join('\n\n');
+}
+
+/**
+ * Menor tamanho de corpo que ainda e um briefing.
+ *
+ * O prompt pede 800-1200 palavras. O piso aqui e uma ordem de grandeza abaixo
+ * de proposito: nao esta medindo qualidade editorial, esta pegando a resposta
+ * que **nao e um artigo** — a recusa de uma linha, o "Ok, entendi", o eco de
+ * uma instrucao que veio no material.
+ */
+const MIN_ARTICLE_CONTENT_LENGTH = 400;
+
+/**
+ * A saida tambem e superficie, e ate a Fase 9 ela era aceita como viesse.
+ *
+ * Esta e a terceira camada da defesa contra injecao pelo feed (as outras duas
+ * estao em `neutralizeMaterialDelimiters`): **o formato esperado ja existia e
+ * nao era exigido**. Quando nao havia `# `, o parser pegava a primeira linha
+ * nao vazia como titulo e seguia em frente — ou seja, uma resposta que
+ * obedecesse ao material em vez das instrucoes virava artigo publicado do mesmo
+ * jeito, e o pipeline registrava sucesso.
+ *
+ * Recusar aqui e barato e chega no lugar certo: quem chama e o Stage 6, o erro
+ * derruba o run **antes** do Stage 7 persistir e do 7.5 mandar e-mail, e o
+ * `PipelineLog` guarda o motivo. O dia fica sem briefing — que e o que a Home
+ * ja sabe desenhar (`hero`/`briefing` nulos) — em vez de ficar com um briefing
+ * que nao se sabe de onde veio.
+ */
+export class MalformedArticleError extends Error {
+  constructor(reason: string) {
+    super(`AI response is not a valid article: ${reason}`);
+    this.name = 'MalformedArticleError';
+  }
+}
+
+/**
+ * Monta o prompt de usuario inteiro: instrucoes, abertura do material, o
+ * material, fechamento.
+ *
+ * Existe para que **a fronteira nao dependa de quem chama**. Antes da Fase 9
+ * cada provider fazia `ARTICLE_USER_PROMPT + formatNewsItems(items)` por conta
+ * propria — duas copias da mesma linha, e um terceiro provider nasceria com uma
+ * terceira. Com o fechamento do bloco agora fazendo parte do contrato, esquecer
+ * o sufixo deixaria o material aberto ate o fim do texto, que e exatamente a
+ * condicao que a fronteira existe para impedir.
+ */
+export function buildArticleUserPrompt(newsItems: RawNewsItem[]): string {
+  return ARTICLE_USER_PROMPT + formatNewsItems(newsItems) + ARTICLE_USER_PROMPT_SUFFIX;
 }
 
 export function parseMarkdownResponse(markdown: string): GeneratedArticle {
   const lines = markdown.split('\n');
   const h1Index = lines.findIndex((line) => line.startsWith('# '));
 
-  let title: string;
-  let contentLines: string[];
-
-  if (h1Index !== -1) {
-    title = (lines[h1Index] ?? '').replace(/^#\s+/, '').trim();
-    contentLines = lines.filter((_, i) => i !== h1Index);
-  } else {
-    const firstNonEmptyIndex = lines.findIndex((l) => l.trim() !== '');
-    title = lines[firstNonEmptyIndex]?.trim() ?? '';
-    contentLines = lines.slice(firstNonEmptyIndex + 1);
+  if (h1Index === -1) {
+    throw new MalformedArticleError('no "# " title line');
   }
+
+  const title = (lines[h1Index] ?? '').replace(/^#\s+/, '').trim();
+  const contentLines = lines.filter((_, i) => i !== h1Index);
 
   const summary =
     contentLines
@@ -111,6 +201,15 @@ export function parseMarkdownResponse(markdown: string): GeneratedArticle {
       .find((l) => l.length > 0 && !l.startsWith('#')) ?? '';
 
   const content = contentLines.join('\n').trim();
+
+  if (title.length === 0) {
+    throw new MalformedArticleError('empty title');
+  }
+  if (content.length < MIN_ARTICLE_CONTENT_LENGTH) {
+    throw new MalformedArticleError(
+      `content too short (${content.length} < ${MIN_ARTICLE_CONTENT_LENGTH})`,
+    );
+  }
 
   return { title, summary, content };
 }

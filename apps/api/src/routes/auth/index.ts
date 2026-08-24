@@ -6,7 +6,9 @@ import { authPlugin } from '../../plugins/auth';
 import { upsertBodySchema, upsertResponseSchema } from './schemas';
 
 export async function authRoutes(app: FastifyInstance) {
-  await app.register(authPlugin);
+  // Token de uso único do primeiro sign-in: o `purpose` é conferido no plugin,
+  // que recusa aqui o token de sessão e recusa nas outras rotas o token daqui.
+  await app.register(authPlugin, { purpose: 'auth-upsert' });
 
   app.withTypeProvider<ZodTypeProvider>().post(
     '/upsert',
@@ -17,12 +19,10 @@ export async function authRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      // Token com purpose 'auth-upsert' e e-mail do corpo batendo com o do JWT
-      // (evita que um token de usuário comum chame este endpoint para outro e-mail)
-      if (
-        request.user?.purpose !== 'auth-upsert' ||
-        request.user.email !== request.body.email.trim().toLowerCase()
-      ) {
+      // O `purpose` já foi conferido no plugin; o que sobra para o handler é a
+      // ligação entre o token e o corpo — sem ela, um token válido criaria
+      // usuário para outro e-mail.
+      if (request.user?.email !== request.body.email.trim().toLowerCase()) {
         throw new UnauthorizedError('Invalid or missing token');
       }
 

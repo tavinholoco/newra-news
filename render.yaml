@@ -37,5 +37,10 @@ services:
         sync: false
       - key: SITE_URL
         value: https://newra-news-web.vercel.app
+      # Endereco publico da API. So o documento OpenAPI o usa — sem ele o
+      # `servers` anunciava `http://0.0.0.0:3001`, que e o bind e nao e
+      # endereco de ninguem (achado da revisao 9.1).
+      - key: API_PUBLIC_URL
+        value: https://newra-news-api.onrender.com
       - key: NEWSLETTER_FROM
         sync: false

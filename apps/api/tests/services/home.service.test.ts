@@ -193,6 +193,30 @@ describe('getHome', () => {
     expect(home.categories).toHaveLength(2);
   });
 
+  it('should draw the rest of the Home on a day with news and no briefing', async () => {
+    // **A pergunta da §9.4**, e ela não é hipotética: o acervo tem gap
+    // conhecido (89 artigos em 90 dias). O dia sem briefing não é o dia sem
+    // acervo — a coleta roda antes da geração e persiste mesmo quando a IA
+    // falha, então a Home tem notícia de sobra e não tem o texto do dia.
+    //
+    // O que ela desenha: tudo, menos o bloco do briefing. `briefing: null` é
+    // estado normal, e o schema de resposta o declara `nullable()` — se ele não
+    // declarasse, a rota inteira devolveria 500 num dia em que o produto só
+    // estava degradado.
+    vi.mocked(prisma.news.findMany).mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) =>
+        makeNews({ id: `n${i}`, imageUrl: i === 0 ? 'https://img/1.jpg' : null }),
+      ) as never,
+    );
+    vi.mocked(getLatestArticle).mockResolvedValue(null);
+
+    const home = await getHome({ categories: 4 });
+
+    expect(home.briefing).toBeNull();
+    expect(home.hero).not.toBeNull();
+    expect(home.latest.length).toBeGreaterThan(0);
+  });
+
   it('should build the briefing from the latest article', async () => {
     vi.mocked(getLatestArticle).mockResolvedValue({
       id: '11111111-1111-1111-1111-111111111111',

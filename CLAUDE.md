@@ -99,70 +99,65 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as **Fases 0 a 8 concluídas**; a Fase 8 foi
-  auditada em 23/08. **A próxima é a Fase 9 (Backend review).** A antiga "Fase 9
-  — Release" foi reescrita em 23/08 e virou **quatro**: **9 (backend review)**,
-  **10 (frontend review)**, **11 (integração geral)** e **12 (ajustes finos e
-  release final)** — §28 do plano.
-- **Última entrega (2026-08-23):** a **auditoria de fechamento da Fase 8**, que
-  achou o gate do Lighthouse medindo *cold start* e não página — o workflow
-  passou a aquecer sozinho. Antes dela, **a tela de métricas de produto** fechou
-  a **Fase 8**. `GET /api/metrics/product` (admin) e um bloco novo no
-  `/admin/metrics`: audiência, leitura, cliques por origem, categorias e buscas
-  sem resultado. Antes dela, o anúncio foi cancelado (item 29) e o `/api/events`
-  foi consertado (item 30) — **a ingestão está no ar**, respondendo 201 em
-  produção.
+- **Onde estamos:** V2.0 com as **Fases 0 a 9 concluídas**. A **Fase 10
+  (frontend review)** é a próxima e pode abrir imediatamente — 9 e 10 correm em
+  paralelo por desenho, e a 9 já fechou. A **11 (integração geral)** abre com as
+  duas mergeadas; a **12 (ajustes finos e release)** depois da 11 — §28 do plano.
+- **Última entrega (2026-08-23):** a **Fase 9 (backend review)**, com os seis
+  eixos da §28 fechados. O achado central era o previsto pelo plano e agora está
+  medido: **o balde de rate limit era um só para a internet inteira** — sem
+  `trustProxy`, `request.ip` é o peer do socket, e atrás do proxy do Render o
+  peer é o proxy. Outros seis achados de segurança, cada um com a guarda que o
+  mantém fechado: a fronteira do prompt contra injeção pelo feed RSS, o escopo
+  do `purpose` do JWT, o segredo fora da query string do painel dev, o 500 que
+  contava o interior do servidor, o CORS que declarava metade dos métodos e a
+  CSP que não existia. **Advisories de produção da API: 21 → 6**, com aceite de
+  risco escrito para as seis. **575 testes em 45 suítes → 728 em 54.** Detalhe
+  no item **34** do `docs/progress.md`.
+
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.026 em 95 suites (575 API em 45 + 451 web em 50 — todos
-  passando).
+- **Testes:** 1.179 em 104 suites (**728 API em 54** + 451 web em 50 — todos
+  passando). Cobertura da API: **98,71% stmts · 93,32% branch · 99,45% funcs**.
 
-### Por onde começar a Fase 9 (Backend review)
+### Por onde começar a Fase 10 (Frontend review)
 
-**A Fase 8 está fechada.** Leia os itens **26 a 32** do `docs/progress.md` — a
-camada de analytics, o cancelamento do anúncio, o conserto do empacotamento, a
-tela de métricas e a auditoria de fechamento.
+**A Fase 9 está fechada.** Leia o item **34** do `docs/progress.md` — os seis
+eixos, o que cada um achou e o aceite de risco das advisories que sobraram.
 
-**O plano das quatro fases finais está na §28**, com inventário fechado,
-checklist por eixo e critério de saída para cada uma. Antes de abrir a 9, leia
-duas coisas de lá:
+**O plano das quatro fases finais está na §28.** Antes de abrir a 10, leia de lá
+as mesmas três coisas que a 9 leu:
 
-- **"Anatomia de uma fase de revisão"** — a regra que vale para as três de
-  revisão: **todo achado sai como correção mergeada, guarda no CI, ou dívida com
-  gatilho numérico**. Nunca como item de lista. E cada fase abre com inventário
-  fechado, senão não tem critério de parada.
+- **"Anatomia de uma fase de revisão"** — **todo achado sai como correção
+  mergeada, guarda no CI, ou dívida com gatilho numérico**. Nunca como item de
+  lista. E a fase abre com inventário fechado, senão não tem critério de parada.
 - **"A camada de segurança e testes"** — os eixos **`S`** e **`T`** são
-  obrigatórios nas quatro fases e **não são adiáveis para a seguinte**. Achado de
-  segurança **não vira dívida sem aceite de risco escrito**, e **sai sempre com o
-  teste que o mantém fechado**. Os dois eixos saem em PR próprio.
-- **A ordem:** 9 e 10 correm **em paralelo** (apps diferentes, sem conflito de
-  arquivo); a 11 só abre com as duas mergeadas; a 12 só depois da 11.
+  obrigatórios e **não são adiáveis**. Achado de segurança **não vira dívida sem
+  aceite de risco escrito**, e **sai sempre com o teste que o mantém fechado**.
+- **A seção da Fase 10**, e só ela. Cada fase tem inventário próprio.
 
-**Três achados de segurança já verificados** esperam a fase que os cobre — estão
-no item **33** do `docs/progress.md` com o método de verificação: o **site não
-tem nenhum cabeçalho de segurança** (a API tem o conjunto do helmet); o **feed
-RSS escreve no mesmo canal das instruções da IA**, e a saída é publicada sem
-revisão humana; e **40 advisories high em dependências de produção**, dois deles
-só corrigíveis em major (`next` 14→15, `fastify` 4→5).
+**A superfície da 10 é o navegador**: cabeçalho de resposta, injeção no DOM, o
+que vaza no bundle, o que a página carrega de fora. O achado já verificado que a
+espera está no item **33**: **o site não tem cabeçalho de segurança nenhum** — a
+API tem o conjunto do helmet e, desde a Fase 9, uma CSP de verdade; o web não
+tem nada. As advisories do `next` (só corrigidas na 15) também são 10.S.
 
-**Boa parte dos oito itens da antiga Fase 9 já existe** — a baseline visual
-(§30), o gate do Lighthouse e a validação de SEO da Fase 7. O que **não** existe
-e a §28 nomeia: o smoke E2E (o Playwright está instalado sem config e sem uma
-única spec), o limiar de cobertura do web, a guarda de deriva da `docs/api.md`,
-e a extensão do `SchemaMatchesSharedType` para além da rota de eventos.
+**O que a Fase 9 deixou pronto e a 10 pode aproveitar:** o padrão da guarda
+exaustiva. Três guardas desta fase enumeram a superfície e exigem decisão para
+cada item — rota ⇒ documentação, coluna do Prisma ⇒ schema de resposta, rota ⇒
+linha na matriz de autorização. É o formato que impede o buraco novo, e o
+equivalente no web (rota ⇒ teste, componente ⇒ referência dark) é a forma de a
+10.T fechar.
 
-Três coisas a saber:
+**Duas coisas da 9 que a 11 vai cobrar**, e é bom não redescobrir:
 
-- **A tela de métricas nasce mostrando quase zero**, e zero é honesto: a
-  ingestão entrou no ar em 22/08. O número começa a significar algo depois de
-  alguns dias de tráfego.
-- **A tabela de agregado diário fica para ~90 dias depois** — é quando o expurgo
-  começa a apagar evento cru e a comparação entre meses deixa de existir. Entra
-  sem retrabalho.
-- **Não reintroduza espaço de anúncio** sem ler a §21: publicidade está
-  **cancelada por decisão**, não esquecida. `subscription_intent` segue sem call
-  site e `premium-cta` não deve existir antes de haver plano pago.
+- **o CORS agora declara PUT e DELETE**, mas toda mutação continua passando pelo
+  BFF do Next, server-side. A dependência não declarada entre as metades é
+  item da **11.S**, não foi resolvida aqui — só deixou de estar quebrada por
+  acidente.
+- **o `x-request-id` é propagado**: a API respeita o header de quem chama. O BFF
+  ainda não o envia, e é a 11 que costura isso.
 
 ### Armadilhas que já custaram caro
 
@@ -245,6 +240,30 @@ Três coisas a saber:
   O artigo mais recente do banco local também tem **auditoria e 12 fontes
   semeadas à mão** (21/08), para dar de ver a tela de briefing completa — não
   saiu do pipeline, e o resto do acervo local é anterior à migration.
+- **`request.ip` do Fastify não é o cliente sem `trustProxy`** — é o peer do
+  socket, e atrás do proxy do Render isso é o proxy. Medido em 23/08: três
+  requisições com `X-Forwarded-For` diferentes consumiram o **mesmo** balde de
+  rate limit. Corrigido com `trustProxy: 1` (e não `true`, que confia na ponta
+  esquerda da cadeia, escrita pelo cliente). Guarda em
+  `apps/api/tests/security/server-hardening.test.ts`.
+- **O `env` da API é lido na carga do módulo, e `process.env` num `beforeAll`
+  chega tarde.** O efeito é traiçoeiro: `AUTH_JWT_SECRET` vazio faz
+  `verifyAuthJwt` recusar **todo** token por "auth não configurada", então um
+  teste que só afirma 401 **passa pelo motivo errado**. Aconteceu com as guardas
+  de escopo do `purpose` nesta fase. Em teste que envolve JWT, use
+  `vi.mock('../../src/config/env', ...)` — como as suítes de rota já faziam — e
+  inclua uma asserção de caminho feliz provando que o harness não é vazio.
+- **Validação de schema responde antes da autorização.** A ordem de hooks do
+  Fastify é `preValidation` → `validation` → `preHandler`, e o `authPlugin`
+  está no `preHandler`: um POST anônimo com corpo inválido numa rota protegida
+  devolve **400, não 401**. Não é vazamento sério (a forma do corpo está na
+  `docs/api.md`), mas surpreende ao escrever teste de autorização — dê corpo
+  válido, senão você mede a validação e acha que mediu a porta.
+- **`turbo test` não constrói o `apps/api`, e agora também importa para SQL.**
+  A suíte roda sem banco de propósito, então guarda sobre migration tem de ser
+  **estática** (lê o `.sql`, não aplica). O replay de verdade é manual —
+  `packages/database` + banco limpo + `prisma migrate diff`; foi feito em 23/08
+  e o resultado está no item 34.
 - **O gate do Lighthouse é real desde 21/08** (`configPath` nos inputs da
   action): a execução semanal de segunda 09:00 UTC falha se alguma categoria
   cair abaixo de 90.
@@ -266,9 +285,27 @@ Três coisas a saber:
   renormaliza sozinho na etapa 8.5 do pipeline diário: não há job manual a
   disparar.
 - **A `/api/favorites` resolve os salvos do usuário inteiros antes de paginar.**
-  É o que faz o `meta.total` prometer o que a lista mostra, e o conjunto é
-  limitado pela conta. Com dezenas de milhares de salvos por pessoa, vira
-  consulta a otimizar — não é o caso hoje, e está documentado no serviço.
+  É o que faz o `meta.total` prometer o que a lista mostra. **O gatilho tem
+  número desde a Fase 9: ~5.000 salvos numa conta** — aí o `IN` da hidratação
+  carrega 5 mil ids para devolver 20 linhas. É observável sem instrumentação
+  nova: `GET /api/account` já devolve `saved: { news, articles }`.
+- **A `/api/metrics/product` agrega em memória a partir de uma consulta só.**
+  **Gatilho: ~200.000 linhas na janela de 90 dias** (≈60 MB de objetos numa
+  requisição, num plano de 512 MB), o que a ~4 eventos por pageview são **~550
+  pageviews/dia**. Abaixo disso, uma consulta e uma agregação em memória custam
+  menos que seis `groupBy`.
+- **As métricas de HTTP não são persistidas** (`GET /api/metrics/http`). A
+  janela zera a cada deploy e a cada hibernação, e com mais de uma instância
+  cada uma responde a sua — por isso a resposta traz `since` e `uptimeSeconds`.
+  **Gatilho para persistir:** mais de uma instância no Render, ou a primeira
+  pergunta que exija comparar duas semanas.
+- **Três advisories da `fastify@4` esperam a major**, que é dívida da Fase 12. A
+  única **high** alcançável (bypass de validação por `content-type` com tab)
+  está mitigada na porta, com guarda em
+  `apps/api/tests/security/content-type-bypass.test.ts`. As outras três de
+  `apps/api` têm alcance zero hoje: HTTP/2 que a API não serve, e
+  `@fastify/static`, que só a UI do Swagger arrastava — e ela deixou de ser
+  registrada em produção.
 
 ### Onde ler o resto
 

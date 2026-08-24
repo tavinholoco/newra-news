@@ -154,12 +154,26 @@ describe('GET /api/jobs/:pipelineId', () => {
     await app.close();
   });
 
+  it('should return 401 without the job secret', async () => {
+    // Era publica ate a revisao da Fase 9, devolvendo `log.error` — a mensagem
+    // crua da falha, com o que quer que o provider de IA ou o Prisma tenham
+    // dito. Fechar nao custou acesso a ninguem: o `pipelineId` so sai da
+    // resposta do disparo, que ja exigia o segredo.
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/jobs/bbbbbbbb-0000-0000-0000-000000000002',
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
   it('should return 200 with pipeline log when found', async () => {
     vi.mocked(prisma.pipelineLog.findUnique).mockResolvedValue(mockLog as never);
 
     const res = await app.inject({
       method: 'GET',
       url: `/api/jobs/${mockLog.id}`,
+      headers: { authorization: 'Bearer test-secret' },
     });
 
     expect(res.statusCode).toBe(200);
@@ -177,6 +191,7 @@ describe('GET /api/jobs/:pipelineId', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/jobs/ffffffff-ffff-ffff-ffff-ffffffffffff',
+      headers: { authorization: 'Bearer test-secret' },
     });
 
     expect(res.statusCode).toBe(404);
@@ -199,6 +214,7 @@ describe('GET /api/jobs/:pipelineId', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/jobs/${mockLog.id}`,
+      headers: { authorization: 'Bearer test-secret' },
     });
 
     const body = JSON.parse(res.body) as { data: Record<string, unknown> };

@@ -7,6 +7,7 @@ import {
   ARTICLE_PROMPT_VERSION,
   ARTICLE_SYSTEM_PROMPT,
   ARTICLE_USER_PROMPT,
+  ARTICLE_USER_PROMPT_SUFFIX,
 } from '../../src/config/ai-prompts';
 
 vi.mock('../../src/providers/ai/gemini.provider');
@@ -120,6 +121,7 @@ describe('ARTICLE_PROMPT_VERSION', () => {
     const digest = createHash('sha256')
       .update(ARTICLE_SYSTEM_PROMPT)
       .update(ARTICLE_USER_PROMPT)
+      .update(ARTICLE_USER_PROMPT_SUFFIX)
       .digest('hex')
       .slice(0, 8);
 
@@ -128,9 +130,24 @@ describe('ARTICLE_PROMPT_VERSION', () => {
     const otherDigest = createHash('sha256')
       .update(`${ARTICLE_SYSTEM_PROMPT} alterado`)
       .update(ARTICLE_USER_PROMPT)
+      .update(ARTICLE_USER_PROMPT_SUFFIX)
       .digest('hex')
       .slice(0, 8);
 
     expect(otherDigest).not.toBe(digest);
+  });
+
+  it('should change when the closing delimiter of the material changes', () => {
+    // O sufixo entra no hash porque ele **e** parte do prompt: e a linha que
+    // fecha o bloco do material. Se ele saisse do calculo, mexer na fronteira
+    // — que e uma mudanca de seguranca — nao mudaria a versao gravada, e dois
+    // briefings gerados sob regras diferentes ficariam indistinguiveis.
+    const withoutSuffix = createHash('sha256')
+      .update(ARTICLE_SYSTEM_PROMPT)
+      .update(ARTICLE_USER_PROMPT)
+      .digest('hex')
+      .slice(0, 8);
+
+    expect(ARTICLE_PROMPT_VERSION.endsWith(withoutSuffix)).toBe(false);
   });
 });
