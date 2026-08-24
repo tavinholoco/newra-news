@@ -137,15 +137,15 @@ do dia mudou, ou há algo errado.
   "sem notícias hoje" por uma hora na ISR — e o **`prefers-reduced-motion`
   declarado e desobedecido** nas duas listagens paginadas. **Advisories de
   produção do web: 83 → 36**, com aceite escrito para as 8 *high* do `next`.
-  **451 testes em 50 suítes → 524 em 57.** Detalhe no item **35** do
+  **451 testes em 50 suítes → 522 em 57.** Detalhe no item **35** do
   `docs/progress.md`.
 
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.252 em 111 suites (**728 API em 54** + **524 web em 57** — todos
+- **Testes:** 1.250 em 111 suites (**728 API em 54** + **522 web em 57** — todos
   passando). Cobertura: API **98,71% stmts · 93,32% branch · 99,45% funcs**;
-  web **72,32% stmts · 88,82% branch · 71,32% funcs** — com piso de 70% no CI
+  web **72,35% stmts · 88,86% branch · 71,42% funcs** — com piso de 70% no CI
   desde a Fase 10, que antes media só a API.
 
 ### Por onde começar a Fase 11 (Integração geral)

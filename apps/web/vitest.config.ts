@@ -39,8 +39,8 @@ export default defineConfig({
        * por um app so. Eram 451 testes sem piso nenhum: o numero podia cair
        * sem nada reprovar.
        *
-       * **Medido em 24/08/2026, ao fixar:** 72,32% stmts · 88,82% branch ·
-       * 71,32% funcs, com 524 testes em 57 suites.
+       * **Medido em 24/08/2026, ao fixar:** 72,35% stmts · 88,86% branch ·
+       * 71,42% funcs, com 522 testes em 57 suites.
        *
        * O numero e o mesmo 70 da API, mas **a folga aqui e fina de proposito e
        * vale dizer**: la o piso ficou 24 pontos abaixo do medido, aqui fica
