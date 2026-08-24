@@ -12,6 +12,21 @@ import { toDateFormatLocale } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
+/**
+ * Vazio, pelo mesmo motivo da `/news/[id]`: sem esta função o Next marca a rota
+ * como `ƒ` e o `revalidate` acima não guarda nada — medido em produção, três
+ * `MISS` seguidos na mesma URL.
+ *
+ * Aqui o conjunto **seria** enumerável (um briefing por dia, retenção de 90
+ * dias), e mesmo assim a lista fica vazia: pré-renderizar noventa páginas no
+ * build custaria noventa chamadas à API a cada deploy para assar conteúdo que a
+ * primeira visita guarda de graça — e o briefing de hoje, que é o único muito
+ * lido, nasce **depois** do build de qualquer forma.
+ */
+export function generateStaticParams() {
+  return [];
+}
+
 interface Props {
   params: { locale: string; date: string };
 }

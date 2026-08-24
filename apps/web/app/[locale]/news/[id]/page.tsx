@@ -10,6 +10,34 @@ import type { BreadcrumbStep } from '@/lib/json-ld';
 
 export const revalidate = 3600;
 
+/**
+ * **Vazio, e é o que liga a ISR nesta rota.**
+ *
+ * Sem `generateStaticParams`, o Next 14 marca uma rota de segmento dinâmico como
+ * `ƒ` — renderizada sob demanda **e não guardada**. Medido em produção em
+ * 24/08/2026, três requisições seguidas à mesma matéria: `x-vercel-cache: MISS`
+ * nas três, com `Cache-Control: private, no-cache, no-store`. Ou seja, o
+ * `revalidate = 3600` acima estava declarado e **não fazia nada**, enquanto a
+ * `/pt-BR` respondia `HIT` com `Age: 1491` ao lado.
+ *
+ * Com a função presente, ainda que devolvendo lista vazia, a rota passa a `●`:
+ * nada é pré-renderizado no build (não faria sentido assar 6.441 matérias, e o
+ * acervo cresce 513 por dia), o primeiro pedido de cada id é renderizado sob
+ * demanda, e **o resultado fica guardado**. Quem paga o render passa a ser o
+ * primeiro leitor de cada matéria, uma vez, em vez de todos eles, sempre.
+ *
+ * Isso importa mais aqui do que em qualquer outra rota: **página de detalhe é o
+ * que se compartilha**, então é por ela que se chega ao site vindo de busca ou
+ * de rede social — e era a única do produto sem cache nenhum.
+ *
+ * O cron diário já invalida tudo sob `/[locale]` (`revalidatePath` no
+ * `app/api/cron/daily-news/route.ts`), então a cópia guardada não sobrevive a
+ * uma renormalização do acervo.
+ */
+export function generateStaticParams() {
+  return [];
+}
+
 interface Props {
   params: { locale: string; id: string };
 }

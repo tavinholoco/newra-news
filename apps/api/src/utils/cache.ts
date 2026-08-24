@@ -22,6 +22,36 @@ import type { FastifyReply } from 'fastify';
  * (`/api/cron/daily-news`) surtir efeito em minutos e não em uma hora.
  * `stale-while-revalidate` serve a cópia velha enquanto busca a nova, para o
  * primeiro leitor depois da expiração não pagar a consulta.
+ *
+ * ## O que este cabeçalho **não** faz hoje — medido, não suposto
+ *
+ * A §11.3 mandava aplicar a mesma política à `/api/news`, "a mais chamada do
+ * acervo". A medição contra produção em 24/08/2026 derrubou a proposta:
+ *
+ * ```
+ * GET /api/home   → cache-control: public, s-maxage=300, stale-while-revalidate=3600
+ *                   cf-cache-status: DYNAMIC        server: cloudflare
+ * ```
+ *
+ * **Há um Cloudflare na frente do Render, e ele responde `DYNAMIC`** — resposta
+ * JSON não é elegível a cache por padrão, e as regras de cache daquele
+ * Cloudflare são do Render, não deste projeto. Somando os três consumidores
+ * possíveis:
+ *
+ * - **o Cloudflare do Render** não guarda (`DYNAMIC`, medido);
+ * - **o cache de dados do Next** decide por `next.revalidate`, e ignora este
+ *   cabeçalho;
+ * - **o navegador** lê `max-age`, que esta política não declara — `s-maxage` é
+ *   para cache compartilhado.
+ *
+ * Ou seja: **o cabeçalho está correto e não é lido por ninguém.** Fica onde
+ * está, porque declarar a política certa custa zero e é o que vale no dia em
+ * que houver cache compartilhado; mas **estendê-lo para mais rotas não teria
+ * acelerado nada**, e é por isso que a `/api/news` continua sem ele.
+ *
+ * O cache que existe de verdade neste produto está do lado da Vercel, e quem o
+ * controla é o `revalidate` das páginas — foi lá que a §11.3 achou o problema
+ * real (as duas telas de leitura renderizando a cada requisição).
  */
 export const EDITORIAL_CACHE_CONTROL =
   'public, s-maxage=300, stale-while-revalidate=3600';
