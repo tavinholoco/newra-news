@@ -178,6 +178,40 @@ export async function prefetch<T>(promise: Promise<T>): Promise<T | undefined> {
   return promise.catch(() => undefined);
 }
 
+/**
+ * `null` quando não há backend configurado; **relança onde o resultado é
+ * publicado**.
+ *
+ * Existe por causa de uma diferença que a revisão 10.4 só viu quando o CI
+ * reprovou. Tirar o `catch` da Home é a correção certa — sem ele, uma falha da
+ * API vira build vermelho em vez de uma Home dizendo "sem notícias hoje" e
+ * guardada por uma hora pela ISR. **Mas "build" não é uma coisa só:**
+ *
+ * - o **build da Vercel** recebe `NEXT_PUBLIC_API_URL` e produz o que vai ao
+ *   ar. Ali, falhar é o comportamento desejado: a Vercel preserva o deploy
+ *   anterior, e o `CLAUDE.md` já registra que os deploys do web e da API
+ *   disparam juntos e não terminam juntos;
+ * - o **build do CI** roda sem API nenhuma, de propósito — o `CLAUDE.md`
+ *   afirma que `build` não precisa de banco, como `lint` e `typecheck`. Ali
+ *   ele só confere que o projeto compila, e nada é publicado.
+ *
+ * `VERCEL` é a variável de sistema que separa os dois, e ela vale também em
+ * **runtime**: na revalidação da ISR a exceção sobe, o Next mantém a última
+ * página boa no ar e tenta de novo. É esse o caso que mais importa, porque é o
+ * único que acontece com gente lendo.
+ *
+ * Só para o valor que **é a tela inteira**. Bloco que falta é estado normal e
+ * continua com `prefetch` (que falha em `undefined`, nunca em valor vazio).
+ */
+export async function nullUnlessPublishing<T>(promise: Promise<T>): Promise<T | null> {
+  try {
+    return await promise;
+  } catch (error) {
+    if (process.env.VERCEL) throw error;
+    return null;
+  }
+}
+
 export async function getNews(
   page = 1,
   limit = 12,

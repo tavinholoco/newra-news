@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { ApiError, fetchApi, nullIfNotFound, prefetch } from '@/lib/api';
+import {
+  ApiError,
+  fetchApi,
+  nullIfNotFound,
+  nullUnlessPublishing,
+  prefetch,
+} from '@/lib/api';
 
 /**
  * **"A API disse que não" × "a API não respondeu".**
@@ -97,6 +103,47 @@ describe('prefetch', () => {
   });
 });
 
+describe('nullUnlessPublishing', () => {
+  /**
+   * **"Build" não é uma coisa só, e o CI foi quem ensinou isso.** A primeira
+   * versão desta correção simplesmente não capturava a falha do `getHome`, e o
+   * job Build reprovou com `ECONNREFUSED` — porque ele roda **sem API de
+   * propósito**, como o `CLAUDE.md` afirma para `lint`, `typecheck` e `build`.
+   * O build da Vercel é o outro caso: ele recebe a URL da API e produz o que
+   * vai ao ar, e ali falhar é o comportamento desejado.
+   */
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('devolve null quando nada será publicado — é o build do CI', async () => {
+    vi.stubEnv('VERCEL', '');
+
+    await expect(
+      nullUnlessPublishing(Promise.reject(new ApiError('sem resposta', null))),
+    ).resolves.toBeNull();
+  });
+
+  it('relança onde o resultado é publicado', async () => {
+    // Vale para o build da Vercel **e** para a revalidação da ISR em runtime —
+    // e é o segundo que mais importa, porque é o único que acontece com gente
+    // lendo: a exceção mantém a última página boa no ar.
+    vi.stubEnv('VERCEL', '1');
+
+    await expect(
+      nullUnlessPublishing(Promise.reject(new ApiError('sem resposta', null))),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('não interfere no caminho feliz', async () => {
+    vi.stubEnv('VERCEL', '1');
+
+    await expect(nullUnlessPublishing(Promise.resolve({ hero: null }))).resolves.toEqual({
+      hero: null,
+    });
+  });
+});
+
 describe('a guarda: nenhum `catch` volta a afirmar o pessimista', () => {
   /**
    * Comentário fora. O `app/[locale]/page.tsx` **explica** o padrão que a
@@ -150,12 +197,12 @@ describe('a guarda: nenhum `catch` volta a afirmar o pessimista', () => {
     expect(semTriagem).toEqual([]);
   });
 
-  it('a Home não engole a falha do `getHome`', () => {
+  it('a Home não engole a falha do `getHome` onde ela é publicada', () => {
     // Era `.catch(() => null)`, e o efeito não era degradar: era **afirmar**
     // que não houve notícia, e guardar essa afirmação por uma hora.
     const home = readFileSync(path.resolve(WEB_ROOT, 'app/[locale]/page.tsx'), 'utf8');
 
-    expect(home).toContain('await getHome()');
+    expect(home).toContain('nullUnlessPublishing(getHome())');
     expect(home).not.toMatch(/getHome\(\)\s*\.catch/);
   });
 });

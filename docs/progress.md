@@ -2761,11 +2761,19 @@ A terceira é a mais cara: quem chega ali quer sair, e ser informado de que o
 próprio link de descadastro não presta é ser mandado embora sem sair.
 
 `ApiError` carrega o status, com `null` significando "não houve resposta". A Home
-**deixou de ter `catch`**: na revalidação o Next mantém a última página boa e
-tenta de novo; no build ele falha — e falhar é o que se quer, porque a Vercel
-preserva o deploy anterior e o `CLAUDE.md` já registra que os dois deploys
-disparam juntos e não terminam juntos. Antes esse desencontro nascia como Home
-vazia em produção; agora nasce como build vermelho.
+passou a usar `nullUnlessPublishing`: na revalidação o Next mantém a última
+página boa e tenta de novo; no build da Vercel ele falha — e falhar é o que se
+quer, porque a Vercel preserva o deploy anterior e o `CLAUDE.md` já registra que
+os dois deploys disparam juntos e não terminam juntos. Antes esse desencontro
+nascia como Home vazia em produção; agora nasce como build vermelho.
+
+**E aqui o CI ensinou uma distinção que a revisão não tinha visto.** A primeira
+versão simplesmente não capturava, e o job Build reprovou com `ECONNREFUSED` —
+porque ele roda **sem API nenhuma, de propósito**: o `CLAUDE.md` afirma que
+`build` não precisa de banco, como `lint` e `typecheck`. "Build" não é uma coisa
+só: o da Vercel publica, o do CI só confere que compila. `nullUnlessPublishing`
+separa os dois pela variável `VERCEL`, que vale também em runtime — e é o caso
+de runtime que mais importa, porque é o único que acontece com gente lendo.
 
 **A linha entre os dois casos de detalhe foi traçada contra a API real, não
 suposta:** id fora do formato UUID devolve **400** com o erro do Zod, UUID válido

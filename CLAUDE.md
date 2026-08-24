@@ -217,6 +217,15 @@ no caminho de falta, e essa linha tem guarda.
   transporte, `isAboutTheRequest` é 404 **ou 400** — id fora do formato UUID
   devolve 400, e ele também é "não existe". `nullIfNotFound` é obrigatório em
   qualquer `catch` que alimente um `notFound()`, e há guarda.
+- **"Build" não é uma coisa só, e confundir os dois reprova o CI.** O build da
+  **Vercel** recebe `NEXT_PUBLIC_API_URL` e produz o que vai ao ar — ali, falhar
+  quando a API não responde é o certo, porque ela preserva o deploy anterior. O
+  build do **CI** roda **sem API de propósito** (`build` não precisa de banco,
+  como `lint` e `typecheck`) e só confere que compila. `nullUnlessPublishing`
+  (`lib/api.ts`) separa os dois pela variável `VERCEL`, que vale também em
+  runtime — é ela que faz a revalidação da ISR manter a última página boa no ar.
+  A primeira versão da correção da Home não fazia essa distinção e reprovou com
+  `ECONNREFUSED`.
 - **`scrollTo({ behavior: 'smooth' })` ignora `prefers-reduced-motion`.** O
   reset do `globals.css` cobre CSS e `scrollIntoView` sem `behavior` explícito —
   `behavior` no JavaScript vence `scroll-behavior: auto !important`. Rolagem

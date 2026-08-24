@@ -360,9 +360,13 @@ Regras que não são óbvias no código:
   API disse não" com "a API não respondeu", e a ISR fixa a confusão por uma
   hora. Em `catch` que alimente `notFound()`, use `nullIfNotFound`. Onde o valor
   vira `initialData`, continua sendo `prefetch` (que falha em `undefined`).
-- **A Home não tem `catch`, e é decisão.** Deixando a exceção subir, a
-  revalidação mantém a última página boa no ar e o **build falha** quando a API
-  não responde — que é o certo, porque a Vercel preserva o deploy anterior.
+- **A Home usa `nullUnlessPublishing`, e "build" não é uma coisa só.** Onde o
+  resultado é **publicado** — build da Vercel e revalidação da ISR — a exceção
+  sobe: o deploy anterior fica no ar, ou a última página boa fica. Onde nada é
+  publicado (o build do CI, que roda sem API de propósito, e o local) ela
+  devolve `null` e a tela desenha o estado vazio. A primeira versão simplesmente
+  não capturava, e o job Build reprovou com `ECONNREFUSED` — foi o CI que
+  ensinou a distinção.
 - **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
   existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
   mandaria URL digitada errada para a página de erro.
