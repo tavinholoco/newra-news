@@ -86,9 +86,9 @@ describe('callback jwt', () => {
     });
   });
 
-  it('só chama a API no primeiro sign-in', async () => {
-    // Sem `account`, o callback está sendo chamado numa renovação de token.
-    // Bater na API a cada renovação seria uma escrita por requisição.
+  it('não chama a API de novo quando ela já confirmou a conta', async () => {
+    // Com `token.id` gravado, não há o que perguntar. Bater na API a cada
+    // leitura de sessão seria uma chamada por requisição de página de conta.
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -98,41 +98,81 @@ describe('callback jwt', () => {
     expect(token?.id).toBe('api-uuid-1');
   });
 
-  it('a falha do upsert não derruba o login — e é isso que a Fase 11 revisita', async () => {
-    /**
-     * O `catch` é deliberado: a pessoa segue logada e o upsert é retentado no
-     * sign-in seguinte. **O efeito colateral está registrado como item da
-     * 11.S**: sem o upsert, `token.id` cai no id do *provedor*, que não é o id
-     * da API — e a sessão passa a apontar para um usuário que a API não
-     * conhece. O teste congela o comportamento de hoje para que a decisão da
-     * 11 seja uma mudança visível, e não uma descoberta.
-     */
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('API fora do ar')));
+  /**
+   * **A decisão da Fase 11, e ela substitui um comportamento que estava
+   * congelado aqui de propósito.**
+   *
+   * Até a 10, a falha do upsert deixava a sessão em um de dois estados ruins —
+   * `token.id` indefinido por trinta dias, ou (na resposta 200 sem `data`) o id
+   * do **provedor**, com o qual o BFF assinava um token para um `sub` que não
+   * existe no banco: `GET /api/account` em 404 e salvar uma matéria estourando
+   * a chave estrangeira, em 500, numa tela que dizia estar logada.
+   *
+   * Agora: o id do provedor nunca é gravado, e a sessão **se conserta sozinha**
+   * na próxima leitura depois do intervalo de espera.
+   */
+  describe('quando o upsert falha', () => {
+    it('não grava o id do provedor — nem quando a resposta é 200 sem `data`', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+      );
 
-    const token = await chamarJwt({} as JWT, { user: USER, account: ACCOUNT });
+      const token = await chamarJwt({} as JWT, { user: USER, account: ACCOUNT });
 
-    expect(token?.id).toBeUndefined();
-    expect(token?.role).toBeUndefined();
-  });
+      expect(token?.id).toBeUndefined();
+      expect(token?.role).toBeUndefined();
+    });
 
-  it('resposta não-ok também não derruba o login', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+    it('não derruba o login, e agenda a retentativa', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('API fora do ar')));
 
-    const token = await chamarJwt({} as JWT, { user: USER, account: ACCOUNT });
+      const token = await chamarJwt({} as JWT, { user: USER, account: ACCOUNT });
 
-    expect(token?.id).toBeUndefined();
-  });
+      expect(token?.id).toBeUndefined();
+      expect(token?.upsertRetryAfter).toBeGreaterThan(Date.now());
+    });
 
-  it('corpo sem `data` cai no id do provedor em vez de gravar `undefined`', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
-    );
+    it('resposta não-ok também agenda a retentativa', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
 
-    const token = await chamarJwt({} as JWT, { user: USER, account: ACCOUNT });
+      const token = await chamarJwt({} as JWT, { user: USER, account: ACCOUNT });
 
-    expect(token?.id).toBe(USER.id);
-    expect(token?.role).toBeUndefined();
+      expect(token?.id).toBeUndefined();
+      expect(token?.upsertRetryAfter).toBeGreaterThan(Date.now());
+    });
+
+    it('espera antes de tentar de novo — API fora do ar não vira uma chamada por requisição', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      await chamarJwt({ upsertRetryAfter: Date.now() + 60_000 } as JWT);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('retenta sem `account`, com a identidade que o token já carrega', async () => {
+      // A retentativa acontece numa leitura de sessão qualquer — não há
+      // `user` nem `account` ali, e é o token que sabe quem é a pessoa.
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { id: 'api-uuid-2', role: 'USER' } }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const token = await chamarJwt({
+        sub: 'provider-123',
+        email: USER.email,
+        name: USER.name,
+        upsertRetryAfter: Date.now() - 1,
+      } as JWT);
+
+      expect(token?.id).toBe('api-uuid-2');
+      expect(token?.upsertRetryAfter).toBeUndefined();
+      expect(JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body))).toMatchObject(
+        { email: USER.email },
+      );
+    });
   });
 });
 
@@ -157,16 +197,20 @@ describe('callback session', () => {
     expect(usuario(session)?.role).toBe('ADMIN');
   });
 
-  it('token sem id preserva o id que a sessão já tinha', async () => {
+  it('token sem id deixa a sessão sem id — e é o que faz o BFF responder 401', async () => {
+    // Preservar "o id que a sessão já tinha" era o `?? session.user.id` de
+    // antes, e ali não havia id da API nenhum a preservar: só o do provedor.
+    // Sem id, `proxyToApi` recusa em vez de assinar um token para um usuário
+    // que o banco não conhece.
     const session = await sessionCallback?.({
       session: {
-        user: { id: 'existente', email: USER.email },
+        user: { id: 'provider-123', email: USER.email },
         expires: '2030-01-01',
       } as Session,
       token: {} as JWT,
     } as Parameters<NonNullable<typeof sessionCallback>>[0]);
 
-    expect(usuario(session)?.id).toBe('existente');
+    expect(usuario(session)?.id).toBeUndefined();
   });
 
   it('sessão sem usuário passa intacta', async () => {

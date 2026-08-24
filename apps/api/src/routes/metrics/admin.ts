@@ -2,8 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getDashboardMetrics } from '../../services/metrics.service';
 import { getProductMetrics } from '../../services/product-metrics.service';
-import { ForbiddenError } from '../../utils/errors';
-import { authPlugin } from '../../plugins/auth';
+import { authPlugin, requireAdmin } from '../../plugins/auth';
 import {
   dashboardMetricsResponseSchema,
   productMetricsResponseSchema,
@@ -30,9 +29,7 @@ export async function metricsAdminRoutes(app: FastifyInstance) {
     async (request) => {
       // O JWT é assinado pelo frontend com o role vindo da sessão (que segue
       // ADMIN_EMAILS). Mesmo desenho do DELETE /news/:id.
-      if (request.user?.role !== 'ADMIN') {
-        throw new ForbiddenError('Admin access required');
-      }
+      requireAdmin(request);
 
       const data = await getDashboardMetrics();
       return { data };
@@ -61,9 +58,7 @@ export async function metricsAdminRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      if (request.user?.role !== 'ADMIN') {
-        throw new ForbiddenError('Admin access required');
-      }
+      requireAdmin(request);
 
       return { data: await getProductMetrics(request.query.days) };
     },

@@ -44,3 +44,18 @@ services:
         value: https://newra-news-api.onrender.com
       - key: NEWSLETTER_FROM
         sync: false
+      # Segredo compartilhado com o frontend: o web assina o JWT, a API valida.
+      # DEVE ser identico ao AUTH_JWT_SECRET da Vercel.
+      #
+      # **Estava configurado a mao no painel desde 16/08 e nao estava aqui.** O
+      # servico atual funciona; recriado a partir deste blueprint, ele subiria
+      # com o health check verde e **toda rota de conta em 401** — o
+      # `verifyAuthJwt` falha fechado, entao o sintoma seria um servico saudavel
+      # cujo login nao funciona. Achado da revisao 11.7.
+      - key: AUTH_JWT_SECRET
+        sync: false
+      # E-mails que nascem com role ADMIN (separados por virgula). Mesma
+      # historia: configurado a mao, ausente do blueprint. Sem ele, ninguem tem
+      # acesso ao painel — e nada acusa, porque o default e string vazia.
+      - key: ADMIN_EMAILS
+        sync: false
