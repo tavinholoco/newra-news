@@ -76,6 +76,19 @@ jobs:
           # "Uploading" e nenhum "Asserting", e a execução passou com a home em
           # 78 de performance, 12 pontos abaixo do piso de 90 que este arquivo
           # dizia impor desde que foi escrito.
+          # O `.lighthouserc.json` fixa `aggregationMethod: median` nas quatro
+          # categorias, e isso não é detalhe de configuração.
+          #
+          # O padrão do LHCI é **otimista**: com 3 execuções por URL, ele confere
+          # a **melhor** delas. A tabela do passo "Print scores" imprime a
+          # execução *representativa*. São dois números diferentes, e em
+          # 24/08/2026 eles discordaram na cara: a `/news` mediu
+          # `[89, 90, 81]` — o relatório imprimiu **81**, o gate conferiu **90**,
+          # e a execução passou **verde nove pontos abaixo do piso**.
+          #
+          # É o mesmo defeito do item 32 numa segunda forma: lá o gate media
+          # cold start em vez de página, aqui ele mede a melhor amostra em vez
+          # da típica. Gate que só sabe passar não é gate.
           configPath: ./.lighthouserc.json
           temporaryPublicStorage: false
 
