@@ -61,7 +61,7 @@ Disparado às 08:00 BRT (Vercel Cron às 11:00 UTC + cron interno do Fastify com
 - **IA:** Google Gemini (principal) + Groq (fallback)
 - **Notícias:** NewsData.io + RSS feeds
 - **Monorepo:** Turborepo + pnpm workspaces
-- **CI/CD:** GitHub Actions (lint, typecheck, testes com cobertura >70%, Lighthouse semanal)
+- **CI/CD:** GitHub Actions (lint, typecheck, testes com cobertura >70% **nos dois apps**, Lighthouse semanal)
 
 ## 🚀 Quick Start
 
@@ -94,7 +94,8 @@ pnpm dev              # web → localhost:3000 · api → localhost:3001
 | `pnpm build` | Build de produção (monorepo) |
 | `pnpm lint` | ESLint em todo o monorepo |
 | `pnpm test` | Vitest (backend + frontend) |
-| `pnpm --filter @newranews/api test:coverage` | Testes com cobertura (threshold 70%) |
+| `pnpm --filter @newranews/api test:coverage` | Testes com cobertura da API (piso 70%) |
+| `pnpm --filter @newranews/web test:coverage` | Testes com cobertura do web (piso 70%) |
 | `pnpm db:generate` | Gera o Prisma Client |
 | `pnpm db:migrate` | Roda migrations Prisma |
 | `pnpm db:studio` | Abre o Prisma Studio |
