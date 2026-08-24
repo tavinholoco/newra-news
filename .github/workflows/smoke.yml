@@ -1,0 +1,120 @@
+name: Smoke E2E
+
+# **Roda depois dos dois deploys, contra o que está no ar.**
+#
+# A cultura deste projeto é medir contra produção, e a razão é histórica: dos
+# quatro defeitos mais caros, três já estavam no ar quando foram achados. E há
+# uma classe que só existe lá — **os deploys da Vercel e do Render disparam
+# juntos e não terminam juntos**. Foi assim que a `/news` foi ao ar com as oito
+# categorias zeradas: o build do web correu antes de a API subir a rota nova, o
+# prefetch falhou e a página estática nasceu sem o dado. Nenhum E2E contra build
+# local veria isso.
+#
+# O `push` na `main` dispara o deploy das duas plataformas; a espera existe
+# porque este workflow começa antes de eles terminarem. Não é sincronização de
+# verdade — é a mesma aposta que o passo de aquecimento do Lighthouse faz, e
+# está escrita como aposta.
+
+on:
+  push:
+    branches: [main]
+  # Manual, para rodar contra produção quando se quiser — e é o modo usado no
+  # ritual de fechar uma fase.
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL a medir'
+        required: false
+        default: 'https://newra-news-web.vercel.app'
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Smoke contra produção
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # Só o Chromium: o smoke prova que o deploy subiu inteiro, não que o CSS
+      # funciona no Safari. Três navegadores seriam três vezes o tempo para a
+      # mesma resposta.
+      - name: Install Chromium
+        run: pnpm --filter @newranews/web exec playwright install --with-deps chromium
+
+      # **Esperar os dois deploys.** A Vercel e o Render começam no mesmo
+      # merge e terminam em momentos diferentes; a API no plano free ainda
+      # precisa acordar. Sete minutos é folga sobre o pior caso observado
+      # (~4 min de build do Render mais o cold start), e o passo seguinte
+      # confirma em vez de supor.
+      - name: Wait for both deploys
+        if: github.event_name == 'push'
+        run: sleep 420
+
+      - name: Probe both halves before measuring
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'https://newra-news-web.vercel.app' }}
+        run: |
+          set -e
+          echo "web:"
+          curl -sS -o /dev/null -w "  %{http_code} em %{time_total}s\n" "$BASE_URL/pt-BR"
+          echo "api (a primeira acorda o serviço; a segunda é a que vale):"
+          curl -sS -o /dev/null -w "  %{http_code} em %{time_total}s\n" "https://newra-news-api.onrender.com/api/health"
+          curl -sS -o /dev/null -w "  %{http_code} em %{time_total}s\n" "https://newra-news-api.onrender.com/api/health"
+
+      - name: Which flows will run
+        env:
+          E2E_NEXTAUTH_SECRET: ${{ secrets.E2E_NEXTAUTH_SECRET }}
+          E2E_USER_ID: ${{ secrets.E2E_USER_ID }}
+          E2E_ADMIN_USER_ID: ${{ secrets.E2E_ADMIN_USER_ID }}
+        # **O pulo tem de ser barulhento.** Guarda que passa vazia sem ninguém
+        # notar é a armadilha que esta fase inteira foi caçar, e um spec pulado
+        # em silêncio é exatamente isso.
+        run: |
+          if [ -n "$E2E_NEXTAUTH_SECRET" ] && [ -n "$E2E_USER_ID" ]; then
+            echo "conta: LIGADO"
+          else
+            echo "conta: PULADO — faltam E2E_NEXTAUTH_SECRET/E2E_USER_ID (ver apps/web/e2e/support/session.ts)"
+          fi
+          if [ -n "$E2E_NEXTAUTH_SECRET" ] && [ -n "$E2E_ADMIN_USER_ID" ]; then
+            echo "admin: LIGADO"
+          else
+            echo "admin: PULADO — falta E2E_ADMIN_USER_ID"
+          fi
+
+      - name: Run the smoke
+        env:
+          SMOKE_BASE_URL: ${{ github.event.inputs.base_url || 'https://newra-news-web.vercel.app' }}
+          E2E_NEXTAUTH_SECRET: ${{ secrets.E2E_NEXTAUTH_SECRET }}
+          E2E_USER_ID: ${{ secrets.E2E_USER_ID }}
+          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
+          E2E_ADMIN_USER_ID: ${{ secrets.E2E_ADMIN_USER_ID }}
+        run: pnpm --filter @newranews/web test:e2e
+
+      - name: Upload the trace of what failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  # **O que ele faz ao reprovar**, que é a segunda decisão da §11.T e não pode
+  # ficar implícita: o workflow falha, o log diz qual fluxo caiu e o rastro do
+  # Playwright fica anexado por 7 dias.
+  #
+  # **Rollback automático não entra aqui, e é decisão, não esquecimento.** Um
+  # smoke que reverte deploy sozinho precisa distinguir "o deploy quebrou" de "a
+  # API estava dormindo" — e este projeto já cometeu o erro oposto uma vez, com
+  # o gate do Lighthouse medindo cold start e prestes a reprovar numa segunda de
+  # manhã. Reverter por hibernação seria muito pior que reprovar por ela. A
+  # decisão de ligar rollback é da §12.6, com o número de execuções que a
+  # justifique — hoje não há nenhuma.
