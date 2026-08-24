@@ -11,12 +11,23 @@ name: Lighthouse CI
 # requisição a uma página que a consulta paga o custo de acordá-la. Sem o
 # aquecimento o gate mede o deploy, não a página — ver o comentário do passo.
 #
-# As rotas auditadas são apenas as de URL estável. As páginas de detalhe
-# (`/news/[id]` e `/article/[date]`) ficam de fora de propósito: os ids de
-# notícia são removidos pelo estágio de cleanup do pipeline e a data do artigo
-# muda todo dia, então qualquer URL fixa viraria 404 — o que faria o workflow
-# falhar por um motivo que não é regressão de qualidade. Esses dois templates
-# são cobertos pela baseline visual (plano V2 §30).
+# **As duas páginas de detalhe entraram no gate em 24/08, e antes não estavam.**
+# O motivo antigo estava escrito aqui e era metade certo: uma URL **fixa** para
+# `/news/[id]` ou `/article/[date]` apodrece — o cleanup do pipeline remove a
+# notícia aos 30 dias e a data do artigo muda todo dia —, e um 404 faria o
+# workflow reprovar por um motivo que não é regressão de qualidade.
+#
+# Só que a conclusão não seguia da premissa. O problema é a URL fixa, não a rota
+# ser imensurável, e o passo "Resolve the two detail routes" resolve uma URL viva
+# na hora — o workflow já falava com a API para aquecer. Ficar de fora custava
+# caro: são **as duas páginas por onde se chega ao site** vindo de busca ou de
+# rede social, as duas mais pesadas em first-load JS (166–167 kB), e as duas cuja
+# renderização a Fase 11 mudou de `ƒ` para `●` — uma correção de performance que
+# o gate não conseguia ver.
+#
+# Se a API não responder, a resolução é pulada e o gate mede as cinco rotas
+# estáveis. Gate que reprova por não conseguir montar uma URL seria a mesma
+# armadilha do cold start, em outra forma.
 
 on:
   schedule:
@@ -29,6 +40,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # Uma URL viva para cada template de detalhe, montada na hora.
+      #
+      # O `|| true` e o teste de vazio são o ponto: **a ausência de uma URL
+      # nunca reprova o gate**. Sem API, sem acervo ou com o formato de resposta
+      # mudado, o passo avisa e as cinco rotas estáveis seguem sozinhas — medir
+      # cinco é pior que medir sete, e muito melhor que reprovar por não ter
+      # conseguido montar um endereço.
+      - name: Resolve the two detail routes
+        run: |
+          api=https://newra-news-api.onrender.com/api
+          site=https://newra-news-web.vercel.app
+
+          news_id=$(curl -sS --max-time 20 "$api/news?limit=1" | jq -r '.data[0].id // empty' || true)
+          article_date=$(curl -sS --max-time 20 "$api/articles?limit=1" | jq -r '.data[0].date // empty' || true)
+          article_date=${article_date:0:10}
+
+          if [ -n "$news_id" ]; then
+            jq --arg u "$site/pt-BR/news/$news_id" '.ci.collect.url += [$u]' \
+              .lighthouserc.json > rc.tmp && mv rc.tmp .lighthouserc.json
+            echo "detalhe de notícia: /pt-BR/news/$news_id"
+          else
+            echo "detalhe de notícia: NÃO RESOLVIDO — medindo sem ele"
+          fi
+
+          if [ -n "$article_date" ]; then
+            jq --arg u "$site/pt-BR/article/$article_date" '.ci.collect.url += [$u]' \
+              .lighthouserc.json > rc.tmp && mv rc.tmp .lighthouserc.json
+            echo "briefing do dia: /pt-BR/article/$article_date"
+          else
+            echo "briefing do dia: NÃO RESOLVIDO — medindo sem ele"
+          fi
 
       # Aquecer antes de medir, ou o gate mede o **deploy** e não a página.
       #
