@@ -358,6 +358,8 @@
     "footerDesc": "Receba o artigo do dia no seu e-mail, direto das principais notícias.",
     "footerTitle": "Newsletter",
     "invalidDesc": "Não foi possível cancelar a inscrição com este link. Verifique o e-mail recebido ou tente novamente.",
+    "unavailableTitle": "Não foi possível completar agora",
+    "unavailableDesc": "O serviço está indisponível no momento e o seu link continua válido. Tente de novo em alguns minutos.",
     "invalidEmail": "Informe um e-mail válido.",
     "invalidTitle": "Link inválido ou já utilizado",
     "landingLede": "Todo dia a IA lê as principais notícias do Brasil e do mundo e escreve um artigo único, com as fontes à vista. Você lê uma vez e sabe o que aconteceu.",

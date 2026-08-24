@@ -21,7 +21,6 @@ import {
   getNewsById,
   getArticles,
   getArticleByDate,
-  getLatestArticle,
   getDashboardMetrics,
   getProductMetrics,
   getAccount,
@@ -67,7 +66,6 @@ export const articleKeys = {
     [...articleKeys.lists(), filters] as const,
   details: () => [...articleKeys.all, 'detail'] as const,
   detail: (date: string) => [...articleKeys.details(), date] as const,
-  latest: () => [...articleKeys.all, 'latest'] as const,
 };
 
 export const metricsKeys = {
@@ -158,14 +156,6 @@ export function useArticleByDate(
     queryKey: articleKeys.detail(date),
     queryFn: () => getArticleByDate(date),
     initialData,
-  });
-}
-
-export function useLatestArticle(initialData?: ArticleWithSources | null) {
-  return useQuery({
-    queryKey: articleKeys.latest(),
-    queryFn: () => getLatestArticle(),
-    initialData: initialData ?? undefined,
   });
 }
 

@@ -100,7 +100,7 @@ describe('superfície do navegador', () => {
       // reescrever a aba de origem. Eram 4 de 4 corretos quando a fase abriu —
       // e resultado limpo vira guarda, não comemoração.
       const semRel = SOURCES.flatMap(({ file, source }) =>
-        [...source.matchAll(/<(\w+)[^>]*?target=['"]_blank['"][^>]*?>/gs)]
+        [...source.matchAll(/<(\w+)[^>]*?target=['"]_blank['"][^>]*?>/g)]
           .filter((match) => !/rel=['"][^'"]*noopener/.test(match[0]))
           .map(() => file),
       );

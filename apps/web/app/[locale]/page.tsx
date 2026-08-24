@@ -61,7 +61,28 @@ export default async function HomePage({ params }: Props) {
   setRequestLocale(locale);
 
   const t = await getTranslations('home');
-  const home = await getHome().catch(() => null);
+  /**
+   * **Sem `catch` — e é a correção mais cara da revisão 10.4.**
+   *
+   * Havia `.catch(() => null)` aqui, e o efeito não era "a Home degrada": era
+   * a Home **afirmando** que não houve notícia. Com `revalidate = 3600`, essa
+   * afirmação virava a página estática guardada por uma hora, servida a todo
+   * mundo — a mesma classe de defeito que pôs as oito categorias zeradas na
+   * `/news` ao lado de "5.783 notícias", agora na tela mais vista do produto.
+   *
+   * Deixando a exceção subir, os dois momentos passam a fazer a coisa certa:
+   * na **revalidação**, o Next mantém a página boa anterior no ar e tenta de
+   * novo na requisição seguinte; no **build**, ele falha — e falhar é o que se
+   * quer, porque a Vercel preserva o deploy anterior e o `CLAUDE.md` já
+   * registra que os deploys do web e da API disparam juntos e não terminam
+   * juntos. Antes, esse desencontro nascia como Home vazia em produção; agora
+   * nasce como build vermelho.
+   *
+   * O que sobrevive é o `isEmpty` **honesto**: a API respondeu 200 e não havia
+   * conteúdo. Dia sem briefing é estado normal do produto (o acervo tem 89
+   * artigos em 90 dias) e continua desenhando esta tela.
+   */
+  const home = await getHome();
 
   const isEmpty =
     !home ||

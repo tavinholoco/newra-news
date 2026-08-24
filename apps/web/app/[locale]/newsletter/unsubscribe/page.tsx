@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
-import { unsubscribeFromNewsletter } from '@/lib/api';
+import { ApiError, unsubscribeFromNewsletter } from '@/lib/api';
 import { alternatesFor } from '@/lib/seo';
 
 interface Props {
@@ -29,10 +29,18 @@ export async function generateMetadata({
 /**
  * Cancelamento da newsletter (§2 de `docs/v2/02-sitemap-telas.md`).
  *
- * Dois estados: cancelado e token inválido. Eles diferem em ícone, cor e
- * texto — nada de estrutura —, então são um objeto e não dois blocos de JSX
- * quase idênticos. Duplicar a marcação é como uma das duas metades sai do
- * lugar quando alguém mexe só numa.
+ * **Eram dois estados, e a revisão 10.4 achou que faltava o terceiro.** O
+ * `.catch(() => ({ unsubscribed: false }))` transformava *"não consegui falar
+ * com a API"* em *"link inválido ou já utilizado"* — ou seja, a tela dizia à
+ * pessoa que o link de descadastro dela não presta quando o único problema era
+ * a API dormindo no plano free do Render. É a mensagem mais cara que este
+ * produto poderia dar errada: quem chega aqui quer sair, e receber "link
+ * inválido" é ser mandado embora sem sair.
+ *
+ * Agora são três, e a diferença vem do `status` do `ApiError`: a API respondeu
+ * que o token não serve (`invalid`), a API não respondeu (`unavailable`), ou
+ * deu certo. Os três diferem em ícone, cor e texto — nada de estrutura —,
+ * então continuam sendo um objeto e não três blocos de JSX quase idênticos.
  */
 export default async function UnsubscribePage({ params, searchParams }: Props) {
   const { locale } = params;
@@ -42,25 +50,37 @@ export default async function UnsubscribePage({ params, searchParams }: Props) {
   const tCommon = await getTranslations('common');
   const token = searchParams.token;
 
-  const result = token
-    ? await unsubscribeFromNewsletter(token).catch(() => ({
-        unsubscribed: false,
-      }))
-    : { unsubscribed: false };
+  // Sem token não há o que perguntar: o link é que está incompleto.
+  const outcome: 'unsubscribed' | 'invalid' | 'unavailable' = !token
+    ? 'invalid'
+    : await unsubscribeFromNewsletter(token).then(
+        (result) => (result.unsubscribed ? 'unsubscribed' : 'invalid'),
+        (error: unknown) =>
+          error instanceof ApiError && error.isUnreachable ? 'unavailable' : 'invalid',
+      );
 
-  const state = result.unsubscribed
-    ? {
-        Icon: CheckCircle2,
-        tone: 'text-success',
-        title: t('unsubscribedTitle'),
-        description: t('unsubscribedDesc'),
-      }
-    : {
-        Icon: XCircle,
-        tone: 'text-danger',
-        title: t('invalidTitle'),
-        description: t('invalidDesc'),
-      };
+  const STATES = {
+    unsubscribed: {
+      Icon: CheckCircle2,
+      tone: 'text-success',
+      title: t('unsubscribedTitle'),
+      description: t('unsubscribedDesc'),
+    },
+    invalid: {
+      Icon: XCircle,
+      tone: 'text-danger',
+      title: t('invalidTitle'),
+      description: t('invalidDesc'),
+    },
+    unavailable: {
+      Icon: AlertTriangle,
+      tone: 'text-danger',
+      title: t('unavailableTitle'),
+      description: t('unavailableDesc'),
+    },
+  } as const;
+
+  const state = STATES[outcome];
 
   const { Icon } = state;
 

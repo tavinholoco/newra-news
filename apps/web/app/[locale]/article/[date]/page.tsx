@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getArticleByDate } from '@/lib/api';
+import { getArticleByDate, nullIfNotFound } from '@/lib/api';
 import { ArticleDetail } from '@/components/article/article-detail';
 import { JsonLd } from '@/components/seo/json-ld';
 import { SITE_NAME, pageMetadata } from '@/lib/seo';
@@ -23,7 +23,7 @@ export async function generateMetadata({
     locale: params.locale,
     namespace: 'article',
   });
-  const article = await getArticleByDate(params.date).catch(() => null);
+  const article = await getArticleByDate(params.date).catch(nullIfNotFound);
   if (!article) {
     return { title: t('notFoundTitle'), robots: { index: false, follow: false } };
   }
@@ -51,7 +51,7 @@ export default async function ArticleDatePage({ params }: Props) {
   const { locale, date } = params;
   setRequestLocale(locale);
 
-  const article = await getArticleByDate(date).catch(() => null);
+  const article = await getArticleByDate(date).catch(nullIfNotFound);
 
   if (!article) notFound();
 

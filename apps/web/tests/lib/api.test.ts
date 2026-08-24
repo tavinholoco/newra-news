@@ -5,7 +5,6 @@ import {
   getNewsFacets,
   prefetch,
   getNewsById,
-  getLatestArticle,
   getDashboardMetrics,
   subscribeToNewsletter,
   unsubscribeFromNewsletter,
@@ -133,13 +132,6 @@ describe('getNewsById', () => {
 
     expect(result.id).toBe('uuid-1');
     expect(result.title).toBe('Notícia de Teste');
-  });
-});
-
-describe('getLatestArticle', () => {
-  it('should return null when the API fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
-    await expect(getLatestArticle()).resolves.toBeNull();
   });
 });
 

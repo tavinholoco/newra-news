@@ -358,6 +358,8 @@
     "footerDesc": "Get the article of the day in your inbox, straight from the top stories.",
     "footerTitle": "Newsletter",
     "invalidDesc": "We couldn't cancel the subscription with this link. Check the email you received or try again.",
+    "unavailableTitle": "We couldn't complete this right now",
+    "unavailableDesc": "The service is unavailable at the moment and your link is still valid. Please try again in a few minutes.",
     "invalidEmail": "Please enter a valid email address.",
     "invalidTitle": "Invalid or already used link",
     "landingLede": "Every day the AI reads the main stories from Brazil and the world and writes one article, with its sources in plain sight. You read once and know what happened.",

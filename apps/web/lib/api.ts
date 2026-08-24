@@ -25,17 +25,109 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
+/**
+ * A falha de uma chamada à API, **com a diferença que decide a tela**.
+ *
+ * Antes desta fase o `fetchApi` lançava um `Error` de texto corrido, e nenhum
+ * chamador conseguia separar *"a API respondeu que não existe"* de *"a API não
+ * respondeu"*. Sem essa distinção, todos os quatro pontos que a revisão 10.4
+ * auditou colapsavam no pessimista, e cada um de um jeito diferente:
+ *
+ * - a **Home** desenhava "sem notícias hoje" e a ISR guardava essa página por
+ *   uma hora — a mesma classe de defeito que pôs as oito categorias zeradas na
+ *   `/news`, agora na tela mais vista;
+ * - `/news/[id]` e `/article/[date]` chamavam `notFound()`, então um soluço da
+ *   API virava **404 numa matéria que existe** — cacheado por uma hora e visto
+ *   também pelo buscador;
+ * - o cancelamento da newsletter dizia **"link inválido"** para quem só tinha
+ *   pegado a API dormindo. Dizer a alguém que o link de descadastro dele não
+ *   presta é o erro mais caro desta lista.
+ *
+ * `status === null` é o caso de transporte: DNS, conexão recusada, TLS. Não é
+ * "não existe", é "não deu para perguntar".
+ */
+export class ApiError extends Error {
+  readonly status: number | null;
+  /**
+   * O erro de rede original, quando houve um.
+   *
+   * Campo próprio e não a opção `cause` do `Error`: o `lib` do TypeScript aqui
+   * é ES2017, onde `ErrorOptions` não existe. Guardar à mão custa uma linha e
+   * mantém o rastro para o log do servidor.
+   */
+  readonly cause?: unknown;
+
+  constructor(message: string, status: number | null, cause?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.cause = cause;
+  }
+
+  /** A API respondeu, e a resposta foi "não existe". */
+  get isNotFound(): boolean {
+    return this.status === 404;
+  }
+
+  /**
+   * A API respondeu que o **pedido** não serve — 404 porque o recurso não
+   * existe, 400 porque o identificador não é sequer válido.
+   *
+   * Os dois casos são a mesma coisa para quem está lendo: `/news/banana` não é
+   * uma matéria. Foi medido contra a API: id fora do formato UUID devolve
+   * **400** com o erro do Zod, e UUID válido sem linha devolve **404**.
+   * Tratar só o 404 mandaria a URL digitada errada para a página de erro — que
+   * responde 200 e diria "algo deu errado" onde o certo é "não encontrada",
+   * inclusive para o buscador.
+   */
+  get isAboutTheRequest(): boolean {
+    return this.status === 404 || this.status === 400;
+  }
+
+  /** Não houve resposta. */
+  get isUnreachable(): boolean {
+    return this.status === null;
+  }
+}
+
+/**
+ * `null` quando o recurso **de fato** não pode existir; relança o resto.
+ *
+ * A linha é entre *"o pedido não se sustenta"* (4xx sobre o próprio recurso) e
+ * *"o servidor não conseguiu responder"* (5xx, ou nenhuma resposta). O primeiro
+ * é uma página de "não encontrada"; o segundo é uma página de erro — e, numa
+ * rota com ISR, é o que faz o Next manter a página boa anterior no ar em vez de
+ * assar um 404 sobre uma matéria que existe.
+ *
+ * Passar por aqui é obrigatório em qualquer `catch` que alimente um
+ * `notFound()`: a guarda `tests/lib/api-failure.test.ts` reprova o
+ * `.catch(() => null)` cru.
+ */
+export function nullIfNotFound(error: unknown): null {
+  if (error instanceof ApiError && error.isAboutTheRequest) return null;
+  throw error;
+}
+
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+  } catch (cause) {
+    throw new ApiError(`API unreachable: ${endpoint}`, null, cause);
+  }
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
+    throw new ApiError(
+      `API error: ${response.status} ${response.statusText}`,
+      response.status,
+    );
   }
 
   return response.json() as Promise<T>;
@@ -124,16 +216,13 @@ export async function getNewsById(id: string): Promise<News> {
  * lista de notícias que entraram no briefing, que é o que a §8 exibe na área
  * "como este briefing foi produzido". A listagem paginada devolve `Article`
  * puro — ~15 fontes por artigo × 10 por página seria peso morto.
+ *
+ * **`getLatestArticle` saiu na revisão 10.4.** Ela e o `useLatestArticle`
+ * existiam desde a V1 e nenhuma tela as chamava: a Home resolve tudo por
+ * `getHome()`. O que sobrou delas foi um `try { } catch { return null }` que
+ * apagava qualquer falha — inclusive a de transporte —, ou seja, exatamente o
+ * padrão que esta revisão foi caçar, mantido vivo por código morto.
  */
-export async function getLatestArticle(): Promise<ArticleWithSources | null> {
-  try {
-    const res = await fetchApi<ApiResponse<ArticleWithSources>>('/articles/latest');
-    return res.data;
-  } catch {
-    return null;
-  }
-}
-
 export async function getArticles(
   page = 1,
   limit = 10,
@@ -171,16 +260,25 @@ export async function unsubscribeFromNewsletter(
 // que leem a sessão do next-auth e assinam o JWT server-side.
 
 async function fetchWebApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(endpoint, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(endpoint, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+  } catch (cause) {
+    throw new ApiError(`BFF unreachable: ${endpoint}`, null, cause);
+  }
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
+    throw new ApiError(
+      `API error: ${response.status} ${response.statusText}`,
+      response.status,
+    );
   }
 
   return response.json() as Promise<T>;
