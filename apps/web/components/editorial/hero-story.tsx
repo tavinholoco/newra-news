@@ -90,7 +90,13 @@ export function HeroStory({
           <StoryImage
             src={story.imageUrl}
             alt={story.title}
-            sizes='(max-width: 1024px) 100vw, 66vw'
+            // `62vw`, não `66vw`, e não é arredondamento: o hero ocupa 2 de 3
+            // colunas **menos** o gutter e um gap. Medido nas duas pontas da
+            // faixa fluida — 634 px de 1024 (61,97%) e 800 px de 1280
+            // (62,48%). Acima de 1280 o contêiner trava em `80rem` e a caixa
+            // não passa de 800 px: sem esse limite, `66vw` num monitor de
+            // 2560 px pediria 1.690 px de imagem para desenhar 790.
+            sizes='(max-width: 1024px) 100vw, (max-width: 1280px) 62vw, 800px'
             priority
             placeholderSize='lg'
           />

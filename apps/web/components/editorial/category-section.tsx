@@ -51,7 +51,9 @@ export function CategorySection({ section, className }: CategorySectionProps) {
           story={lead}
           size='lead'
           sizes={
-            rest.length > 0 ? '(max-width: 768px) 100vw, 50vw' : '100vw'
+            rest.length > 0
+              ? '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 608px'
+              : '(max-width: 1280px) 100vw, 1216px'
           }
         />
 
