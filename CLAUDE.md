@@ -50,8 +50,29 @@ categoria cair, o relatório completo vem por
 > `/pt-BR/about`, única rota medida que não chama a API, ficou em 97 nas duas.
 >
 > Com o aquecimento no workflow: **92 · 90 · 97 · 97 · 91**, gate verde.
-> A `/news` em 90 raspa o piso — se ela cair, olhe o audit antes de culpar o
-> aquecimento.
+>
+> **A `/news` caiu, o audit foi lido, e não era o aquecimento** (24/08, run
+> [32679047022](https://github.com/tavinholoco/newra-news/actions/runs/32679047022)).
+> Medido na execução ruim: **56 requisições na página, zero para a API**, e a
+> mais lenta é o próprio documento em **214 ms** — nenhuma chamada de API
+> participa do carregamento da `/news`. O que a derruba é o **LCP de uma `<img>`
+> de card, em 4.390 ms**, servida por `/_next/image` a partir de
+> `s2-valor.glbimg.com`; os audits que caem são `uses-responsive-images` e
+> `image-delivery-insight`. É **entrega de imagem** (§10.6), não hibernação.
+>
+> A lição de fluxo: o aquecimento resolveu o problema *dele*, e a partir daí
+> vira a explicação preguiçosa para qualquer queda. As rotas que **não** chamam
+> a API (`/about`, `/article`) medem 96–98 com variância de 2 pontos; as que
+> chamam variam muito mais — mas variância não é a mesma coisa que causa, e o
+> audit é quem diz qual das duas está em jogo.
+
+> **O gate confere a mediana desde 24/08, e antes conferia a melhor amostra.**
+> O padrão do LHCI é otimista: com 3 execuções por URL ele assertava a **melhor**
+> delas, enquanto o passo "Print scores" imprime a **representativa**. Os dois
+> números discordaram na cara — `/news` em `[89, 90, 81]`, relatório dizendo 81,
+> gate passando verde com o 90. `aggregationMethod: median` no
+> `.lighthouserc.json`. Se o gate voltar a passar com um número ruim impresso,
+> é este campo que sumiu.
 
 **2. Baseline visual** (§30) — de produção, com as mesmas larguras do conjunto
 versionado, senão o diff vira ruído:
