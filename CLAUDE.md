@@ -120,35 +120,42 @@ do dia mudou, ou há algo errado.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as **Fases 0 a 9 concluídas**. A **Fase 10
-  (frontend review)** é a próxima e pode abrir imediatamente — 9 e 10 correm em
-  paralelo por desenho, e a 9 já fechou. A **11 (integração geral)** abre com as
-  duas mergeadas; a **12 (ajustes finos e release)** depois da 11 — §28 do plano.
-- **Última entrega (2026-08-23):** a **Fase 9 (backend review)**, com os seis
-  eixos da §28 fechados. O achado central era o previsto pelo plano e agora está
-  medido: **o balde de rate limit era um só para a internet inteira** — sem
-  `trustProxy`, `request.ip` é o peer do socket, e atrás do proxy do Render o
-  peer é o proxy. Outros seis achados de segurança, cada um com a guarda que o
-  mantém fechado: a fronteira do prompt contra injeção pelo feed RSS, o escopo
-  do `purpose` do JWT, o segredo fora da query string do painel dev, o 500 que
-  contava o interior do servidor, o CORS que declarava metade dos métodos e a
-  CSP que não existia. **Advisories de produção da API: 21 → 6**, com aceite de
-  risco escrito para as seis. **575 testes em 45 suítes → 728 em 54.** Detalhe
-  no item **34** do `docs/progress.md`.
+- **Onde estamos:** V2.0 com as **Fases 0 a 10 concluídas**. A **Fase 11
+  (integração geral)** é a próxima e pode abrir — ela dependia de 9 e 10
+  mergeadas, e as duas fecharam. A **12 (ajustes finos e release)** depois da 11
+  — §28 do plano.
+- **Última entrega (2026-08-24):** a **Fase 10 (frontend review)**, com os sete
+  eixos da §28 fechados. Onze achados, e o mais visível é o mais antigo: **a 404
+  do site ia ao ar sem uma linha de CSS** — fonte serifada do navegador, link
+  azul, fundo branco no tema escuro — porque o `globals.css` era importado pelo
+  layout de idioma, e a rota `_not-found` da raiz não passa por ele. Estava
+  assim desde que a página existe, e estava na baseline versionada. Junto:
+  **o site sem cabeçalho de defesa nenhum** (seis agora, com a CSP decidida
+  medindo os 63 scripts inline da Home), **a CLI do `shadcn` na árvore de
+  produção** (47 das 83 advisories eram só dela), **quatro telas confundindo "a
+  API não respondeu" com "não existe"** — inclusive a Home, que guardava
+  "sem notícias hoje" por uma hora na ISR — e o **`prefers-reduced-motion`
+  declarado e desobedecido** nas duas listagens paginadas. **Advisories de
+  produção do web: 83 → 36**, com aceite escrito para as 8 *high* do `next`.
+  **451 testes em 50 suítes → 524 em 57.** Detalhe no item **35** do
+  `docs/progress.md`.
 
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.179 em 104 suites (**728 API em 54** + 451 web em 50 — todos
-  passando). Cobertura da API: **98,71% stmts · 93,32% branch · 99,45% funcs**.
+- **Testes:** 1.252 em 111 suites (**728 API em 54** + **524 web em 57** — todos
+  passando). Cobertura: API **98,71% stmts · 93,32% branch · 99,45% funcs**;
+  web **72,32% stmts · 88,82% branch · 71,32% funcs** — com piso de 70% no CI
+  desde a Fase 10, que antes media só a API.
 
-### Por onde começar a Fase 10 (Frontend review)
+### Por onde começar a Fase 11 (Integração geral)
 
-**A Fase 9 está fechada.** Leia o item **34** do `docs/progress.md` — os seis
-eixos, o que cada um achou e o aceite de risco das advisories que sobraram.
+**As Fases 9 e 10 estão fechadas.** Leia os itens **34** e **35** do
+`docs/progress.md` — a 11 é a costura entre as duas metades, e cada um dos dois
+registra o que deixou pendente para ela.
 
-**O plano das quatro fases finais está na §28.** Antes de abrir a 10, leia de lá
-as mesmas três coisas que a 9 leu:
+**O plano das quatro fases finais está na §28.** Antes de abrir a 11, leia de lá
+as mesmas três coisas que a 9 e a 10 leram:
 
 - **"Anatomia de uma fase de revisão"** — **todo achado sai como correção
   mergeada, guarda no CI, ou dívida com gatilho numérico**. Nunca como item de
@@ -156,32 +163,91 @@ as mesmas três coisas que a 9 leu:
 - **"A camada de segurança e testes"** — os eixos **`S`** e **`T`** são
   obrigatórios e **não são adiáveis**. Achado de segurança **não vira dívida sem
   aceite de risco escrito**, e **sai sempre com o teste que o mantém fechado**.
-- **A seção da Fase 10**, e só ela. Cada fase tem inventário próprio.
+- **A seção da Fase 11**, e só ela. Cada fase tem inventário próprio.
 
-**A superfície da 10 é o navegador**: cabeçalho de resposta, injeção no DOM, o
-que vaza no bundle, o que a página carrega de fora. O achado já verificado que a
-espera está no item **33**: **o site não tem cabeçalho de segurança nenhum** — a
-API tem o conjunto do helmet e, desde a Fase 9, uma CSP de verdade; o web não
-tem nada. As advisories do `next` (só corrigidas na 15) também são 10.S.
+**A superfície da 11 é a costura**: em quem cada metade confia, e por quê —
+sessão, token, CORS, ambiente. E a camada de testes dela é a única que entrega o
+que nenhuma das outras consegue: **o fluxo ponta a ponta** (o Playwright está
+instalado desde sempre, sem config e sem uma única spec — item 33).
 
-**O que a Fase 9 deixou pronto e a 10 pode aproveitar:** o padrão da guarda
-exaustiva. Três guardas desta fase enumeram a superfície e exigem decisão para
-cada item — rota ⇒ documentação, coluna do Prisma ⇒ schema de resposta, rota ⇒
-linha na matriz de autorização. É o formato que impede o buraco novo, e o
-equivalente no web (rota ⇒ teste, componente ⇒ referência dark) é a forma de a
-10.T fechar.
+**O que 9 e 10 deixaram explicitamente para a 11**, e é bom não redescobrir:
 
-**Duas coisas da 9 que a 11 vai cobrar**, e é bom não redescobrir:
+- **A sessão aponta para um usuário que a API pode não conhecer.** Quando o
+  upsert de `lib/auth.ts` falha, `token.id` cai no id do **provedor**, que não é
+  o id da API. O comportamento de hoje está **congelado em teste**
+  (`tests/lib/auth.test.ts`) para que a decisão da 11 seja mudança visível.
+- **o CORS declara PUT e DELETE**, mas toda mutação continua passando pelo BFF
+  do Next, server-side. A dependência não declarada entre as metades é item da
+  **11.S** — na 9 ela só deixou de estar quebrada por acidente.
+- **o `x-request-id` é propagado pela API**, e o BFF ainda não o envia.
+- **Nenhuma chamada `fetch` do web tem timeout**, com a API hibernando no plano
+  free (item 33). O `ApiError` da Fase 10 já distingue "não respondeu" de "disse
+  não" — falta quem decida em quanto tempo desistir.
+- **A `Reuters` devolve zero itens** do feed configurado, medido em 24/08 ao
+  mapear as 87 fontes do acervo. É config do `apps/api`, e a 9 já fechou.
 
-- **o CORS agora declara PUT e DELETE**, mas toda mutação continua passando pelo
-  BFF do Next, server-side. A dependência não declarada entre as metades é
-  item da **11.S**, não foi resolvida aqui — só deixou de estar quebrada por
-  acidente.
-- **o `x-request-id` é propagado**: a API respeita o header de quem chama. O BFF
-  ainda não o envia, e é a 11 que costura isso.
+**O que a Fase 10 deixou pronto e a 11 pode aproveitar:** quatro guardas
+exaustivas novas no web, no mesmo formato da 9 — dependência de produção ⇒
+consumidor declarado, rota ⇒ linha na matriz de estado, componente editorial com
+heading fixo ⇒ razão escrita, e cada premissa do aceite de risco do `next` ⇒
+teste que reprova quando ela deixar de valer.
+
+**Duas dívidas compartilham o mesmo gatilho, e é o Next 15:** as 8 advisories
+*high* do `next` (nenhuma alcança esta configuração hoje — a tabela está no item
+35) e o **soft 404**, onde `notFound()` em rota com `revalidate` e
+`not-found.tsx` aninhado responde **200**. Quem segura o segundo é o `noindex`
+no caminho de falta, e essa linha tem guarda.
 
 ### Armadilhas que já custaram caro
 
+- **Rota fora do layout de idioma não recebe o CSS, e nada acusa.** O Next
+  prende o chunk de um `.css` à **entrada que o importa**, e o `_not-found` da
+  raiz não passa por `app/[locale]/layout.tsx`. Resultado medido em produção: a
+  404 — a página que **todo endereço errado alcança, inclusive com prefixo de
+  idioma** — ia ao ar com folha de estilo nenhuma, Times New Roman e link azul.
+  Importar o mesmo arquivo nos dois lugares **não resolve**: o Next deduplica e
+  o chunk fica onde estava. O `globals.css` mora **só** em `app/layout.tsx`, e
+  há guarda em `tests/lib/state-matrix.test.ts`. Corolário: caminho que não casa
+  com arquivo de rota **não cai dentro de `[locale]`** — quem renderiza é o
+  `not-found` da raiz, não o localizado.
+- **`.catch(() => valor)` numa página confunde "a API disse não" com "a API não
+  respondeu", e a ISR fixa a confusão.** A Home dizia "sem notícias hoje" e
+  guardava a afirmação por uma hora; as telas de detalhe chamavam `notFound()`
+  numa matéria que existe. Use `ApiError` (`lib/api.ts`): `status === null` é
+  transporte, `isAboutTheRequest` é 404 **ou 400** — id fora do formato UUID
+  devolve 400, e ele também é "não existe". `nullIfNotFound` é obrigatório em
+  qualquer `catch` que alimente um `notFound()`, e há guarda.
+- **"Build" não é uma coisa só, e confundir os dois reprova o CI.** O build da
+  **Vercel** recebe `NEXT_PUBLIC_API_URL` e produz o que vai ao ar — ali, falhar
+  quando a API não responde é o certo, porque ela preserva o deploy anterior. O
+  build do **CI** roda **sem API de propósito** (`build` não precisa de banco,
+  como `lint` e `typecheck`) e só confere que compila. `nullUnlessPublishing`
+  (`lib/api.ts`) separa os dois pela variável `VERCEL`, que vale também em
+  runtime — é ela que faz a revalidação da ISR manter a última página boa no ar.
+  A primeira versão da correção da Home não fazia essa distinção e reprovou com
+  `ECONNREFUSED`.
+- **`scrollTo({ behavior: 'smooth' })` ignora `prefers-reduced-motion`.** O
+  reset do `globals.css` cobre CSS e `scrollIntoView` sem `behavior` explícito —
+  `behavior` no JavaScript vence `scroll-behavior: auto !important`. Rolagem
+  programática mora em `lib/use-results-focus.ts`, que lê a preferência em tempo
+  de execução e leva o foco junto (rolar sem mover o foco deixa viewport e
+  cursor em lugares diferentes).
+- **`notFound()` em rota com `revalidate` e `not-found.tsx` aninhado responde
+  200.** Soft 404: a tela certa aparece, o status mente, e o buscador pode
+  indexar. **Não é o middleware** — `/pt-BR/rota-que-nao-existe` passa pela mesma
+  reescrita do `next-intl` e responde 404. Só o Next 15 corrige. O que segura o
+  estrago é o `noindex` no `generateMetadata` do caminho de falta, e essa linha
+  tem guarda.
+- **Amostrar "100 por fonte" esconde a cauda longa do acervo.** O pipeline
+  ingere a **NewsData.io** além dos 13 feeds RSS, e ela agrega centenas de
+  veículos: são **87 fontes** e **95 hosts de imagem** distintos, das quais só 12
+  estão em `rss-sources.ts`. Uma lista de hosts derivada das fontes cobria 77,6%
+  e teria quebrado **22,4% das imagens** em silêncio (o `SafeImage` degrada sem
+  gritar). Ao medir acervo, varra páginas — não filtre por fonte.
+- **A varredura de cor crua exigia sufixo numérico**, então `bg-white`,
+  `text-black` e os cinzas neutros passavam batido — as classes que somem no
+  claro e ficam ilegíveis no escuro. Corrigida, com as quatro ocorrências de
+  **véu sobre conteúdo** como exceção declarada.
 - **Pacote do workspace importado em *runtime* precisa emitir JavaScript.** O
   `@newranews/types` tinha `"main": "./src/index.ts"` e `build: tsc --noEmit` —
   ou seja, **não emitia nada**. Enquanto a API só importava `type` dele, o import

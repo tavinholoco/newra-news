@@ -16,8 +16,27 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
     }),
   ],
+  /**
+   * **A duração era o default silencioso do next-auth, e agora é decisão.**
+   *
+   * O que o next-auth entrega sozinho já está certo e fica onde está: o cookie
+   * é `httpOnly` (nenhum script lê a sessão), `sameSite: 'lax'` (não viaja em
+   * requisição de outro site, exceto navegação de topo por GET) e ganha
+   * `secure` + prefixo `__Secure-` quando a `NEXTAUTH_URL` é HTTPS. **Não
+   * declarar `cookies` à mão é parte da decisão** — fixar o nome aqui tiraria
+   * o prefixo em produção e derrubaria toda sessão viva no deploy seguinte.
+   *
+   * O que faltava era o prazo escrito. Trinta dias é o default, e continua
+   * sendo o número certo para este produto — a sessão só dá acesso a salvar
+   * matéria e trocar preferência, o login é OAuth (não há senha a proteger) e
+   * expirar semanalmente cobraria um round-trip no provedor por um ganho que
+   * não existe. `updateAge` renova o token no máximo uma vez por dia: sem ele,
+   * toda requisição reescreveria o cookie.
+   */
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   // Página customizada de sign-in (app/[locale]/signin) com os botões
   // Google/GitHub localizados. Sem isso, signIn() sem provider cai num loop

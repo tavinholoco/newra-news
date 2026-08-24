@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getHome } from '@/lib/api';
+import { getHome, nullUnlessPublishing } from '@/lib/api';
 import { HeroStory } from '@/components/editorial/hero-story';
 import { TopStories } from '@/components/editorial/top-stories';
 import { BriefingCard } from '@/components/editorial/briefing-card';
@@ -61,7 +61,27 @@ export default async function HomePage({ params }: Props) {
   setRequestLocale(locale);
 
   const t = await getTranslations('home');
-  const home = await getHome().catch(() => null);
+  /**
+   * **A correção mais cara da revisão 10.4.**
+   *
+   * Havia `.catch(() => null)` aqui, e o efeito não era "a Home degrada": era
+   * a Home **afirmando** que não houve notícia. Com `revalidate = 3600`, essa
+   * afirmação virava a página estática guardada por uma hora, servida a todo
+   * mundo — a mesma classe de defeito que pôs as oito categorias zeradas na
+   * `/news` ao lado de "5.783 notícias", agora na tela mais vista do produto.
+   *
+   * `nullUnlessPublishing` relança onde o resultado é publicado — na
+   * revalidação da ISR, a exceção mantém a última página boa no ar; no build da
+   * Vercel, ela derruba o deploy e preserva o anterior. Fora daí (o build do
+   * CI, que roda sem API de propósito) ela devolve `null`, e a tela desenha o
+   * estado vazio. **O CI foi quem ensinou essa distinção**: a primeira versão
+   * simplesmente não capturava, e reprovou com `ECONNREFUSED`.
+   *
+   * O que sobrevive é o `isEmpty` **honesto**: a API respondeu e não havia
+   * conteúdo. Dia sem briefing é estado normal do produto (o acervo tem 89
+   * artigos em 90 dias) e continua desenhando esta tela.
+   */
+  const home = await nullUnlessPublishing(getHome());
 
   const isEmpty =
     !home ||

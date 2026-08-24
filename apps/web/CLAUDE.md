@@ -15,10 +15,13 @@
 - **Renderização estática + ISR por idioma** — com `generateStaticParams` +
   `setRequestLocale`, cada página é SSG (`revalidate: 3600`) para pt-BR e en
 - **Restrição importante** — o `app/layout.tsx` raiz é pass-through (sem
-  `<html>`); **não criar `loading.tsx`/`error.tsx` na raiz** (seus boundaries
-  caem fora do `<html>` e quebram a hidratação — ``Only one element on
-  document allowed``). Eles vivem em `app/[locale]/`; o `not-found.tsx` raiz
-  deve renderizar `<html>`/`<body>` próprios (fora de qualquer layout)
+  `<html>`) e **importa o `globals.css`, que mora só ali**; **não criar
+  `loading.tsx`/`error.tsx` na raiz** (seus boundaries caem fora do `<html>` e
+  quebram a hidratação — ``Only one element on document allowed``). Eles vivem
+  em `app/[locale]/`; o `not-found.tsx` raiz renderiza `<html>`/`<body>` e
+  `ThemeInit` próprios (fora de qualquer layout de idioma) — e **é ele que
+  atende todo endereço errado**, inclusive os com prefixo de idioma, porque
+  caminho sem arquivo de rota não cai dentro de `[locale]`
 - **Revalidação on-demand** — `app/api/cron/daily-news/route.ts` chama
   `revalidatePath('/[locale]', 'layout')` + `revalidatePath('/sitemap.xml')`
   após o trigger do pipeline. **Gotcha:** o cache do Next grava as tags com o
@@ -335,6 +338,68 @@ Regras que não são óbvias no código:
   síncrona reescreveria o `null` e travaria o agendamento para sempre.
 - **`track()` nunca lança e nunca bloqueia**, e a fila é esvaziada **antes** do
   envio: falha de transporte perde o lote em vez de acumular memória presa.
+
+## Segurança do navegador e estado de falha (Fase 10)
+
+| Peça | Papel |
+|---|---|
+| `lib/security-headers.js` | os seis cabeçalhos de defesa e a CSP — **a mesma fonte que o `next.config.js` lê** |
+| `lib/api.ts` → `ApiError` | a falha **com o status**: `null` é transporte, 404/400 é sobre o pedido |
+| `lib/api.ts` → `nullIfNotFound` | o que separa "não encontrada" de "deu erro" |
+| `lib/use-results-focus.ts` | foco + rolagem ao virar página, respeitando `prefers-reduced-motion` |
+| `tests/security/` | três suítes: cabeçalhos, superfície do navegador, otimizador de imagem |
+| `tests/lib/state-matrix.test.ts` | a matriz de 15 rotas × 4 estados, como asserção |
+
+Regras que não são óbvias no código:
+
+- **O `globals.css` mora em `app/layout.tsx`, e só lá.** O Next prende o chunk
+  do CSS à entrada que o importa; a rota `_not-found` da raiz não passa pelo
+  layout de idioma e ia ao ar **sem folha de estilo nenhuma**. Importar nos dois
+  lugares não resolve — o Next deduplica e o chunk fica onde estava.
+- **`.catch(() => valor)` numa página é proibido, e há guarda.** Ele confunde "a
+  API disse não" com "a API não respondeu", e a ISR fixa a confusão por uma
+  hora. Em `catch` que alimente `notFound()`, use `nullIfNotFound`. Onde o valor
+  vira `initialData`, continua sendo `prefetch` (que falha em `undefined`).
+- **A Home usa `nullUnlessPublishing`, e "build" não é uma coisa só.** Onde o
+  resultado é **publicado** — build da Vercel e revalidação da ISR — a exceção
+  sobe: o deploy anterior fica no ar, ou a última página boa fica. Onde nada é
+  publicado (o build do CI, que roda sem API de propósito, e o local) ela
+  devolve `null` e a tela desenha o estado vazio. A primeira versão simplesmente
+  não capturava, e o job Build reprovou com `ECONNREFUSED` — foi o CI que
+  ensinou a distinção.
+- **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
+  existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
+  mandaria URL digitada errada para a página de erro.
+- **Nada de `window.scrollTo` solto.** `behavior: 'smooth'` explícito vence o
+  reset de `prefers-reduced-motion` do CSS. Rolagem programática passa por
+  `useResultsFocus`, que também leva o foco — rolar sem mover o foco deixa
+  viewport e cursor em lugares diferentes, e não anuncia nada.
+- **Alvo de foco por programa precisa de `tabIndex={-1}` e de nome acessível.**
+  A região de resultados é nomeada por `aria-labelledby` apontando para a
+  contagem, e **a contagem nunca desmonta** — `aria-labelledby` para um id
+  ausente deixa a região sem nome, e o foco pousa num contêiner mudo.
+- **Erro de formulário precisa de `role='alert'` *e* `aria-describedby`.** O
+  primeiro anuncia uma vez; o segundo é o que faz a mensagem ser lida de novo ao
+  voltar ao campo. O id é por instância (`useId`): o formulário da newsletter
+  aparece duas vezes na mesma página.
+- **A CSP carrega `'unsafe-inline'` no `script-src`, e está escrito por quê.** A
+  Home tem 63 scripts inline, 61 deles chunks de Flight que mudam por rota e por
+  regeneração. Nonce exigiria cabeçalho por requisição e tornaria as 15 páginas
+  dinâmicas.
+- **`connect-src` precisa da origem da API.** O navegador fala com ela direto
+  (`lib/api.ts`); só o que passa pelo BFF é same-origin. Sem isso, a tela trava
+  no esqueleto — em produção e só lá.
+- **O otimizador de imagem aceita qualquer host, com aceite de risco escrito.**
+  Lista de hosts derivada das fontes **não funciona**: a NewsData.io agrega
+  centenas de veículos (87 fontes, 95 hosts no acervo). O que limita o abuso é o
+  teto de `deviceSizes`, um formato só e `minimumCacheTTL` — mexer neles reprova
+  a suíte.
+- **Todo `sizes` termina em largura fixa acima do breakpoint do contêiner.**
+  `66vw` num monitor de 2560 px pede 1.690 px para desenhar 790. O hero usa
+  `62vw`, medido nas duas pontas da faixa fluida.
+- **A baseline cobre as 12 rotas nos dois temas.** Escuro é onde token errado
+  aparece; `bg-white` é invisível no claro e ilegível no escuro, e a suíte
+  proíbe cor fixa fora dos quatro véus declarados.
 
 ## Estilo — design tokens da V2 (Fase 1)
 

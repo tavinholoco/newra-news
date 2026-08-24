@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getNewsById, getRelatedNews } from '@/lib/api';
+import { getNewsById, getRelatedNews, nullIfNotFound } from '@/lib/api';
 import { NewsDetail } from '@/components/news/news-detail';
 import { JsonLd } from '@/components/seo/json-ld';
 import { pageMetadata } from '@/lib/seo';
@@ -18,7 +18,7 @@ export async function generateMetadata({
   params,
 }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale: params.locale, namespace: 'news' });
-  const news = await getNewsById(params.id).catch(() => null);
+  const news = await getNewsById(params.id).catch(nullIfNotFound);
   // `noindex` no caminho de 404: sem ele o buscador indexaria a página de "não
   // encontrada" sob a URL que alguém digitou errado.
   if (!news) {
@@ -58,7 +58,7 @@ export default async function NewsDetailPage({ params }: Props) {
   const { locale, id } = params;
   setRequestLocale(locale);
 
-  const news = await getNewsById(id).catch(() => null);
+  const news = await getNewsById(id).catch(nullIfNotFound);
 
   if (!news) notFound();
 
