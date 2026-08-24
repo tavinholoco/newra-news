@@ -7,6 +7,17 @@
 
 ## Fase Atual
 
+> **Onde estamos, em uma linha (24/08/2026):** V2.0 com as **Fases 0 a 11
+> concluídas**; a **12 (ajustes finos e release final)** é a última e pode abrir.
+> O detalhe de cada uma está nos itens numerados abaixo — as quatro finais são
+> **34** (backend review), **35** (frontend review) e **36** (integração geral).
+>
+> **O que segue nesta seção é um log de anexação, não uma ordem.** As entradas
+> foram acrescentadas conforme cada fase fechou e não estão em ordem
+> cronológica — a de baixo não é a mais recente. Para o estado atual, leia a
+> linha acima ou o bloco "Status Atual" do `CLAUDE.md`; para o detalhe, o item
+> numerado.
+
 **Fase 5 — Polish e Portfólio** ✅ Concluída em 2026-08-15
 
 > Fases 1–4 concluídas. Pipeline validado em produção: 89 artigos em 90 dias (17/mai → 14/ago), 1 gap, 0 falhas no último mês.
@@ -72,6 +83,14 @@
 > **Monetização virou planejamento** (§21 do plano): publicidade **cancelada**; newsletter patrocinada, Newra Plus e API B2B **adiados** para lançamento futuro e indeterminado. O gatilho para retomá-los é um número — **assinantes ativos e contas**, os dois persistentes —, e é a tela de métricas que o mostra.
 >
 > **A ingestão está no ar** desde 22/08: `POST /api/events` responde 201 em produção. O 404 anterior não era o deploy — era o `@newranews/types` não emitir JavaScript (item **30**). A tela de métricas fecha a fase no item **31**.
+
+**Newra News V2.0 — Fase 10 (Frontend review)** ✅ Concluída em 2026-08-24 — **os sete eixos da §28 fechados**
+
+> `review/v2-frontend`. **A 404 do site ia ao ar sem uma linha de CSS** — o `globals.css` era importado pelo layout de idioma e a rota `_not-found` da raiz não passa por ele; estava assim desde que a página existe, e estava na baseline versionada. Junto: o site **sem cabeçalho de defesa nenhum** (seis agora), a CLI do `shadcn` na árvore de produção, e quatro telas confundindo "a API não respondeu" com "não existe". Advisories de produção do web 83 → 36; 451 testes em 50 suítes → **522 em 57**. Ver **item 35**.
+
+**Newra News V2.0 — Fase 11 (Integração geral)** ✅ Concluída em 2026-08-24 — **os oito eixos da §28 fechados**
+
+> `review/v2-integration`, PR #135. **Quinze achados, e nenhum tem sintoma de erro** — a costura não quebra, ela combina errado e a tela continua desenhando. O maior estava à vista: **`revalidate = 3600` nas duas telas de leitura não fazia nada** (`x-vercel-cache: MISS` nas três tentativas). Junto: nenhuma chamada `fetch` do web tinha prazo, a sessão apontava para um usuário que a API não conhece, o balde de ingestão de eventos é um só para todos os leitores, e um log guardava e-mail de assinante. **O smoke E2E existe pela primeira vez** — 29 specs contra produção. 1.250 testes em 111 suítes → **1.314 em 122**. Ver **item 36**.
 
 **Newra News V2.0 — as fases finais replanejadas** ✅ **2026-08-23**
 
@@ -3417,6 +3436,151 @@ qualquer regex** — e só se descobre isso insistindo em ver a guarda **falhar*
 - **`NewsletterLog` não tem retenção.** Uma linha por dia, e sem PII depois desta
   fase — mas é a única tabela do produto fora do expurgo. **Gatilho:** a primeira
   coluna com texto livre que voltar a ser gravada ali.
+
+---
+
+### 37. Fechamento da Fase 11 — verificação pós-merge e a auditoria antes da última fase ✅ 2026-08-24
+
+> Branch `chore/v2-close-phase-11`. O ritual completo contra produção depois do
+> merge do PR #135, mais a varredura que a Fase 12 herda: **o que ainda falta
+> para o projeto estar 100% até aqui**, separado do que é escopo da própria 12.
+
+#### O ritual, com o terceiro passo estreando
+
+**1. Smoke E2E — rodou sozinho no merge, e é a primeira vez.** O workflow
+disparou no push da `main`, esperou os 7 min dos dois deploys e sondou as duas
+metades antes de medir (web 200 em 1,35 s; API 200 em 0,16 s e 0,07 s na
+segunda). **23 specs passaram, 6 pulados**, e o passo "Which flows will run"
+imprimiu o motivo do pulo, como manda o desenho.
+
+**E os três specs que estavam vermelhos ficaram verdes** — o que é a prova de
+que a correção do middleware chegou ao ar:
+
+```
+✓ 12 anônimo › é mandado ao sign-in em /pt-BR/favorites (1.4s)
+✓ 13 anônimo › é mandado ao sign-in em /pt-BR/account (507ms)
+✓ 14 anônimo › é mandado ao sign-in em /pt-BR/admin (499ms)
+```
+
+**2. As sondas de produção**, uma por achado da fase:
+
+| Sonda | Antes | Depois |
+|---|---|---|
+| `/pt-BR/news/[id]`, três requisições | `MISS` · `private, no-cache, no-store` | **`HIT` · `Age: 215` · `public, max-age=0, must-revalidate`** |
+| anônimo em `/pt-BR/favorites` | 200 + `<meta refresh>` de 1 s | **307 → `/pt-BR/signin?callbackUrl=%2Fpt-BR%2Ffavorites`** |
+| anônimo em `/en/account` | idem, sem prefixo de idioma | **307 → `/en/signin?...`** |
+| `__next-page-redirect` no HTML | presente | **zero ocorrências** |
+| `GET /api/account` sem sessão | — | **401 `{"error":"Unauthorized"}`** |
+| `POST /api/events` anônimo | — | **400** (schema recusa o lote vazio; não 401) |
+| cabeçalhos de defesa na Home | 6 | **6** (sem regressão da Fase 10) |
+| `x-request-id` de entrada na API | — | **ecoado** |
+| 9 rotas públicas + 6 rotas de metadata | — | **todas 200; `/rota-que-nao-existe` → 404** |
+
+**3. Baseline visual: 51 capturas, e nenhuma imagem mudou.** Só o `capturedAt`
+do manifesto. É exatamente o que se esperava — as correções da 11 foram todas de
+costura (prazo, cache, contrato, sessão, segurança) e nenhuma tem pixel. A
+captura determinística cumprindo a promessa dela.
+
+**4. Lighthouse — e aqui o ritual achou um buraco no próprio gate.**
+
+O gate media **cinco rotas, e nenhuma era de detalhe**. O motivo estava escrito
+no workflow e era metade certo: uma URL **fixa** para `/news/[id]` ou
+`/article/[date]` apodrece — o cleanup remove a notícia aos 30 dias e a data do
+briefing muda todo dia. Mas a conclusão não seguia da premissa: o problema é a
+URL fixa, não a rota ser imensurável, e o workflow já falava com a API para
+aquecer.
+
+Ficar de fora custava caro. São **as duas páginas por onde se chega ao site**
+vindo de busca ou de rede social, as duas mais pesadas em first-load JS
+(166–167 kB), e as duas cuja renderização a Fase 11 mudou de `ƒ` para `●` — uma
+correção de performance que o gate não conseguia ver.
+
+Com o passo de resolução, **sete rotas, medianas de 3 execuções**:
+
+| Rota | execuções | mediana | LCP |
+|---|---|---|---|
+| `/pt-BR` | 66, 94, 96 | **94** | 2,85 s |
+| `/pt-BR/news` | 88, 92, 95 | **92** | 2,84 s |
+| `/pt-BR/article` | 96, 96, 96 | **96** | 2,77 s |
+| `/pt-BR/about` | 97, 97, 97 | **97** | 2,61 s |
+| `/en` | 94, 95, 96 | **95** | 2,90 s |
+| **`/pt-BR/news/<id>`** | 96, 97, 98 | **97** | **2,61 s** |
+| **`/pt-BR/article/2026-08-24`** | 96, 97, 98 | **97** | **2,42 s** |
+
+**As duas de detalhe são as melhores rotas do produto**, e o briefing tem **o
+único LCP abaixo de 2,5 s do conjunto** — que é o alvo da §31, alcançado pela
+primeira vez por alguma rota, e invisível até agora só porque o gate não olhava.
+Antes da correção da 11 elas seriam as piores: render de função a cada
+requisição.
+
+> **A tabela impressa quase me enganou de novo.** O passo "Print scores" mostrou
+> a `/pt-BR/article` em **92** e eu registrei "caiu 4 pontos" antes de conferir:
+> as três execuções foram `[96, 96, 96]`, mediana **96**. A tabela imprime a
+> execução *representativa*, o gate confere a mediana, e são números diferentes
+> — exatamente o que o item 34 documentou. Está no `CLAUDE.md` agora, no
+> imperativo.
+
+#### A auditoria: o que falta para estar 100% até aqui
+
+A pergunta é a de antes da última fase — **o que é dívida das fases 0–11**,
+separado do que a 12 já tem no próprio inventário.
+
+**O que estava faltando e foi corrigido aqui:**
+
+| Achado | O que era |
+|---|---|
+| o gate do Lighthouse não media as duas telas de detalhe | corrigido acima |
+| a seção **"Fase Atual"** do `progress.md` estava **duas fases atrás** | ela abria com "Fase 5 — Polish e Portfólio" e terminava no replanejamento de 23/08, sem 10 nem 11. Ganhou uma linha de estado no topo e as duas entradas que faltavam — e um aviso de que a seção é **log de anexação**, não ordem cronológica |
+| checkbox de `"somente salvos"` aberto na Fase 4 | estava certo quando escrito (apontava para a 6), a 6 entregou e ninguém voltou para marcar |
+
+**O que continua aberto, e é dívida real das fases anteriores:**
+
+1. **O diagrama ER documenta 3 entidades e o schema tem 12.** `ARTICLE`,
+   `CATEGORY` e `NEWS`; faltam `User`, `Favorite`, `UserPreference`,
+   `Subscriber`, `NewsletterLog`, `ProductEvent`, `BriefingSource`,
+   `PipelineEvent`, `PipelineLog` e `DailyMetric` — **nove de doze**. Os quatro
+   `.mermaid` são de 15/08, antes da V2 inteira.
+2. **Os screenshots do README são de 15/08 — da V1.** O site foi inteiramente
+   redesenhado a partir de 20/08. Quem abre o repositório vê um produto que não
+   existe mais. (A baseline de produção com 51 capturas já está versionada em
+   `docs/v2/baseline-v2/` — a matéria-prima existe.)
+3. **`docs/presentation.md` é de 16/08** — a peça de portfólio descreve a V1.
+4. **A newsletter não entrega para assinante real.** O domínio próprio nunca foi
+   verificado no Resend, então o envio funciona apenas para o e-mail da conta
+   (item 11 do plano de ação registra isso desde 16/08). O produto tem
+   inscrição, cancelamento, estágio no pipeline e tela — e **não envia**.
+5. **`GET /api/trending` etapa 2** (`+ cliques × 0,5 + shares × 3`) esperava a
+   camada de analytics. **Ela existe desde a Fase 8** — o gatilho disparou e
+   ninguém percebeu, porque o item ficou registrado dentro de um item histórico.
+6. **Zero tags no repositório e nenhum `CHANGELOG.md`.** O `CONTRIBUTING.md`
+   existe.
+7. **O controle de opt-out de analytics na interface** — item aberto desde a
+   Fase 8, hoje o único opt-out é o sinal do navegador (DNT/GPC).
+
+**O que NÃO está faltando, e vale dizer para não virar susto na 12:**
+
+- **zero `TODO`/`FIXME`/`HACK`** em todo o código de produção dos dois apps e
+  dos pacotes;
+- **`docs/api.md` não pode derivar** — a guarda `api-docs-drift` enumera o
+  roteador e exige linha por rota;
+- **`docs/setup.md` está de 24/08** e ganhou o runbook de rotação do segredo;
+- **as 9 rotas públicas e as 6 rotas de metadata respondem 200**, e endereço
+  errado responde **404** (não soft 404 — esse é só o `notFound()` interno, que
+  tem `noindex` com guarda);
+- **advisories de produção: 36**, o mesmo número com que a Fase 10 fechou —
+  nenhuma regressão, e o aceite de risco das *high* está escrito no item 35;
+- **1.314 testes em 122 suítes + 29 specs de E2E**, todos verdes.
+
+#### Números da verificação
+
+| Verificação | Resultado |
+|---|---|
+| `turbo lint typecheck test build --force` | **12 tarefas, 0 falhas** |
+| CI do merge na `main` | **verde** (Lint, Test, Build, Gitleaks) |
+| Smoke E2E pós-deploy | **23 passaram, 6 pulados, 0 falharam** |
+| gate do Lighthouse, 7 rotas | **verde**, mediana mínima 92 |
+| baseline visual | **51 capturas, 0 imagens alteradas** |
+| `GET /api/health` | **200** |
 
 ---
 

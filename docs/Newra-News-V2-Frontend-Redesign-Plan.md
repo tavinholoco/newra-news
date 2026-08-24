@@ -1429,9 +1429,10 @@ outros cards já clampavam; o hero era o único que não.
 [x] filtro de período               (rótulo na URL, data derivada na consulta)
 [x] ordenação                       (recent | oldest)
 
-    -- fica para a Fase 6, com o resto do ecossistema de conta --
-[ ] "somente salvos"                (§7 — junta Favorite e News, resposta por
-                                     usuário, e portanto sem cache de CDN)
+    -- ficou para a Fase 6, com o resto do ecossistema de conta, e saiu lá --
+[x] "somente salvos"                (§7 — entregue na Fase 6; `?saved=1` troca a
+                                     fonte de dados e desliga a contagem das
+                                     facetas, porque elas contam o acervo)
 
     -- ao fechar a fase, contra produção --
 [x] Lighthouse por rota (§26) — 21/08, /news de 93 para 97
@@ -2738,11 +2739,19 @@ o inventário é o dos documentos, não o do código.
 [ ] os achados das Fases 9–11 que viraram dívida, com gatilho
 [ ] a data do agregado diário (~90 dias da ingestão: ~20/11/2026)
 [ ] o controle de opt-out na interface — item da Fase 8, ainda aberto
+[ ] **a newsletter não entrega a assinante real** — domínio nunca verificado no
+    Resend, envio só para o e-mail da conta (aberto desde 16/08)
+[ ] **`GET /api/trending` etapa 2** — esperava a camada de analytics, que existe
+    desde a Fase 8: o gatilho disparou e ninguém percebeu
 
     -- 12.4 documentação de release --
-[ ] README: screenshots e texto ainda são da V1
-[ ] docs/api.md, docs/setup.md, docs/architecture.md, diagramas
-[ ] docs/presentation.md — a peça de portfólio
+[ ] README: screenshots de 15/08 mostram **a V1**, redesenhada desde 20/08 — a
+    matéria-prima já existe em `docs/v2/baseline-v2/` (51 capturas)
+[ ] **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam nove,
+    todas da V2; os quatro `.mermaid` são de 15/08
+[ ] docs/api.md (guardado por `api-docs-drift`), docs/setup.md (de 24/08),
+    docs/architecture.md
+[ ] docs/presentation.md — a peça de portfólio, de 16/08, descreve a V1
 [ ] CHANGELOG e a tag v2.0.0 (o repositório não tem nenhuma tag)
 
     -- 12.5 o ritual final --
@@ -2782,8 +2791,11 @@ a "Release" de oito linhas.
 > **Os 7 do bloco Visual foram fechados na Fase 10.3**, em 24/08/2026, cada um
 > com evidência medida — laranja em 0,22% da área da dobra, hero 8,2× a
 > miniatura e 2,75× a manchete do card, briefing como único bloco em
-> `bg-surface-accent`. **Restam 17**, e um deles já tem número e reprova: o
-> "LCP alvo < 2,5 s" mede entre 2,57 s e 2,94 s nas cinco rotas do gate.
+> `bg-surface-accent`. **Restam 17**, e o "LCP alvo < 2,5 s" mudou de estado no
+> fechamento da 11: com as duas telas de detalhe entrando no gate, **uma rota
+> passou a alcançá-lo** — `/article/[date]` em **2,42 s** —, e as outras seis
+> medem de 2,61 s a 2,90 s. O critério deixou de reprovar em bloco e virou uma
+> pergunta de escopo: ele vale para toda rota ou para as de conteúdo?
 
 Cada um vira uma de três coisas: **evidência** (captura, medição, teste),
 **risco aceito** (com o motivo), ou **critério riscado** (com o motivo).

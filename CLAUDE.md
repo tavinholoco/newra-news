@@ -74,6 +74,24 @@ categoria cair, o relatório completo vem por
 > chamam variam muito mais — mas variância não é a mesma coisa que causa, e o
 > audit é quem diz qual das duas está em jogo.
 
+> **O gate mede sete rotas desde 24/08, e as duas novas são de detalhe.** O
+> passo "Resolve the two detail routes" monta uma URL viva de `/news/[id]` e de
+> `/article/[date]` a partir da API antes do collect — o motivo antigo de
+> excluí-las (URL fixa apodrece) valia para a URL, não para a rota. Se a
+> resolução falhar, o passo avisa e as cinco estáveis seguem sozinhas; ele
+> **nunca** reprova o gate.
+>
+> **Medido em 24/08, medianas de 3 execuções:** `/pt-BR` 94 · `/news` 92 ·
+> `/article` 96 · `/about` 97 · `/en` 95 · **`/news/[id]` 97** ·
+> **`/article/[date]` 97**. As duas de detalhe são as melhores do produto — é o
+> efeito de a Fase 11 tê-las tirado do render por requisição —, e o briefing tem
+> **o único LCP abaixo de 2,5 s do conjunto (2,42 s)**, que é o alvo da §31.
+>
+> **A tabela impressa não é a mediana.** O passo "Print scores" imprime a
+> execução *representativa*; o gate confere a mediana. Em 24/08 a `/article`
+> saiu **92** na tabela com execuções `[96, 96, 96]` — mediana 96. Para o número
+> que vale, baixe o artefato e calcule, ou leia o assert.
+>
 > **O gate confere a mediana desde 24/08, e antes conferia a melhor amostra.**
 > O padrão do LHCI é otimista: com 3 execuções por URL ele assertava a **melhor**
 > delas, enquanto o passo "Print scores" imprime a **representativa**. Os dois
@@ -198,6 +216,26 @@ as mesmas três coisas que as outras leram:
 decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e da
 §26, e publica.
 
+**A dívida das fases 0–11 que a 12 herda, levantada na auditoria de fechamento
+(item 37) — nenhuma delas é escopo novo, todas são coisa que ficou para trás:**
+
+- **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam as nove da
+  V2; os quatro `.mermaid` são de 15/08;
+- **os screenshots do README são de 15/08, da V1** — o site foi redesenhado a
+  partir de 20/08, e a matéria-prima já existe em `docs/v2/baseline-v2/`;
+- **`docs/presentation.md` é de 16/08** — a peça de portfólio descreve a V1;
+- **a newsletter não entrega a assinante real** — o domínio nunca foi verificado
+  no Resend, então o envio funciona só para o e-mail da conta. O produto tem
+  inscrição, cancelamento, estágio no pipeline e tela, e **não envia**;
+- **`GET /api/trending` etapa 2** esperava a camada de analytics, que existe
+  desde a Fase 8 — o gatilho disparou e ninguém percebeu;
+- **zero tags e nenhum `CHANGELOG.md`** (o `CONTRIBUTING.md` existe);
+- **o opt-out de analytics na interface**, aberto desde a Fase 8.
+
+**O que a auditoria conferiu e está em ordem:** zero `TODO`/`FIXME` no código de
+produção; `docs/api.md` guardado contra deriva; 9 rotas públicas e 6 de metadata
+em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
+
 **O que a 11 deixou explicitamente para a 12**, e é bom não redescobrir:
 
 - **A primeira leitura honesta da tela de métricas** é o único item da 11 que não
@@ -214,8 +252,10 @@ decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e d
   distinguir "o deploy quebrou" de "a API estava dormindo", e este projeto já
   cometeu o erro oposto com o gate do Lighthouse medindo cold start.
 - **A `fastify@5`** e as três advisories que esperam a major (item 34).
-- **`LCP alvo < 2,5 s` da §31, e nenhuma das cinco rotas alcança** — medido na
-  Fase 10, a melhor é a `/article` com 2,57 s.
+- **`LCP alvo < 2,5 s` da §31 mudou de estado no fechamento da 11.** Com as duas
+  telas de detalhe entrando no gate, **uma rota passou a alcançá-lo** —
+  `/article/[date]` em **2,42 s** — e as outras seis medem de 2,61 s a 2,90 s. O
+  critério deixou de reprovar em bloco e virou pergunta de escopo.
 
 **Três dívidas compartilham o mesmo gatilho, e é o Next 15:** as 8 advisories
 *high* do `next` (nenhuma alcança esta configuração hoje — a tabela está no item
