@@ -2560,9 +2560,95 @@ A §9.3 pedia que elas deixassem de ser frase:
 | replay das 4 migrations em banco limpo | aplicadas; `migrate diff` = "No difference detected" |
 | balde de rate limit em produção | **medido**: 98 / 97 / 96 com XFF distintos — balde único, confirmado |
 
-**A verificação contra produção pós-merge** (probe de rota nova e gate do
-Lighthouse) é o ritual do `CLAUDE.md` e roda depois do deploy — ver a seção
-"Fechar uma fase".
+#### Verificação contra produção, pós-merge (24/08/2026)
+
+O ritual do `CLAUDE.md`, contra o site no ar. **A primeira sondagem pegou o
+deploy no meio do voo** — `/api/metrics/http` devolveu 404, que é a assinatura
+da build antiga ainda servindo. Três minutos depois, tudo no lugar:
+
+| Sonda | Resultado |
+|---|---|
+| `GET /api/metrics/http` | **401** — a rota existe e exige admin (404 seria a build antiga) |
+| `GET /api/jobs/:pipelineId` | **401** — era pública e devolvia a mensagem crua da falha |
+| `GET /api/docs` | **404** — a UI do Swagger não é servida em produção |
+| headers de `/api/health` | `content-security-policy: default-src 'none';…` e `x-request-id` |
+| `x-request-id` de entrada | **ecoado** (`prova-da-fase-9`), e gerado quando não vem |
+| preflight de `DELETE /api/favorites/...` | **204**, `allow-methods: GET, POST, PUT, DELETE, OPTIONS` |
+| `content-type` com TAB em `POST /api/events` | **415** |
+
+> **O TAB no fim do valor devolve 400, e não é falha da guarda:** o `curl` apara
+> espaço em branco à direita do header antes de enviar, então o caractere nunca
+> sai da máquina. Com o TAB no meio (`application/json;\tcharset=utf-8`) a
+> resposta é 415, como manda o teste.
+
+**O balde de rate limit, medido de novo — e o resultado é o oposto do de antes.**
+Antes do merge, três requisições davam `remaining` 98, 97, 96: perfeitamente
+monotônico, porque a chave era uma só para todo mundo. Depois do merge, oito
+requisições seguidas deram `99, 98, 98, 97, 96, 95, 97, 96` — **duas sequências
+interleaved**. E o `uptime` do `/api/health` cresceu continuamente no mesmo
+intervalo (167,4 → 170,1 s), o que descarta a explicação de duas instâncias:
+**é um processo só, com duas chaves diferentes**, porque o IP de saída desta
+máquina alterna num pool de NAT. A chave deixou de ser global e passou a
+acompanhar o cliente, que é exatamente o que a correção fez.
+
+> Uma medição de duas máquinas em redes diferentes continua sendo o teste
+> canônico, e ela não é possível a partir de um host. Quem mantém isso fechado é
+> a guarda do CI, verificada reprovando com o `trustProxy` removido.
+
+**`API_PUBLIC_URL` não é verificável de fora**, porque a UI do Swagger deixou de
+ser servida em produção — e é justamente por isso que **não bloqueia nada**: sem
+a variável, o `servers` volta a anunciar o bind, num documento que produção não
+expõe. Ela só passa a importar no dia em que a UI for reaberta.
+
+#### O gate do Lighthouse, e o que ele escondia
+
+`92 · 81 · 97 · 97 · 90`, e **verde**. A `/news` nove pontos abaixo do piso com
+a execução passando: o LHCI faz assert **otimista** por padrão — confere a
+melhor das três execuções (90) — enquanto o passo "Print scores" imprime a
+representativa (81). Dois números para a mesma pergunta, e o gate sempre conferia
+o mais generoso. Corrigido para `aggregationMethod: median`.
+
+**E a causa da `/news` não é o que o `CLAUDE.md` mandava suspeitar.** O
+aquecimento funcionou (0,16–0,56 s por rota, sem sinal de hibernação), e o audit
+da execução ruim diz: **56 requisições na página, zero para a API**, a mais lenta
+sendo o próprio documento em 214 ms. O que derruba o score é o **LCP de uma
+`<img>` de card, em 4.390 ms**, servida por `/_next/image` a partir de
+`s2-valor.glbimg.com`; os audits que caem são `uses-responsive-images` e
+`image-delivery-insight`. É **entrega de imagem — §10.6**, e está roteado para
+lá com a medição pronta.
+
+**A correção foi provada offline, contra os artefatos da execução que passou
+verde.** Mesmos 15 relatórios, dois configs:
+
+```
+config antigo (otimista):  All results processed!                    exit 0
+config novo   (mediana):   × categories.performance failure          exit 1
+                             expected: >=0.9
+                                found: 0.89
+                             all values: 0.89, 0.9, 0.81
+```
+
+Vale reparar no número: a mediana verdadeira da `/news` naquele run é **0,89** —
+o "81" que a tabela imprimia é a execução *representativa*, que é um terceiro
+número ainda. Os três discordavam, e só um deles decidia o gate.
+
+> **A execução seguinte, já com a mediana, passou** — `92 · 90 · 97 · 99 · 92`,
+> com a `/news` em exatamente 90. Não é contradição: é o que significa raspar o
+> piso. A mediana da `/news` oscila entre 89 e 90, então **o gate vai reprovar
+> de forma intermitente** até a §10.6 fechar. Intermitência aqui é sinal, não
+> ruído: ela mede o quanto a rota depende de uma imagem de terceiro chegar a
+> tempo.
+
+A dispersão entre as três execuções, que a tabela de uma linha por rota
+escondia:
+
+| Rota | execuções | representativa | chama a API? |
+|---|---|---|---|
+| `/pt-BR` | 60, 90, 92 | 92 | sim |
+| `/pt-BR/news` | 89, 90, 81 | 81 | não (ISR) |
+| `/pt-BR/article` | 98, 96, 97 | 97 | não |
+| `/pt-BR/about` | 98, 97, 97 | 97 | não |
+| `/en` | 79, 92, 90 | 90 | sim |
 
 ---
 

@@ -2301,6 +2301,24 @@ pt-BR-only, e é decisão sobre conteúdo, não descuido).
 
 ### 10.6 Performance: o otimizador de imagem aceita qualquer host
 
+> **Medido em 24/08/2026, no fechamento da Fase 9, e já é o gate reprovando.**
+> A `/news` mede `[89, 90, 81]` de performance, e a mediana está **abaixo do
+> piso de 90**. A causa foi isolada e não é a API: **56 requisições na página,
+> zero para a API**, e a mais lenta é o próprio documento em 214 ms. O que
+> derruba o score é o **LCP de uma `<img>` de card em 4.390 ms**, servida por
+> `/_next/image` a partir de `s2-valor.glbimg.com`, com
+> `uses-responsive-images` e `image-delivery-insight` reprovando.
+>
+> Ou seja: este eixo abre com **um número vermelho no CI**, e não com uma
+> suspeita. O `remotePatterns: hostname: '**'` deixou de ser só risco de
+> superfície aberta — é a mesma decisão que faz o produto servir imagem de
+> origem que ele não controla, no tamanho que ela vier.
+>
+> As rotas que não dependem de imagem de terceiro (`/about`, `/article`) medem
+> 96–98 com variância de 2 pontos, o que dá o teto que a `/news` deveria
+> alcançar.
+
+
 `next.config.js` declara `remotePatterns` com `hostname: '**'` — **qualquer host
 HTTPS**. Isso é o que faz o acervo funcionar (as imagens vêm de dezenas de
 veículos, e a lista muda quando `rss-sources.ts` muda), e é também um
