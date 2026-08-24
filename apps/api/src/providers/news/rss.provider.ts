@@ -10,6 +10,9 @@ interface CustomItem {
   mediaThumbnail?: { $?: { url?: string } };
 }
 
+/** Teto por feed. Ver a nota no `fetchFeedXml`. */
+const FEED_TIMEOUT_MS = 30_000;
+
 const parser = new Parser<Record<string, never>, CustomItem>({
   customFields: {
     item: [
@@ -19,8 +22,32 @@ const parser = new Parser<Record<string, never>, CustomItem>({
   },
 });
 
+/**
+ * **Fonte que não rende nada avisa, e antes sumia em silêncio.**
+ *
+ * `Promise.allSettled` é o certo aqui — um feed fora do ar não pode derrubar a
+ * coleta do dia —, mas ele descarta a rejeição sem deixar rastro. A `Reuters`
+ * ficou na lista com **zero itens** até 24/08/2026, quando a medição do acervo
+ * a expôs: `feeds.reuters.com` devolve NXDOMAIN desde que a Reuters desligou os
+ * feeds públicos, e toda execução do pipeline gastava uma resolução de DNS
+ * fadada a falhar.
+ *
+ * O aviso por fonte é o mínimo que torna a próxima visível — ele sai no log do
+ * Render, ao lado do resto da execução. **Não vira teste de rede**: uma suíte
+ * que bate nos treze feeds reprovaria no dia em que um publisher espirrasse, e
+ * gate que falha por motivo alheio é gate que se aprende a ignorar.
+ */
 export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<RawNewsItem[]> {
   const results = await Promise.allSettled(sources.map((source) => fetchSource(source)));
+
+  results.forEach((result, index) => {
+    const name = sources[index]?.name ?? 'desconhecida';
+    if (result.status === 'rejected') {
+      console.warn(`[rss] ${name}: falhou —`, result.reason);
+    } else if (result.value.length === 0) {
+      console.warn(`[rss] ${name}: zero itens`);
+    }
+  });
 
   return results
     .filter((r): r is PromiseFulfilledResult<RawNewsItem[]> => r.status === 'fulfilled')
@@ -28,7 +55,12 @@ export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<R
 }
 
 async function fetchFeedXml(url: string): Promise<string> {
-  const response = await fetch(url);
+  // **Prazo, pela mesma razão que o resto da fase.** Um feed que aceita a
+  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e treze
+  // fontes em paralelo significam que basta uma. O provider de e-mail já tinha
+  // o seu (15 s); este não tinha nenhum. Trinta segundos é folga sobre o pior
+  // caso observado num feed lento e cabe no orçamento do cron diário.
+  const response = await fetch(url, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
   const buffer = await response.arrayBuffer();
 
   const contentType = response.headers.get('content-type') || '';
