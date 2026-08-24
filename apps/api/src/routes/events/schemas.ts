@@ -6,8 +6,11 @@ import {
   SEARCH_QUERY_MAX_LENGTH,
   SHARE_CHANNELS,
   Category,
+  type ApiResponse,
+  type IngestEventsResult,
   type ProductEvent,
 } from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 // `Category` de `@newranews/types` e nao o do Prisma: este valor vai para o
 // `payload` JSON, nunca para uma coluna enum. Validar contra o do Prisma
@@ -136,5 +139,18 @@ export const ingestEventsBodySchema = z.object({
 export const ingestEventsResponseSchema = z.object({
   data: z.object({ accepted: z.number().int() }),
 });
+
+/**
+ * A resposta, pela mesma guarda que as outras rotas ganharam na §11.1.
+ *
+ * O corpo da requisição continua com o `SchemaMatchesSharedType` acima, escrito
+ * à mão: `productEventSchema` é a interseção de um objeto com uma **união
+ * discriminada**, e o `Widen` de `utils/contract.ts` — que existe para a
+ * diferença entre os dois `Category` — normaliza interseção por tipo mapeado,
+ * o que apagaria os campos próprios de cada ramo. Aqui não há dois `Category` a
+ * conciliar (o valor vai para o `payload` JSON, nunca para uma coluna enum),
+ * então a comparação direta é a certa e a mais forte.
+ */
+assertContract<typeof ingestEventsResponseSchema, ApiResponse<IngestEventsResult>>(true);
 
 export const errorResponseSchema = z.object({ error: z.string() });

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { ApiResponse, DashboardMetrics, ProductMetrics } from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 const weeklyMetricsSchema = z.object({
   period: z.object({ start: z.string(), end: z.string() }),
@@ -148,5 +150,17 @@ export const httpMetricsSchema = z.object({
 });
 
 export const httpMetricsResponseSchema = z.object({ data: httpMetricsSchema });
+
+/**
+ * As duas telas de admin. A `/weekly` está coberta de graça: o
+ * `weeklyMetricsSchema` é reusado dentro do dashboard, que é o que a tela lê.
+ *
+ * A `/monthly` e a `/http` ficam de fora **com motivo escrito** — nenhuma tem
+ * tela nem tipo compartilhado, e as duas são lidas por operador, no `curl`. A
+ * lista de exceções vive em `tests/routes/shared-type-contract.test.ts`, e é ela
+ * que impede que "sem tipo compartilhado" vire o default silencioso.
+ */
+assertContract<typeof dashboardMetricsResponseSchema, ApiResponse<DashboardMetrics>>(true);
+assertContract<typeof productMetricsResponseSchema, ApiResponse<ProductMetrics>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

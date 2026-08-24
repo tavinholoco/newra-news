@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import GitHubProvider from 'next-auth/providers/github';
+import type { ApiResponse, AuthUpsertResult } from '@newranews/types';
 import { signAuthJwt } from '@/lib/jwt';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -72,9 +73,14 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (response.ok) {
-            const body = (await response.json()) as {
-              data?: { id: string; role: 'USER' | 'ADMIN' };
-            };
+            // `Partial` porque isto é JSON de rede, e o tipo descreve o
+            // contrato, não a garantia: uma resposta 200 sem `data` é possível
+            // e o `?.` abaixo é quem trata. O tipo compartilhado entra aqui
+            // para que a rota da identidade deixe de ser a única que o web lia
+            // por uma forma escrita à mão — ver `AuthUpsertResult`.
+            const body = (await response.json()) as Partial<
+              ApiResponse<AuthUpsertResult>
+            >;
             token.id = body.data?.id ?? user.id;
             token.role = body.data?.role;
           }

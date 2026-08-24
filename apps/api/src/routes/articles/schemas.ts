@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import type {
+  ApiResponse,
+  Article,
+  ArticleWithSources,
+  PaginatedResponse,
+} from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 
 export const listArticlesQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -84,6 +91,16 @@ export const listArticlesResponseSchema = z.object({
 export const getArticleResponseSchema = z.object({
   data: articleWithSourcesSchema,
 });
+
+/**
+ * **É a rota onde a deriva já custou um dia de produção** (Fase 5): o serviço
+ * carregava os quatro campos de auditoria e as ~15 fontes, o schema era o da V1
+ * e o serializador descartava tudo em silêncio, com a `docs/api.md` descrevendo
+ * o comportamento certo. As duas linhas abaixo teriam reprovado o `typecheck`
+ * naquele dia.
+ */
+assertContract<typeof listArticlesResponseSchema, PaginatedResponse<Article>>(true);
+assertContract<typeof getArticleResponseSchema, ApiResponse<ArticleWithSources>>(true);
 
 export type ListArticlesQuery = z.infer<typeof listArticlesQuerySchema>;
 export type ListArticlesResponse = z.infer<typeof listArticlesResponseSchema>;

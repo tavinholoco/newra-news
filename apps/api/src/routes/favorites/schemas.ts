@@ -1,4 +1,12 @@
 import { z } from 'zod';
+import type {
+  ApiResponse,
+  FavoriteIds,
+  FavoriteWithItem,
+  PaginatedResponse,
+  SavedFavorite,
+} from '@newranews/types';
+import { assertContract } from '../../utils/contract';
 import { newsFilterQuerySchema, newsItemSchema } from '../news/schemas';
 
 export const favoriteItemTypeSchema = z.enum(['NEWS', 'ARTICLE']);
@@ -102,6 +110,19 @@ export const removeFavoriteResponseSchema = z.object({
     removed: z.boolean(),
   }),
 });
+
+/**
+ * A união discriminada é o caso em que a guarda mais paga: um ramo novo
+ * (`itemType: 'PODCAST'`) declarado só de um lado passaria pelo build dos dois,
+ * e a tela renderizaria um card vazio em vez de reclamar.
+ *
+ * `removeFavoriteResponseSchema` fica de fora porque `{ removed: boolean }` não
+ * tem tipo compartilhado — o web o declara inline em `lib/api.ts`, e criar um
+ * tipo exportado para um booleano custaria mais do que protege.
+ */
+assertContract<typeof listFavoritesResponseSchema, PaginatedResponse<FavoriteWithItem>>(true);
+assertContract<typeof favoriteIdsResponseSchema, ApiResponse<FavoriteIds>>(true);
+assertContract<typeof addFavoriteResponseSchema, ApiResponse<SavedFavorite>>(true);
 
 export type ListFavoritesQuery = z.infer<typeof listFavoritesQuerySchema>;
 export type FavoriteParams = z.infer<typeof favoriteParamsSchema>;
