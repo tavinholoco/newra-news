@@ -49,6 +49,7 @@ export function NewsPageClient({
 }: NewsPageClientProps) {
   const t = useTranslations('news');
   const tPagination = useTranslations('pagination');
+  const tCommon = useTranslations('common');
   const { state, setFilters, setPage, clearFilters } = useNewsFilters();
 
   const { status } = useSession();
@@ -211,12 +212,6 @@ export function NewsPageClient({
         onClear={clearFilters}
       />
 
-      {/* A contagem é `aria-live`: quem filtra por teclado precisa ouvir que o
-          resultado mudou de tamanho sem ter de sair procurando pela lista.
-
-          Fica de fora enquanto o esqueleto está no ar. Sem resposta ainda,
-          `meta.total` é zero, e a linha anunciaria "Nenhuma notícia encontrada"
-          logo acima de uma lista que está justamente carregando. */}
       {/* A região é o alvo do foco ao virar a página, e o nome dela é a
           própria contagem: recebendo foco, o leitor de tela anuncia "1.234
           notícias encontradas" — que é exatamente o que mudou. `tabIndex={-1}`
@@ -228,42 +223,52 @@ export function NewsPageClient({
         aria-labelledby={countId}
         className='flex flex-col gap-6 outline-none'
       >
-      {showSkeleton ? null : (
+        {/* A contagem é `aria-live`: quem filtra por teclado precisa ouvir que
+            o resultado mudou de tamanho sem ter de sair procurando pela lista.
+
+            **Ela nunca desmonta, e isso não é detalhe**: é ela quem dá nome à
+            região acima, e `aria-labelledby` apontando para um id ausente
+            deixa a região **sem nome nenhum** — o foco pousaria num contêiner
+            mudo. O que muda enquanto o esqueleto está no ar é o texto, não a
+            existência: sem resposta ainda, `meta.total` é zero, e a contagem
+            anunciaria "Nenhuma notícia encontrada" logo acima de uma lista que
+            está justamente carregando. */}
         <p
           id={countId}
           aria-live='polite'
           className='border-t border-line pt-4 text-body-sm text-ink-secondary'
         >
-          {activeFilters > 0
-            ? t('resultCountFiltered', { count: meta.total })
-            : t('resultCount', { count: meta.total })}
+          {showSkeleton
+            ? tCommon('loading')
+            : activeFilters > 0
+              ? t('resultCountFiltered', { count: meta.total })
+              : t('resultCount', { count: meta.total })}
         </p>
-      )}
 
-      {isError ? (
-        <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
-          {t('loadError')}
-        </p>
-      ) : showSkeleton ? (
-        <NewsListSkeleton showLead={isPristine} />
-      ) : stories.length === 0 ? (
-        <NewsEmptyState
-          search={state.search}
-          activeFilters={activeFilters}
-          savedOnly={savedOnly}
-          onClear={clearFilters}
-        />
-      ) : (
-        <NewsList
-          stories={stories}
-          highlight={state.search}
-          // Sem hero na busca, em página interna nem no recorte de salvos:
-          // eleger um destaque ali seria a tela inventando uma edição que
-          // ninguém fez.
-          showLead={state.page === 1 && !state.search && !savedOnly}
-          renderAction={renderAction}
-        />
-      )}
+        {isError ? (
+          <p className='rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
+            {t('loadError')}
+          </p>
+        ) : showSkeleton ? (
+          <NewsListSkeleton showLead={isPristine} />
+        ) : stories.length === 0 ? (
+          <NewsEmptyState
+            search={state.search}
+            activeFilters={activeFilters}
+            savedOnly={savedOnly}
+            onClear={clearFilters}
+          />
+        ) : (
+          <NewsList
+            stories={stories}
+            highlight={state.search}
+            // Sem hero na busca, em página interna nem no recorte de salvos:
+            // eleger um destaque ali seria a tela inventando uma edição que
+            // ninguém fez.
+            showLead={state.page === 1 && !state.search && !savedOnly}
+            renderAction={renderAction}
+          />
+        )}
       </div>
 
       <Pagination
