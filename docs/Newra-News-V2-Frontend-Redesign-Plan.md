@@ -2461,7 +2461,7 @@ e o `Cache-Control` editorial cobre **4** rotas (eram 5). O resto confere.
 [x] CORS × BFF: declarar o acoplamento ou consertar a lista
 
     -- 11.3 latência, cache e cold start --
-[x] quem de fato espera a API acordar — medido: **todo leitor de detalhe, sempre**
+[x] quem de fato espera a API acordar — medido: **hoje ninguém, a API não hiberna**
 [x] Cache-Control: medido `cf-cache-status: DYNAMIC` — proposta derrubada
 [x] cache hit rate do CDN — riscado, com a medição no lugar
 

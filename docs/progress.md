@@ -3039,6 +3039,387 @@ As demais premissas continuam valendo, e cada uma foi medida e não suposta:
 
 ---
 
+### 36. V2.0 Fase 11 — Integração geral ✅ Concluída em 2026-08-24
+
+> Branch `review/v2-integration`. Os oito eixos da §28 fechados, menos um item
+> que depende de credencial de produção e passou para a 12.2. **Quinze achados**,
+> e o padrão deles é o mesmo: **nenhum tem sintoma de erro** — a costura não
+> quebra, ela combina errado e a tela continua desenhando. Mais **três medições
+> que derrubaram suposições do próprio plano**, o que é tão produto de uma fase
+> de revisão quanto correção.
+>
+> **1.250 testes em 111 suítes → 1.314 em 122**, mais **29 specs de E2E em 5
+> arquivos, que antes eram zero**. Cobertura: API 98,71% → **98,72% stmts**;
+> web 72,35% → **72,50% stmts**.
+
+#### O inventário, reconferido na abertura
+
+A regra da fase é abrir com inventário fechado, e ele foi conferido contra o
+código antes de qualquer linha:
+
+| Costura | §28 dizia | Medido em 24/08 |
+|---|---|---|
+| rotas de BFF | 12 | **12** ✓ (6 por `proxyToApi`, 14 call sites) |
+| `Cache-Control` editorial | 4 | **4** ✓ |
+| `AbortSignal` no web | zero | **zero** ✓ |
+| Playwright | sem config, sem spec | **confirmado** ✓ |
+| `SchemaMatchesSharedType` | só em `/events` | **confirmado** ✓ |
+| `render.yaml` sem `AUTH_JWT_SECRET`/`ADMIN_EMAILS` | — | **confirmado** ✓ |
+| eventos no catálogo | 12 | **12 declarados, 11 com call site** ⚠️ |
+
+#### 11.3 — quem espera a API acordar? **hoje, ninguém** — e a suposição do plano caiu
+
+A §11.3 mandava medir, não supor, e a medição desmentiu a premissa que o plano,
+o `CLAUDE.md` e o workflow do Lighthouse carregavam desde a Fase 8:
+
+| Medição (24/08) | Resultado |
+|---|---|
+| `uptime` do `/api/health` às 20:14:46Z | 3.146 s |
+| `uptime` às 20:46:07Z, **17 min sem uma requisição minha** | 5.024 s |
+| delta de `uptime` × janela de relógio | **1.878 s × 1.881 s — processo contínuo** |
+| tempo da primeira resposta depois da ociosidade | **0,29 s** (cold start seria ~4,9 s) |
+
+**A API não hibernou.** O `keep-alive` documentado no `docs/setup.md` §9 —
+UptimeRobot batendo em `GET /api/health` a cada 5 min — está de pé e funciona.
+O plano free do Render continua hibernando com ~15 min sem tráfego; o que não
+acontece é o tráfego acabar.
+
+**O que isso muda, e o que não muda.** Não muda nada do que a fase corrigiu: o
+prazo de 8 s continua certo (hibernação é *uma* causa de pendurar, não a única,
+e um keep-alive num serviço de terceiro em plano gratuito não é garantia — ele
+já falhou antes, que é como a Fase 8 mediu os 4,9 s), e o aquecimento do
+workflow do Lighthouse é barato demais para tirar. O que muda é a **explicação
+preguiçosa**: de agora em diante, "deve ser a API dormindo" precisa de sonda
+antes de virar conclusão. É a mesma lição que a `/news` ensinou no gate do
+Lighthouse, pelo outro lado.
+
+#### 11.3 — `revalidate = 3600` estava nas duas telas de leitura e não fazia nada
+
+**O achado de maior alcance da fase, e ele estava escrito à vista de todos.** A
+§11.3 mandava medir *quem espera a API acordar* em vez de supor. A medição:
+
+| Rota | `x-vercel-cache` | `Cache-Control` da resposta |
+|---|---|---|
+| `/pt-BR` | `HIT`, `Age: 1491` | `public, max-age=0, must-revalidate` |
+| `/pt-BR/news` | `PRERENDER` | idem |
+| `/pt-BR/news/[id]` | **`MISS` nas três tentativas** | `private, no-cache, no-store` |
+
+As duas telas de leitura declaravam `export const revalidate = 3600` e **não
+eram guardadas em lugar nenhum**. A causa é uma regra do Next 14 que não aparece
+em erro nenhum: rota com segmento dinâmico e **sem `generateStaticParams`** é
+marcada `ƒ` no build — renderizada a cada requisição —, e o `revalidate` do
+arquivo passa a valer só para o cache de dados, nunca para o HTML. **A tabela do
+build dizia `ƒ` desde sempre**, e ninguém a leu como contradição com a linha do
+topo do arquivo.
+
+O custo caía sobre a página **que se compartilha**: quem chega de busca ou de
+rede social chega num detalhe, e era a única rota do produto sem cache nenhum —
+toda visita pagava um render de função inteiro, e toda visita cujo cache de
+dados tivesse expirado pagava também a API acordar. `generateStaticParams`
+vazio vira as duas para `●`. Guarda em `tests/lib/rendering-mode.test.ts`, que
+liga a declaração ao efeito porque eles moram em lugares diferentes.
+
+**E a outra proposta do próprio plano caiu, também por medição.** `Cache-Control`
+na `/api/news` teria acrescentado um cabeçalho que ninguém lê: a `/api/home` já
+carrega a política e o Cloudflare que fica na frente do Render responde
+`cf-cache-status: DYNAMIC`. JSON não é cacheável ali por padrão e aquelas regras
+são do Render; o cache de dados do Next decide por `next.revalidate` e ignora o
+cabeçalho; o navegador lê `max-age`, que `s-maxage` não é. As quatro rotas
+existentes ficam — a política está certa e custa zero — mas **o cache hit rate
+da §26 foi riscado, com a medição no lugar da promessa**.
+
+#### 11.2 — ninguém tinha decidido em quanto tempo desistir
+
+Nenhuma chamada `fetch` do web tinha prazo. Some ao plano free do Render, que
+hiberna com ~15 min sem tráfego: uma API dormindo segurava a função da Vercel
+até a plataforma matá-la, e o leitor via **uma página que nunca responde** — que
+nenhuma tela sabe desenhar, porque não é um estado, é a ausência de um.
+
+A metade difícil já estava feita na Fase 10: o `ApiError` separa "a API não
+respondeu" de "a API disse não", e prazo estourado cai no primeiro caso.
+
+Os números estão em `lib/timeouts.ts` e os dois são limitados por medição.
+**8 s** para a perna servidor→API fica acima do cold start de **4,9 s** que a
+auditoria da Fase 8 mediu e abaixo do teto de **10 s** da função no plano Hobby
+— um prazo menor trocaria uma espera por uma falha, que é pior. **12 s** para a
+perna navegador→BFF é maior de propósito: assim quem desiste primeiro é sempre o
+de dentro, e o BFF ainda está vivo para devolver um status em vez de uma
+requisição abortada.
+
+> **Passar `signal` é seguro nesta versão, e foi conferido, não suposto.** O
+> `patch-fetch.js` do `next@14.2.35` repassa o `signal` ao fetch de origem e **o
+> remove quando a chamada é revalidação em segundo plano**. O prazo vale para a
+> requisição que alguém está esperando, nunca para a regeneração atrás dela.
+> Reconferir ao subir para o Next 15.
+
+**Três rotas de admin tinham cada uma a sua cópia do proxy** — mesma leitura de
+sessão, mesma checagem de papel, mesma assinatura, mesmo repasse — e as cópias
+já divergiam: elas declaravam `cache: 'no-store'` e o `api-proxy.ts` não, para
+dado igualmente por-usuário. Quatro implementações de uma decisão é onde a
+costura racha, e é por isso que o prazo, o id de requisição e o formato do corpo
+de erro precisariam ser escritos quatro vezes. Passaram a usar `proxyToApi` com
+`requireRole`. Junto: o proxy devolvia `NextResponse.json(null)` em resposta
+não-JSON — status certo, corpo vazio, nada que uma tela soubesse dizer.
+
+#### 11.1 — a guarda de contrato saiu de uma rota para todas
+
+`packages/types` é a fonte única, e **uma rota só** tinha guarda ligando os dois
+lados. A deriva já custou um dia de produção na Fase 5: o serviço carregava os
+campos de auditoria e as ~15 fontes, o schema de resposta era o da V1, e o
+`fastify-type-provider-zod` serializa pelo schema — o dado ia do banco para o
+lixo na saída, com a `docs/api.md` descrevendo o comportamento certo.
+
+`utils/contract.ts` traz `assertContract`, uma linha por resposta, ao lado do
+schema que ela protege. A conferência é **bidirecional**: só uma direção
+deixaria passar campo que o tipo declara e o schema nunca produz, que é
+exatamente aquele defeito.
+
+`Widen` existe para uma diferença que é real e **não** é deriva: o `Category`
+compartilhado é `enum` nominal, as rotas usam `z.enum([...])` e o Prisma tem um
+terceiro. Normalizar enum de string para os seus literais mantém a guarda
+honesta sem espalhar a ponte entre os dois enums — ela continua onde sempre
+esteve, no `editorial.mapper`, e **agora há teste dizendo isso**.
+
+`POST /api/auth/upsert` — a rota pela qual **todo usuário é criado** — era o
+único contrato que o web lia por uma forma escrita à mão dentro do callback.
+Ganhou `AuthUpsertResult` em `packages/types`, usado nos dois lados.
+
+A guarda exaustiva é `tests/routes/shared-type-contract.test.ts`, no formato que
+a Fase 9 firmou: enumera as respostas de sucesso que o roteador declara e exige,
+para cada uma, ou a asserção ou uma linha na lista de exceções com o motivo.
+
+#### 11.6 — a sessão apontava para um usuário que a API não conhece
+
+Item que a Fase 10 congelou em teste para que a decisão da 11 fosse mudança
+visível. Quando o upsert do sign-in falhava, sobravam dois estados ruins:
+
+- **falha de rede ou resposta não-ok** → `token.id` indefinido, a pessoa parecia
+  logada e toda ação de conta devolvia 401 pelo BFF, **por trinta dias**;
+- **200 sem `data`** → `token.id` caía no id do **provedor**, e esse é o caro: o
+  BFF assinava um JWT com um `sub` que não existe no banco, `GET /api/account`
+  devolvia 404 e **salvar uma matéria estourava a chave estrangeira** — 500 numa
+  tela que dizia estar logada.
+
+O id do provedor nunca é gravado, e o upsert é **retentado enquanto a API não
+confirmar** — não num job, e sim na próxima leitura de sessão, que é exatamente
+quando o dado passa a fazer falta. Com um intervalo de cinco minutos, uma API
+fora do ar não acrescenta uma chamada por requisição: acrescenta uma a cada
+cinco minutos, e a sessão se conserta sozinha na primeira que passar.
+`Session['user']['id']` virou opcional, porque o estado é real.
+
+**As três portas do papel ADMIN.** A página esconde a tela, o BFF recusa antes
+de assinar, a API recusa o token — e é profundidade, não redundância: quem tiver
+o `AUTH_JWT_SECRET` pula as duas primeiras. A terceira tinha quatro cópias
+inline do mesmo `if`, e virou um `requireAdmin`.
+
+#### 11.T — o smoke E2E existe, e a primeira execução achou o que ela existe para achar
+
+`@playwright/test` estava no `devDependencies` **sem config e sem uma única
+spec**. Agora são **29 specs em 5 arquivos**, rodando **contra produção** — a
+decisão que o eixo inteiro sustenta, porque três dos quatro defeitos mais caros
+deste projeto já estavam no ar, e há uma classe que só existe lá: os deploys da
+Vercel e do Render disparam juntos e **não terminam juntos**.
+
+**E a primeira execução reprovou três specs, corretamente.** Anônimo em
+`/pt-BR/favorites` respondia **200 com
+`<meta http-equiv="refresh" content="1;url=/signin?…">`**, e não 307. O
+`redirect()` de um server component resolve depois de a resposta começar a ser
+transmitida — o `loading.tsx` do segmento de idioma despacha a casca na hora — e
+o Next cai naquela tag: **um segundo** olhando o esqueleto, o status errado, e um
+salto a mais porque o alvo não levava prefixo de idioma.
+
+O middleware passou a decidir **antes de renderizar**, e ele é deliberadamente
+burro: pergunta só se **existe** cookie de sessão, nunca se é válido. Validar ali
+exigiria o `NEXTAUTH_SECRET` no runtime de borda, e o modo de falha — variável
+ausente, `getToken` nulo, **todo mundo deslogado** — é muito pior que o meta
+refresh. Cookie presente e inválido continua caindo no guard da página, que é e
+sempre foi a autoridade.
+
+Duas coisas que o smoke **deliberadamente não faz**, com o motivo escrito: não
+inscreve ninguém na newsletter (seria um `Subscriber` de verdade, contado pela
+tela de métricas e com e-mail no dia seguinte, sem como desfazer sem o token), e
+não dispara rollback ao reprovar — reverter deploy sozinho exige distinguir "o
+deploy quebrou" de "a API estava dormindo", e este projeto já cometeu o erro
+oposto com o gate do Lighthouse medindo cold start. Rollback é decisão da §12.6,
+com número atrás.
+
+**Os fluxos com login são pulados sem segredo, e o pulo é barulhento** — um passo
+do workflow imprime quais correram. Ligá-los põe o `NEXTAUTH_SECRET` de produção
+no runner do CI, e essa é decisão de quem é dono do segredo, não do teste;
+`e2e/support/session.ts` documenta o que custa e quais são os quatro segredos.
+
+#### 11.5 — o balde de ingestão é um só para todos os leitores
+
+A Fase 9 mediu que o balde de rate limit era um só para a internet inteira e
+consertou com `trustProxy: 1`. Esta fase mediu **o caminho que sobrou**, que é
+justamente o que carrega o tráfego: navegador → BFF do Next → API. O IP que
+chega na API é o da função da Vercel.
+
+| Medição (24/08) | Resultado |
+|---|---|
+| 3 requisições **diretas** na API | consumiram o meu balde (`remaining` 29, 28, 27) |
+| 3 requisições **pelo BFF** | **não tocaram** nele — balde distinto |
+| 45 pelo BFF em **12 segundos** | **10 × 400 e 35 × 429** |
+
+Uma máquina esgota o teto de ingestão do site inteiro em doze segundos. **O
+número fica em 30**, e não por folga: com lote de 20, o teto já permite 600
+eventos/min, o que alcança as **200.000 linhas** da dívida de agregação da
+`/metrics/product` em ~5h30 — dobrá-lo corta esse prazo pela metade e não evita
+nada. Quem limita o estrago é o lote e a retenção de 90 dias. Do lado legítimo,
+~2 requisições por pageview fazem deste teto ~15 pageviews/min, quinze vezes o
+pico plausível do marco de ~550 pageviews/dia.
+
+**A perda seria silenciosa** — 429 num `sendBeacon` não tem retorno que o cliente
+leia —, então o gatilho precisa ser observável, e é: `GET /api/metrics/http`
+conta por rota e classe de status desde a Fase 9. **429 em `POST /api/events` é
+a medida do que está sendo perdido.**
+
+**A cadeia foi provada ponta a ponta:** um lote pelo `POST /api/events` do Next
+devolveu `201 { data: { accepted: 1 } }`, e `accepted` é a contagem do
+`createMany` — navegador, BFF, API, Postgres, com linha na ponta.
+
+**E `newsletter-landing` era um valor do vocabulário que nunca tinha sido
+emitido.** O `NewsletterCta` fixava `origin='article-cta'`, inclusive dentro da
+`/newsletter` — a página cuja razão de existir é converter. Toda inscrição vinda
+dali entrava na conta do CTA de fim de matéria, e o `origin` existe justamente
+para não somar dois canais num número só.
+
+#### 11.S — o mapa de confiança, e um log que guardava e-mail
+
+O mapa está **no código**, no plugin de CORS, que é a fronteira que o torna
+verdadeiro ou falso. Três das quatro linhas são configuração; a quarta era pura
+convenção — *navegador → API direto: sem autenticação, e mutação nunca vem por
+aqui* — e é dela que depende a lista de métodos do CORS.
+`tests/lib/trust-boundary.test.ts` a escreve como regra: o segredo compartilhado
+tem três módulos nominais, o cliente do navegador para a API só usa GET e POST, e
+toda mutação atravessa o BFF same-origin.
+
+**A varredura de LGPD achou um, e é do tipo que se esconde num caminho de
+falha.** `sendEmailWithResend` colava os 200 primeiros caracteres do corpo de
+erro do Resend na exceção; `sendDailyNewsletter` guardava a primeira dessas
+mensagens em `NewsletterLog.error`. Em falha de destinatário o Resend **ecoa o
+endereço** — então o e-mail de um assinante podia acabar numa coluna que:
+
+- **ninguém lê** (nenhuma rota, nenhuma tela, nenhum job);
+- **o cleanup não expurga** (ele cobre `News`, `PipelineLog`, `Article` e
+  `ProductEvent`);
+- **sobrevive ao cancelamento da inscrição**, porque cancelar mexe no
+  `Subscriber` e em log nenhum.
+
+Jogar o corpo fora foi descartado: "Resend API error 422" sozinho não separa
+domínio não verificado de destinatário inválido, e é isso que alguém quer saber
+às sete da manhã. `utils/redact.ts` mantém a frase e tira o endereço.
+
+**A rota de eventos continua anônima, e agora algo diz isso.** O risco não é
+ataque, é deriva: um `userId` acrescentado "para melhorar a métrica" muda a
+natureza jurídica da tabela inteira. As duas pontas ganharam guarda — o BFF
+repassa só um `content-type` (nem o cookie, nem o IP encaminhado, nem o agente),
+e o schema da API descarta qualquer campo de identidade que alguém anexe.
+
+**Rotação do segredo compartilhado** virou runbook em `docs/setup.md` §9.1, com a
+parte que importa: não há como rotacionar um segredo compartilhado sem janela, e
+o procedimento **escolhe onde a janela cai**. API primeiro, porque o sintoma é
+alto — 401 nas telas de conta. Web primeiro faria o upsert do sign-in falhar em
+silêncio, e como esta fase o retenta a cada cinco minutos, a falha ficaria
+escondida atrás da retentativa.
+
+#### 11.7 — o blueprint não declarava o que a API precisa
+
+`render.yaml` declarava quinze variáveis e **não declarava `AUTH_JWT_SECRET` nem
+`ADMIN_EMAILS`**. As duas estão configuradas à mão no painel do Render desde
+16/08 — foi assim que o login de produção passou a funcionar —, então o serviço
+atual funciona. Recriado a partir do blueprint, ele sobe com health check verde e
+**toda rota de conta em 401**, porque `verifyAuthJwt` falha fechado.
+
+O `zod` não protege contra isso: `AUTH_JWT_SECRET` é `.optional()` e tem de ser,
+senão a API não sobe em desenvolvimento. Então o critério da guarda não é
+"obrigatória", é **declarada** — `tests/build/env-parity.test.ts` enumera as
+chaves do schema e exige cada uma no blueprint ou com motivo escrito (`PORT` e
+`HOST`, as duas da plataforma). Leitura estática, porque importar
+`src/config/env` executaria o `process.exit(1)` de carga do módulo dentro do
+processo de teste.
+
+#### O acervo: a `Reuters` não era URL errada
+
+O item que a Fase 10 entregou como "acervo para a 11". `feeds.reuters.com`
+responde **NXDOMAIN** — a Reuters desligou os feeds RSS públicos e não há
+substituto. A fonte saiu.
+
+O que importa mais que a fonte morta é **por que ela sobreviveu**: o
+`Promise.allSettled` do `fetchFromRss` está certo — um feed fora do ar não pode
+derrubar a coleta do dia — mas descarta a rejeição sem rastro. Toda execução do
+pipeline gastava uma resolução de DNS fadada a falhar e nada dizia. Fonte que
+rejeita ou devolve zero passou a avisar por nome. **Não virou teste de rede**:
+uma suíte que bate nos treze feeds reprova no dia em que um publisher espirrar, e
+gate que falha por motivo alheio é gate que se aprende a ignorar.
+
+E a mesma ausência que esta fase achou no web: `fetchFeedXml` não tinha timeout.
+O provider de e-mail tem 15 s desde que existe; o de feed não tinha nenhum.
+
+#### A revisão do próprio código, que achou mais três
+
+- **O `x-request-id` só viajava para dentro.** Repassar o cabeçalho de entrada
+  não liga nada — quem chama o BFF é o navegador, e navegador não manda esse
+  cabeçalho. A API gera o dela e a ecoa desde a Fase 9, mas o proxy montava uma
+  resposta nova e o id morria ali. Agora ele volta ao chamador, que é a metade
+  que faz a outra valer.
+- **Um teste que provaria a metade errada de uma porta.** O caso "leitor comum
+  barrado no BFF de admin" usava a fixture `request` do Playwright, que é um
+  contexto de rede próprio e **não compartilha cookie** com o `BrowserContext`:
+  a sessão forjada não chegava nela, e o teste passaria com 401 provando "não sei
+  quem você é" onde o ponto é provar "sei, e não pode".
+- **Um achado de segurança sem a guarda.** `redactEmails` foi escrito e nada o
+  testava, o que quebra a regra da §28. `tests/security/pii-in-logs.test.ts`
+  fecha, e a primeira execução dele falhou **pelo motivo errado** — com
+  `RESEND_API_KEY` vazio o provider abortava antes do `fetch` — que é a
+  armadilha de `env` na carga do módulo já catalogada. A asserção de caminho
+  feliz foi quem a expôs.
+
+#### Três vezes a mesma armadilha, e vale registrar
+
+**Guarda estática que lê comentário como código.** Aconteceu três vezes nesta
+fase, nas duas direções: um `201` dentro de prosa contado como declaração de
+rota; um `assertContract` **comentado** contando como asserção presente (a
+guarda passou verde exatamente sobre o defeito que existe para achar); e um
+`proxyToApi` citado num JSDoc que dizia *não* usá-lo, reprovando o que estava
+certo. E uma quarta parenta: um literal de vocabulário vivo dentro de um
+`Extract<...>` numa `interface`, contado como emissão.
+
+A regra: **guarda que varre fonte tira comentário e declaração de tipo antes de
+qualquer regex** — e só se descobre isso insistindo em ver a guarda **falhar**.
+
+#### Números
+
+| | Antes | Depois |
+|---|---|---|
+| testes / suítes da API | 728 / 54 | **756 / 59** |
+| testes / suítes do web | 522 / 57 | **558 / 63** |
+| **total do monorepo** | **1.250 / 111** | **1.314 / 122** |
+| specs de E2E | **0** | **29 em 5 arquivos** |
+| cobertura da API (stmts) | 98,71% | **98,72%** |
+| cobertura do web (stmts) | 72,35% | **72,50%** |
+| workflows | 4 | **5** (`smoke.yml`) |
+
+#### O que a Fase 12 vai cobrar daqui
+
+- **A primeira leitura honesta da tela de métricas** (11.5) é o único item que
+  não fechou: exige credencial de admin de produção. Tudo que a prepara está
+  feito — a cadeia provada, o balde medido, e o gatilho de subcontagem
+  observável em `/api/metrics/http`.
+- **Os fluxos autenticados do smoke** entram no dia em que os quatro segredos
+  forem configurados. Sem eles, 6 dos 29 specs ficam pulados — e o pulo aparece.
+- **Rollback pós-deploy** (§12.6): o smoke falha e avisa; reverter sozinho é
+  decisão com número atrás, e hoje não há execução nenhuma que a justifique.
+- **A dívida do Next 15 ganhou um terceiro morador.** Além das 8 advisories
+  *high* e do soft 404, o meta refresh do `redirect()` em rota com `loading.tsx`
+  é da mesma família — o atalho do middleware cobre o caso comum, e o caso raro
+  (cookie presente e inválido) continua pagando o segundo.
+- **`NewsletterLog` não tem retenção.** Uma linha por dia, e sem PII depois desta
+  fase — mas é a única tabela do produto fora do expurgo. **Gatilho:** a primeira
+  coluna com texto livre que voltar a ser gravada ali.
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

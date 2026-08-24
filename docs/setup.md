@@ -282,7 +282,13 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 - **Frontend** → Vercel (repo conectado; cron em `vercel.json`)
 - **Backend** → Render (blueprint `render.yaml`; deploy automático a partir da `main`)
 - **Banco** → Neon (PostgreSQL serverless); migrations aplicadas pelo workflow `migrate.yml` (`pnpm db:migrate:deploy`), disparado em push na `main` quando o schema ou as migrations mudam
-- **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min
+- **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min.
+  **Conferido funcionando em 24/08/2026** (§11.3): o `uptime` cresceu
+  continuamente ao longo de 17 min sem tráfego nosso, e a primeira resposta
+  depois disso saiu em 0,29 s — não os ~4,9 s de um cold start. Ele **não é
+  garantia**: é um serviço de terceiro em plano gratuito, e foi justamente uma
+  falha dele que a auditoria da Fase 8 mediu. Por isso o aquecimento no workflow
+  do Lighthouse e o prazo de 8 s do `lib/timeouts.ts` continuam existindo
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.
 
