@@ -42,10 +42,22 @@ type Block =
  * Se o prompt passar a pedir listas ou destaques, é aqui que se decide de novo
  * — com a mesma medição, não por precaução.
  */
+/**
+ * Marcação que sobreviveu até aqui.
+ *
+ * **A limpeza é da ingestão, e esta linha não a substitui.** Ela existe porque
+ * o corpo é texto de terceiro e o React escapa o que recebe: uma tag que passe
+ * aparece na tela **como texto**, `srcset` e tudo, que é exatamente o que 63,7%
+ * do acervo mostrava antes da Fase 12. O acervo se cura pela etapa 8.5, que
+ * roda uma vez por dia — esta linha cobre a janela até lá, e o dia em que um
+ * veículo novo inventar um formato.
+ */
+const LEFTOVER_TAG = /<[^>]*>/g;
+
 export function parseArticleBody(content: string, lede?: string | null): Block[] {
   const blocks = content
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => line.replace(LEFTOVER_TAG, ' ').replace(/\s+/g, ' ').trim())
     .filter(Boolean)
     .map((line) =>
       line.startsWith('#')
@@ -55,8 +67,32 @@ export function parseArticleBody(content: string, lede?: string | null): Block[]
 
   const opening = lede?.trim();
   const first = blocks[0];
-  if (opening && first?.kind === 'paragraph' && first.text === opening) {
-    return blocks.slice(1);
+  if (!opening || first?.kind !== 'paragraph') return blocks;
+
+  if (first.text === opening) return blocks.slice(1);
+
+  /**
+   * **O dek pode ser um prefixo do corpo, e não só um parágrafo igual a ele.**
+   *
+   * Quando o feed manda a matéria inteira num parágrafo só — o formato do Valor
+   * —, a ingestão corta o dek no último fim de frase que cabe em 320
+   * caracteres. O corpo então **começa** com o dek em vez de repeti-lo como
+   * linha, e a comparação por igualdade não via nada: a tela mostrava aquelas
+   * frases duas vezes seguidas, uma como subtítulo e outra abrindo o corpo.
+   *
+   * **Só corta quando o dek termina em fim de frase**, e é isso que separa esta
+   * regra de comer texto. Recorte parcial não é repetição: um dek que acaba no
+   * meio de uma oração ("A sexta-feira se desenha") é resumo, e tirá-lo do
+   * corpo deixaria a matéria abrindo por "com um panorama complexo". A
+   * fronteira de frase é justamente a garantia que o `toDek` da ingestão dá —
+   * ele corta no último `.`/`!`/`?` que cabe, ou devolve o parágrafo inteiro,
+   * que cai na comparação por igualdade acima.
+   */
+  if (/[.!?]$/.test(opening) && first.text.startsWith(opening)) {
+    const rest = first.text.slice(opening.length).trim();
+    return rest.length > 0
+      ? [{ kind: 'paragraph', text: rest }, ...blocks.slice(1)]
+      : blocks.slice(1);
   }
 
   return blocks;
