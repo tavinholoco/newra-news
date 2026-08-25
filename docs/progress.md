@@ -3782,6 +3782,142 @@ seria salto.
 
 ---
 
+### 39. Verificação pós-merge da Fase 12, e o botão que dizia ter feito ✅ 2026-08-25
+
+> Branch `fix/pipeline-trigger-truth`. O ritual completo contra produção depois
+> do merge do PR #137, mais o achado que ele produziu — que não estava na Fase
+> 12 e só apareceu porque a verificação foi feita.
+
+#### O ritual, com os três passos
+
+| Passo | Resultado |
+|---|---|
+| **Lighthouse**, 7 rotas | **verde**. Perf 95 · 92 · 96 · 96 · 93 · 97 · 96, e **100 em acessibilidade nas sete** |
+| **Smoke E2E** (rodou sozinho no merge) | **23 passaram, 6 pulados, 0 falharam** |
+| **Baseline visual** | 51 capturas rodadas, **não commitadas** — ver abaixo |
+
+O 100 de acessibilidade na `/pt-BR/article/2026-08-25` é evidência direta de que
+o mapeamento `##` → `h2` e `###` → `h3` está certo: `heading-order` mediria o
+salto se estivesse errado.
+
+**Os deploys, conferidos e não presumidos.** A Vercel publicou o commit do merge
+(`032bf12a`, 15:49:31Z), e a API reiniciou 1,3 min depois do merge (`uptime` de
+655 s contra 12,2 min de relógio) — o que prova o deploy do Render **nesta
+direção**, ao contrário do erro que o `CLAUDE.md` já registra.
+
+#### Seis dos sete achados da Fase 12, confirmados no ar
+
+- **Card de texto** — 16 cards de grade na Home, 2 sem foto, medidos com
+  manchete **22 px** contra 18, dek 16 px, filete `rgb(240, 122, 69)`, e
+  **zero** placeholders laranja no site inteiro. Linhas da grade com alturas
+  iguais (408/408, 384/384).
+- **Briefing** — 9 `<strong>`, **11 `<h2>` e 10 `<h3>`**, 5 `<hr>`, 2 `<ul>`, e
+  nenhum `**` visível.
+- **Tag `<img>`** — não vaza mais como texto, conferido numa notícia da G1 cujo
+  `content` bruto ainda abre com `<img>`.
+- **Rótulo "Trecho"** — some quando não há corpo; a dica da fonte entra no lugar.
+- **Faixa da conta e link de admin** — o chunk servido pela Vercel, buildado do
+  commit mergeado, tem `inline-flex` e **zero** `inline-block`.
+
+#### O sétimo não estava no ar, e a razão é o mecanismo
+
+A higiene de texto age pela **ingestão** e pela **etapa 8.5**, e a última
+execução do pipeline foi às 11:00 UTC — **antes** do merge das 15:48. Medido no
+acervo logo depois: 63,8% ainda com tag HTML, 60,7% com dek acima de 320.
+
+O efeito, medido na pior linha (`/news/81ea73f8…`, G1):
+
+> dek de **14.950 caracteres num `<p>` sem clamp = 8,1 telas** de subtítulo
+> cinza, e logo abaixo **o mesmo texto** de novo como corpo. Página inteira:
+> **24 telas**.
+
+Rodando as funções reais sobre essas linhas, a previsão do que a 8.5 faria:
+
+| Notícia | Tela antes | Tela depois | Duplicado eliminado |
+|---|---|---|---|
+| G1 · Juscelino | 29.825 chars | **14.875** | 14.950 |
+| Valor · Agenda | 26.264 | **13.075** | 13.189 |
+| G1 · Talebã | 24.497 | **12.208** | 12.289 |
+
+**A baseline não foi commitada por isso**: as 51 capturas documentariam um
+estado transitório, e a `/news/[id]` mostra `"The post … appeared first on
+InfoMoney."` no dek **e** no trecho. Recapturar continua sendo item **13.5**,
+depois que o acervo estiver curado.
+
+#### E então o botão do painel
+
+A recomendação foi disparar o pipeline. O painel foi clicado, disse **"Pipeline
+disparado com sucesso"** — e nada aconteceu:
+
+| Sinal | Esperado se tivesse rodado | Medido |
+|---|---|---|
+| `generatedAt` do briefing | ~16:2x | **11:00:10Z** |
+| `promptVersion` | `v2-…` | **`v1-a7d3efd7`** |
+| total de notícias | > 6.669 | **6.669** |
+| tag HTML no corpo | 0% | **63,7%** |
+| `uptime` da API | — | 38 min, **sem reinício** |
+
+A causa está em `triggerPipeline`, e é antiga: **idempotência por dia**. Com um
+run de hoje em `SUCCESS` ou `RUNNING`, ele devolve o id **daquele** e não
+executa nada. A regra está certa — dois runs no mesmo dia gerariam o briefing
+duas vezes e gastariam duas chamadas de IA.
+
+**O defeito é a resposta.** Ela era `{ status: 'started', pipelineId }` nos três
+casos; o BFF traduzia para `success: true`; o painel imprimia a frase verde. E,
+com schema de resposta declarado, **o schema é o contrato**: enquanto ele
+dissesse `z.literal('started')`, não havia como a rota contar a diferença nem
+que o serviço a soubesse.
+
+#### A correção
+
+- **`triggerPipeline` devolve `PipelineTrigger`** — `outcome` (`started` ·
+  `already-running` · `already-succeeded-today`), `pipelineId` e `startedAt` do
+  run **referido**. Os dois "já" têm desfechos separados porque levam a ações
+  opostas: um pede esperar, o outro diz que não vai rodar de novo hoje.
+- **O schema declara o enum**, com guarda de compilação contra o tipo
+  compartilhado — o mesmo padrão de `routes/events/schemas.ts`.
+- **O painel diz qual foi, com a hora.** Verde só para `started`; os outros dois
+  em `text-ink-secondary`, porque verde afirmaria que algo rodou.
+- **O BFF não invalida o cache quando nada rodou.** `revalidatePath` de um run
+  que não aconteceu joga fora uma página quente para regenerar a mesma — e, em
+  `already-running`, regenera a partir de um banco que ainda está sendo escrito.
+
+#### O que a leitura do BFF revelou de quebra
+
+O comentário dizia *"Pipeline concluído: invalida o cache estático"*, e a rota
+da API responde **no aceite**, não na conclusão — o pipeline segue no servidor
+por ~55 s. A invalidação é otimista: ela derruba o HTML velho e quem chegar
+depois regenera; se a visita cair no meio da execução, a página nasce com o dado
+antigo e espera o `revalidate` de 3600 s.
+
+Ficou **dívida com gatilho**, e o comentário agora diz a verdade: esperar a
+conclusão exigiria sondar `GET /api/jobs/:id`, outra chamada autenticada dentro
+do `maxDuration = 30` da rota, e o cron das 11h ainda paga o cold start do
+Render. **Gatilho:** a primeira queixa de ver conteúdo do dia anterior depois de
+um disparo manual.
+
+#### Guardas
+
+| Guarda | O que impede |
+|---|---|
+| `pipeline.test.ts` — três desfechos | o serviço voltar a devolver só o id |
+| `jobs.test.ts` — serialização do não-`started` | o schema voltar a um literal e engolir o desfecho |
+| `admin-panel.test.tsx` — três mensagens | a tela voltar a dizer "disparado" sem ter disparado |
+| `daily-news-api.test.ts` — não revalida | invalidar cache de um run que não aconteceu |
+
+**Verificadas reprovando:** com o desfecho forçado a `undefined`, os dois testes
+novos do painel falham — que era exatamente o comportamento de 25/08.
+
+#### Números
+
+| Verificação | Resultado |
+|---|---|
+| testes | **1.391 → 1.399** (794 API em 60 suítes + 605 web em 66) |
+| `lint` · `typecheck` · `test` · `build` | **verde** |
+| guardas exaustivas (docs, contrato, autorização) | **84 verdes** |
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

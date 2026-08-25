@@ -190,6 +190,13 @@ a suíte de unidade, que roda sem rede.
   duas versões. **1.314 testes em 122 suítes → 1.391 em 126.** Detalhe no item
   **38** do `docs/progress.md`.
 
+  > **A verificação pós-merge (item 39) confirmou seis dos sete achados no ar e
+  > achou o sétimo pendente do mecanismo:** a higiene de texto age pela ingestão
+  > e pela etapa 8.5, e o pipeline do dia já tinha rodado antes do merge. Ela
+  > produziu um achado próprio — **o painel dizia "Pipeline disparado com
+  > sucesso" sem ter disparado nada**, porque o `triggerPipeline` é idempotente
+  > por dia e a resposta não contava isso. Corrigido no PR seguinte.
+
 - **Entrega anterior (2026-08-24):** a **Fase 11 (integração geral)** — quinze
   achados, o smoke E2E estreando com 29 specs contra produção, e o
   `revalidate = 3600` que não fazia nada nas duas telas de leitura. Item **36**.
@@ -197,7 +204,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.391 em 126 suites (**791 API em 60** + **600 web em 66** — todos
+- **Testes:** 1.399 em 126 suites (**794 API em 60** + **605 web em 66** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura: API
   **98,72% stmts · 93,30% branch · 99,46% funcs**; web **72,50% stmts · 89,25%
@@ -287,6 +294,17 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 
 ### Armadilhas que já custaram caro
 
+- **Resposta que não distingue "fiz" de "não precisei fazer" vira tela que
+  mente.** O `triggerPipeline` é idempotente por dia e devolvia **só o id**: com
+  um run de hoje já em `SUCCESS`, ele entregava o id daquele, a rota respondia
+  `200 { status: 'started' }`, o BFF traduzia para `success: true` e o painel
+  imprimia "Pipeline disparado com sucesso". Em 25/08 o botão foi clicado, a
+  tela confirmou, **e nada rodou** — custou uma rodada inteira de investigação
+  para descobrir, porque não havia sinal nenhum. Hoje a rota devolve `outcome`
+  (`started` · `already-running` · `already-succeeded-today`) e o painel diz
+  qual foi, com a hora do run referido. **Ao escrever resposta de rota que pode
+  não fazer nada, o "não fiz" precisa caber no contrato** — com schema de
+  resposta declarado, o que o schema não diz não existe para quem consome.
 - **Token do `@theme` gera utility, e a utility pode ter o nome de outra.** No
   Tailwind v4 um `--spacing-<nome>` não gera só `p-<nome>` e `gap-<nome>`: gera
   o eixo de espaço inteiro, e `inline-<valor>` ali é `inline-size`. Com
@@ -562,9 +580,10 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 38 — e as fases finais são **34** (backend review), **35**
+  itens 11 a 39 — e as fases finais são **34** (backend review), **35**
   (frontend review), **36** (integração) e **38** (refinamento visual e de
-  leitura). É lá que mora o detalhe — este bloco é orientação, não changelog.
+  leitura), com a verificação pós-merge da 12 no **39**. É lá que mora o
+  detalhe — este bloco é orientação, não changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,
   analytics e slots) e o plano `docs/Newra-News-V2-Frontend-Redesign-Plan.md`.
