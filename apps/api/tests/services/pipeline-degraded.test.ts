@@ -77,7 +77,12 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue(null);
-  vi.mocked(prisma.pipelineLog.create).mockResolvedValue({ id: 'log-1' } as never);
+  // `startedAt` tem default no schema e o `create` real a devolve; o
+  // `triggerPipeline` lê dela para dizer quando o run começou.
+  vi.mocked(prisma.pipelineLog.create).mockResolvedValue({
+    id: 'log-1',
+    startedAt: new Date('2026-08-25T16:30:00.000Z'),
+  } as never);
   vi.mocked(prisma.pipelineLog.update).mockResolvedValue({ id: 'log-1' } as never);
   vi.mocked(prisma.pipelineLog.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.news.createMany).mockResolvedValue({ count: 2 });
@@ -242,18 +247,31 @@ describe('9.4 — a etapa não-crítica falha: o que segue', () => {
 
 describe('9.4 — idempotência, uma afirmação por vez', () => {
   it('does not start a second run when one already succeeded today', async () => {
-    vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({ id: 'earlier' } as never);
+    // A fixture traz `status` e `startedAt` porque a linha real tem os dois, e
+    // é deles que sai o desfecho que o painel exibe.
+    vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+      id: 'earlier',
+      status: 'SUCCESS',
+      startedAt: new Date('2026-08-25T11:00:00.000Z'),
+    } as never);
 
-    const id = await triggerPipeline();
+    const result = await triggerPipeline();
 
-    expect(id).toBe('earlier');
+    expect(result.pipelineId).toBe('earlier');
+    // **E ele diz que não disparou.** Antes devolvia só o id, e o painel
+    // imprimia "disparado com sucesso" — foi o que aconteceu em 25/08/2026.
+    expect(result.outcome).toBe('already-succeeded-today');
     expect(prisma.pipelineLog.create).not.toHaveBeenCalled();
   });
 
   it('does not start a second run while one is RUNNING', async () => {
     // O mesmo `findFirst` cobre os dois estados, e é de propósito: dois runs
     // simultâneos disputariam o mesmo `upsert` de artigo do dia.
-    vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({ id: 'running' } as never);
+    vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+      id: 'running',
+      status: 'RUNNING',
+      startedAt: new Date('2026-08-25T16:25:00.000Z'),
+    } as never);
 
     await triggerPipeline();
 

@@ -118,7 +118,14 @@ const mockGeneratedArticle = {
 };
 
 const mockSavedArticle = { id: 'article-uuid-123' };
-const mockLog = { id: 'log-uuid-456', status: 'RUNNING' };
+// `startedAt` entra na fixture porque a coluna tem default no schema e o
+// `create` real a devolve — o `triggerPipeline` lê dela para dizer quando o
+// run começou. Fixture sem o campo faria o teste medir um Prisma que não existe.
+const mockLog = {
+  id: 'log-uuid-456',
+  status: 'RUNNING',
+  startedAt: new Date('2026-08-25T16:30:00.000Z'),
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -205,17 +212,59 @@ describe('PipelineService', () => {
     expect(context).toHaveProperty('skipped');
   });
 
-  it('should skip if pipeline already ran today', async () => {
+  /**
+   * **A idempotencia continua igual; o que mudou e ela contar isso.**
+   *
+   * Antes a funcao devolvia so o id, e quem chamava nao tinha como distinguir
+   * o run que acabara de nascer do que ja tinha fechado horas antes. Os dois
+   * chegavam ao painel como "Pipeline disparado com sucesso", e em 25/08/2026
+   * foi exatamente o que aconteceu: o botao nao disparou nada e a tela disse
+   * que sim.
+   */
+  it('should report already-succeeded-today when the day already has a SUCCESS run', async () => {
     vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
       id: 'existing-log-id',
       status: 'SUCCESS',
+      startedAt: new Date('2026-08-25T11:00:00.000Z'),
     } as never);
 
     const result = await triggerPipeline();
 
-    expect(result).toBe('existing-log-id');
+    expect(result).toEqual({
+      outcome: 'already-succeeded-today',
+      pipelineId: 'existing-log-id',
+      startedAt: '2026-08-25T11:00:00.000Z',
+    });
     expect(prisma.pipelineLog.create).not.toHaveBeenCalled();
     expect(fetchAll).not.toHaveBeenCalled();
+  });
+
+  it('should report already-running when the day has a RUNNING run', async () => {
+    // Desfecho proprio porque leva a uma acao oposta: aqui vale esperar.
+    vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+      id: 'running-log-id',
+      status: 'RUNNING',
+      startedAt: new Date('2026-08-25T16:25:00.000Z'),
+    } as never);
+
+    const result = await triggerPipeline();
+
+    expect(result).toEqual({
+      outcome: 'already-running',
+      pipelineId: 'running-log-id',
+      startedAt: '2026-08-25T16:25:00.000Z',
+    });
+    expect(prisma.pipelineLog.create).not.toHaveBeenCalled();
+    expect(fetchAll).not.toHaveBeenCalled();
+  });
+
+  it('should report started, with the id of the run it just created', async () => {
+    vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue(null as never);
+
+    const result = await triggerPipeline();
+
+    expect(result.outcome).toBe('started');
+    expect(prisma.pipelineLog.create).toHaveBeenCalled();
   });
 
   it('should handle errors gracefully', async () => {

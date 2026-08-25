@@ -1,11 +1,30 @@
 import { z } from 'zod';
+import type { PipelineTrigger } from '@newranews/types';
 
+/**
+ * **`outcome` substituiu `status: 'started'`, e a troca não é cosmética.**
+ *
+ * O literal dizia "started" mesmo quando nada tinha sido disparado — o
+ * `triggerPipeline` é idempotente por dia e devolvia o id do run que já
+ * existia. Com schema de resposta, o schema **é** o contrato: enquanto ele
+ * declarasse um literal, não havia como a rota contar a diferença nem que o
+ * serviço a soubesse.
+ *
+ * O nome saiu de `status` de propósito: `PipelineLog.status` é outra coisa
+ * (`SUCCESS`/`RUNNING`/`FAILED`), e as duas no mesmo corpo se confundiriam.
+ */
 export const jobTriggerResponseSchema = z.object({
-  status: z.literal('started'),
+  outcome: z.enum(['started', 'already-running', 'already-succeeded-today']),
   pipelineId: z.string().uuid(),
+  startedAt: z.string().datetime(),
 });
 
 export type JobTriggerResponse = z.infer<typeof jobTriggerResponseSchema>;
+
+// A guarda de compilação: se o schema e o tipo compartilhado divergirem, isto
+// deixa de compilar. É o mesmo padrão de `routes/events/schemas.ts`.
+const _contract: JobTriggerResponse = null as unknown as PipelineTrigger;
+void _contract;
 
 export const pipelineStatusResponseSchema = z.object({
   data: z.object({

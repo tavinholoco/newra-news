@@ -7,6 +7,7 @@ import { deleteExpiredProductEvents } from './product-event.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
+import type { PipelineTrigger } from '@newranews/types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -80,7 +81,20 @@ function selectTopItems(items: RawNewsItem[], limit = 15): RawNewsItem[] {
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
-export async function triggerPipeline(): Promise<string> {
+/**
+ * Dispara o pipeline do dia — **ou diz que não disparou**.
+ *
+ * A idempotência por dia é antiga e continua certa: o cron das 11h UTC e o
+ * botão do painel apontam para a mesma função, e dois runs no mesmo dia
+ * gerariam o briefing duas vezes e gastariam duas chamadas de IA.
+ *
+ * **O que mudou é a resposta.** Ela devolvia só o id, e quem chamava não tinha
+ * como saber se aquele id era do run que acabara de nascer ou do que já tinha
+ * fechado horas antes — os dois casos chegavam ao painel como "disparado com
+ * sucesso". Devolver o desfecho é o que permite a tela dizer a verdade; ver
+ * `PipelineTriggerOutcome` em `packages/types`, onde o episódio está datado.
+ */
+export async function triggerPipeline(): Promise<PipelineTrigger> {
   const today = startOfDay(new Date());
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
@@ -92,7 +106,18 @@ export async function triggerPipeline(): Promise<string> {
       status: { in: ['SUCCESS', 'RUNNING'] },
     },
   });
-  if (existingLog) return existingLog.id;
+  if (existingLog) {
+    return {
+      // Os dois merecem frases diferentes na tela: "já está rodando, espere" e
+      // "já rodou, não vai rodar de novo hoje" levam a ações opostas.
+      outcome:
+        existingLog.status === 'RUNNING'
+          ? 'already-running'
+          : 'already-succeeded-today',
+      pipelineId: existingLog.id,
+      startedAt: existingLog.startedAt.toISOString(),
+    };
+  }
 
   const log = await prisma.pipelineLog.create({
     data: { status: 'RUNNING' },
@@ -102,7 +127,11 @@ export async function triggerPipeline(): Promise<string> {
     console.error(`[pipeline] unhandled error for log ${log.id}:`, err);
   });
 
-  return log.id;
+  return {
+    outcome: 'started',
+    pipelineId: log.id,
+    startedAt: log.startedAt.toISOString(),
+  };
 }
 
 // ── Core pipeline ───────────────────────────────────────────────────────────

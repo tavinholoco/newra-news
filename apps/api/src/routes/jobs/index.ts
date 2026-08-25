@@ -18,8 +18,10 @@ export async function jobsRoutes(app: FastifyInstance) {
     },
     async (request) => {
       assertJobSecret(request);
-      const pipelineId = await triggerPipeline();
-      return { status: 'started' as const, pipelineId };
+      // O desfecho vem do serviço: ele sabe se criou o run ou se devolveu o
+      // de hoje. A rota não recalcula nada — reescrever a regra aqui daria
+      // duas verdades sobre a mesma coisa.
+      return triggerPipeline();
     },
   );
 }

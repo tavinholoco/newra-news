@@ -392,12 +392,44 @@ Dispara o pipeline de coleta de notícias e geração do artigo.
 **Rate limit:** 20 req/min  
 **Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`
 
-O processamento é assíncrono — o endpoint retorna imediatamente com o ID do pipeline.
+O processamento é assíncrono — o endpoint retorna imediatamente com o ID do
+pipeline, **e com o que ele de fato fez**.
+
+**É idempotente por dia.** Havendo um run de hoje em `SUCCESS` ou `RUNNING`, o
+serviço devolve o id **daquele** run e não dispara nada — dois runs no mesmo dia
+gerariam o briefing duas vezes e gastariam duas chamadas de IA.
 
 **Resposta 200:**
 ```json
-{ "status": "started", "pipelineId": "uuid" }
+{
+  "outcome": "started",
+  "pipelineId": "uuid",
+  "startedAt": "2026-08-25T11:00:00.000Z"
+}
 ```
+
+| `outcome` | O que aconteceu |
+|---|---|
+| `started` | este chamado criou o run, e ele está correndo agora |
+| `already-running` | já havia um run de hoje em andamento; **nada foi disparado** |
+| `already-succeeded-today` | o run de hoje já fechou com sucesso; **nada foi disparado** |
+
+`startedAt` é de quem o `pipelineId` aponta: o run criado agora, ou o que já
+existia.
+
+> **O campo era `status: "started"`, sempre, e isso mentia.** O literal era
+> devolvido nos três casos, o BFF do web traduzia para `success: true`, e o
+> painel de admin imprimia "Pipeline disparado com sucesso". Medido em
+> 25/08/2026: o botão foi clicado às ~16:25 UTC, a tela confirmou o disparo, e
+> nada rodou — o run das 11:00 já tinha fechado. Levou uma investigação inteira
+> para descobrir que a tela tinha dito mais do que sabia.
+>
+> O nome saiu de `status` de propósito: `PipelineLog.status` é outra coisa
+> (`SUCCESS`/`RUNNING`/`FAILED`), e as duas no mesmo corpo se confundiriam.
+>
+> **Quem quer forçar a renormalização do acervo sem esperar o dia virar não usa
+> esta rota** — usa `POST /api/jobs/renormalize-news`, logo abaixo, que não tem
+> trava por dia.
 
 **Resposta 401:**
 ```json
