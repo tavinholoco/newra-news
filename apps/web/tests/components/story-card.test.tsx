@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { StoryCard } from '@/components/editorial/story-card';
 import { StoryCardHorizontal } from '@/components/editorial/story-card-horizontal';
 import { StoryCardCompact } from '@/components/editorial/story-card-compact';
@@ -43,8 +43,70 @@ describe('StoryCard', () => {
     expect(screen.getByText('3 min de leitura')).toBeInTheDocument();
   });
 
-  it('should fall back to the brand placeholder when the story has no image', () => {
+  /**
+   * **Sem foto, o card é de texto — e isso vale para um quarto do acervo.**
+   *
+   * Medido em 25/08/2026 sobre as 6.669 linhas de produção: 1.703 notícias
+   * (25,5%) não têm imagem em lugar nenhum do feed. Até a Fase 12 elas
+   * recebiam a caixa de imagem com o placeholder de marca, e a grade repetia um
+   * retângulo laranja com um "N" a cada quatro células.
+   */
+  it('should not draw an image box when the story has no photo', () => {
     renderWithIntl(<StoryCard source='hero' position={0} story={makeStory()} />);
+
+    expect(screen.queryByRole('img', { name: 'Newra News' })).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('should still show category, headline, dek and metadata without a photo', () => {
+    // A célula continua cheia — era a única coisa que o retângulo resolvia.
+    renderWithIntl(<StoryCard source='hero' position={0} story={makeStory()} />);
+
+    expect(screen.getByText('Tecnologia')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Matéria de teste/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Resumo da matéria de teste/)).toBeInTheDocument();
+    expect(screen.getByText('G1')).toBeInTheDocument();
+  });
+
+  it('should give the headline and the dek the room the photo would have taken', () => {
+    const { container, rerender } = renderWithIntl(
+      <StoryCard source='hero' position={0} story={makeStory()} />,
+    );
+    const semFoto = container.querySelector('h3')!.className;
+
+    rerender(
+      <StoryCard
+        source='hero'
+        position={0}
+        story={makeStory({ imageUrl: 'https://cdn.test/a.jpg' })}
+      />,
+    );
+    const comFoto = container.querySelector('h3')!.className;
+
+    // Medido no navegador: 22px contra 18px, e uma linha a mais antes de
+    // truncar. As classes são o que a suíte consegue afirmar sem layout.
+    expect(semFoto).toContain('text-h3');
+    expect(semFoto).toContain('line-clamp-4');
+    expect(comFoto).toContain('text-h4');
+    expect(comFoto).toContain('line-clamp-3');
+  });
+
+  it('should keep the brand placeholder for a photo that exists and fails to load', () => {
+    // O placeholder não sumiu — mudou de papel. Ele cobre o caso em que ele
+    // sempre foi certo: a caixa já ocupa espaço no layout, e sumir com ela
+    // depois do erro seria salto.
+    renderWithIntl(
+      <StoryCard
+        source='hero'
+        position={0}
+        story={makeStory({ imageUrl: 'https://cdn.test/a.jpg' })}
+      />,
+    );
+
+    const img = screen.getByRole('img', { name: /Matéria de teste/ });
+    fireEvent.error(img);
 
     expect(screen.getByRole('img', { name: 'Newra News' })).toBeInTheDocument();
   });
@@ -90,9 +152,19 @@ describe('StoryCardHorizontal', () => {
   });
 
   it('should drop the thumbnail when showImage is false', () => {
-    renderWithIntl(<StoryCardHorizontal source='hero' position={0} story={makeStory()} showImage={false} />);
+    renderWithIntl(<StoryCardHorizontal source='hero' position={0} story={makeStory({ imageUrl: 'https://cdn.test/a.jpg' })} showImage={false} />);
+
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  // `showImage` é a decisão de quem posiciona; `imageUrl` é a de haver foto.
+  // Sem ela, a miniatura seria um quadrado de 96px com um "N" ao lado de cada
+  // quarto item da lista.
+  it('should drop the thumbnail when the story has no photo', () => {
+    renderWithIntl(<StoryCardHorizontal source='hero' position={0} story={makeStory()} />);
 
     expect(screen.queryByRole('img', { name: 'Newra News' })).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
   });
 
   // A coluna lateral é estreita: dek aqui empurra a próxima manchete para fora
