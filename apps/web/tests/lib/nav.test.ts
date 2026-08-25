@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveActiveHref } from '@/lib/nav';
+import { resolveActiveHref, sessionNavLinks } from '@/lib/nav';
 
 const MENU = ['/', '/news', '/article', '/about', '/admin', '/admin/metrics'];
 
@@ -33,5 +33,39 @@ describe('resolveActiveHref', () => {
   it('should return null when nothing matches', () => {
     expect(resolveActiveHref(MENU, '/signin')).toBeNull();
     expect(resolveActiveHref([], '/news')).toBeNull();
+  });
+});
+
+describe('sessionNavLinks', () => {
+  it('should offer nothing before the session resolves', () => {
+    // `loading` é o estado do primeiro render. Tratá-lo como anônimo é o certo:
+    // mostrar o painel e escondê-lo meio segundo depois pisca na tela.
+    expect(sessionNavLinks('loading', 'ADMIN')).toEqual([]);
+    expect(sessionNavLinks('unauthenticated', 'ADMIN')).toEqual([]);
+  });
+
+  it('should offer account and saved to a signed-in reader', () => {
+    expect(sessionNavLinks('authenticated', 'USER').map((l) => l.href)).toEqual([
+      '/account',
+      '/favorites',
+    ]);
+  });
+
+  it('should add the panel only for ADMIN', () => {
+    expect(sessionNavLinks('authenticated', 'ADMIN').map((l) => l.href)).toEqual(
+      ['/account', '/favorites', '/admin'],
+    );
+    expect(sessionNavLinks('authenticated', null).map((l) => l.href)).not.toContain(
+      '/admin',
+    );
+    expect(
+      sessionNavLinks('authenticated', undefined).map((l) => l.href),
+    ).not.toContain('/admin');
+  });
+
+  it('should not carry the metrics route: it is a tab inside the panel', () => {
+    expect(
+      sessionNavLinks('authenticated', 'ADMIN').map((l) => l.href),
+    ).not.toContain('/admin/metrics');
   });
 });

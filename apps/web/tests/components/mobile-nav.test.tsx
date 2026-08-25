@@ -102,7 +102,7 @@ describe('MobileNav', () => {
     expect(screen.queryByRole('link', { name: 'Métricas' })).toBeNull();
   });
 
-  it('should offer admin and metrics to an ADMIN', async () => {
+  it('should offer admin to an ADMIN, and only the panel', async () => {
     useSessionMock.mockReturnValue({
       data: { user: { id: 'u1', role: 'ADMIN' } },
       status: 'authenticated',
@@ -114,13 +114,12 @@ describe('MobileNav', () => {
       'href',
       '/pt-BR/admin',
     );
-    expect(screen.getByRole('link', { name: 'Métricas' })).toHaveAttribute(
-      'href',
-      '/pt-BR/admin/metrics',
-    );
+    // As métricas viraram aba de dentro do painel, não irmã dele no menu do
+    // site — quem as alcança é o `AdminNav`.
+    expect(screen.queryByRole('link', { name: 'Métricas' })).toBeNull();
   });
 
-  it('should mark only the deepest matching link as current', async () => {
+  it('should keep the panel lit while inside the admin area', async () => {
     useSessionMock.mockReturnValue({
       data: { user: { id: 'u1', role: 'ADMIN' } },
       status: 'authenticated',
@@ -129,12 +128,9 @@ describe('MobileNav', () => {
     renderWithIntl(<MobileNav />);
     await open();
 
-    expect(screen.getByRole('link', { name: 'Métricas' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^admin$/i })).toHaveAttribute(
       'aria-current',
       'page',
-    );
-    expect(screen.getByRole('link', { name: /^admin$/i })).not.toHaveAttribute(
-      'aria-current',
     );
   });
 

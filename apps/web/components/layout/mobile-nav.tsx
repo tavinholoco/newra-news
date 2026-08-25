@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { Menu, X } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/navigation';
-import { resolveActiveHref } from '@/lib/nav';
+import { resolveActiveHref, sessionNavLinks } from '@/lib/nav';
 import { LocaleSwitcher } from '@/components/layout/locale-switcher';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { MastheadSearch } from '@/components/layout/masthead-search';
@@ -30,15 +30,13 @@ export function MobileNav() {
   const t = useTranslations('nav');
   const [open, setOpen] = useState(false);
 
-  const links: NavItem[] = [...NAV_LINKS];
-  if (status === 'authenticated') {
-    links.push({ href: '/account', key: 'account' });
-    links.push({ href: '/favorites', key: 'favorites' });
-    if (session?.user?.role === 'ADMIN') {
-      links.push({ href: '/admin', key: 'admin' });
-      links.push({ href: '/admin/metrics', key: 'metrics' });
-    }
-  }
+  // A lista de sessão vem de `lib/nav.ts` e não daqui: a top-bar do desktop
+  // monta a mesma, e foi por ela ter ficado só neste componente que `/admin`
+  // passou a existir sem link em tela grande.
+  const links: NavItem[] = [
+    ...NAV_LINKS,
+    ...sessionNavLinks(status, session?.user?.role),
+  ];
 
   useEffect(() => {
     setOpen(false);
