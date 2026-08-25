@@ -2,12 +2,16 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { ProductMetricsClient } from '@/components/dashboard/product-metrics-client';
-import { Link } from '@/i18n/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { alternatesFor } from '@/lib/seo';
 
 // Sessão + role ADMIN são verificados no layout do segmento (admin/layout.tsx),
-// que também declara `dynamic = 'force-dynamic'`.
+// que também declara `dynamic = 'force-dynamic'` e monta a casca — contêiner e
+// faixa de abas. Esta página desenha só o conteúdo da aba.
+//
+// **A seta de voltar saiu daqui.** Ela levava para `/admin` e existia porque
+// esta tela era um destino solto atrás do painel; agora as duas são abas da
+// mesma casca, e uma seta de voltar para a aba vizinha seria um segundo
+// caminho concorrente.
 
 interface Props {
   params: { locale: string };
@@ -30,7 +34,6 @@ export default async function AdminMetricsPage({ params }: Props) {
   setRequestLocale(locale);
 
   const t = await getTranslations('dashboard');
-  const tAdmin = await getTranslations('admin');
   const tProduct = await getTranslations('productMetrics');
 
   // Sem busca no servidor: as métricas agora exigem JWT com role ADMIN, e o
@@ -38,22 +41,10 @@ export default async function AdminMetricsPage({ params }: Props) {
   // `DashboardClient` busca pelo proxy e mostra o skeleton enquanto isso —
   // a página é noindex e atrás de sessão, então não há SEO a perder.
   return (
-    <div className='mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'>
-      <div className='mb-8'>
-        <Link
-          href='/admin'
-          className='mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground'
-        >
-          <ArrowLeft className='size-4' />
-          {tAdmin('title')}
-        </Link>
-        <h1 className='font-display text-2xl font-bold text-foreground sm:text-3xl'>
-          {t('title')}
-        </h1>
-        <p className='mt-2 text-muted-foreground'>
-          {t('pageDescription')}
-        </p>
-      </div>
+    <>
+      <h1 className='font-display text-h2 font-bold text-ink'>{t('title')}</h1>
+      <p className='mb-8 mt-2 text-ink-secondary'>{t('pageDescription')}</p>
+
       <DashboardClient initialData={null} />
 
       {/* Duas medições diferentes na mesma tela, e a divisória é o que impede
@@ -69,6 +60,6 @@ export default async function AdminMetricsPage({ params }: Props) {
         </p>
         <ProductMetricsClient />
       </div>
-    </div>
+    </>
   );
 }

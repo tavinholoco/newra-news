@@ -66,6 +66,11 @@
     }
   },
   "admin": {
+    "nav": {
+      "label": "Panel navigation",
+      "metrics": "Metrics",
+      "panel": "Panel"
+    },
     "title": "Admin Panel",
     "restrictedTitle": "Restricted access",
     "restrictedDesc": "This area is for administrators only.",
@@ -81,7 +86,8 @@
     "deleteError": "Couldn't remove the news item. Please try again.",
     "loadError": "Couldn't load the news.",
     "empty": "No news at the moment.",
-    "totalNews": "{count, plural, one {# news item} other {# news items}} in total"
+    "totalNews": "{count, plural, one {# news item} other {# news items}} in total",
+    "panelDescription": "Trigger today's pipeline and review what it collected."
   },
   "article": {
     "aiDisclosureBody": "This text was written by artificial intelligence from {count, plural, one {# story published} other {# stories published}} by news outlets, listed below. None of it was reported by Newra News.",
@@ -280,7 +286,6 @@
     "closeMenu": "Close menu",
     "favorites": "Saved",
     "home": "Home",
-    "metrics": "Metrics",
     "news": "News",
     "openMenu": "Open menu",
     "secondary": "Secondary navigation",
