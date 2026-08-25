@@ -4,7 +4,11 @@ import type { EditorialStory, News } from '@newranews/types';
 import { Badge } from '@/components/ui/badge';
 import { Breadcrumb } from '@/components/editorial/breadcrumb';
 import type { BreadcrumbStep } from '@/lib/json-ld';
-import { ArticleBody, parseArticleBody } from '@/components/editorial/article-body';
+import {
+  ArticleBody,
+  hasReadableBody,
+  parseArticleBody,
+} from '@/components/editorial/article-body';
 import { ArticleHero } from '@/components/editorial/article-hero';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { RelatedStories } from '@/components/editorial/related-stories';
@@ -80,6 +84,7 @@ export async function NewsDetail({
   const bodyBlocks = news.content
     ? parseArticleBody(news.content, news.description)
     : [];
+  const showExcerpt = hasReadableBody(bodyBlocks);
 
   // `article` e não `div`: veio da auditoria de leitor de tela da Fase 7.
   // A tela **é** um artigo, e não havia elemento nenhum dizendo isso — o
@@ -131,7 +136,7 @@ export async function NewsDetail({
       </div>
 
       <div className='mx-auto w-full max-w-narrow'>
-        {bodyBlocks.length > 0 && news.content ? (
+        {showExcerpt && news.content ? (
           <>
             <p className='text-overline uppercase tracking-wide text-ink-muted'>
               {t('excerptLabel')}

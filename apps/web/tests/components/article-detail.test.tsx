@@ -26,8 +26,10 @@ function makeSource(overrides: Partial<BriefingSource> = {}): BriefingSource {
 
 describe('parseArticleBody', () => {
   it('should turn a ### line into a heading block', () => {
+    // `###` sozinho vira `h2`: 39% dos briefings usam `###` sem nenhum `##`,
+    // e um `h3` ali abriria salto a partir do `h1` do título.
     expect(parseArticleBody('### Justiça e corrupção')).toEqual([
-      { kind: 'heading', text: 'Justiça e corrupção' },
+      { kind: 'heading', level: 2, text: 'Justiça e corrupção' },
     ]);
   });
 
@@ -38,7 +40,7 @@ describe('parseArticleBody', () => {
   it('should keep paragraphs in order', () => {
     expect(parseArticleBody('Abertura\n### Seção\nCorpo')).toEqual([
       { kind: 'paragraph', text: 'Abertura' },
-      { kind: 'heading', text: 'Seção' },
+      { kind: 'heading', level: 2, text: 'Seção' },
       { kind: 'paragraph', text: 'Corpo' },
     ]);
   });
@@ -52,7 +54,7 @@ describe('parseArticleBody', () => {
 O mercado abriu.`, lede);
 
     expect(blocks).toEqual([
-      { kind: 'heading', text: 'Economia' },
+      { kind: 'heading', level: 2, text: 'Economia' },
       { kind: 'paragraph', text: 'O mercado abriu.' },
     ]);
   });
@@ -113,7 +115,7 @@ O mercado abriu.`, lede);
 
   it('should never drop a heading, even if the dek somehow matches it', () => {
     const blocks = parseArticleBody('### Economia\nCorpo.', 'Economia');
-    expect(blocks[0]).toEqual({ kind: 'heading', text: 'Economia' });
+    expect(blocks[0]).toEqual({ kind: 'heading', level: 2, text: 'Economia' });
   });
 
   it('should not treat a mid-sentence hash as a heading', () => {
