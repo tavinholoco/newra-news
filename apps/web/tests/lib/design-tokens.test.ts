@@ -180,3 +180,82 @@ describe('tokens.css', () => {
     expect(declared).toEqual([]);
   });
 });
+
+/**
+ * **O token do `@theme` cria utility, e a utility pode ter o nome de outra.**
+ *
+ * No Tailwind v4 um `--spacing-<nome>` não gera só `p-<nome>` e `gap-<nome>`:
+ * gera a família inteira do eixo de espaço, e `inline-<valor>` ali é
+ * `inline-size`. Com `--spacing-block` declarado, a folha passa a ter **dois**
+ * `.inline-block` — o de display, do core, e o de `inline-size`, derivado do
+ * token. Mesma especificidade, e vence o que vem depois: o do token.
+ *
+ * Medido em 25/08/2026 na `/pt-BR/account`: os quatro links da faixa mediam
+ * **33 px** cada — `clamp(1.5rem, 1.25rem + 1vw, 2.5rem)` a 1280 px de
+ * viewport dá 32,80 px — enquanto o texto pedia 107. O texto vazava da caixa
+ * e as abas apareciam **escritas umas por cima das outras**. Não há erro de
+ * build, não há aviso: a classe existe, o `display` está lá, e a largura vem
+ * de outro lugar.
+ *
+ * Esta guarda não proíbe o token — proíbe **usar a classe que ele sombreia**.
+ * Ela é derivada, não escrita à mão: acrescentar `--spacing-flex` amanhã põe
+ * `inline-flex` na lista sozinho, que é o caso que dói de verdade, porque
+ * `inline-flex` está em uso por todo o projeto.
+ */
+describe('utilities sombreadas por token do @theme', () => {
+  /**
+   * Utilities de **display** do core que começam por `inline-`. São as únicas
+   * que um `--spacing-<nome>` consegue sombrear, porque o eixo de espaço só
+   * ocupa o prefixo `inline-` no lado do `inline-size`.
+   */
+  const CORE_INLINE_DISPLAY = ['block', 'flex', 'grid', 'table'];
+
+  const tokens = readFileSync(path.resolve(WEB_ROOT, 'styles/tokens.css'), 'utf8');
+  const themeBlock = tokens.slice(tokens.indexOf('@theme inline {'));
+
+  const spacingNames = [
+    ...themeBlock.matchAll(/^\s*--spacing-([a-z0-9-]+)\s*:/gm),
+  ].flatMap((match) => (match[1] ? [match[1]] : []));
+
+  const shadowed = spacingNames
+    .filter((name) => CORE_INLINE_DISPLAY.includes(name))
+    .map((name) => `inline-${name}`);
+
+  it('a colisão que existe hoje continua sendo a de --spacing-block', () => {
+    // Se esta lista mudar, é porque um token novo passou a sombrear outra
+    // utility — e o teste abaixo já vai apontar onde ela está em uso.
+    expect(shadowed).toEqual(['inline-block']);
+  });
+
+  it('nenhum componente usa uma utility de display sombreada por um token', () => {
+    // **Comparacao por token, e nao por regex montado em template string.**
+    // A primeira versao desta guarda passou verde sobre o defeito real: o
+    // `\s` do padrao virou `\s` ao ser escrito, e `\s` dentro de uma
+    // template literal nao e classe de espaco nenhuma — e a letra `s`. O
+    // padrao passou a exigir um `s` colado no nome da classe, que nunca
+    // acontece. Partir a fonte em palavras nao tem escape para errar.
+    //
+    // Comentario fora antes de partir: este arquivo e o `account-nav` explicam
+    // a armadilha por escrito, e prosa citando o nome nao e uso.
+    const strip = (source: string): string =>
+      source
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+    const used = SOURCES.flatMap(({ file, source }) => {
+      // `md:inline-block` e `hover:inline-block` sao a mesma classe com
+      // variante; o que importa e a utility depois do ultimo `:`.
+      const words = new Set(
+        strip(source)
+          .split(/[^A-Za-z0-9:_-]+/)
+          .map((word) => word.split(':').pop() ?? ''),
+      );
+
+      return shadowed
+        .filter((utility) => words.has(utility))
+        .map((utility) => `${file}: ${utility}`);
+    });
+
+    expect(used).toEqual([]);
+  });
+});

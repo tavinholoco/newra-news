@@ -22,6 +22,17 @@ const ITEMS = [
  *
  * O item ativo é comparado por caminho **exato**, não por prefixo: com prefixo,
  * `/account` ficaria aceso em todas as telas do segmento.
+ *
+ * **`inline-flex`, e não `inline-block` — a classe de display existe e não
+ * funciona neste projeto.** Ver a guarda em `tests/lib/design-tokens.test.ts`:
+ * o token `--spacing-block` do `@theme` faz o Tailwind v4 emitir um segundo
+ * `.inline-block`, com `inline-size`, que vence a regra de display por ordem
+ * no CSS. Os quatro itens mediam 33 px cada, o texto vazava da caixa e as
+ * abas apareciam sobrepostas.
+ *
+ * `shrink-0` no `<li>` pelo mesmo motivo que o `editorial-nav` já tinha:
+ * numa faixa rolável, item que encolhe é item que se dobra sobre o vizinho
+ * antes de a barra de rolagem aparecer.
  */
 export function AccountNav() {
   const t = useTranslations('account');
@@ -34,12 +45,12 @@ export function AccountNav() {
           const isActive = pathname === item.href;
 
           return (
-            <li key={item.href}>
+            <li key={item.href} className='shrink-0'>
               <Link
                 href={item.href}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'inline-block whitespace-nowrap border-b-2 px-3 py-2 font-display text-body-sm font-semibold transition-colors duration-base',
+                  'inline-flex items-center whitespace-nowrap border-b-2 px-3 py-2 font-display text-body-sm font-semibold transition-colors duration-base',
                   isActive
                     ? 'border-brand-accent text-link'
                     : 'border-transparent text-ink-secondary hover:text-link',
