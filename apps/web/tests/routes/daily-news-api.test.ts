@@ -48,7 +48,11 @@ afterEach(() => {
 
 describe('GET /api/cron/daily-news', () => {
   it('revalidates the /[locale] layout (covers pt-BR and en) and the sitemap after success', async () => {
-    const data = { pipelineId: 'pipeline-1', status: 'success' };
+    const data = {
+      outcome: 'started',
+      pipelineId: 'pipeline-1',
+      startedAt: '2026-08-25T11:00:00.000Z',
+    };
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -76,13 +80,56 @@ describe('GET /api/cron/daily-news', () => {
     expect(revalidatePathMock).toHaveBeenCalledWith('/news-sitemap.xml');
   });
 
+  /**
+   * **Nada disparado, nada invalidado.**
+   *
+   * O `triggerPipeline` da API e idempotente por dia: com um run de hoje ja em
+   * `SUCCESS` ou `RUNNING` ele devolve o id daquele e nao executa nada.
+   * Invalidar o cache ai joga fora uma pagina quente para regenerar a mesma —
+   * e, no caso de `already-running`, regenera a partir do banco que ainda esta
+   * sendo escrito.
+   */
+  for (const outcome of ['already-running', 'already-succeeded-today'] as const) {
+    it(`does not revalidate when the outcome is ${outcome}`, async () => {
+      const data = {
+        outcome,
+        pipelineId: 'pipeline-1',
+        startedAt: '2026-08-25T11:00:00.000Z',
+      };
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(data),
+        }),
+      );
+
+      const res = await GET(authorizedRequest());
+
+      expect(res.status).toBe(200);
+      // `success: true` continua certo: a chamada deu certo. Quem conta o que
+      // aconteceu e o `outcome`, e ele viaja inteiro ate o painel.
+      expect(await res.json()).toEqual({
+        success: true,
+        data,
+        revalidated: false,
+      });
+      expect(revalidatePathMock).not.toHaveBeenCalled();
+    });
+  }
+
   it('forwards the pipeline trigger as POST with the job secret', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({ pipelineId: 'pipeline-1' }),
+        json: vi.fn().mockResolvedValue({
+          outcome: 'started',
+          pipelineId: 'pipeline-1',
+          startedAt: '2026-08-25T11:00:00.000Z',
+        }),
       }),
     );
 

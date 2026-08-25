@@ -97,7 +97,15 @@ describe('POST /api/admin/run-pipeline', () => {
     process.env.CRON_SECRET = 'cron-secret';
     vi.mocked(cronGet).mockResolvedValue(
       NextResponse.json(
-        { success: true, data: { pipelineId: 'pipe-1' }, revalidated: true },
+        {
+          success: true,
+          data: {
+            outcome: 'started' as const,
+            pipelineId: 'pipe-1',
+            startedAt: '2026-08-25T11:00:00.000Z',
+          },
+          revalidated: true,
+        },
         { status: 200 },
       ),
     );
@@ -107,7 +115,11 @@ describe('POST /api/admin/run-pipeline', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       success: true,
-      data: { pipelineId: 'pipe-1' },
+      data: {
+        outcome: 'started',
+        pipelineId: 'pipe-1',
+        startedAt: '2026-08-25T11:00:00.000Z',
+      },
       revalidated: true,
     });
     const [request] = vi.mocked(cronGet).mock.calls[0] as [Request];

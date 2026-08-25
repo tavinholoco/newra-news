@@ -80,6 +80,8 @@
     "runPipelineButton": "Executar agora",
     "running": "Executando...",
     "runSuccess": "Pipeline disparado com sucesso.",
+    "runAlreadyRunning": "O pipeline de hoje já está rodando — começou às {time}. Nada foi disparado.",
+    "runAlreadyRanToday": "O pipeline de hoje já rodou às {time}. Ele roda uma vez por dia, então nada foi disparado.",
     "runError": "Não foi possível disparar o pipeline. Tente novamente.",
     "newsListTitle": "Últimas notícias",
     "delete": "Deletar",
