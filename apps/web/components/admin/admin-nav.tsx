@@ -7,35 +7,31 @@ import { cn } from '@/lib/utils';
 // As chaves vão escritas por extenso porque o teste de i18n procura o literal
 // no código — chave montada em runtime pareceria órfã e a suíte a apagaria.
 const ITEMS = [
-  { href: '/account', key: 'nav.profile' },
-  { href: '/account/preferences', key: 'nav.preferences' },
-  { href: '/account/newsletter', key: 'nav.newsletter' },
-  { href: '/favorites', key: 'nav.saved' },
+  { href: '/admin', key: 'nav.panel' },
+  { href: '/admin/metrics', key: 'nav.metrics' },
 ] as const;
 
 /**
- * A navegação do ecossistema de conta.
+ * A navegação do painel de admin.
  *
- * "Salvos" fica aqui junto com o resto, mas continua em `/favorites`: a URL
- * está no menu, na baseline visual e em links que já existem por aí. Mudá-la
- * pediria um redirect permanente para ganhar nada.
+ * **As métricas sempre estiveram atrás do guard de admin** — desde
+ * `feat(web): move the metrics page behind the admin guard`, a rota é
+ * `/admin/metrics` e o `admin/layout.tsx` exige sessão com role ADMIN. O que
+ * elas não eram é **parte do painel**: a `/admin` tinha um link no canto
+ * superior direito, a `/admin/metrics` tinha uma seta de voltar, e as duas
+ * telas se citavam sem nunca formarem uma. Com a faixa aqui, a área tem uma
+ * casca só e uma tela nova entra como aba em vez de nascer com o seu próprio
+ * link no canto.
+ *
+ * Mesmo padrão do `AccountNav`, incluindo `inline-flex` e `shrink-0`, e pela
+ * mesma razão: `inline-block` está sombreado pelo token `--spacing-block` e
+ * colapsa a aba para 33 px. Ver a guarda em `tests/lib/design-tokens.test.ts`.
  *
  * O item ativo é comparado por caminho **exato**, não por prefixo: com prefixo,
- * `/account` ficaria aceso em todas as telas do segmento.
- *
- * **`inline-flex`, e não `inline-block` — a classe de display existe e não
- * funciona neste projeto.** Ver a guarda em `tests/lib/design-tokens.test.ts`:
- * o token `--spacing-block` do `@theme` faz o Tailwind v4 emitir um segundo
- * `.inline-block`, com `inline-size`, que vence a regra de display por ordem
- * no CSS. Os quatro itens mediam 33 px cada, o texto vazava da caixa e as
- * abas apareciam sobrepostas.
- *
- * `shrink-0` no `<li>` pelo mesmo motivo que o `editorial-nav` já tinha:
- * numa faixa rolável, item que encolhe é item que se dobra sobre o vizinho
- * antes de a barra de rolagem aparecer.
+ * `/admin` ficaria aceso também dentro de `/admin/metrics`.
  */
-export function AccountNav() {
-  const t = useTranslations('account');
+export function AdminNav() {
+  const t = useTranslations('admin');
   const pathname = usePathname();
 
   return (

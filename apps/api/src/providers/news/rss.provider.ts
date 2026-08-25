@@ -1,7 +1,13 @@
 import Parser from 'rss-parser';
 import { classifyCategory } from '../../services/category-classifier.service';
 import { decodeEntities } from '../ai/ai-utils';
-import { sanitizeDescription, sanitizeTitle } from './feed-text';
+import {
+  extractImageFromHtml,
+  sanitizeContent,
+  sanitizeDescription,
+  sanitizeTitle,
+  splitDekAndBody,
+} from './feed-text';
 import type { RawNewsItem } from '../types';
 import { rssSources, type RssSource } from '../../config/rss-sources';
 
@@ -78,11 +84,24 @@ async function fetchFeedXml(url: string): Promise<string> {
   return new TextDecoder(charset).decode(buffer);
 }
 
-function extractImageUrl(item: CustomItem & { enclosure?: { url?: string } }): string | null {
+/**
+ * A foto da materia, nos quatro lugares onde os feeds a escondem.
+ *
+ * Os tres primeiros sao campos declarados de RSS. **O quarto e o corpo**, e ele
+ * entrou na Fase 12: a InfoMoney nao usa nenhum dos tres e poe a foto do post
+ * como primeiro elemento do `content:encoded`, entao 107 das suas 108 noticias
+ * no acervo diziam nao ter imagem tendo uma. E o ultimo da lista de proposito —
+ * campo declarado e a intencao do veiculo; imagem de dentro do corpo e palpite,
+ * ainda que bom.
+ */
+function extractImageUrl(
+  item: CustomItem & { enclosure?: { url?: string } },
+  content: string | null | undefined,
+): string | null {
   if (item.enclosure?.url) return item.enclosure.url;
   if (item.mediaContent?.$?.url) return item.mediaContent.$.url;
   if (item.mediaThumbnail?.$?.url) return item.mediaThumbnail.$.url;
-  return null;
+  return extractImageFromHtml(content);
 }
 
 async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
@@ -98,18 +117,31 @@ async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
       // classificador passou a ver o texto limpo — antes ele recebia o título
       // cru, com entidade e quebra de linha.
       const title = sanitizeTitle(decodeEntities(item.title as string));
-      const description = sanitizeDescription(
+      // O texto inteiro, sem teto: `splitDekAndBody` é quem decide, logo
+      // abaixo, quanto dele é subtítulo e quanto é corpo.
+      const fullText = sanitizeDescription(
         decodeEntities((item.contentSnippet || item.content) as string),
         title,
       );
+      // **O corpo passa pela mesma higiene que a descrição, e até a Fase 12 não
+      // passava por nenhuma.** Ele ia cru para o banco: 63,7% do acervo com tag
+      // HTML, metade abrindo com um `<img>` que a tela imprimia como texto.
+      const excerpt = sanitizeContent(item.content, fullText);
+      const { dek, body } = splitDekAndBody(fullText, excerpt);
+
       return {
         title,
-        description,
-        content: item.content ? decodeEntities(item.content) : null,
+        description: dek,
+        content: body,
         source: source.name,
         sourceUrl: item.link ?? source.url,
-        imageUrl: extractImageUrl(item),
-        category: source.category ?? classifyCategory(title, description),
+        // O bruto, e não o higienizado: a tag `<img>` some no `sanitizeContent`.
+        imageUrl: extractImageUrl(item, item.content),
+        // O classificador lê o texto **inteiro**, não o dek recortado: o piso de
+        // 5 palavras distintas foi calibrado contra o corpo, e alimentá-lo com
+        // 320 caracteres mudaria a categoria de metade do acervo sem que nada
+        // acusasse.
+        category: source.category ?? classifyCategory(title, fullText),
         publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
       };
     });

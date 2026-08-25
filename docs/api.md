@@ -58,6 +58,28 @@ Lista notícias com paginação e filtros.
 }
 ```
 
+> **`description` é um subtítulo e `content` é o corpo — e até a Fase 12 os dois
+> campos não significavam isso.** Medido sobre as 6.669 linhas de produção em
+> 25/08/2026: a `description` tinha **mediana de 594 caracteres**, p90 de 5.613
+> e **máximo de 33.073** — metade do acervo usava o campo de subtítulo para
+> guardar a matéria inteira —, e o `content` vinha **cru**, com HTML em 63,7%
+> das linhas e um `<img>` abrindo 51,9% delas.
+>
+> A ingestão agora separa os dois (`splitDekAndBody`, em
+> `providers/news/feed-text.ts`), e o resultado é o contrato:
+>
+> - **`description`** nunca passa de **320 caracteres** e termina em fronteira
+>   de parágrafo ou de frase. Medido depois: p50 111, p90 281, máximo 320.
+> - **`content`** é texto puro com os parágrafos preservados — sem tag, sem o
+>   rodapé do veículo, sem aviso de paywall.
+> - **`content: null` é normal e quer dizer "não há corpo além do subtítulo"**,
+>   não "faltou dado". Vale para 40% do acervo: BBC, ESPN e TechCrunch mandam só
+>   um resumo. A tela de leitura desenha esse caso e leva o leitor à fonte.
+> - **Nada de texto se perde na separação.** Quando os dois campos traziam o
+>   mesmo texto longo, ele vira o corpo e o subtítulo passa a ser a abertura
+>   dele — `description` é sempre um prefixo de `content` quando os dois
+>   existem por essa via.
+
 ---
 
 ### GET /api/news/facets
@@ -387,7 +409,8 @@ O processamento é assíncrono — o endpoint retorna imediatamente com o ID do 
 ### POST /api/jobs/renormalize-news
 
 Reaplica as regras de ingestão às notícias **já gravadas**: decodifica
-entidades, higieniza título e descrição, e reclassifica a categoria — nesta
+entidades, higieniza título, descrição **e corpo**, recupera a imagem que
+estava escondida dentro do HTML do corpo, e reclassifica a categoria — nesta
 ordem, porque a classificação lê o texto higienizado.
 
 **O pipeline já faz isso sozinho, todo dia, na etapa 8.5.** Esta rota é para
@@ -405,7 +428,7 @@ primeira mudança de regra.
 |---|---|---|---|
 | `dryRun` | boolean | **`true`** | Sem `false` explícito, nada é gravado |
 | `limit` | number | — | Teto de linhas examinadas, das mais recentes para as mais antigas |
-| `sources` | string[] | fontes sem categoria fixa | Sobrescreve o recorte |
+| `sources` | string[] | **todas** | Restringe a varredura inteira a estas fontes |
 | `categoryMode` | `clear-only` \| `all` | **`clear-only`** | Quais mudanças de categoria aplicar |
 
 > **`dryRun` é o padrão de propósito.** É mutação em massa de conteúdo
@@ -431,10 +454,26 @@ primeira mudança de regra.
 > `categorySkipped` na resposta conta o que o modo corrente **não** aplicou.
 > Reparo de texto acontece nos dois modos: são independentes.
 
-O recorte padrão são as fontes **sem `category` fixa** em `rss-sources.ts` — as
-únicas cuja categoria o classificador decidiu. Fonte especializada (TechCrunch,
-InfoMoney, ESPN…) teve a categoria escolhida pela configuração, e recalcular
-ali destruiria dado correto.
+**Há dois recortes, e eles não são o mesmo.** A **varredura** é o acervo
+inteiro, e `sources` a restringe. A **reclassificação**, dentro de qualquer
+varredura, continua valendo só para as fontes **sem `category` fixa** em
+`rss-sources.ts` — as únicas cuja categoria o classificador decidiu. Fonte
+especializada (TechCrunch, InfoMoney, ESPN…) teve a categoria escolhida pela
+configuração, e recalcular ali destruiria dado correto: ela recebe higiene de
+texto e nunca troca de categoria.
+
+> **A varredura passou a ser o acervo inteiro na Fase 12, e o motivo foi
+> medição.** O filtro antigo era o das fontes do classificador, e ele existia
+> para proteger a categoria. Só que o HTML cru no corpo estava concentrado
+> justamente nas fontes de categoria fixa — **InfoMoney, Olhar Digital e
+> Drauzio Varella com 100% do corpo em HTML**, a ESPN com a palavra `null` em
+> 158 itens —, então varrer só as genéricas deixava de fora quase todo o
+> defeito. O argumento do filtro sempre foi sobre categoria; ele agora está
+> aplicado ao campo certo.
+
+`imageRecovered` conta as linhas que ganharam `imageUrl` a partir de uma
+`<img>` dentro do corpo. Só entra onde não havia foto declarada — a do veículo
+nunca é sobrescrita.
 
 **Resposta 200:**
 ```json
@@ -443,6 +482,7 @@ ali destruiria dado correto.
     "dryRun": true,
     "scanned": 3688,
     "textChanged": 1974,
+    "imageRecovered": 107,
     "categoryChanged": 320,
     "categorySkipped": 1272,
     "transitions": [

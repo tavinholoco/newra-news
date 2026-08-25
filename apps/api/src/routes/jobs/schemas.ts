@@ -54,6 +54,10 @@ export const renormalizeResponseSchema = z.object({
     dryRun: z.boolean(),
     scanned: z.number().int(),
     textChanged: z.number().int(),
+    // Declarado, e não só devolvido pelo serviço: com schema de resposta, o
+    // `fastify-type-provider-zod` serializa **pelo schema**, e campo ausente
+    // aqui é campo buscado e descartado sem erro.
+    imageRecovered: z.number().int(),
     categoryChanged: z.number().int(),
     categorySkipped: z.number().int(),
     transitions: z.array(

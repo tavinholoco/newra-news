@@ -2279,11 +2279,11 @@ verificadas. As que mais pesam:
 | Nenhuma chamada `fetch` do web tem timeout, com a API hibernando no plano free | 11.2 | varredura por `AbortSignal`/`timeout` |
 | Playwright instalado, **sem config e sem uma única spec** | 11.T | `find` por `playwright.config` e `*.spec.ts` |
 | `@newranews/web` sem `test:coverage` — o piso de 70% do CI mede só a API | 10.T | leitura do `package.json` |
-| §26 promete **error rate, API latency e cache hit rate**; nenhuma instrumentação existe | 9.5/11.3/12.2 | varredura por `onResponse`, `latency`, `p95` |
+| §26 promete **error rate, API latency e cache hit rate**; nenhuma instrumentação existe | 9.5/11.3/13.2 | varredura por `onResponse`, `latency`, `p95` |
 | 53 de 75 componentes são `'use client'` (21 de 28 na camada editorial) | 10.1 | contagem |
 | Baseline com 6 imagens escuras em 3 rotas; **9 rotas sem referência dark** | 10.3 | contagem em `docs/v2/baseline-v2/` |
 | `remotePatterns: hostname: '**'` — otimizador de imagem aberto a qualquer host | 10.6 | leitura do `next.config.js` |
-| Zero tags e nenhum CHANGELOG; README com capturas e texto da V1 (16/08) | 12.4 | `git tag` + `ls docs/screenshots` |
+| Zero tags e nenhum CHANGELOG; README com capturas e texto da V1 (16/08) | 13.4 | `git tag` + `ls docs/screenshots` |
 
 **Uma coisa saudável, registrada de propósito:** o `article-body` não é um
 renderizador de Markdown — devolve nós de React —, e a decisão tomada por peso
@@ -2293,12 +2293,12 @@ junto.
 
 #### A varredura de dependência mudou o cronograma
 
-O plano original punha a varredura na Fase 12, como gate. Rodada em 23/08, ela
+O plano original punha a varredura na fase de release, como gate. Rodada em 23/08, ela
 devolveu **40 advisories high em dependências de produção**, e dois deles só se
 resolvem em **major de framework** (`next` 14 → 15, `fastify` 4 → 5). Major de
 framework na fase de ajuste fino seria mexer na fundação depois de as três
 revisões terem certificado o que está em cima. A medição passou para **9.S** e
-**10.S**; a **12.S** ficou com o gate.
+**10.S**; a **13.S** ficou com o gate.
 
 #### Certificação de que a Fase 9 pode abrir
 
@@ -2421,13 +2421,13 @@ delas sem passar pelo `assertJobSecret` — que agora compara em tempo constante
 
 | Advisory | Risco hoje | O que mudaria a decisão |
 |---|---|---|
-| `fastify` — bypass de validação por `content-type` com tab (**high**) | **mitigado**: `content-type` com caractere de controle é recusado com 415 na porta, antes de o parser ser escolhido. Guarda em `tests/security/content-type-bypass.test.ts` | a major `fastify@5`, que é dívida da Fase 12 |
+| `fastify` — bypass de validação por `content-type` com tab (**high**) | **mitigado**: `content-type` com caractere de controle é recusado com 415 na porta, antes de o parser ser escolhido. Guarda em `tests/security/content-type-bypass.test.ts` | a major `fastify@5`, que é dívida da Fase 13 |
 | `fastify` — DoS em `sendWebStream` (low) e spoof de `request.protocol`/`host` (moderate) | a API não usa `sendWebStream`; `protocol`/`host` não decidem nada, e o `trustProxy: 1` limita o alcance a um hop | idem |
 | `find-my-way` — DDoS com HTTP/2 (**high**) | **não alcançável**: a API não serve HTTP/2 (`buildApp` não passa `http2`) | servir HTTP/2 |
 | `@fastify/static` × 2 — travessia de caminho e bypass de route guard (**high**/moderate) | **não alcançável em produção**: o pacote só entra pela UI do Swagger, que deixou de ser registrada em produção nesta fase | reabrir a UI em produção, ou `@fastify/swagger-ui` passar a suportar `@fastify/static@10` |
 
 > **Quem aceita:** Pedro Levi, 23/08/2026. As três da `fastify` saem juntas na
-> major da Fase 12; as três de alcance zero saem quando o alcance mudar.
+> major da Fase 13; as três de alcance zero saem quando o alcance mudar.
 
 #### 9.1 — a `docs/api.md` documentava 32 rotas e o roteador registrava 34
 
@@ -2994,7 +2994,7 @@ env no build.
 cinco rotas.** A CSP com `'unsafe-inline'` no `script-src` **não custa ponto** —
 o que ela cobra é o que está escrito no aceite, não pontuação.
 
-> **Um número para a Fase 12, medido aqui:** o critério de performance da §31 diz
+> **Um número para a Fase 13, medido aqui:** o critério de performance da §31 diz
 > **"LCP alvo < 2,5 s"**, e **nenhuma das cinco rotas alcança** — a melhor é a
 > `/article` com 2,57 s. É LCP de laboratório com throttling simulado, mais
 > pessimista que campo, mas o critério não faz essa ressalva. A §31 Performance é
@@ -3061,7 +3061,7 @@ As demais premissas continuam valendo, e cada uma foi medida e não suposta:
 ### 36. V2.0 Fase 11 — Integração geral ✅ Concluída em 2026-08-24
 
 > Branch `review/v2-integration`. Os oito eixos da §28 fechados, menos um item
-> que depende de credencial de produção e passou para a 12.2. **Quinze achados**,
+> que depende de credencial de produção e passou para a 13.2. **Quinze achados**,
 > e o padrão deles é o mesmo: **nenhum tem sintoma de erro** — a costura não
 > quebra, ela combina errado e a tela continua desenhando. Mais **três medições
 > que derrubaram suposições do próprio plano**, o que é tão produto de uma fase
@@ -3259,7 +3259,7 @@ inscreve ninguém na newsletter (seria um `Subscriber` de verdade, contado pela
 tela de métricas e com e-mail no dia seguinte, sem como desfazer sem o token), e
 não dispara rollback ao reprovar — reverter deploy sozinho exige distinguir "o
 deploy quebrou" de "a API estava dormindo", e este projeto já cometeu o erro
-oposto com o gate do Lighthouse medindo cold start. Rollback é decisão da §12.6,
+oposto com o gate do Lighthouse medindo cold start. Rollback é decisão da §13.6,
 com número atrás.
 
 **Os fluxos com login são pulados sem segredo, e o pulo é barulhento** — um passo
@@ -3419,7 +3419,7 @@ qualquer regex** — e só se descobre isso insistindo em ver a guarda **falhar*
 | cobertura do web (stmts) | 72,35% | **72,50%** |
 | workflows | 4 | **5** (`smoke.yml`) |
 
-#### O que a Fase 12 vai cobrar daqui
+#### O que a Fase 13 vai cobrar daqui
 
 - **A primeira leitura honesta da tela de métricas** (11.5) é o único item que
   não fechou: exige credencial de admin de produção. Tudo que a prepara está
@@ -3427,7 +3427,7 @@ qualquer regex** — e só se descobre isso insistindo em ver a guarda **falhar*
   observável em `/api/metrics/http`.
 - **Os fluxos autenticados do smoke** entram no dia em que os quatro segredos
   forem configurados. Sem eles, 6 dos 29 specs ficam pulados — e o pulo aparece.
-- **Rollback pós-deploy** (§12.6): o smoke falha e avisa; reverter sozinho é
+- **Rollback pós-deploy** (§13.6): o smoke falha e avisa; reverter sozinho é
   decisão com número atrás, e hoje não há execução nenhuma que a justifique.
 - **A dívida do Next 15 ganhou um terceiro morador.** Além das 8 advisories
   *high* e do soft 404, o meta refresh do `redirect()` em rota com `loading.tsx`
@@ -3442,7 +3442,7 @@ qualquer regex** — e só se descobre isso insistindo em ver a guarda **falhar*
 ### 37. Fechamento da Fase 11 — verificação pós-merge e a auditoria antes da última fase ✅ 2026-08-24
 
 > Branch `chore/v2-close-phase-11`. O ritual completo contra produção depois do
-> merge do PR #135, mais a varredura que a Fase 12 herda: **o que ainda falta
+> merge do PR #135, mais a varredura que a Fase 13 herda: **o que ainda falta
 > para o projeto estar 100% até aqui**, separado do que é escopo da própria 12.
 
 #### O ritual, com o terceiro passo estreando
@@ -3581,6 +3581,204 @@ separado do que a 12 já tem no próprio inventário.
 | gate do Lighthouse, 7 rotas | **verde**, mediana mínima 92 |
 | baseline visual | **51 capturas, 0 imagens alteradas** |
 | `GET /api/health` | **200** |
+
+---
+
+### 38. V2.0 Fase 12 — Refinamento visual e de leitura ✅ Concluída em 2026-08-25
+
+> Branch `refine/v2-visual-reading`. Fase nova, aberta entre a 11 e o release —
+> a antiga Fase 12 virou a **13**. O plano foi emendado na §28 ("As cinco fases
+> finais") e o motivo cabe numa frase: **as três revisões olharam camadas, e
+> nenhuma olhou uma tela com dado de produção dentro.**
+
+#### Por que ela existe
+
+As Fases 9, 10 e 11 acharam 15, 14 e 15 defeitos, e **nenhum** deles era:
+
+| O que a pessoa via | Alcance |
+|---|---|
+| as abas de `/account` desenhadas umas por cima das outras | toda a área de conta |
+| `/admin` sem link nenhum em tela ≥ 768 px | desde a Fase 3 |
+| a tag `<img>` inteira, `srcset` e tudo, impressa como texto | **63,7% do acervo** |
+| o rótulo "Trecho" sobre uma caixa vazia | **23,2%** |
+| a palavra `null` como subtítulo | 158 notícias |
+| `**asteriscos**` no meio da frase | **60% dos briefings** |
+| um retângulo laranja com um "N" a cada quatro células | **25,5% do acervo** |
+
+**Nenhum tem sintoma de código.** Build verde, 1.314 testes verdes, Lighthouse
+verde, smoke verde. Só aparecem para quem abre a tela e lê.
+
+#### Os sete achados
+
+**1. As abas da conta colapsavam para 33 px, e a causa era um nome de token.**
+
+No Tailwind v4, `--spacing-<nome>` gera o eixo de espaço inteiro, e
+`inline-<valor>` ali é `inline-size`. Com `--spacing-block` no `@theme`, a folha
+ganha **dois** `.inline-block` — o de display, do core, e o de `inline-size`,
+do token. Mesma especificidade, vence o último. `clamp(1.5rem, 1.25rem + 1vw,
+2.5rem)` a 1280 px dá **32,80 px**, o número medido na tela.
+
+Provado medindo a mesma marcação com `style` inline em vez da classe: **119 px
+contra 33**. Corrigido com `inline-flex` + `shrink-0`, e a guarda **deriva dos
+tokens** — `--spacing-flex` amanhã põe `inline-flex` na lista sozinho.
+
+> **A primeira versão da guarda passou verde sobre o defeito.** Montava o padrão
+> numa template literal onde `\\s` virou `\s`, que não é classe de espaço — é a
+> letra `s`. É a **quinta** vez que uma guarda estática deste projeto falha por
+> análise de texto (quatro na Fase 11). A saída foi parar de montar regex: ela
+> parte a fonte em palavras.
+
+**2. `/admin` não tinha link em desktop desde o masthead de três linhas.**
+
+A V1 tinha uma `Navbar` responsiva só, que montava os links da sessão — então
+apareciam nos dois tamanhos. A §10 partiu a barra em `Masthead` (lista estática)
+e `MobileNav` (com sessão), e **os links de sessão foram só para o segundo**. A
+rota respondia 200, a suíte estava verde, e o único jeito de achar era procurar
+o link e não encontrar.
+
+`sessionNavLinks` passa a ser a lista única das duas cascas, e o painel entra na
+**top-bar** — linha 1 é informação de sistema, e ADMIN não é editoria. Guarda de
+paridade: rota de sessão nova entra sozinha e reprova se cair em um lado só.
+
+**3. As métricas já estavam sob o guard de admin; o que faltava era serem parte
+do painel.**
+
+`/admin/metrics` exige sessão com role ADMIN desde que a página se mudou para
+lá. Mas a `/admin` tinha um link no canto do título, a `/admin/metrics` tinha
+uma seta de voltar, e as duas eram **contêineres diferentes** (`max-w-5xl` ×
+`max-w-7xl`) — a largura da página mudava ao trocar de tela. Viraram abas de uma
+casca só, no layout do segmento, ao lado do guard.
+
+**4. O corpo que vem do feed nunca passou por higiene nenhuma.**
+
+Medido contra as 6.669 linhas de produção:
+
+| Defeito | Antes | Depois |
+|---|---|---|
+| tag HTML no corpo | **63,7%** | **0%** |
+| corpo abrindo com `<img>` | **51,9%** | **0%** |
+| "Trecho" com corpo vazio | **23,2%** | **0%** |
+| aviso de paywall no texto | 7,3% | **0%** |
+| rodapé de WordPress | 5,5% | **0%** |
+| a palavra `null` como texto | 158 | **0** |
+| dek acima de 320 caracteres | **60,7%** | **0%** |
+| sem imagem | 27,1% | **25,5%** |
+
+**E o dek não era um dek:** mediana de **594** caracteres, p90 de 5.613,
+**máximo de 33.073** — metade do acervo usava o campo de subtítulo para guardar
+a matéria inteira, e a tela imprime o dek num parágrafo **sem clamp**. Depois:
+p50 **111**, p90 281, máximo 320.
+
+> **A primeira versão da correção teria destruído a matéria de metade do
+> acervo.** A regra ingênua — "corpo igual ao dek vira `null`" — descartava
+> **5.635 corpos**, mediana de 1.080 caracteres, máximo de 33.073. Certa sobre a
+> TechCrunch (mesma frase única nos dois campos) e catastrófica sobre G1, Folha,
+> Valor, BBC e Trivela (**a matéria inteira nos dois**).
+>
+> O erro era de premissa: quando os dois campos carregam o mesmo texto longo,
+> aquele texto é o **corpo**, e o dek é a abertura dele. Não havia corpo
+> repetido para descartar — havia uma matéria no campo errado.
+>
+> **Só um ensaio contra produção pegou isso.** Um teste de unidade sobre caso
+> inventado passaria nas duas versões.
+
+Duas propriedades foram **verificadas contra o acervo inteiro**, não
+argumentadas: **nada perde texto** (as 196 linhas que encolhem perdem só
+rodapé, paywall e tag) e **a passada é idempotente** (zero linhas mudam na
+segunda), que é o que a etapa 8.5 exige para rodar todo dia.
+
+A varredura da 8.5 deixou de ser restrita às fontes do classificador — o filtro
+protegia a **categoria**, e o HTML cru estava justamente nas fontes de categoria
+fixa que ele excluía. A reclassificação mantém o recorte antigo, dentro do laço.
+**107 fotos** foram recuperadas de dentro do corpo HTML (InfoMoney), o que
+derruba o acervo sem foto de 27,1% para 25,5%.
+
+**5. A tela de leitura mentia sobre o que tinha para ler.**
+
+Imprimia marcação como texto (o React escapa o que recebe); rotulava "Trecho"
+sobre nada; e mostrava o dek duas vezes quando ele era prefixo do corpo. O corte
+do prefixo só acontece quando o dek termina em fronteira de frase — um dek que
+para no meio de uma oração é resumo, e tirá-lo deixaria a matéria abrindo por
+"com um panorama complexo".
+
+**6. A medição do renderizador do briefing tinha vencido.**
+
+A nota do `article-body` dizia que o corpo só usava `###`, sem negrito nem
+listas. Contados os 89 briefings retidos:
+
+| Sintaxe | Briefings | O que aparecia |
+|---|---|---|
+| `**negrito**` | **53 (60%)** | os asteriscos |
+| `###` | 37 (42%) | subtítulo — funcionava |
+| `##` | 26 (29%) | subtítulo, **no mesmo nível do `###`** |
+| `---` | 18 (20%) | um parágrafo com três traços |
+| `- item` | 7 (8%) | um parágrafo com hífen |
+| `*ênfase*` | 3 (3%) | os asteriscos |
+
+Continua **não sendo** um renderizador de Markdown: link, tabela, citação,
+código e lista numerada deram **zero** nos 89 e não são reconhecidos, com teste
+afirmando isso. O nível do heading virou relativo, mapeando as profundidades
+presentes para níveis consecutivos **por posição, nunca por subtração** — `##`
+com `####` daria `h2` e `h4` na subtração, o salto que o `heading-order`
+reprova.
+
+> **Foi a guarda de acessibilidade que avisou.** O `article-body` saiu da lista
+> de nível fixo permitido: ele fixava `h2` para não abrir salto a partir do
+> `h1`, e pagava achatando a hierarquia.
+
+O prompt passou a fixar um subconjunto fechado e a **época subiu para `v2`** — a
+mudança conceitual de formato que o campo foi documentado para marcar.
+**Verificado renderizando os 89 pelo componente:** 394 `<strong>`, 12 `<ul>`,
+56 `<hr>`, só `H2` e `H3`, nenhum nível pulado, **zero marcação no texto**.
+
+**7. A notícia sem foto virou card de texto.**
+
+**1.703 (25,5%)** não têm imagem em lugar nenhum do feed. Recebiam a caixa com
+o placeholder de marca — um retângulo laranja com um "N" a cada quatro células,
+e de largura cheia na tela de leitura.
+
+O que entra não é "o mesmo card sem a imagem": a manchete sobe um degrau da
+escala e ganha uma linha antes de truncar, o dek ganha três, e um filete da cor
+da categoria segura a coluna. **Medido no navegador a 1280 px: a célula mantém
+exatamente a mesma altura das vizinhas com foto — 387 px**, então o ritmo da
+grade fica intacto (a única coisa que o retângulo resolvia). Manchete de 18 →
+22 px, dek de 15 → 16 px, nada truncado.
+
+O placeholder **mudou de papel**: fica com o caso em que sempre foi certo — a
+foto que existe e não carrega, onde a caixa já ocupa espaço e sumir com ela
+seria salto.
+
+#### Guardas novas
+
+| Guarda | O que impede |
+|---|---|
+| `design-tokens` → utilities sombreadas | usar classe de display que um `--spacing-*` sombreia; a lista **deriva dos tokens** |
+| `session-nav-parity` | rota de sessão que aparece numa casca e não na outra |
+| `admin-nav` | a faixa do painel colapsar pelo mesmo defeito da conta |
+| `feed-text-hygiene` (25 casos) | o texto do feed voltar a chegar cru — todos colados de produção |
+| `article-body-markdown` | marcação virando caractere na tela, e salto de heading |
+| `story-card` (sem foto) | o placeholder voltar a ocupar a célula |
+
+#### Números
+
+| Verificação | Resultado |
+|---|---|
+| testes | **1.314 → 1.391** (791 API em 60 suítes + 600 web em 66) |
+| `turbo lint typecheck test build` | **verde** |
+| higiene contra as 6.669 linhas de produção | **7 classes de defeito → 0**, 0 linhas perdendo texto, 0 não idempotentes |
+| 89 briefings renderizados pelo componente | **0 vazamentos de marcação**, 0 saltos de heading |
+| card sem foto, medido no navegador | **mesma altura de célula (387 px)** |
+
+#### O que ficou em aberto
+
+- **A `/article/[date]` ainda mostra a régua `---` como `<hr>`.** É o que o
+  modelo escreveu nos 18 briefings que a usam, e removê-la seria descartar
+  conteúdo. O prompt já a proíbe daqui pra frente; **gatilho:** quando os 90
+  dias de retenção passarem e nenhum briefing retido tiver `---`, o ramo pode
+  sair do renderizador.
+- **A baseline visual da §30 está desatualizada** — as 51 capturas são de antes
+  do card de texto e do briefing renderizado. Não é dívida desta fase: é item
+  **13.5**, e agora tem um motivo a mais para não ser pulado.
 
 ---
 

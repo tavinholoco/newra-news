@@ -12,7 +12,15 @@ interface ArticleHeroProps {
   meta: ReactNode;
   /** Compartilhar, favoritar, ler na fonte. */
   actions?: ReactNode;
-  /** Só a notícia tem imagem; o briefing não tem uma para chamar de sua. */
+  /**
+   * Só a notícia tem imagem; o briefing não tem uma para chamar de sua.
+   *
+   * **`src` nulo desenha nada**, e não o placeholder de marca. Um quarto do
+   * acervo não tem foto (1.703 das 6.669, medido em 25/08), e essas telas
+   * abriam com um retângulo laranja de largura cheia entre a metadata e o
+   * texto. Jornal com matéria sem foto não desenha uma moldura vazia — ele
+   * começa pelo texto.
+   */
   image?: { src: string | null; alt: string } | null;
   className?: string;
 }
@@ -61,7 +69,7 @@ export function ArticleHero({
         ) : null}
       </div>
 
-      {image ? (
+      {image?.src ? (
         <StoryImage
           src={image.src}
           alt={image.alt}

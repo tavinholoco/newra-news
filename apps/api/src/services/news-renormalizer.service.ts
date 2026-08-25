@@ -1,7 +1,13 @@
 import { prisma, type Category } from '@newranews/database';
 import { rssSources } from '../config/rss-sources';
 import { decodeEntities } from '../providers/ai/ai-utils';
-import { sanitizeDescription, sanitizeTitle } from '../providers/news/feed-text';
+import {
+  extractImageFromHtml,
+  sanitizeContent,
+  sanitizeDescription,
+  sanitizeTitle,
+  splitDekAndBody,
+} from '../providers/news/feed-text';
 import { classifyCategory } from './category-classifier.service';
 
 /**
@@ -13,11 +19,24 @@ import { classifyCategory } from './category-classifier.service';
  * e a Home da V2 agrupa por categoria, o que torna o erro visível na primeira
  * dobra.
  *
- * Faz as três coisas que a ingestão faz, e na mesma ordem, porque elas
- * dependem uma da outra: decodifica entidades, higieniza título e descrição, e
- * só então classifica. Reclassificar sobre a descrição suja daria um resultado
- * **diferente** do que a mesma matéria teria se entrasse hoje — que é
+ * Faz as mesmas coisas que a ingestão faz, e na mesma ordem, porque elas
+ * dependem uma da outra: decodifica entidades, higieniza título, descrição e
+ * corpo, e só então classifica. Reclassificar sobre a descrição suja daria um
+ * resultado **diferente** do que a mesma matéria teria se entrasse hoje — que é
  * exatamente a divergência que este job existe para eliminar.
+ *
+ * **O corpo entrou na Fase 12, e com ele o recorte do job mudou.** Até aqui ele
+ * varria só as fontes cuja categoria o classificador decide — o filtro existia
+ * para proteger a categoria de quem tem rótulo fixo em `rss-sources.ts`. Mas o
+ * HTML cru estava em toda parte, e concentrado justamente nas fontes de
+ * categoria fixa: **InfoMoney, Olhar Digital e Drauzio Varella com 100% do
+ * corpo em HTML**, a ESPN com a palavra `null` em 158 itens. Varrer só as
+ * quatro genéricas deixaria de fora quase todo o defeito.
+ *
+ * Então o recorte deixou de ser um só: **a higiene de texto passa em todas as
+ * linhas; a reclassificação continua restrita às fontes do classificador.** É
+ * a mesma decisão de antes, aplicada ao campo certo — o argumento do filtro
+ * sempre foi sobre categoria, nunca sobre texto.
  */
 
 /**
@@ -68,7 +87,14 @@ export interface RenormalizeOptions {
   dryRun?: boolean;
   /** Teto de linhas examinadas, das mais recentes para as mais antigas. */
   limit?: number;
-  /** Sobrescreve o recorte de fontes. Vazio ou ausente usa o padrão. */
+  /**
+   * Restringe **a varredura inteira** a estas fontes. Ausente varre todas.
+   *
+   * Não confundir com o recorte da reclassificação, que é
+   * `CLASSIFIER_OWNED_SOURCES` e continua valendo dentro de qualquer varredura:
+   * passar `sources: ['InfoMoney']` higieniza o texto da InfoMoney e **não**
+   * mexe na categoria dela, porque ela tem rótulo fixo.
+   */
   sources?: string[];
   /** Ver `CategoryMode`. Padrão `clear-only`. */
   categoryMode?: CategoryMode;
@@ -90,8 +116,10 @@ export interface RenormalizeChange {
 export interface RenormalizeReport {
   dryRun: boolean;
   scanned: number;
-  /** Linhas cujo título, descrição ou fonte mudaram com a higiene. */
+  /** Linhas cujo título, descrição, corpo ou fonte mudaram com a higiene. */
   textChanged: number;
+  /** Linhas que ganharam `imageUrl` a partir de uma `<img>` dentro do corpo. */
+  imageRecovered: number;
   categoryChanged: number;
   /** Mudanças que o modo corrente **não** aplicou, mas que existiriam em `all`. */
   categorySkipped: number;
@@ -108,7 +136,14 @@ const BATCH_SIZE = 100;
 
 interface PendingUpdate {
   id: string;
-  data: { title?: string; description?: string; source?: string; category?: Category };
+  data: {
+    title?: string;
+    description?: string;
+    content?: string | null;
+    imageUrl?: string | null;
+    source?: string;
+    category?: Category;
+  };
 }
 
 export async function renormalizeStoredNews(
@@ -116,14 +151,26 @@ export async function renormalizeStoredNews(
 ): Promise<RenormalizeReport> {
   const dryRun = options.dryRun ?? true;
   const categoryMode: CategoryMode = options.categoryMode ?? 'clear-only';
-  const sources =
+  const scanFilter =
     options.sources && options.sources.length > 0
-      ? options.sources
-      : CLASSIFIER_OWNED_SOURCES;
+      ? { source: { in: options.sources } }
+      : {};
+  // Recorte da **reclassificação**, dentro de qualquer varredura. Ver o
+  // cabeçalho: fonte com categoria fixa não tem categoria a recalcular, tenha
+  // ela texto sujo ou não.
+  const classifierOwned = new Set(CLASSIFIER_OWNED_SOURCES);
 
   const rows = await prisma.news.findMany({
-    where: { source: { in: sources } },
-    select: { id: true, title: true, description: true, source: true, category: true },
+    where: scanFilter,
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      content: true,
+      imageUrl: true,
+      source: true,
+      category: true,
+    },
     orderBy: { publishedAt: 'desc' },
     ...(options.limit ? { take: options.limit } : {}),
   });
@@ -132,23 +179,38 @@ export async function renormalizeStoredNews(
   const transitions = new Map<string, CategoryTransition>();
   const sample: RenormalizeChange[] = [];
   let textChanged = 0;
+  let imageRecovered = 0;
   let categoryChanged = 0;
   let categorySkipped = 0;
 
   for (const row of rows) {
     const title = sanitizeTitle(decodeEntities(row.title));
-    const description = sanitizeDescription(decodeEntities(row.description), title);
+    const fullText = sanitizeDescription(decodeEntities(row.description), title);
     // O `source` nunca passou por `decodeEntities` na ingestão do NewsData, e o
     // acervo tem "Jornal Do Com&eacute;rcio" para provar.
     const source = decodeEntities(row.source);
-    const category = classifyCategory(title, description);
+    const excerpt = sanitizeContent(row.content, fullText);
+    const { dek, body } = splitDekAndBody(fullText, excerpt);
+    // A `<img>` sai do corpo com a higiene, então a busca é sobre o **bruto** —
+    // e só quando não há foto declarada, para nunca sobrescrever a do veículo.
+    const imageUrl = row.imageUrl ?? extractImageFromHtml(row.content);
+
+    // **O classificador continua lendo o texto inteiro, e é o que mantém este
+    // job idempotente.** Depois da primeira passada a `description` é um dek de
+    // 320 caracteres; alimentá-lo com ela mudaria a categoria de metade do
+    // acervo na segunda execução, sem que nada acusasse — o piso de 5 palavras
+    // distintas foi calibrado contra o corpo. `body ?? dek` é o texto inteiro
+    // nas duas passadas: antes ele está na descrição, depois no corpo.
+    const category = classifyCategory(title, body ?? dek);
 
     const data: PendingUpdate['data'] = {};
     if (title !== row.title) data.title = title;
-    if (description !== row.description) data.description = description;
+    if (dek !== row.description) data.description = dek;
+    if (body !== row.content) data.content = body;
     if (source !== row.source) data.source = source;
+    if (imageUrl !== row.imageUrl) data.imageUrl = imageUrl;
 
-    if (category !== row.category) {
+    if (category !== row.category && classifierOwned.has(row.source)) {
       // Em `clear-only`, promoção e troca entram na contagem de ignoradas em
       // vez de virar update — a linha ainda pode ter reparo de texto.
       if (categoryMode === 'all' || category === 'WORLD') {
@@ -160,7 +222,18 @@ export async function renormalizeStoredNews(
 
     if (Object.keys(data).length === 0) continue;
 
-    if (data.title || data.description || data.source) textChanged++;
+    // `in`, e não truthiness: `content: null` é a correção mais comum das três
+    // — o corpo que era o dek repetido — e `if (data.content)` a contaria como
+    // "nada mudou".
+    if (
+      'title' in data ||
+      'description' in data ||
+      'content' in data ||
+      'source' in data
+    ) {
+      textChanged++;
+    }
+    if ('imageUrl' in data) imageRecovered++;
 
     if (data.category) {
       categoryChanged++;
@@ -194,6 +267,7 @@ export async function renormalizeStoredNews(
     dryRun,
     scanned: rows.length,
     textChanged,
+    imageRecovered,
     categoryChanged,
     categorySkipped,
     transitions: [...transitions.values()].sort((a, b) => b.count - a.count),

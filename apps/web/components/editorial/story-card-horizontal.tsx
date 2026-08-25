@@ -78,7 +78,10 @@ export function StoryCardHorizontal({
         href={`/news/${story.id}`}
         className='flex min-w-0 flex-1 items-start gap-3'
       >
-        {showImage ? (
+        {/* `showImage` é a decisão de quem posiciona; `imageUrl` é a de haver
+            foto. Sem ela, a miniatura seria um quadrado de 96px com um "N" ao
+            lado de cada quarto item da lista — ver a nota no `story-card`. */}
+        {showImage && story.imageUrl ? (
           <StoryImage
             src={story.imageUrl}
             alt={story.title}

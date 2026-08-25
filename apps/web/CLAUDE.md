@@ -165,9 +165,32 @@ Regras que não são óbvias no código:
   que ela declara é a outra coisa — que o texto é do veículo.
 - **`source-list` leva ao `sourceUrl` externo, nunca a `/news/[id]`.** `newsId`
   é ponteiro fraco: o cleanup apaga `News` aos 30 dias e o briefing vive 90.
-- **`article-body` não é renderizador de Markdown, e não deve virar um.** O
-  corpo de produção foi medido: só `###`, sem negrito nem listas. Os `###` saem
-  como **`h2`** — o nível é decisão da página, e o `h1` é o título.
+- **Ter `content` não é ter corpo.** A tela deduplica o parágrafo de abertura
+  contra o dek exibido acima, e em 23,2% do acervo o que sobrava era nada — o
+  rótulo "Trecho" sobre uma caixa vazia. Quem decide é `hasReadableBody`, sobre
+  os **blocos**, nunca sobre o campo.
+- **O dek pode ser prefixo do corpo, e o corte só vale em fronteira de frase.**
+  Quando o feed manda a matéria num parágrafo só, a ingestão corta o dek no
+  último fim de frase que cabe em 320 caracteres — então o corpo **começa** com
+  ele. Cortar um dek que para no meio de uma oração deixaria a matéria abrindo
+  por "com um panorama complexo".
+- **`parseArticleBody` tira tag antes de classificar a linha, e não é
+  redundância.** A limpeza é da ingestão, mas a etapa 8.5 roda uma vez por dia;
+  esta linha cobre a janela até lá, e o dia em que um veículo novo inventar um
+  formato. Sem ela, o React escapa a tag e ela aparece **como texto**.
+- **`article-body` não é renderizador de Markdown, e não deve virar um** — mas
+  **entende o que o modelo escreve, e essa lista é medida.** Recontada em
+  25/08/2026 sobre os 89 briefings retidos: **60% usam `**negrito**`, 42% `###`,
+  29% `##`, 20% `---`, 8% listas e 3% `*ênfase*`** — a nota anterior dizia "só
+  `###`, sem negrito nem listas", e tinha vencido. Link, tabela, citação, código
+  e lista numerada deram **zero** e continuam não reconhecidos, com teste
+  afirmando isso. **Medição sobre saída de modelo tem prazo de validade:**
+  reconte antes de confiar numa nota dessas.
+- **O nível do subtítulo é relativo, e mapeado por posição.** As profundidades
+  presentes no documento viram `h2`, `h3`, `h4` na ordem — nunca por subtração,
+  que daria `h2` e `h4` num documento com `##` e `####` e reprovaria
+  `heading-order`. 39% dos briefings usam `###` sem nenhum `##`, e ali `###`
+  **é** o `h2`.
 - **`article-hero` é casca com encaixes**, não um componente com `variant`. As
   duas telas compartilham a composição da §8 e quase nada do conteúdo.
 - **A imagem vem depois da metadata** (ordem da §8): numa tela de leitura entra-se
@@ -211,6 +234,13 @@ Regras que não são óbvias no código:
 - /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
+  - **a casca do painel vive no mesmo layout**: contêiner e faixa de abas
+    (`components/admin/admin-nav.tsx`), como em `/account`. Tela nova de admin
+    entra como aba e herda a casca, em vez de trazer o próprio `max-w-*` e o
+    próprio link de canto — eram dois contêineres diferentes até a Fase 12, e a
+    largura da página mudava ao trocar de tela
+  - **a faixa só é renderizada depois do guard**: oferecer as abas a quem não é
+    ADMIN seria anunciar o que a pessoa não pode abrir
 
 ## SEO (Fase 7)
 
@@ -458,6 +488,19 @@ Ao introduzir combinação de cor nova, rode `pnpm --filter @newranews/web
 contrast:check` — ele lê o `tokens.css` e mede, inclusive as composições de
 opacidade.
 
+> ⚠️ **Um token do `@theme` pode sombrear uma utility do core, e nada avisa.**
+> No Tailwind v4 um `--spacing-<nome>` gera o eixo de espaço inteiro, e
+> `inline-<valor>` ali é `inline-size`. Como o projeto declara
+> `--spacing-block`, a folha ganha **dois** `.inline-block` — o de display e o
+> do token — na mesma especificidade, e vence o último. Resultado medido na
+> `/pt-BR/account`: os quatro links da faixa com **33 px** cada
+> (`clamp(1.5rem, 1.25rem + 1vw, 2.5rem)` a 1280 px = 32,80 px), o texto vazando
+> da caixa, e as abas escritas umas sobre as outras. **Use `inline-flex`.**
+>
+> A guarda em `tests/lib/design-tokens.test.ts` **deriva a lista dos tokens**,
+> então declarar `--spacing-flex` amanhã põe `inline-flex` nela sozinho — e esse
+> é o caso que dói, porque `inline-flex` está em uso por todo o projeto.
+
 > ⚠️ **`cn` precisa conhecer a escala tipográfica — e conhece.** O
 > `tailwind-merge` resolve `text-<valor>` por heurística: sabe que `text-sm` é
 > tamanho e `text-red-500` é cor, e joga **todo o resto num grupo só**. Como a
@@ -528,6 +571,14 @@ Regras que não são óbvias no código:
   meio da página não tem explicação para quem olha. `hero` nulo, `briefing`
   nulo, `trending` vazio e categoria sem matéria são estados **normais** — o
   endpoint está certo, a tela é que precisa desenhar sem eles.
+- **Notícia sem foto é card de texto, não card com placeholder.** Medido em
+  25/08/2026: **1.703 das 6.669 (25,5%) não têm imagem em lugar nenhum do
+  feed**. `StoryCard`, `HeroStory` e `StoryCardHorizontal` **não renderizam a
+  caixa** quando `imageUrl` é nulo — a manchete sobe um degrau da escala, o dek
+  ganha linhas, e um filete da categoria segura a coluna. A célula mantém a
+  altura das vizinhas (medido: 387 px a 1280), que era a única coisa que o
+  retângulo laranja resolvia. O `StoryImage` continua existindo para o caso em
+  que sempre foi certo: a foto que **existe e não carrega**.
 - **`heading-level` é prop, não valor fixo.** O mesmo card é `h3` na Home
   (abaixo do `h2` da seção) e pode ser `h2` numa listagem. Heading fixo foi o
   que deixou `heading-order` reprovando em `/news` e `/article`.
@@ -571,6 +622,7 @@ Quatro telas atrás de sessão — `/account`, `/account/preferences`,
 | Peça | Papel |
 |---|---|
 | `account/account-nav` | as quatro abas; `/favorites` entra como a quarta |
+| `admin/admin-nav` | as duas abas do painel: Painel e Métricas |
 | `account/profile-card` | identidade, quanto foi salvo, e a saída |
 | `account/preferences-form` | assuntos e tema |
 | `account/newsletter-settings` | inscrição no briefing diário |

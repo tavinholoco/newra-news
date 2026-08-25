@@ -91,8 +91,11 @@ describe('guardas de acessibilidade', () => {
     const NIVEL_FIXO_PERMITIDO: Record<string, string> = {
       'components/editorial/article-hero.tsx':
         'h1 — é o título da página de leitura, e só existe um por tela',
-      'components/editorial/article-body.tsx':
-        'h2 — o `###` que a IA escreve sai um nível abaixo do h1 do título; o nível é da página, e a página já decidiu',
+      // O `article-body` saiu desta lista na Fase 12, e a guarda foi quem
+      // avisou. Ele fixava `<h2>` para todo subtítulo, o que achatava a
+      // hierarquia do briefing — 29% deles usam `##` e `###` juntos. Agora o
+      // nível vem do documento, normalizado para nunca pular um degrau, e a
+      // propriedade tem teste próprio em `article-body-markdown.test.tsx`.
       'components/editorial/hero-story.tsx':
         'h2 — a matéria de abertura fica sempre imediatamente sob o h1 da tela, na Home e na /news',
       'components/editorial/briefing-card.tsx':

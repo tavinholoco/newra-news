@@ -66,6 +66,11 @@
     }
   },
   "admin": {
+    "nav": {
+      "label": "Navegação do painel",
+      "metrics": "Métricas",
+      "panel": "Painel"
+    },
     "title": "Painel Admin",
     "restrictedTitle": "Acesso restrito",
     "restrictedDesc": "Esta área é exclusiva para administradores.",
@@ -81,7 +86,8 @@
     "deleteError": "Não foi possível remover a notícia. Tente novamente.",
     "loadError": "Não foi possível carregar as notícias.",
     "empty": "Nenhuma notícia no momento.",
-    "totalNews": "{count, plural, one {# notícia} other {# notícias}} no total"
+    "totalNews": "{count, plural, one {# notícia} other {# notícias}} no total",
+    "panelDescription": "Disparar o pipeline do dia e revisar o que ele coletou."
   },
   "article": {
     "aiDisclosureBody": "Este texto foi escrito por inteligência artificial a partir de {count, plural, one {# notícia publicada} other {# notícias publicadas}} por veículos jornalísticos, listadas abaixo. Nenhum trecho foi apurado pelo Newra News.",
@@ -280,7 +286,6 @@
     "closeMenu": "Fechar menu",
     "favorites": "Salvos",
     "home": "Home",
-    "metrics": "Métricas",
     "news": "Notícias",
     "openMenu": "Abrir menu",
     "secondary": "Navegação secundária",

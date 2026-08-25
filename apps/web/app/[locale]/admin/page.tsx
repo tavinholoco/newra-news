@@ -1,12 +1,15 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AdminPanel } from '@/components/admin/admin-panel';
-import { Link } from '@/i18n/navigation';
-import { BarChart3 } from 'lucide-react';
 import { alternatesFor } from '@/lib/seo';
 
 // Sessão + role ADMIN são verificados no layout do segmento (admin/layout.tsx),
-// que também declara `dynamic = 'force-dynamic'`.
+// que também declara `dynamic = 'force-dynamic'` e monta a casca — contêiner e
+// faixa de abas. Esta página desenha só o conteúdo da aba.
+//
+// **O link para as métricas saiu daqui.** Ele morava no canto superior direito
+// do título, e virou aba: um caminho só para a mesma tela, no mesmo lugar em
+// que a próxima vai estar.
 
 interface Props {
   params: { locale: string };
@@ -29,23 +32,14 @@ export default async function AdminPage({ params }: Props) {
   setRequestLocale(locale);
 
   const t = await getTranslations('admin');
-  const tNav = await getTranslations('nav');
 
   return (
-    <div className='mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8'>
-      <div className='mb-6 flex flex-wrap items-center justify-between gap-4'>
-        <h1 className='font-display text-3xl font-bold text-foreground'>
-          {t('title')}
-        </h1>
-        <Link
-          href='/admin/metrics'
-          className='inline-flex items-center gap-1.5 text-sm font-medium text-link transition-colors hover:text-link-hover'
-        >
-          <BarChart3 className='size-4' />
-          {tNav('metrics')}
-        </Link>
+    <>
+      <h1 className='font-display text-h2 font-bold text-ink'>{t('title')}</h1>
+      <p className='mt-2 text-ink-secondary'>{t('panelDescription')}</p>
+      <div className='mt-8'>
+        <AdminPanel />
       </div>
-      <AdminPanel />
-    </div>
+    </>
   );
 }

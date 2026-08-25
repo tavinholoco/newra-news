@@ -4,7 +4,11 @@ import type { EditorialStory, News } from '@newranews/types';
 import { Badge } from '@/components/ui/badge';
 import { Breadcrumb } from '@/components/editorial/breadcrumb';
 import type { BreadcrumbStep } from '@/lib/json-ld';
-import { ArticleBody } from '@/components/editorial/article-body';
+import {
+  ArticleBody,
+  hasReadableBody,
+  parseArticleBody,
+} from '@/components/editorial/article-body';
 import { ArticleHero } from '@/components/editorial/article-hero';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { RelatedStories } from '@/components/editorial/related-stories';
@@ -56,7 +60,31 @@ export async function NewsDetail({
   const tCategories = await getTranslations('categories');
   const tShell = await getTranslations('shell');
 
-  const readingTime = readingTimeFromText(news.content);
+  /**
+   * O corpo quando existe, o dek quando não — o mesmo par que o
+   * `editorial.mapper` da API usa para o card.
+   *
+   * **Só o `content` deixaria 40% das telas sem o dado**, agora que a ingestão
+   * devolve `null` para a matéria que veio só com resumo. O card continuaria
+   * mostrando "3 min" e a tela de leitura da mesma matéria, nada — dois números
+   * diferentes para a mesma coisa, o defeito que a pílula de contagem da Fase 4
+   * já custou uma vez.
+   */
+  const readingTime = readingTimeFromText(news.content || news.description);
+
+  /**
+   * **O rótulo "Trecho" só aparece quando há trecho.**
+   *
+   * Ter `content` não é ter corpo: a tela deduplica o parágrafo de abertura
+   * contra o dek exibido acima, e em 23,2% do acervo o que sobrava era nada —
+   * o rótulo em cima de uma caixa vazia. Perguntar aos blocos, e não ao campo,
+   * é o que faz a tela dizer a verdade: a ingestão da Fase 12 já devolve `null`
+   * nesse caso, mas a decisão de desenhar é de quem desenha.
+   */
+  const bodyBlocks = news.content
+    ? parseArticleBody(news.content, news.description)
+    : [];
+  const showExcerpt = hasReadableBody(bodyBlocks);
 
   // `article` e não `div`: veio da auditoria de leitor de tela da Fase 7.
   // A tela **é** um artigo, e não havia elemento nenhum dizendo isso — o
@@ -108,7 +136,7 @@ export async function NewsDetail({
       </div>
 
       <div className='mx-auto w-full max-w-narrow'>
-        {news.content ? (
+        {showExcerpt && news.content ? (
           <>
             <p className='text-overline uppercase tracking-wide text-ink-muted'>
               {t('excerptLabel')}

@@ -86,26 +86,38 @@ export function HeroStory({
         onClick={handleOpen}
         className='flex flex-col'
       >
-        <div className='relative overflow-hidden rounded-lg'>
-          <StoryImage
-            src={story.imageUrl}
-            alt={story.title}
-            // `62vw`, não `66vw`, e não é arredondamento: o hero ocupa 2 de 3
-            // colunas **menos** o gutter e um gap. Medido nas duas pontas da
-            // faixa fluida — 634 px de 1024 (61,97%) e 800 px de 1280
-            // (62,48%). Acima de 1280 o contêiner trava em `80rem` e a caixa
-            // não passa de 800 px: sem esse limite, `66vw` num monitor de
-            // 2560 px pediria 1.690 px de imagem para desenhar 790.
-            sizes='(max-width: 1024px) 100vw, (max-width: 1280px) 62vw, 800px'
-            priority
-            placeholderSize='lg'
-          />
-          <div className='absolute left-4 top-4'>
-            <Badge>{t(story.category)}</Badge>
+        {/* Sem foto não há moldura: o hero abre pela categoria e pela
+            manchete, que é como um jornal abre uma matéria sem foto. Ver a nota
+            no `story-card` — vale para um quarto do acervo. */}
+        {story.imageUrl ? (
+          <div className='relative overflow-hidden rounded-lg'>
+            <StoryImage
+              src={story.imageUrl}
+              alt={story.title}
+              // `62vw`, não `66vw`, e não é arredondamento: o hero ocupa 2 de 3
+              // colunas **menos** o gutter e um gap. Medido nas duas pontas da
+              // faixa fluida — 634 px de 1024 (61,97%) e 800 px de 1280
+              // (62,48%). Acima de 1280 o contêiner trava em `80rem` e a caixa
+              // não passa de 800 px: sem esse limite, `66vw` num monitor de
+              // 2560 px pediria 1.690 px de imagem para desenhar 790.
+              sizes='(max-width: 1024px) 100vw, (max-width: 1280px) 62vw, 800px'
+              priority
+              placeholderSize='lg'
+            />
+            <div className='absolute left-4 top-4'>
+              <Badge>{t(story.category)}</Badge>
+            </div>
           </div>
-        </div>
+        ) : (
+          <Badge className='self-start'>{t(story.category)}</Badge>
+        )}
 
-        <h2 className='mt-4 font-display text-h1 font-bold text-ink transition-colors duration-base group-hover:text-link'>
+        <h2
+          className={cn(
+            'font-display text-h1 font-bold text-ink transition-colors duration-base group-hover:text-link',
+            story.imageUrl ? 'mt-4' : 'mt-3',
+          )}
+        >
           {story.title}
         </h2>
 

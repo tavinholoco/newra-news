@@ -26,8 +26,10 @@ function makeSource(overrides: Partial<BriefingSource> = {}): BriefingSource {
 
 describe('parseArticleBody', () => {
   it('should turn a ### line into a heading block', () => {
+    // `###` sozinho vira `h2`: 39% dos briefings usam `###` sem nenhum `##`,
+    // e um `h3` ali abriria salto a partir do `h1` do título.
     expect(parseArticleBody('### Justiça e corrupção')).toEqual([
-      { kind: 'heading', text: 'Justiça e corrupção' },
+      { kind: 'heading', level: 2, text: 'Justiça e corrupção' },
     ]);
   });
 
@@ -38,7 +40,7 @@ describe('parseArticleBody', () => {
   it('should keep paragraphs in order', () => {
     expect(parseArticleBody('Abertura\n### Seção\nCorpo')).toEqual([
       { kind: 'paragraph', text: 'Abertura' },
-      { kind: 'heading', text: 'Seção' },
+      { kind: 'heading', level: 2, text: 'Seção' },
       { kind: 'paragraph', text: 'Corpo' },
     ]);
   });
@@ -52,18 +54,58 @@ describe('parseArticleBody', () => {
 O mercado abriu.`, lede);
 
     expect(blocks).toEqual([
-      { kind: 'heading', text: 'Economia' },
+      { kind: 'heading', level: 2, text: 'Economia' },
       { kind: 'paragraph', text: 'O mercado abriu.' },
     ]);
   });
 
-  it('should keep the opening when it merely starts like the dek', () => {
+  it('should keep the opening when the dek stops mid-sentence', () => {
     // Recorte parcial não é repetição: cortar aqui comeria texto que o leitor
-    // ainda não viu.
+    // ainda não viu, e a matéria abriria por "com um panorama complexo".
     const lede = 'A sexta-feira se desenha';
     const blocks = parseArticleBody(`${lede} com um panorama complexo.`, lede);
 
     expect(blocks).toHaveLength(1);
+  });
+
+  it('should drop a dek that is a whole-sentence prefix of the body', () => {
+    // O formato do Valor: a matéria inteira num parágrafo só. A ingestão corta
+    // o dek no último fim de frase que cabe em 320 caracteres, então o corpo
+    // **começa** com ele em vez de repeti-lo como linha — e a comparação por
+    // igualdade não via nada. A tela mostrava as mesmas frases duas vezes.
+    const lede = 'O preço do minério de ferro fechou em leve queda na China.';
+    const blocks = parseArticleBody(
+      `${lede} O movimento acompanhou o recuo dos contratos futuros em Dalian.`,
+      lede,
+    );
+
+    expect(blocks).toEqual([
+      {
+        kind: 'paragraph',
+        text: 'O movimento acompanhou o recuo dos contratos futuros em Dalian.',
+      },
+    ]);
+  });
+
+  it('should strip markup that survived the ingestion', () => {
+    // A limpeza é da etapa 8.5, que roda uma vez por dia. Esta linha cobre a
+    // janela até ela — e o React escapa o que recebe, então uma tag que passe
+    // aparece na tela como texto, `srcset` e tudo.
+    const blocks = parseArticleBody(
+      '<p><img src="https://x.com/a.jpg" srcset="https://x.com/b.jpg 1080w" />O corpo da matéria.</p>',
+    );
+
+    expect(blocks).toEqual([
+      { kind: 'paragraph', text: 'O corpo da matéria.' },
+    ]);
+  });
+
+  it('should produce no blocks when the body was only markup', () => {
+    // É o que faz a `/news/[id]` esconder o rótulo "Trecho" em vez de desenhá-lo
+    // sobre uma caixa vazia.
+    expect(parseArticleBody('<p><img src="https://x.com/a.jpg" /></p>')).toEqual(
+      [],
+    );
   });
 
   it('should keep the opening when there is no dek to compare against', () => {
@@ -73,7 +115,7 @@ O mercado abriu.`, lede);
 
   it('should never drop a heading, even if the dek somehow matches it', () => {
     const blocks = parseArticleBody('### Economia\nCorpo.', 'Economia');
-    expect(blocks[0]).toEqual({ kind: 'heading', text: 'Economia' });
+    expect(blocks[0]).toEqual({ kind: 'heading', level: 2, text: 'Economia' });
   });
 
   it('should not treat a mid-sentence hash as a heading', () => {

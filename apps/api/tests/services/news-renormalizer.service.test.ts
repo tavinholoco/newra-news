@@ -29,6 +29,11 @@ interface Row {
   id: string;
   title: string;
   description: string;
+  // Os dois entraram no `select` na Fase 12. **A fixture precisa trazê-los
+  // explicitamente nulos**, e não ausentes: a comparação do job é `!==`, e
+  // `null !== undefined` faria toda linha parecer alterada.
+  content: string | null;
+  imageUrl: string | null;
   source: string;
   category: Category;
 }
@@ -38,6 +43,8 @@ function row(overrides: Partial<Row> = {}): Row {
     id: '11111111-1111-1111-1111-111111111111',
     title: 'Notícia qualquer',
     description: 'Um corpo de texto sem palavra-chave nenhuma.',
+    content: null,
+    imageUrl: null,
     source: 'G1',
     category: Category.WORLD,
     ...overrides,
@@ -76,16 +83,37 @@ describe('renormalizeStoredNews', () => {
     expect(mockTransaction).not.toHaveBeenCalled();
   });
 
-  it('should scope the query to the classifier-owned sources', async () => {
+  it('should scan every source, not just the classifier-owned ones', async () => {
+    // **Mudou na Fase 12, e por medição.** O filtro antigo era o das fontes do
+    // classificador, e existia para proteger a categoria — mas o HTML cru no
+    // corpo estava concentrado justamente nas de categoria fixa (InfoMoney,
+    // Olhar Digital e Drauzio Varella com 100% do corpo em HTML). Varrer só as
+    // genéricas deixava de fora quase todo o defeito. O recorte de categoria
+    // continua existindo, dentro do laço.
     mockFindMany.mockResolvedValue([]);
 
     await renormalizeStoredNews();
 
     expect(mockFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { source: { in: CLASSIFIER_OWNED_SOURCES } },
-      }),
+      expect.objectContaining({ where: {} }),
     );
+  });
+
+  it('should never reclassify a source with a fixed category, even when scanning it', async () => {
+    mockFindMany.mockResolvedValue([
+      row({
+        source: 'InfoMoney',
+        title: 'A família usou as redes sociais',
+        description: 'A família usou as redes sociais para pedir ajuda.',
+        category: Category.ECONOMY,
+      }),
+    ]);
+
+    const report = await renormalizeStoredNews({ dryRun: false });
+
+    expect(CLASSIFIER_OWNED_SOURCES).not.toContain('InfoMoney');
+    expect(report.categoryChanged).toBe(0);
+    expect(report.categorySkipped).toBe(0);
   });
 
   it('should honour an explicit source override', async () => {
@@ -98,15 +126,13 @@ describe('renormalizeStoredNews', () => {
     );
   });
 
-  it('should fall back to the default scope when sources is empty', async () => {
+  it('should fall back to scanning everything when sources is empty', async () => {
     mockFindMany.mockResolvedValue([]);
 
     await renormalizeStoredNews({ sources: [] });
 
     expect(mockFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { source: { in: CLASSIFIER_OWNED_SOURCES } },
-      }),
+      expect.objectContaining({ where: {} }),
     );
   });
 

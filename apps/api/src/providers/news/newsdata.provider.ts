@@ -1,7 +1,13 @@
 import { Category } from '@newranews/database';
 import { env } from '../../config/env';
 import { decodeEntities } from '../ai/ai-utils';
-import { sanitizeDescription, sanitizeTitle } from './feed-text';
+import {
+  extractImageFromHtml,
+  sanitizeContent,
+  sanitizeDescription,
+  sanitizeTitle,
+  splitDekAndBody,
+} from './feed-text';
 import type { RawNewsItem } from '../types';
 
 const API_URL = 'https://newsdata.io/api/1/news';
@@ -85,13 +91,22 @@ async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
     )
     .map((article): RawNewsItem => {
       const title = sanitizeTitle(decodeEntities(article.title));
+      // O texto inteiro, sem teto: `splitDekAndBody` decide quanto dele é
+      // subtítulo e quanto é corpo. Mesma higiene do provider de RSS.
+      const fullText = sanitizeDescription(
+        decodeEntities(article.description),
+        title,
+      );
+      const excerpt =
+        article.content && !PAID_CONTENT_PLACEHOLDER.test(article.content)
+          ? sanitizeContent(article.content, fullText)
+          : null;
+      const { dek, body } = splitDekAndBody(fullText, excerpt);
+
       return {
       title,
-      description: sanitizeDescription(decodeEntities(article.description), title),
-      content:
-        article.content && !PAID_CONTENT_PLACEHOLDER.test(article.content)
-          ? decodeEntities(article.content)
-          : null,
+      description: dek,
+      content: body,
       // `decodeEntities` também aqui: o acervo tem "Jornal Do Com&eacute;rcio"
       // porque só título e descrição eram decodificados, e o nome do veículo
       // aparece cru no crédito de toda matéria dessa fonte.
@@ -102,7 +117,9 @@ async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
         article.source_name || article.source_id || 'Unknown source',
       ),
       sourceUrl: article.link,
-      imageUrl: article.image_url,
+      // A NewsData declara `image_url`; quando ela vem vazia, o corpo ainda
+      // pode trazer uma — o mesmo caminho que recupera a foto da InfoMoney.
+      imageUrl: article.image_url ?? extractImageFromHtml(article.content),
       category,
       publishedAt: new Date(article.pubDate),
       };

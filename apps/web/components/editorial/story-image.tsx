@@ -37,10 +37,25 @@ const PLACEHOLDER_TEXT: Record<
 /**
  * A caixa de imagem de uma matéria, com o placeholder de marca embutido.
  *
- * Existe porque cerca de 30% do acervo não tem imagem — limitação conhecida
- * dos feeds RSS, registrada nos contratos (§3). Sem um lugar só para essa
- * decisão, cada card reescreve o mesmo IIFE com o mesmo gradiente e o mesmo
- * "N", que foi o que aconteceu na V1.
+ * Existe para que a decisão de fallback more num lugar só — sem ele, cada card
+ * reescreve o mesmo IIFE com o mesmo gradiente e o mesmo "N", que foi o que
+ * aconteceu na V1.
+ *
+ * **O placeholder mudou de papel na Fase 12, e o `src` nulo quase não chega
+ * mais aqui.** Ele nasceu para cobrir o acervo sem foto — cerca de 30%,
+ * registrado nos contratos (§3) e medido em 25,5% agora que a ingestão
+ * recupera a imagem escondida no corpo. Só que anunciar ausência de foto com um
+ * retângulo laranja e um "N", repetido a cada quatro células da grade, gasta o
+ * elemento mais pesado da composição para não dizer nada. Quem não tem foto
+ * agora é **card de texto**, e nem chama este componente.
+ *
+ * O que sobra para o placeholder é o caso em que ele sempre foi certo: a foto
+ * que **existe e não carrega** — host fora do ar, imagem removida pelo veículo,
+ * `next/image` recusando o domínio. Aí a caixa já ocupa espaço no layout e
+ * sumir com ela seria salto; o `fallback` do `SafeImage` a preenche.
+ *
+ * O ramo de `src` nulo continua aqui porque o componente é público e nada
+ * impede um uso novo de passar nulo — mas nenhum card do produto passa.
  */
 export function StoryImage({
   src,
