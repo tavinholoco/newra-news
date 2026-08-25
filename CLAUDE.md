@@ -160,63 +160,78 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- **Onde estamos:** V2.0 com as **Fases 0 a 11 concluídas**. A **Fase 12
+- **Onde estamos:** V2.0 com as **Fases 0 a 12 concluídas**. A **Fase 13
   (ajustes finos e release final)** é a próxima e pode abrir — ela dependia da
-  11, que fechou. §28 do plano.
-- **Última entrega (2026-08-24):** a **Fase 11 (integração geral)**, com os oito
-  eixos da §28 fechados — menos um item que depende de credencial de produção e
-  passou para a 12.2. **Quinze achados, e o padrão é o mesmo: nenhum tem sintoma
-  de erro** — mais três medições que derrubaram suposições do próprio plano,
-  inclusive a de que a API está hibernando (não está: `uptime` contínuo por 17
-  min sem tráfego, primeira resposta em 0,29 s). O de maior alcance estava escrito à vista de todos: **`revalidate =
-  3600` nas duas telas de leitura não fazia nada** — rota com segmento dinâmico
-  e sem `generateStaticParams` é `ƒ` no build, renderizada a cada requisição, e
-  a `/news/[id]` respondia `x-vercel-cache: MISS` nas três tentativas enquanto a
-  Home respondia `HIT` ao lado. Junto: **nenhuma chamada `fetch` do web tinha
-  prazo**, com a API hibernando; **três rotas de admin com a sua própria cópia
-  do proxy**, já divergentes; **a sessão apontando para um usuário que a API não
-  conhece** quando o upsert falhava; **o balde de ingestão de eventos é um só
-  para todos os leitores** (45 requisições em 12 s → 35 × 429); e **um log
-  guardando e-mail de assinante** que ninguém lê, que o cleanup não expurga e
-  que sobrevive ao cancelamento. **O smoke E2E existe pela primeira vez** — 29
-  specs contra produção — e a primeira execução reprovou três, corretamente:
-  anônimo em rota de conta respondia **200 com `<meta refresh>` de 1 segundo**,
-  não 307. **1.250 testes em 111 suítes → 1.314 em 122.** Detalhe no item **36**
-  do `docs/progress.md`.
+  12, que fechou. §28 do plano.
+
+  > **A numeração mudou em 25/08.** A antiga Fase 12 (release) virou a **13**, e
+  > a **12** passou a ser o *refinamento visual e de leitura*. Ela entrou porque
+  > as três revisões olharam **camadas** — servidor, navegador, costura — e
+  > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
+  > finais".
+- **Última entrega (2026-08-25):** a **Fase 12 (refinamento visual e de
+  leitura)**, com os sete eixos fechados. **Sete achados, e o padrão é novo: são
+  todos visíveis e nenhum tem sintoma de código** — build, 1.314 testes,
+  Lighthouse e smoke passavam por cima de todos. O de maior alcance era o
+  **texto que vem do feed**: **63,7% do acervo com tag HTML no corpo**, metade
+  abrindo com um `<img>` impresso como texto, e o campo de subtítulo guardando a
+  matéria inteira (**mediana de 594 caracteres, máximo de 33.073**). Junto:
+  **as abas de `/account` desenhadas umas sobre as outras**, por colisão entre
+  o token `--spacing-block` e a utility `inline-block` do Tailwind; **`/admin`
+  sem link nenhum em tela ≥ 768 px** desde o masthead da Fase 3; **o rótulo
+  "Trecho" sobre uma caixa vazia em 23,2%**; a palavra **`null` como subtítulo
+  em 158 notícias**; **`**asteriscos**` no meio da frase em 60% dos briefings**;
+  e **um retângulo laranja com um "N" em 25,5% das células da grade**.
+
+  **A lição de fluxo foi a primeira versão da higiene de texto**, que teria
+  descartado **5.635 corpos** — máximo de 33.073 caracteres — por confundir "o
+  corpo repete o dek" com "os dois campos guardam a mesma matéria". Só um ensaio
+  contra produção pegou; um teste de unidade sobre caso inventado passaria nas
+  duas versões. **1.314 testes em 122 suítes → 1.391 em 126.** Detalhe no item
+  **38** do `docs/progress.md`.
+
+- **Entrega anterior (2026-08-24):** a **Fase 11 (integração geral)** — quinze
+  achados, o smoke E2E estreando com 29 specs contra produção, e o
+  `revalidate = 3600` que não fazia nada nas duas telas de leitura. Item **36**.
 
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.314 em 122 suites (**756 API em 59** + **558 web em 63** — todos
+- **Testes:** 1.391 em 126 suites (**791 API em 60** + **600 web em 66** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura: API
   **98,72% stmts · 93,30% branch · 99,46% funcs**; web **72,50% stmts · 89,25%
   branch · 71,42% funcs** — com piso de 70% no CI desde a Fase 10, que antes
   media só a API.
 
-### Por onde começar a Fase 12 (Ajustes finos e release final)
+### Por onde começar a Fase 13 (Ajustes finos e release final)
 
-**As Fases 9, 10 e 11 estão fechadas.** Leia os itens **34**, **35** e **36** do
-`docs/progress.md` — a 12 é o fechamento, e cada um dos três registra o que
-deixou pendente para ela.
+**As Fases 9, 10, 11 e 12 estão fechadas.** Leia os itens **34**, **35**, **36**
+e **38** do `docs/progress.md` — a 13 é o fechamento, e cada um dos quatro
+registra o que deixou pendente para ela.
 
-**O plano das quatro fases finais está na §28.** Antes de abrir a 12, leia de lá
+**O plano das cinco fases finais está na §28.** Antes de abrir a 13, leia de lá
 as mesmas três coisas que as outras leram:
 
 - **"Anatomia de uma fase de revisão"** — **todo achado sai como correção
   mergeada, guarda no CI, ou dívida com gatilho numérico**. Nunca como item de
   lista. E a fase abre com inventário fechado, senão não tem critério de parada.
 - **"A camada de segurança e testes"** — os eixos **`S`** e **`T`** são
-  obrigatórios e **não são adiáveis**. Na 12 eles mudam de natureza: `S` é **o
+  obrigatórios e **não são adiáveis**. Na 13 eles mudam de natureza: `S` é **o
   gate** (o que precisa estar verde para publicar) e `T` **não escreve teste
   novo** — exige a suíte inteira verde e que o gate reprove quando deve.
-- **A seção da Fase 12**, e só ela. Cada fase tem inventário próprio.
+- **A seção da Fase 13**, e só ela. Cada fase tem inventário próprio.
 
-**A 12 não caça vulnerabilidade** — isso foi trabalho das três anteriores. Ela
+**A 13 não caça vulnerabilidade** — isso foi trabalho das três revisões. Ela
 decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e da
 §26, e publica.
 
-**A dívida das fases 0–11 que a 12 herda, levantada na auditoria de fechamento
+> **A baseline visual mudou de tela na Fase 12**, e isso é escopo direto da
+> **13.5**: as 51 capturas de `docs/v2/baseline-v2/` são de antes do card de
+> texto, do briefing renderizado e do painel com abas. Recapturar é obrigatório
+> antes de a §31 ser fechada — e o mesmo vale para os screenshots do README.
+
+**A dívida das fases 0–12 que a 13 herda, levantada na auditoria de fechamento
 (item 37) — nenhuma delas é escopo novo, todas são coisa que ficou para trás:**
 
 - **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam as nove da
@@ -236,7 +251,7 @@ decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e d
 produção; `docs/api.md` guardado contra deriva; 9 rotas públicas e 6 de metadata
 em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
 
-**O que a 11 deixou explicitamente para a 12**, e é bom não redescobrir:
+**O que a 11 deixou explicitamente para a 13**, e é bom não redescobrir:
 
 - **A primeira leitura honesta da tela de métricas** é o único item da 11 que não
   fechou: exige credencial de admin de produção. Tudo que a prepara está feito —
@@ -248,7 +263,7 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
   quatro segredos serem configurados — e o pulo é impresso pelo workflow. Ligá-los
   põe o `NEXTAUTH_SECRET` de produção no runner do CI; a decisão é de quem é dono
   do segredo. `apps/web/e2e/support/session.ts` documenta.
-- **Rollback pós-deploy** (§12.6). O smoke falha e avisa; reverter sozinho exige
+- **Rollback pós-deploy** (§13.6). O smoke falha e avisa; reverter sozinho exige
   distinguir "o deploy quebrou" de "a API estava dormindo", e este projeto já
   cometeu o erro oposto com o gate do Lighthouse medindo cold start.
 - **A `fastify@5`** e as três advisories que esperam a major (item 34).
@@ -264,7 +279,7 @@ aninhado responde **200**; quem segura o estrago é o `noindex` no caminho de
 falta, e essa linha tem guarda) e o **meta refresh do `redirect()`** — que é da
 mesma família e a 11 cobriu no caso comum, pelo middleware.
 
-**O que a 11 deixou pronto e a 12 pode aproveitar:** o smoke E2E, que passa a ser
+**O que a 11 deixou pronto e a 13 pode aproveitar:** o smoke E2E, que passa a ser
 parte do ritual de fechar fase; e seis guardas exaustivas novas — resposta de
 rota ⇒ contrato de tipo declarado, `fetch` ⇒ prazo declarado, página com
 `revalidate` ⇒ jeito de ser guardada, evento do catálogo ⇒ call site, variável do
@@ -272,6 +287,38 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 
 ### Armadilhas que já custaram caro
 
+- **Token do `@theme` gera utility, e a utility pode ter o nome de outra.** No
+  Tailwind v4 um `--spacing-<nome>` não gera só `p-<nome>` e `gap-<nome>`: gera
+  o eixo de espaço inteiro, e `inline-<valor>` ali é `inline-size`. Com
+  `--spacing-block` declarado, a folha ganha **dois** `.inline-block` — o de
+  display e o do token — na mesma especificidade, e vence o último. As quatro
+  abas de `/account` mediam **33 px** (`clamp(1.5rem, 1.25rem + 1vw, 2.5rem)` a
+  1280 px = 32,80 px) com o texto vazando por cima do vizinho. **Nada avisa:** a
+  classe existe, o `display` é aplicado, e a largura vem de outro lugar. Guarda
+  derivada dos tokens em `tests/lib/design-tokens.test.ts`.
+- **Link que depende de sessão precisa estar nas duas cascas, e nada obriga.** O
+  masthead de três linhas partiu a `Navbar` responsiva da V1 em `Masthead`
+  (lista estática) e `MobileNav` (com sessão); os links de sessão foram só para
+  o segundo, e `/admin` ficou **sem link em qualquer tela ≥ 768 px** por nove
+  fases. A rota respondia 200 e a suíte estava verde — o único jeito de achar
+  era procurar o link e não encontrar. Hoje a lista é uma só
+  (`sessionNavLinks`, em `lib/nav.ts`) e há guarda de paridade.
+- **`description` é subtítulo e `content` é corpo — mas o feed não sabe disso.**
+  Metade do acervo chega com **a matéria inteira nos dois campos** (G1, Folha,
+  Valor, BBC, Trivela) e a outra parte com **a mesma frase única nos dois**
+  (TechCrunch). Tratar "corpo igual ao dek" como corpo redundante descartaria
+  **5.635 corpos**, o maior deles com 33.073 caracteres. Quem separa é
+  `splitDekAndBody` (`providers/news/feed-text.ts`): texto longo repetido vira
+  **corpo**, e o dek passa a ser a abertura dele. **Correção de dado se ensaia
+  contra produção antes de mergear** — um teste de unidade sobre caso inventado
+  passa nas duas versões.
+- **O que a IA escreve muda, e a nota que descreve isso envelhece em silêncio.**
+  O `article-body` dizia, por escrito e com razão, que o briefing só usava
+  `###`. Meses depois: **60% com `**negrito**`, 20% com `---`, 8% com listas, e
+  29% misturando `##` com `###`** — tudo aparecendo como caractere na tela.
+  Medição sobre saída de modelo tem prazo de validade; ao ler uma dessas notas,
+  reconte antes de confiar. O prompt agora fixa um subconjunto fechado, e a
+  época dele é `v2` justamente para marcar isso.
 - **`revalidate` só significa alguma coisa onde a rota é guardada.** Rota com
   segmento dinâmico e **sem `generateStaticParams`** é marcada `ƒ` no build —
   renderizada a cada requisição —, e o `export const revalidate` do arquivo
@@ -504,7 +551,7 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   cada uma responde a sua — por isso a resposta traz `since` e `uptimeSeconds`.
   **Gatilho para persistir:** mais de uma instância no Render, ou a primeira
   pergunta que exija comparar duas semanas.
-- **Três advisories da `fastify@4` esperam a major**, que é dívida da Fase 12. A
+- **Três advisories da `fastify@4` esperam a major**, que é dívida da Fase 13. A
   única **high** alcançável (bypass de validação por `content-type` com tab)
   está mitigada na porta, com guarda em
   `apps/api/tests/security/content-type-bypass.test.ts`. As outras três de
@@ -515,9 +562,9 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 36 — e as quatro fases finais são **34** (backend review), **35**
-  (frontend review) e **36** (integração). É lá que mora o detalhe — este bloco
-  é orientação, não changelog.
+  itens 11 a 38 — e as fases finais são **34** (backend review), **35**
+  (frontend review), **36** (integração) e **38** (refinamento visual e de
+  leitura). É lá que mora o detalhe — este bloco é orientação, não changelog.
 - **Plano de ação e próximos itens:** `docs/progress.md`, seção "Plano de Ação".
 - **Decisões de design da V2:** `docs/v2/` (tokens, sitemap, contratos,
   analytics e slots) e o plano `docs/Newra-News-V2-Frontend-Redesign-Plan.md`.

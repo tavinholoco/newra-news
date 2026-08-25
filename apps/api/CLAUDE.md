@@ -128,7 +128,8 @@ escreve nada.
 
 ## Ingestão: higiene de texto e categoria
 
-Duas regras que não são óbvias no código e custaram uma Home errada em produção:
+Regras que não são óbvias no código, e que custaram uma Home errada em produção
+e meio acervo com HTML na tela:
 
 - **O texto do feed é limpo na entrada, em `providers/news/feed-text.ts`.** O
   que chega em `title`/`description` não é o que os nomes sugerem: título com
@@ -136,6 +137,31 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
   o crédito da foto, e só então o corpo. Limpar na ingestão é o único lugar
   onde se conserta uma vez — o campo alimenta o `dek` do contrato editorial, o
   resumo dos cards e o texto que o classificador lê.
+- **O `content` também passa por lá desde a Fase 12, e antes não passava por
+  nada.** Medido contra as 6.669 linhas de produção em 25/08: **63,7% com tag
+  HTML**, **51,9% abrindo com um `<img>`** que a tela imprimia como texto, 5,5%
+  terminando no rodapé de WordPress, 7,3% com o aviso de paywall do Valor, e
+  **158 linhas — a ESPN inteira — com a palavra `null`**. `htmlToText` preserva
+  o parágrafo (achatar tudo entrega um bloco de três mil caracteres);
+  `stripPublisherBoilerplate` tira só o que o CMS injeta, nunca "leia mais", que
+  é texto de repórter.
+- **`description` é subtítulo e `content` é corpo — e o feed não sabe disso.**
+  Metade do acervo manda **a matéria inteira nos dois campos** (G1, Folha,
+  Valor, BBC, Trivela) e outra parte manda **a mesma frase única nos dois**
+  (TechCrunch). O dek tinha **mediana de 594 caracteres e máximo de 33.073**.
+  Quem separa é `splitDekAndBody`: texto longo repetido vira **corpo**, o dek
+  vira a abertura dele (teto de 320, cortado em fronteira de parágrafo ou de
+  frase), e `content: null` passa a significar "não há corpo além do subtítulo"
+  — o que vale para 40% do acervo e a tela sabe desenhar.
+- **Tratar "corpo igual ao dek" como corpo redundante descartaria 5.635
+  matérias.** Foi a primeira versão da correção, e só um ensaio contra produção
+  a pegou: o maior texto descartado tinha 33.073 caracteres. **Correção de dado
+  se ensaia contra o acervo real antes de mergear** — teste de unidade sobre
+  caso inventado passa nas duas versões.
+- **O classificador lê o texto inteiro, nunca o dek recortado.** O piso de 5
+  palavras distintas foi calibrado contra o corpo; alimentá-lo com 320
+  caracteres mudaria a categoria de metade do acervo sem que nada acusasse. No
+  renormalizador isso é `body ?? dek`, que é o texto inteiro nas duas passadas.
 - **Palavra-chave de categoria tem de dizer do que a matéria _trata_, não como
   ela foi apurada.** `redes sociais`, `celular`, `internet`, `programacao`
   (grade de atrações!), `empresa`, `fundo`, `clube` e `ia` (`ia` casa o
@@ -157,9 +183,14 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
   de 3, dava 54%). A hipótese do "lide" — ler só os primeiros 600–800
   caracteres — foi medida e **perdeu**. Passar de 67% pede classificação por IA,
   não mais ajuste de piso.
-- **O recorte é `CLASSIFIER_OWNED_SOURCES`**, derivado das fontes sem
-  `category` fixa em `rss-sources.ts`. Fonte com categoria fixa teve a
-  categoria escolhida pela configuração; recalcular ali destrói dado correto.
+- **Há dois recortes no renormalizador, e não são o mesmo.** A **varredura** é
+  o acervo inteiro desde a Fase 12; a **reclassificação** continua restrita a
+  `CLASSIFIER_OWNED_SOURCES`, derivado das fontes sem `category` fixa em
+  `rss-sources.ts`. Fonte com categoria fixa teve a categoria escolhida pela
+  configuração; recalcular ali destrói dado correto. O filtro antigo valia para
+  a varredura inteira, e o HTML cru estava justamente nas fontes de categoria
+  fixa que ele excluía — InfoMoney, Olhar Digital e Drauzio Varella com **100%
+  do corpo em HTML**.
 - **Tirar rótulo é seguro; pôr rótulo, não.** Medido contra as 3.688 linhas do
   acervo de produção: 320 demoções (rótulo → `WORLD`), todas certas na amostra,
   e 1.240 promoções, erradas perto de metade das vezes — corpo de milhares de
@@ -177,7 +208,8 @@ Duas regras que não são óbvias no código e custaram uma Home errada em produ
 - **A normalização precisa ser ponto fixo.** `decodeEntities` decodifica até
   convergir (teto de 3 passadas) porque o acervo tem escape duplo
   (`&amp;eacute;`); enquanto parava na primeira, o job reescrevia as mesmas
-  linhas em toda execução.
+  linhas em toda execução. **A separação dek/corpo tem a mesma exigência**, e
+  foi verificada contra as 6.669 linhas: zero mudam na segunda passada.
 - **`WORLD` é o balde genérico, e é onde matéria de polícia e trânsito deve
   cair.** Não há categoria para esse gênero no enum, e forçá-lo em outra é
   exatamente o defeito que foi corrigido.

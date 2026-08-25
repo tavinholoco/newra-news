@@ -1746,13 +1746,22 @@ uma chave que nada gravava. O direito de oposição fica com **DNT e Global
 Privacy Control**, que é o mecanismo padrão para medição anônima de primeira
 parte. Um controle explícito de opt-out na interface é item em aberto.
 
-## As quatro fases finais — por que a Fase 9 virou quatro
+## As cinco fases finais — por que a Fase 9 virou cinco
 
 > **Reescrita em 23/08/2026.** A §28 fechava com uma fase só: "Fase 9 —
 > Release", oito itens de checklist. Ela virou **quatro**: **9 (backend
 > review)**, **10 (frontend review)**, **11 (integração geral)** e **12 (ajustes
 > finos e release final)**. Os oito itens originais não sumiram — foram
 > distribuídos, e cada um ganhou dono e critério de saída.
+>
+> **Emendada em 25/08/2026: são cinco.** Entre a 11 e o release entrou a **12
+> (refinamento visual e de leitura)**, e a de release passou a ser a **13**. O
+> motivo está escrito na seção dela, e resume-se a isto: as três revisões
+> olharam **camadas** — servidor, navegador, costura —, e nenhuma delas olhou
+> **uma tela com dado de produção dentro**. As abas de `/account` estavam
+> desenhadas umas sobre as outras, `/admin` não tinha link em desktop nenhum, e
+> 63,7% do acervo imprimia HTML como texto. Nada disso tem sintoma de código:
+> build, suíte, Lighthouse e smoke passavam por cima de todos.
 
 **Por que quatro e não uma.** Os oito itens da Fase 9 original eram todos de
 *verificação de saída*: regressão visual, QA mobile e desktop, Lighthouse,
@@ -1776,8 +1785,14 @@ medição de saída acha **o que a tela mostra, não o que o código faz**:
 seria achado por "regressão visual" ou "QA mobile". É essa a lacuna que as
 Fases 9, 10 e 11 fecham: revisão **por camada** — backend, frontend, e a costura
 entre os dois, que é onde mora o defeito que nenhum dos dois lados enxerga
-sozinho. A Fase 12 é o fechamento: critérios de aceite, dívida decidida,
-documentação e release.
+sozinho.
+
+**E a Fase 12 fecha a lacuna que sobrou, que é a inversa.** As três revisões
+por camada leem código; a 12 lê **tela**, com o acervo de produção dentro dela.
+Achou o que nenhuma das três podia achar — texto de terceiro renderizado como
+marcação, um campo de subtítulo guardando 33 mil caracteres, uma faixa de
+navegação colapsada por colisão de nome no CSS gerado. A Fase 13 é o
+fechamento: critérios de aceite, dívida decidida, documentação e release.
 
 ### Anatomia de uma fase de revisão
 
@@ -1807,9 +1822,9 @@ E uma regra de triagem, para o achado não virar discussão:
 `/api/favorites` e a agregação em memória da `/metrics/product` já estão escritas
 assim, com o número nomeado — é o padrão a seguir, não a exceção.
 
-### A camada de segurança e testes — obrigatória nas quatro
+### A camada de segurança e testes — obrigatória em todas
 
-**Cada uma das quatro fases carrega dois eixos que não são opcionais: `S`
+**Cada uma destas fases carrega dois eixos que não são opcionais: `S`
 (segurança) e `T` (testes e guardas).** Eles existem separados dos outros eixos
 por um motivo: são os dois que a pressa de fechar um projeto come primeiro, e
 são os dois cujo custo de omissão só aparece depois do release.
@@ -1837,12 +1852,15 @@ buraco:**
 | **9** | **o servidor** | entrada, autorização, segredo, dado em repouso, e o terceiro que escreve no produto (a IA) |
 | **10** | **o navegador** | cabeçalho de resposta, injeção no DOM, o que vaza no bundle, o que a página carrega de fora |
 | **11** | **a costura** | em quem cada metade confia, e por quê — sessão, token, CORS, ambiente |
-| **12** | **o gate** | o que precisa estar verde para publicar, e o que roda sozinho depois |
+| **12** | **o que a tela renderiza** | texto de terceiro virando marcação, e o que o modelo escreve chegando ao HTML |
+| **13** | **o gate** | o que precisa estar verde para publicar, e o que roda sozinho depois |
 
 E a de testes, na mesma lógica: a **9** e a **10** cuidam da própria camada
 (unidade, rota, componente, cobertura); a **11** entrega o que nenhuma das duas
-consegue — **o fluxo ponta a ponta**; a **12** não escreve teste novo, **exige
-que a suíte inteira esteja verde e que o gate reprove quando deve**.
+consegue — **o fluxo ponta a ponta**; a **12** cobre **o que a tela renderiza a
+partir de dado real**, que é a classe que passa por todas as outras; a **13** não
+escreve teste novo, **exige que a suíte inteira esteja verde e que o gate
+reprove quando deve**.
 
 > **A medição de cada fase é contra produção**, como manda o ritual do
 > `CLAUDE.md`. Revisão que só olha o repositório repete o erro que a auditoria da
@@ -1937,7 +1955,7 @@ duas semanas.
 
 **Advisories 21 → 6 em `apps/api`** (16 high → 3), por override de `fast-uri`,
 `brace-expansion` e `yaml`. Das seis restantes: três pedem `fastify@5` (dívida
-da Fase 12, com a high alcançável mitigada na porta), uma é HTTP/2 que a API não
+da Fase 13, com a high alcançável mitigada na porta), uma é HTTP/2 que a API não
 serve, e duas são do `@fastify/static`, que só a UI do Swagger arrastava — e ela
 deixou de ser registrada em produção. Aceite de risco escrito no item 34 do
 `docs/progress.md`.
@@ -2098,7 +2116,7 @@ a camada não podia medi-lo.
 
 A decisão desta fase é a mesma bifurcação: **medir ou riscar.** Medir é barato
 (um hook `onResponse` com rota, status e duração, e a etapa 9 agregando o dia);
-riscar é honesto. O que não pode é continuar na lista sem dono — a Fase 12 vai
+riscar é honesto. O que não pode é continuar na lista sem dono — a Fase 13 vai
 cobrar os dois números.
 
 ### 9.T Testes e guardas: 94% de cobertura não é a pergunta
@@ -2475,7 +2493,7 @@ e o `Cache-Control` editorial cobre **4** rotas (eram 5). O resto confere.
     -- 11.5 analytics ponta a ponta --
 [x] os 12 eventos: cada um chega ao banco? (cadeia provada, `accepted: 1`)
 [x] tipo instrumentado que nunca apareceu = call site morto
-[ ] a primeira leitura honesta da tela de métricas — **passa para a 12.2**
+[ ] a primeira leitura honesta da tela de métricas — **passa para a 13.2**
 
     -- 11.6 auth e sessão ponta a ponta --
 [x] sessão do next-auth × expiração do JWT × o que o usuário vê
@@ -2500,7 +2518,7 @@ e o `Cache-Control` editorial cobre **4** rotas (eram 5). O resto confere.
 > projeto e não do agente que conduziu a fase. Tudo que **prepara** essa leitura
 > foi feito e está registrado no item 36 do `docs/progress.md`: a cadeia de
 > ingestão provada ponta a ponta, o balde compartilhado medido, e o número que
-> diz quando a subcontagem começa. A leitura em si passa para a **12.2**, que já
+> diz quando a subcontagem começa. A leitura em si passa para a **13.2**, que já
 > é o eixo de "o que a §26 promete e ninguém mede".
 
 ### 11.1 O contrato de tipos: uma guarda existe, e só numa rota
@@ -2593,7 +2611,7 @@ Duas decisões de desenho, e elas importam mais que a lista:
    pós-deploy**: é o que teria achado a `/news` com as oito categorias zeradas.
 2. **O que ele faz ao reprovar.** Smoke que falha e não avisa ninguém é o gate
    de segunda 09:00 outra vez. Falhar o workflow é o mínimo; o passo seguinte é
-   decidir se reprovação pós-deploy dispara rollback (§12.6).
+   decidir se reprovação pós-deploy dispara rollback (§13.6).
 
 Os fluxos com login pedem uma conta de teste e um segredo — o mesmo tipo de
 decisão que o `JOB_SECRET` e o `CRON_SECRET` já resolveram.
@@ -2678,7 +2696,7 @@ Os outros três itens:
 - **Rotação do segredo compartilhado.** `AUTH_JWT_SECRET` é o mesmo nos dois
   serviços. Trocá-lo exige trocar nos dois **ao mesmo tempo**, e os dois deploys
   não terminam juntos — ou seja, há uma janela em que toda rota de conta
-  devolve 401. Isso precisa estar escrito no runbook da §12.6 antes de alguém
+  devolve 401. Isso precisa estar escrito no runbook da §13.6 antes de alguém
   precisar rodar às pressas.
 - **A rota de eventos continua anônima.** Ela existe sem sessão, sem JWT e sem
   cabeçalho de identificação **de propósito** — é a §4 dos slots. O risco não é
@@ -2709,7 +2727,281 @@ dá para ver as três concordando.
 > visual, e o smoke, que passa a ser parte dele.
 
 ---
-## Fase 12 — Ajustes finos e release final
+
+## Fase 12 — Refinamento visual e de leitura ✅ Concluída em 2026-08-25 — branch `refine/v2-visual-reading`
+
+**Objetivo:** consertar o que a pessoa que usa o site vê, e que nenhuma das
+três revisões viu — porque nenhuma delas olhou uma tela com dado de produção
+dentro.
+
+**Por que ela existe, e por que entre a 11 e a 13.** As Fases 9, 10 e 11
+revisaram **camadas**: o servidor, o navegador, a costura. Acharam 15, 14 e 15
+achados, e nenhum deles era isto:
+
+- as abas de `/account` desenhadas **umas por cima das outras**;
+- `/admin` sem link nenhum em tela de 768 px para cima;
+- a tag `<img>` inteira, `srcset` e tudo, impressa **como texto** no corpo da
+  matéria;
+- o rótulo "Trecho" sobre uma caixa vazia em 23% do acervo;
+- a palavra `null` como subtítulo em 158 notícias;
+- `**asteriscos**` no meio da frase em 60% dos briefings;
+- um retângulo laranja com um "N" a cada quatro células da grade.
+
+**Nenhum destes tem sintoma de código.** O build passa, a suíte passa, o
+Lighthouse passa, o smoke passa. Eles só aparecem para quem **abre a tela e
+lê** — e essa era a única revisão que faltava. A 13 continua sendo o
+fechamento; esta é a que torna o fechamento defensável.
+
+> **A regra da §28 vale igual aqui**, e foi seguida: todo achado saiu como
+> correção mergeada **ou** guarda no CI. Nenhum virou item de lista. Os dois
+> que viraram dívida têm gatilho numérico, e estão em "O que ficou em aberto".
+
+**Inventário fechado — sete eixos:**
+
+```text
+    -- 12.A a casca da conta --
+[x] as quatro abas de /account colapsadas em 33px, texto sobre texto
+[x] a causa: `--spacing-block` no @theme sombreia a utility de display
+[x] guarda derivada dos tokens, não escrita à mão
+
+    -- 12.B o alcance do painel --
+[x] /admin sem link em desktop desde o masthead de três linhas (Fase 3)
+[x] uma lista de sessão só, lida pelas duas cascas
+[x] guarda de paridade entre desktop e mobile
+
+    -- 12.C o painel como área --
+[x] métricas viram aba do painel, não destino solto atrás dele
+[x] contêiner e faixa no layout do segmento, como em /account
+[x] a chave órfã que o link de canto deixava para trás
+
+    -- 12.D o texto que vem do feed --
+[x] corpo cru: 63,7% com tag HTML, 51,9% abrindo com <img>
+[x] o dek guardando a matéria inteira (mediana 594, máximo 33.073)
+[x] rodapé do veículo, aviso de paywall, e a palavra "null"
+[x] a etapa 8.5 leva a correção às 6.669 linhas já gravadas
+[x] 107 fotos recuperadas de dentro do corpo HTML
+
+    -- 12.E a tela de leitura --
+[x] marcação impressa como texto
+[x] "Trecho" sem trecho
+[x] o dek repetido na abertura do corpo
+
+    -- 12.F o briefing gerado --
+[x] a sintaxe que o modelo escreve, medida nos 89 retidos
+[x] hierarquia de subtítulo achatada em h2
+[x] o prompt fixa um subconjunto, e a época sobe para v2
+
+    -- 12.G a notícia sem foto --
+[x] 1.703 (25,5%) sem imagem em lugar nenhum do feed
+[x] card de texto no lugar do placeholder de marca
+[x] o placeholder fica com o caso em que sempre foi certo
+```
+
+### 12.A A faixa da conta: a classe existia e não funcionava
+
+Os quatro links de `/account` mediam **33 px cada**, com o texto vazando da
+caixa e as abas escritas umas sobre as outras. A causa não estava no
+componente.
+
+No Tailwind v4, um `--spacing-<nome>` não gera só `p-<nome>` e `gap-<nome>`:
+gera o eixo de espaço inteiro, e `inline-<valor>` ali é `inline-size`. Com
+`--spacing-block` declarado no `@theme`, a folha passa a ter **dois**
+`.inline-block` — o de display, do core, e o de `inline-size`, derivado do
+token. Mesma especificidade, vence o que vem depois: o do token.
+`clamp(1.5rem, 1.25rem + 1vw, 2.5rem)` a 1280 px dá **32,80 px**, que é o
+número na tela.
+
+**Nada avisa.** A classe existe, o `display` é aplicado, e a largura vem de
+outro lugar. Provado medindo a mesma marcação com `style` inline em vez da
+classe: 119 px contra 33.
+
+A guarda **deriva dos tokens** em vez de listar nomes: acrescentar
+`--spacing-flex` amanhã põe `inline-flex` na lista sozinho — e esse é o caso
+que dói, porque `inline-flex` está em uso por todo o projeto, enquanto
+`inline-block` tinha um call site só.
+
+> **A primeira versão da guarda passou verde sobre o defeito.** Ela montava o
+> padrão numa template literal onde `\\s` tinha sido escrito como `\s`, que
+> não é classe de espaço — é a letra `s`. O padrão passou a exigir um `s`
+> colado no nome da classe. É a quarta vez que uma guarda estática deste
+> projeto falha por análise de texto, e a saída foi parar de montar regex:
+> ela parte a fonte em palavras, que não tem escape para errar.
+
+### 12.B O painel existia e não tinha porta
+
+`/admin` respondia 200, o menu do mobile a listava, e **nenhuma tela de 768 px
+para cima oferecia um link**. A V1 tinha uma `Navbar` responsiva só, que montava
+os links a partir da sessão — então eles apareciam nos dois tamanhos. O masthead
+de três linhas da §10 partiu aquela barra em `Masthead`, que lê a lista estática
+de `NAV_LINKS`, e `MobileNav`, que lê a sessão. **Os links de sessão foram só
+para o segundo.**
+
+Não havia sintoma: a rota funcionava, a suíte estava verde, e o único jeito de
+achar era procurar o link e não encontrar.
+
+`sessionNavLinks` passa a ser a lista única que as duas cascas leem, e o painel
+entra na **top-bar**, não na navegação secundária do masthead: a linha 1 é onde
+mora informação de sistema, e ADMIN não é editoria.
+
+A guarda compara as duas cascas contra a lista gerada — rota de sessão nova
+entra sozinha e reprova se cair em só um lado.
+
+### 12.C O painel vira área, e as métricas viram aba dele
+
+**As métricas sempre estiveram atrás do guard de admin** — `/admin/metrics`
+exige sessão com role ADMIN desde que a página se mudou para lá. O que elas não
+eram é **parte do painel**: a `/admin` tinha um link no canto superior direito
+do título, a `/admin/metrics` tinha uma seta de voltar, e as duas telas se
+citavam sem nunca formarem uma.
+
+Eram inclusive **dois contêineres diferentes** — `max-w-5xl` no painel,
+`max-w-7xl` nas métricas —, então a largura da página mudava ao trocar de tela.
+
+A faixa de abas vive no layout, ao lado do guard, pelo mesmo motivo que ele:
+tela nova de admin entra como aba e herda a casca, em vez de trazer o próprio
+`max-w-*` e o próprio link de canto. E ela só é renderizada **depois** do guard
+— oferecer as abas a quem não é ADMIN seria anunciar o que a pessoa não pode
+abrir.
+
+### 12.D O texto que vem do feed, medido nas 6.669 linhas
+
+Duas correções, e a segunda só ficou visível medindo a primeira.
+
+**O corpo nunca passou por higiene nenhuma.** Medido em produção em 25/08:
+
+| Defeito | Alcance | Como aparecia |
+|---|---|---|
+| tag HTML no corpo | **63,7%** | marcação impressa como texto |
+| corpo abrindo com `<img>` | **51,9%** | a tag inteira, `srcset` e tudo |
+| "Trecho" com corpo vazio | **23,2%** | o rótulo sobre uma caixa vazia |
+| aviso de paywall no texto | 7,3% | "Matéria exclusiva para assinantes." |
+| rodapé de WordPress | 5,5% | "The post … appeared first on …" |
+| a palavra `null` como texto | 158 linhas | a ESPN inteira |
+
+**E o dek não era um dek.** Mediana de **594 caracteres**, p90 de 5.613,
+**máximo de 33.073** — metade do acervo usava o campo de subtítulo para guardar
+a matéria inteira, e a tela de leitura imprime o dek num parágrafo **sem
+clamp**.
+
+> **A primeira versão da higiene teria destruído a matéria de metade do
+> acervo, e foi um número que a pegou.** A regra ingênua — "corpo igual ao dek
+> vira `null`" — descartava **5.635 corpos**, mediana de 1.080 caracteres,
+> máximo de 33.073. Ela estava certa sobre a TechCrunch, onde os dois campos
+> trazem a mesma frase única, e catastrófica sobre a G1, a Folha, o Valor, a
+> BBC e a Trivela, onde os dois trazem **a matéria inteira**.
+>
+> O erro era de premissa: quando os dois campos carregam o mesmo texto longo,
+> aquele texto é o **corpo**, e o dek é a abertura dele. Não havia corpo
+> repetido para descartar — havia uma matéria no campo errado.
+>
+> **É a lição de fluxo desta fase, e é a mesma da §28:** medir a correção
+> contra produção **antes** de mergear, não depois. Um teste de unidade sobre
+> um caso inventado teria passado nas duas versões.
+
+Depois: todos os defeitos em **zero**, dek com p50 111 e máximo 320, e duas
+propriedades verificadas contra o acervo inteiro em vez de argumentadas —
+**nada perde texto** (as 196 linhas que encolhem perdem só rodapé, paywall e
+tag) e **a passada é idempotente** (zero linhas mudam na segunda), que é o que
+a etapa 8.5 exige para rodar todo dia.
+
+A varredura da etapa 8.5 deixou de ser restrita às fontes do classificador: o
+filtro existia para proteger a **categoria**, e o HTML cru estava justamente nas
+fontes de categoria fixa que ele excluía. A reclassificação mantém o recorte
+antigo, dentro do laço.
+
+### 12.E A tela de leitura
+
+Três coisas, todas visíveis:
+
+- **imprimia marcação como texto.** O corpo é texto de terceiro e o React
+  escapa o que recebe. A ingestão limpa, mas a etapa 8.5 roda uma vez por dia —
+  a linha na tela cobre a janela até lá, e o dia em que um veículo novo
+  inventar um formato;
+- **rotulava um trecho que não existia.** Ter `content` não é ter corpo:
+  perguntar aos blocos, e não ao campo, é o que faz a tela dizer a verdade;
+- **mostrava o dek duas vezes.** Quando o feed manda a matéria num parágrafo
+  só, a ingestão corta o dek no último fim de frase que cabe, então o corpo
+  **começa** com ele — e a comparação por igualdade não via nada. O corte só
+  acontece quando o dek termina em fronteira de frase: um dek que para no meio
+  de uma oração é resumo, e tirá-lo deixaria a matéria abrindo por "com um
+  panorama complexo".
+
+### 12.F O briefing: a medição do renderizador tinha envelhecido
+
+O `article-body` carregava uma nota dizendo que o corpo de produção só usava
+`###`, sem negrito nem listas, e que trazer uma biblioteca de Markdown seria
+~40 kB no bundle da rota mais lida para cobrir sintaxe que a IA não produz.
+**O argumento estava certo. A medição tinha vencido.**
+
+Contados os 89 briefings retidos, em 25/08:
+
+| Sintaxe | Briefings | O que aparecia |
+|---|---|---|
+| `**negrito**` | **53 (60%)** | os asteriscos, no meio da frase |
+| `###` | 37 (42%) | subtítulo — funcionava |
+| `##` | 26 (29%) | subtítulo, **no mesmo nível do `###`** |
+| `---` | 18 (20%) | um parágrafo com três traços |
+| `- item` | 7 (8%) | um parágrafo começando por hífen |
+| `*ênfase*` | 3 (3%) | os asteriscos |
+
+Continua **não sendo** um renderizador de Markdown, e a lista do que ele
+entende continua **medida**: link, tabela, citação, código e lista numerada
+deram **zero** nos 89 e não são reconhecidos. Há teste afirmando isso.
+
+**O nível do heading passou a ser relativo**, mapeando as profundidades
+presentes para níveis consecutivos — por posição na lista, nunca por
+subtração. Um documento com `##` e `####` daria `h2` e `h4` na subtração, que é
+exatamente o salto que o `heading-order` reprova. O teste afirma a propriedade,
+não os casos.
+
+> **Foi a guarda de acessibilidade que avisou.** O `article-body` estava na
+> lista de componentes com nível fixo permitido, e saiu dela: ele fixava `h2`
+> em todo subtítulo justamente para não abrir salto a partir do `h1`, e pagava
+> por isso achatando a hierarquia.
+
+O prompt passou a fixar um subconjunto fechado em vez de pedir "Markdown", e a
+**época subiu para `v2`** — é exatamente a mudança conceitual de formato de
+saída que o campo foi documentado para marcar. O renderizador foi ensinado a
+ler **tudo o que os 89 já escreveram**, para os briefings retidos não ficarem
+para trás.
+
+**Verificado renderizando os 89 briefings de produção pelo componente:** 394
+`<strong>`, 12 `<ul>`, 56 `<hr>`, só `H2` e `H3` emitidos, nenhum nível
+pulado, e **zero caracteres de marcação chegando ao texto**.
+
+### 12.G A notícia sem foto
+
+**1.703 notícias (25,5% do acervo) não têm imagem em lugar nenhum do feed** — a
+Folha, a TechCrunch e a ESPN não mandam uma. As 107 que estavam escondidas
+dentro do corpo HTML a ingestão recuperou; o resto não existe.
+
+Elas recebiam a caixa de imagem com o placeholder de marca: um retângulo
+laranja com um "N", repetido a cada quatro células da grade, e de largura cheia
+entre a metadata e o texto na tela de leitura. **Anunciar ausência de foto gasta
+o elemento mais pesado da composição para não dizer nada.**
+
+O que entra não é "o mesmo card sem a imagem": a manchete sobe um degrau da
+escala e ganha uma linha antes de truncar, o dek ganha três, e um filete da cor
+da categoria segura a coluna. **Medido no navegador a 1280 px: a célula mantém
+exatamente a mesma altura das vizinhas com foto — 387 px** —, então o ritmo da
+grade fica intacto, que era a única coisa que o retângulo resolvia.
+
+Na tela de leitura, simplesmente não há imagem. Jornal com matéria sem foto não
+desenha uma moldura vazia; começa pelo texto.
+
+O placeholder não sumiu — **mudou de papel**. Fica com o caso em que sempre foi
+certo: a foto que **existe e não carrega**, onde a caixa já ocupa espaço no
+layout e sumir com ela seria salto.
+
+> **Saída da Fase 12.** As duas cascas consertadas e com guarda, o painel como
+> área, o texto do feed higienizado na entrada **e** no acervo já gravado, a
+> tela de leitura dizendo a verdade sobre o que tem para ler, o renderizador do
+> briefing alinhado ao que o modelo escreve, e a notícia sem foto com forma
+> própria. **1.314 testes → 1.391.** **Verificação:** o ritual completo —
+> Lighthouse por rota, baseline visual, e o smoke.
+
+---
+## Fase 13 — Ajustes finos e release final
 
 **Objetivo:** fechar. Não é mais revisão — é decidir cada coisa que ficou em
 aberto, provar cada critério que o plano prometeu, e publicar um release que
@@ -2721,7 +3013,7 @@ coisas. A 12 **não pode achar** — se ela achar defeito grande, ela não é a 
 o inventário é o dos documentos, não o do código.
 
 ```text
-    -- 12.1 os critérios de aceite --
+    -- 13.1 os critérios de aceite --
 [x] §31 Visual: os 7, **fechados na Fase 10.3** com evidência medida
 [ ] §31 UX: os 6, com evidência
 [ ] §31 Performance: os 5, com número — **o LCP já tem o dele e reprova**:
@@ -2729,12 +3021,12 @@ o inventário é o dos documentos, não o do código.
     e o critério pede < 2,5 s
 [ ] §31 Monetização: reescrever — 4 critérios falam de anúncio cancelado
 
-    -- 12.2 as métricas de sucesso --
+    -- 13.2 as métricas de sucesso --
 [ ] §26 Técnica: error rate, latência e cache hit rate — medir ou riscar
 [ ] §26 Produto: o que a tela de métricas já mostra, com a data da leitura
 [ ] §26 Monetização: marcar como adiada, conforme §21
 
-    -- 12.3 a dívida --
+    -- 13.3 a dívida --
 [ ] cada item de "O que ficou em aberto" com decisão: entra, fica ou morre
 [ ] os achados das Fases 9–11 que viraram dívida, com gatilho
 [ ] a data do agregado diário (~90 dias da ingestão: ~20/11/2026)
@@ -2744,7 +3036,7 @@ o inventário é o dos documentos, não o do código.
 [ ] **`GET /api/trending` etapa 2** — esperava a camada de analytics, que existe
     desde a Fase 8: o gatilho disparou e ninguém percebeu
 
-    -- 12.4 documentação de release --
+    -- 13.4 documentação de release --
 [ ] README: screenshots de 15/08 mostram **a V1**, redesenhada desde 20/08 — a
     matéria-prima já existe em `docs/v2/baseline-v2/` (51 capturas)
 [ ] **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam nove,
@@ -2754,35 +3046,35 @@ o inventário é o dos documentos, não o do código.
 [ ] docs/presentation.md — a peça de portfólio, de 16/08, descreve a V1
 [ ] CHANGELOG e a tag v2.0.0 (o repositório não tem nenhuma tag)
 
-    -- 12.5 o ritual final --
+    -- 13.5 o ritual final --
 [ ] Lighthouse por rota, contra produção quente
 [ ] baseline visual completa — e a decisão das larguras
 [ ] smoke E2E verde
 [ ] validação de SEO e leitura de analytics
 
-    -- 12.6 canary e rollback --
+    -- 13.6 canary e rollback --
 [ ] o runbook que não existe: o que fazer quando quebra às 3 da manhã
 [ ] promoção de preview na Vercel × build congelada no Render
 [ ] o que o smoke reprovado dispara
 
-    -- 12.7 o dia seguinte --
+    -- 13.7 o dia seguinte --
 [ ] o que roda sozinho depois do release, e quem olha
 
-    -- 12.S o gate de segurança do release (eixo obrigatório) --
+    -- 13.S o gate de segurança do release (eixo obrigatório) --
 [ ] os achados de 9.S, 10.S e 11.S: corrigidos ou com aceite escrito
 [ ] varredura de dependência — hoje não existe nenhuma
 [ ] gitleaks conferido contra o histórico, não só contra o PR
 [ ] segredos de produção: inventário, dono e rotação
 [ ] LGPD: a página que explica o que é medido e como se opor
 
-    -- 12.T a suíte no dia do release (eixo obrigatório) --
+    -- 13.T a suíte no dia do release (eixo obrigatório) --
 [ ] suíte inteira verde, sem cache, nos dois apps
 [ ] o gate reprova quando deve — provar com uma falha proposital
 [ ] smoke pós-deploy verde contra produção
 [ ] cobertura: os dois pisos no CI, não um
 ```
 
-### 12.1 Os critérios de aceite: 24 caixas, 7 fechadas, 4 obsoletas
+### 13.1 Os critérios de aceite: 24 caixas, 7 fechadas, 4 obsoletas
 
 A §31 tem 24 critérios e nenhum estava marcado depois de oito fases entregues.
 Isso não era desleixo: eles nunca tiveram dono, porque a fase que os fecharia era
@@ -2807,7 +3099,7 @@ removido, e avaliar um critério sobre algo que não existe é a mesma armadilha
 controle que não muda nada. O bloco vira o que sobrou de verdade: CTA de
 newsletter consistente, e espaço conceitual para o futuro que a §21 descreve.
 
-### 12.2 As métricas: três números prometidos que ninguém produz
+### 13.2 As métricas: três números prometidos que ninguém produz
 
 A §26 promete, como métrica **técnica** de sucesso: Lighthouse, Core Web Vitals,
 **error rate**, **API latency**, image transfer size e **cache hit rate**. Os
@@ -2820,7 +3112,7 @@ quando ficou claro que a camada não podia medi-lo, e a §26 hoje carrega o
 riscado à vista. Métrica que sobrevive à V2.0 sem produtor é promessa que o
 próximo leitor do documento vai cobrar.
 
-### 12.3 A dívida: cada item com decisão, e a data que já existe
+### 13.3 A dívida: cada item com decisão, e a data que já existe
 
 A lista de "O que ficou em aberto" do `CLAUDE.md` tem quatro itens, e as Fases
 9–11 vão acrescentar. Aqui cada um recebe veredito. Dois já têm gatilho escrito
@@ -2834,7 +3126,7 @@ e não precisam de discussão — só de registro:
   primeira parte. Um controle explícito continua sendo item em aberto desde a
   Fase 8, e merece decisão — não silêncio.
 
-### 12.4 A documentação ainda descreve a V1
+### 13.4 A documentação ainda descreve a V1
 
 O `README.md` é a porta do projeto, e ele **não passou pela V2**:
 
@@ -2853,7 +3145,7 @@ O resto é conferência: `docs/api.md` (que a guarda da §9.1 passa a proteger),
 `setup.md`, `architecture.md`, os quatro diagramas Mermaid, e o
 `docs/presentation.md`.
 
-### 12.5 O ritual final, com uma decisão pendente sobre a baseline
+### 13.5 O ritual final, com uma decisão pendente sobre a baseline
 
 Lighthouse por rota contra produção quente; smoke E2E verde; validação de SEO;
 leitura de analytics. Tudo isso já tem mecanismo depois das Fases 9–11.
@@ -2864,7 +3156,7 @@ nada errado nisso — três larguras que sempre batem valem mais que cinco que
 ninguém recaptura —, mas o documento e o repositório precisam dizer a mesma
 coisa. Ou a §30 passa a pedir três, ou a captura passa a fazer cinco.
 
-### 12.6 Canary e rollback: o runbook que não existe
+### 13.6 Canary e rollback: o runbook que não existe
 
 "Production canary" era um item de checklist sem definição. Numa Vercel + Render
 com plano free, ele significa uma coisa concreta:
@@ -2881,7 +3173,7 @@ reconhece cada um (probe de rota nova, não `uptime`; `/api/dev/logs` para o
 pipeline), e o que se faz. Este projeto já pagou por três desses diagnósticos —
 o valor está em não redescobri-los.
 
-### 12.7 O dia seguinte
+### 13.7 O dia seguinte
 
 O que continua rodando sozinho depois do release, e o que cada coisa prova:
 
@@ -2897,9 +3189,9 @@ O que continua rodando sozinho depois do release, e o que cada coisa prova:
 Fase 8 estabeleceu quando trocou "o `CLAUDE.md` mandava aquecer" por um passo de
 workflow.
 
-### 12.S O gate de segurança: o que precisa estar verde para publicar
+### 13.S O gate de segurança: o que precisa estar verde para publicar
 
-A Fase 12 **não caça vulnerabilidade** — isso foi trabalho das três anteriores.
+A Fase 13 **não caça vulnerabilidade** — isso foi trabalho das três anteriores.
 Ela faz três coisas:
 
 **1. Fecha a conta dos achados.** Cada item de `9.S`, `10.S` e `11.S` está numa
@@ -2921,10 +3213,10 @@ dependências diretas e um `pnpm-lock.yaml` que ninguém audita.
 > na 4.
 >
 > **Isso muda o cronograma.** Duas majors de framework não são "ajuste fino de
-> release": são trabalho com risco próprio, e fazê-las na Fase 12 seria mexer
+> release": são trabalho com risco próprio, e fazê-las na Fase 13 seria mexer
 > na fundação depois de as três revisões terem certificado o que está em cima.
 > Por isso a medição entra em **9.S** (API) e **10.S** (web), onde cada lado
-> pode decidir e testar sozinho, e a **12.S fica com o gate** — o passo no CI e
+> pode decidir e testar sozinho, e a **13.S fica com o gate** — o passo no CI e
 > a conferência de que nada regrediu.
 
 A escolha do mecanismo continua barata:
@@ -2938,9 +3230,9 @@ Privacy Control funcionam**, e nada na interface diz isso. O controle explícito
 de opt-out é item aberto desde a Fase 8. A decisão mínima do release é uma
 página ou seção dizendo **o que é medido, por quanto tempo, e como se opor**.
 
-### 12.T A suíte no dia do release: o gate precisa saber reprovar
+### 13.T A suíte no dia do release: o gate precisa saber reprovar
 
-O eixo de testes da Fase 12 não escreve teste novo. Ele verifica **três
+O eixo de testes da Fase 13 não escreve teste novo. Ele verifica **três
 propriedades do próprio mecanismo**, que ninguém verificou até hoje:
 
 - **A suíte inteira verde, sem cache, nos dois apps.** O `turbo` guarda
@@ -2954,7 +3246,7 @@ propriedades do próprio mecanismo**, que ninguém verificou até hoje:
 - **Os dois pisos de cobertura no CI**, não um — o do web nasce na §10.T, e aqui
   se confirma que ele de fato reprova.
 
-> **Saída da Fase 12.** Tag `v2.0.0`, nota de release, §31 e §26 fechadas com
+> **Saída da Fase 13.** Tag `v2.0.0`, nota de release, §31 e §26 fechadas com
 > evidência ou risca, README no desenho novo, runbook escrito, dívida com data,
 > **achados de segurança corrigidos ou com aceite escrito**, e varredura de
 > dependência no CI. **A V2.0 acaba aqui.**
@@ -2965,15 +3257,21 @@ propriedades do próprio mecanismo**, que ninguém verificou até hoje:
 
 ```text
 Fase 9 (backend)  ─┐
-                   ├─► Fase 11 (integração) ─► Fase 12 (release)
+                   ├─► Fase 11 (integração) ─► Fase 12 (refino) ─► Fase 13 (release)
 Fase 10 (frontend) ─┘
 ```
 
 **As Fases 9 e 10 correm em paralelo**, pelo mesmo argumento que a Fase 0.5 já
 usou: `apps/api` e `apps/web` não conflitam em arquivo. **A Fase 11 não abre
 antes das duas estarem mergeadas** — revisar a costura de um lado que ainda vai
-mudar é revisar duas vezes. A Fase 12 não abre antes da 11, porque metade do que
-ela fecha são os achados das três.
+mudar é revisar duas vezes.
+
+**A Fase 12 vem depois da 11 e antes da 13**, e a ordem importa nas duas
+pontas: ela mexe em tela e em texto gravado, então abri-la antes da 11 faria a
+revisão de costura medir um alvo que ia mudar; e a 13 fecha a baseline visual e
+os critérios da §31, que é justamente o que a 12 altera. **A Fase 13 não abre
+antes da 12**, porque publicar a documentação de release com as capturas
+anteriores ao refino seria documentar a tela errada.
 
 Branches, seguindo a §29:
 
@@ -2981,7 +3279,8 @@ Branches, seguindo a §29:
 review/v2-backend        # Fase 9
 review/v2-frontend       # Fase 10
 review/v2-integration    # Fase 11 — depois das duas mergeadas
-release/v2.0             # Fase 12
+refine/v2-visual-reading # Fase 12 — depois da 11
+release/v2.0             # Fase 13
 ```
 
 **Uma fase de revisão não é um PR.** Cada eixo que produzir correção ou guarda
@@ -3031,10 +3330,11 @@ feat/v2-analytics
 review/v2-backend            # Fase 9  ─┐ paralelas: apps diferentes
 review/v2-frontend           # Fase 10 ─┘
 review/v2-integration        # Fase 11 — depois das duas mergeadas
-release/v2.0                 # Fase 12
+refine/v2-visual-reading     # Fase 12 — depois da 11
+release/v2.0                 # Fase 13
 ```
 
-**As quatro últimas são de revisão, e a unidade de entrega muda.** Nas fases de
+**As cinco últimas não são de feature, e a unidade de entrega muda.** Nas fases de
 feature, a branch é o PR. Nas de revisão, a branch é o guarda-chuva: **cada eixo
 que produzir correção ou guarda sai no seu próprio PR**, com o mesmo checklist
 abaixo. Um PR de 40 arquivos misturando CORS, índice de banco e cobertura de
