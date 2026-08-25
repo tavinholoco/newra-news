@@ -39,6 +39,7 @@ function mockQueries(overrides: {
     isSuccess: false,
     isError: false,
     error: null,
+    data: undefined,
     ...overrides.run,
   });
   useDeleteNewsMock.mockReturnValue({
@@ -86,8 +87,63 @@ describe('AdminPanel', () => {
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 
-  it('should show a success message when the pipeline run succeeds', () => {
-    mockQueries({ run: { isSuccess: true } });
+  /**
+   * **As tres respostas eram a mesma frase verde, e uma delas mentia.**
+   *
+   * `triggerPipeline` e idempotente por dia: com um run de hoje ja em `SUCCESS`
+   * ou `RUNNING` ele devolve o id daquele e nao dispara nada. A rota respondia
+   * `200 { status: 'started' }` nos tres casos, e o painel imprimia "disparado
+   * com sucesso" — foi o que aconteceu em 25/08/2026, e custou uma rodada
+   * inteira de investigacao para descobrir que nada tinha rodado.
+   */
+  const trigger = (outcome: string) => ({
+    isSuccess: true,
+    data: {
+      success: true,
+      data: {
+        outcome,
+        pipelineId: 'aaaaaaaa-0000-0000-0000-000000000001',
+        startedAt: '2026-08-25T11:00:00.000Z',
+      },
+      revalidated: outcome === 'started',
+    },
+  });
+
+  it('should say it triggered only when it actually triggered', () => {
+    mockQueries({ run: trigger('started') });
+    renderWithIntl(<AdminPanel />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Pipeline disparado com sucesso.',
+    );
+  });
+
+  it('should say the run already finished today, and when', () => {
+    mockQueries({ run: trigger('already-succeeded-today') });
+    renderWithIntl(<AdminPanel />);
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(/já rodou/i);
+    expect(status).toHaveTextContent(/nada foi disparado/i);
+    // A hora do run referido, que e a pergunta seguinte de quem clicou.
+    expect(status.textContent).toMatch(/\d{2}:\d{2}/);
+    // E nao pode dizer que disparou.
+    expect(status).not.toHaveTextContent('Pipeline disparado com sucesso.');
+  });
+
+  it('should say the run is still going, and when it started', () => {
+    mockQueries({ run: trigger('already-running') });
+    renderWithIntl(<AdminPanel />);
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(/já está rodando/i);
+    expect(status).not.toHaveTextContent('Pipeline disparado com sucesso.');
+  });
+
+  it('should fall back to the old message when the response has no outcome', () => {
+    // O unico caso em que isso acontece e uma resposta que este codigo nao
+    // conhece; nele, a frase antiga e a menos errada.
+    mockQueries({ run: { isSuccess: true, data: { success: true } } });
     renderWithIntl(<AdminPanel />);
 
     expect(screen.getByRole('status')).toHaveTextContent(

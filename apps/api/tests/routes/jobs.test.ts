@@ -5,7 +5,11 @@ import { triggerPipeline } from '../../src/services/pipeline.service';
 import { prisma } from '@newranews/database';
 
 vi.mock('../../src/services/pipeline.service', () => ({
-  triggerPipeline: vi.fn().mockResolvedValue('aaaaaaaa-0000-0000-0000-000000000001'),
+  triggerPipeline: vi.fn().mockResolvedValue({
+    outcome: 'started',
+    pipelineId: 'aaaaaaaa-0000-0000-0000-000000000001',
+    startedAt: '2026-08-25T11:00:00.000Z',
+  }),
 }));
 
 vi.mock('@newranews/database', async (importOriginal) => {
@@ -85,7 +89,7 @@ describe('POST /api/jobs/daily-pipeline', () => {
   });
 
   describe('success', () => {
-    it('should return 200 with status and pipelineId when token is valid', async () => {
+    it('should return 200 with the outcome and pipelineId when token is valid', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/jobs/daily-pipeline',
@@ -93,9 +97,41 @@ describe('POST /api/jobs/daily-pipeline', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body) as { status: string; pipelineId: string };
-      expect(body.status).toBe('started');
+      const body = JSON.parse(res.body) as {
+        outcome: string;
+        pipelineId: string;
+        startedAt: string;
+      };
+      expect(body.outcome).toBe('started');
       expect(body.pipelineId).toBe('aaaaaaaa-0000-0000-0000-000000000001');
+      expect(body.startedAt).toBe('2026-08-25T11:00:00.000Z');
+    });
+
+    /**
+     * **O schema e o contrato, e ate aqui ele declarava um literal.**
+     *
+     * `status: z.literal('started')` nao tinha como contar que nada foi
+     * disparado — e o `fastify-type-provider-zod` serializa **pelo schema**, de
+     * modo que nem o servico saber a diferenca resolveria. Este teste existe
+     * para o dia em que alguem simplificar o enum de volta.
+     */
+    it('should serialise an outcome that is not "started"', async () => {
+      vi.mocked(triggerPipeline).mockResolvedValueOnce({
+        outcome: 'already-succeeded-today',
+        pipelineId: 'bbbbbbbb-0000-0000-0000-000000000002',
+        startedAt: '2026-08-25T11:00:00.000Z',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { authorization: 'Bearer test-secret' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { outcome: string; pipelineId: string };
+      expect(body.outcome).toBe('already-succeeded-today');
+      expect(body.pipelineId).toBe('bbbbbbbb-0000-0000-0000-000000000002');
     });
 
     it('should return a UUID as pipelineId', async () => {

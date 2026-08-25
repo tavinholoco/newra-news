@@ -80,6 +80,8 @@
     "runPipelineButton": "Run now",
     "running": "Running...",
     "runSuccess": "Pipeline triggered successfully.",
+    "runAlreadyRunning": "Today's pipeline is already running — it started at {time}. Nothing was triggered.",
+    "runAlreadyRanToday": "Today's pipeline already ran at {time}. It runs once a day, so nothing was triggered.",
     "runError": "Couldn't trigger the pipeline. Please try again.",
     "newsListTitle": "Latest news",
     "delete": "Delete",

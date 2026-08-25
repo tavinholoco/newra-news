@@ -1,10 +1,69 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Loader2, Play, Trash2 } from 'lucide-react';
 import { useDeleteNews, useNewsList, useRunPipeline } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toDateFormatLocale } from '@/lib/i18n';
+import type { RunPipelineResult } from '@newranews/types';
+
+/**
+ * O que o disparo fez, dito com as palavras do que aconteceu.
+ *
+ * **Os três desfechos eram a mesma frase verde**, porque a rota respondia
+ * `200 { status: 'started' }` mesmo quando o `triggerPipeline` não disparava
+ * nada — ele é idempotente por dia. Em 25/08/2026 o botão foi clicado às ~16:25
+ * UTC, o painel disse "disparado com sucesso", e o run das 11:00 já tinha
+ * fechado: nada rodou, e a tela não deu nenhum sinal disso.
+ *
+ * A hora sai do `startedAt` do run **referido** — o que nasceu agora, ou o que
+ * já existia —, e é o dado que responde à pergunta seguinte de quem clicou:
+ * "então quando foi?".
+ *
+ * Formatada no cliente, e é seguro: este texto só existe depois do clique, num
+ * componente que já é `'use client'`. Não há HTML de servidor com que divergir.
+ */
+function TriggerOutcome({ result }: { result: RunPipelineResult }) {
+  const t = useTranslations('admin');
+  const locale = useLocale();
+
+  const outcome = result.data?.outcome;
+  const startedAt = result.data?.startedAt;
+
+  // Sem desfecho legível, a mensagem antiga é o que resta — e ela é a certa
+  // para o único caso em que isso acontece: uma resposta que não conhecemos.
+  if (!outcome || !startedAt) {
+    return (
+      <p role='status' className='mt-4 text-sm text-success'>
+        {t('runSuccess')}
+      </p>
+    );
+  }
+
+  const time = new Date(startedAt).toLocaleTimeString(
+    toDateFormatLocale(locale),
+    { hour: '2-digit', minute: '2-digit' },
+  );
+
+  if (outcome === 'started') {
+    return (
+      <p role='status' className='mt-4 text-sm text-success'>
+        {t('runSuccess')}
+      </p>
+    );
+  }
+
+  // Não é erro — o servidor fez o certo. É informação, e a cor diz isso: o
+  // verde afirmaria que algo rodou.
+  return (
+    <p role='status' className='mt-4 text-sm text-ink-secondary'>
+      {outcome === 'already-running'
+        ? t('runAlreadyRunning', { time })
+        : t('runAlreadyRanToday', { time })}
+    </p>
+  );
+}
 
 export function AdminPanel() {
   const t = useTranslations('admin');
@@ -34,9 +93,7 @@ export function AdminPanel() {
         </Button>
 
         {runPipeline.isSuccess && (
-          <p role='status' className='mt-4 text-sm text-success'>
-            {t('runSuccess')}
-          </p>
+          <TriggerOutcome result={runPipeline.data} />
         )}
         {runPipeline.isError && (
           <p role='alert' className='mt-4 text-sm text-destructive'>
