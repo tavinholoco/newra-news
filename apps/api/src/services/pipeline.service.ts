@@ -307,6 +307,7 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       await logPipelineEvent(pipelineLogId, 8.5, 'INFO', 'Stored news renormalized', {
         scanned: renormalized.scanned,
         textChanged: renormalized.textChanged,
+        imageRecovered: renormalized.imageRecovered,
         categoryChanged: renormalized.categoryChanged,
         categorySkipped: renormalized.categorySkipped,
       });
