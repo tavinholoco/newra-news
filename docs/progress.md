@@ -3918,6 +3918,114 @@ novos do painel falham — que era exatamente o comportamento de 25/08.
 
 ---
 
+### 40. A API suspensa por esgotar o plano free, e o keep-alive janelado ✅ 2026-08-31
+
+> Branch `fix/keep-alive-window`. Incidente de produção, não fase. O que o
+> derrubou não foi código: foi uma conta que ninguém tinha feito.
+
+#### O que aconteceu
+
+Em **29/08/2026, ~13:06 UTC**, a API parou de responder. Não era hibernação — o
+Render devolvia **HTTP 503 com a própria página de suspensão**, em 0,24 s, três
+tentativas seguidas. Um cold start leva 30–60 s e devolve 200.
+
+O painel do Render dizia: *"Free usage limit reached — Your service is now
+suspended until the next billing period."*
+
+#### A conta
+
+O plano free do Render **não cobra requisição — cobra tempo de instância
+ligada**: 750 h/mês por workspace, zerando no dia 1º. O serviço dorme sozinho
+depois de ~15 min sem tráfego.
+
+O keep-alive era um monitor do UptimeRobot pingando **a cada 5 min, o tempo
+todo**. Como 5 < 15, o serviço **nunca dormia**:
+
+```
+ligado 24/7  ×  31 dias  =  744 h
+teto do free             =  750 h
+folga do mês inteiro     =    6 h   (0,8%)
+```
+
+> **A medição que provava isso já estava no `CLAUDE.md`, com o sinal trocado.**
+> Em 24/08 ela foi registrada como boa notícia: *"a API não estava hibernando —
+> o `uptime` cresceu 1.878 s numa janela de relógio de 1.881 s sem uma única
+> requisição minha"*. Uptime crescendo 1:1 com o relógio **é** a definição de
+> 24/7. A pergunta feita era "ela está dormindo?"; a que faltou era "quanto
+> custa ela não dormir?".
+
+**Um número não fecha, e está registrado por isso.** Ligado 24/7 desde o dia 1º,
+a API sozinha chegaria a **~685 h** em 29/08 — abaixo das 750. A suspensão
+naquele dia sugere **um segundo serviço free no mesmo workspace**. O
+`render.yaml` declara só um; o painel pode ter outro criado à mão. **Conferir a
+página de uso do Render é o primeiro passo se repetir.**
+
+#### O estrago, medido
+
+O site **não caiu** — as telas de leitura são estáticas com ISR e o
+`nullUnlessPublishing` mantém a última página boa no ar. Ele congelou:
+
+| | Estado em 31/08 |
+|---|---|
+| Home, `/about`, `/en` | 200, servindo o HTML de **29/08 13:06** (`X-Vercel-Cache: STALE`) |
+| `/news` | carrega, mas "Não foi possível carregar", oito facetas em `0` |
+| `/article/29`, `/30`, `/31` | **HTTP 500** |
+| `/news-sitemap.xml` | 200 **com zero URLs** |
+
+#### A decisão
+
+**Janela de 06:00–00:00 BRT** (09:00–02:59 UTC), ping a cada 10 min:
+
+```
+18,25 h  ×  31 dias  ≈  566 h    contra 750 h
+folga                ≈  184 h    (25%)
+```
+
+Duas razões para estas horas: o **pipeline das 11:00 UTC cai dentro dela** (a
+API já está acordada quando ele chega), e a madrugada é quando ninguém lê — e o
+custo de dormir ali é pequeno, porque Home, briefing e página de notícia são
+estáticas com ISR. Quem sente é a `/news`, que é CSR: ~5 s de esqueleto na
+primeira visita depois da janela fechada.
+
+**Saiu do UptimeRobot e foi para o GitHub Actions.** Janela de horário no
+UptimeRobot é recurso pago — o free só pausa monitor à mão. O repositório é
+público, e para repositório público o Actions é gratuito e sem teto de minutos:
+a janela virou `.github/workflows/keep-alive.yml`, versionada e revisável, sem
+depender de painel de terceiro. **O agendamento do GitHub atrasa**, e aqui isso
+custa um cold start para quem chegar na janela perdida — não é gate. **Gatilho
+para trocar por cron dedicado:** a `/news` abrir fria em horário comercial com
+frequência que incomode.
+
+**O Lighthouse mudou de hora junto**, de 09:00 para 12:00 UTC na segunda. As
+09:00 UTC passaram a ser o minuto exato em que a janela abre, e medir enquanto a
+API acorda é a armadilha do cold start de novo — a mesma que a auditoria da Fase
+8 já custou. 12:00 UTC está no meio da janela e **depois** do pipeline, então o
+que se mede é o conteúdo do dia.
+
+#### O que não precisou mudar
+
+**Nenhuma linha de código.** O `lib/timeouts.ts` sempre foi escrito para uma API
+que dorme — o cabeçalho dele abre em "o plano free do Render, que hiberna com
+~15 min sem tráfego", e os 8 s de `API_TIMEOUT_MS` foram dimensionados **acima**
+do cold start medido (4,9 s) e abaixo do teto de 10 s da função da Vercel. O
+keep-alive é que era a exceção; a janela devolve o sistema ao comportamento para
+o qual ele foi projetado.
+
+As duas defesas independentes continuam: o aquecimento no workflow do Lighthouse
+e o prazo do `timeouts.ts`.
+
+#### Alternativas pesquisadas, e por que não
+
+| Opção | Custo | Por que não agora |
+|---|---|---|
+| Render Starter | US$ 7/mês | resolve tudo; fica como a escolha se a janela incomodar |
+| Koyeb free | R$ 0 | **sem teto de horas**, mas 0,1 vCPU e 512 MB — o pipeline diário faz IA e renormaliza 6.669 linhas; migrar sem medir seria trocar um problema por outro |
+| Fly.io | ~US$ 2/mês | free tier acabou; é o sempre-ligado mais barato se for para pagar |
+| Railway | ~US$ 5/mês | sem free tier permanente |
+| Dobrar a API no Next (Vercel) | R$ 0 | cabe no Hobby (2 crons/dia, 300 s), mas são 34 rotas Fastify com plugins e as métricas em memória morrem no serverless — semanas para resolver um problema de US$ 7 |
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

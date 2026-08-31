@@ -44,10 +44,17 @@ categoria cair, o relatório completo vem por
 > **Medido em 24/08: a API não estava hibernando.** O `uptime` do `/api/health`
 > cresceu 1.878 s ao longo de uma janela de relógio de 1.881 s **sem uma única
 > requisição minha nos últimos 17 min**, e a primeira resposta depois disso saiu
-> em **0,29 s**. O keep-alive do `docs/setup.md` §9 (UptimeRobot a cada 5 min)
-> está de pé. O aquecimento fica — keep-alive de terceiro em plano gratuito não
-> é garantia, e já falhou —, mas **"deve ser a API dormindo" precisa de sonda
-> antes de virar conclusão.**
+> em **0,29 s**. O aquecimento fica — agendamento de terceiro não é garantia, e
+> já falhou —, mas **"deve ser a API dormindo" precisa de sonda antes de virar
+> conclusão.**
+>
+> ⚠️ **E aquela medição era a conta chegando, lida ao contrário.** Uptime
+> crescendo 1:1 com o relógio **é** a definição de 24/7, e 24/7 são 744 h no mês
+> contra as **750 h** que o plano free do Render dá — 0,8% de folga. Em
+> **29/08/2026** as horas acabaram e a API foi **suspensa até o dia 1º**. O
+> keep-alive passou a ser janelado (**06:00–00:00 BRT**, em
+> `.github/workflows/keep-alive.yml`), o que derruba o consumo para ~566 h.
+> Ver `docs/setup.md` §9.0 — inclusive o que conferir se acontecer de novo.
 >
 > **A causa é a API dormir, e só ficou clara na auditoria da Fase 8.** O plano
 > free do Render hiberna com ~15 min sem tráfego; `/pt-BR` e `/en` chamam
@@ -294,6 +301,16 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 
 ### Armadilhas que já custaram caro
 
+- **Plano gratuito que cobra tempo ligado não combina com keep-alive.** O free
+  do Render dá **750 h/mês de instância**, e dorme sozinho com ~15 min sem
+  tráfego. O keep-alive pingava a cada **5 min** — e como 5 < 15, o serviço
+  **nunca dormia**: 24 h × 31 dias = **744 h contra 750**, 0,8% de folga. Em
+  29/08 as horas acabaram e a API ficou **suspensa até o dia 1º**; o site
+  continuou de pé (ISR mantém a última página boa) e **congelado** no conteúdo
+  daquele dia. O erro não foi configurar o keep-alive — foi **nunca ter feito a
+  multiplicação**. Ao pôr um ping periódico em qualquer serviço gratuito,
+  calcule as horas antes: a pergunta não é "está dormindo?", é "quanto custa
+  não dormir?".
 - **Resposta que não distingue "fiz" de "não precisei fazer" vira tela que
   mente.** O `triggerPipeline` é idempotente por dia e devolvia **só o id**: com
   um run de hoje já em `SUCCESS`, ele entregava o id daquele, a rota respondia
@@ -428,7 +445,9 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   hiberna com ~15 min sem tráfego; o primeiro `curl` o acorda. Concluir "o
   processo subiu na hora do merge, logo o deploy rodou" a partir do `uptime` é
   erro — o que subiu foi a própria sondagem. Para saber o que está no ar,
-  **probe uma rota que só existe na versão nova**.
+  **probe uma rota que só existe na versão nova**. E desde 31/08 ele volta a
+  dormir de madrugada, de propósito: ver a armadilha do keep-alive no topo desta
+  lista.
 - **A metadata do Next não faz merge profundo.** O layout declara
   `openGraph: { type, siteName, locale }` e `twitter: { card }`; a página que
   declara os seus **substitui o objeto inteiro**. Nenhuma página tinha
