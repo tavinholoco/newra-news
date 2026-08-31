@@ -29,9 +29,17 @@ name: Lighthouse CI
 # estáveis. Gate que reprova por não conseguir montar uma URL seria a mesma
 # armadilha do cold start, em outra forma.
 
+# **A hora mudou em 31/08/2026, com a janela do keep-alive.** Ela era 09:00 UTC,
+# que passou a ser exatamente o minuto em que a janela abre — medir no instante
+# em que a API está acordando é a armadilha do cold start de novo, e um gate que
+# reprova por motivo alheio é um gate que se aprende a ignorar.
+#
+# 12:00 UTC (09:00 BRT) resolve duas coisas de uma vez: está no meio da janela,
+# e vem **depois** do pipeline das 11:00 UTC — então o que se mede é o conteúdo
+# do dia, não o da véspera.
 on:
   schedule:
-    - cron: '0 9 * * 1' # segunda-feira 09:00 UTC
+    - cron: '0 12 * * 1' # segunda-feira 12:00 UTC (09:00 BRT)
   workflow_dispatch:
 
 jobs:
