@@ -282,15 +282,99 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 - **Frontend** → Vercel (repo conectado; cron em `vercel.json`)
 - **Backend** → Render (blueprint `render.yaml`; deploy automático a partir da `main`)
 - **Banco** → Neon (PostgreSQL serverless); migrations aplicadas pelo workflow `migrate.yml` (`pnpm db:migrate:deploy`), disparado em push na `main` quando o schema ou as migrations mudam
-- **Keep-alive** → UptimeRobot pingando `GET /api/health` a cada 5 min.
-  **Conferido funcionando em 24/08/2026** (§11.3): o `uptime` cresceu
-  continuamente ao longo de 17 min sem tráfego nosso, e a primeira resposta
-  depois disso saiu em 0,29 s — não os ~4,9 s de um cold start. Ele **não é
-  garantia**: é um serviço de terceiro em plano gratuito, e foi justamente uma
-  falha dele que a auditoria da Fase 8 mediu. Por isso o aquecimento no workflow
-  do Lighthouse e o prazo de 8 s do `lib/timeouts.ts` continuam existindo
+- **Keep-alive** → workflow `keep-alive.yml`, pingando `GET /api/health` a cada
+  10 min **entre 06:00 e 00:00 BRT**. Ver §9.0, que explica a janela e por que
+  ela existe — o keep-alive anterior derrubou a API por esgotar o plano free
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.
+
+### 9.0 O keep-alive e o teto do plano free (incidente de 29/08/2026)
+
+**O plano free do Render não cobra requisição — cobra tempo de instância
+ligada.** São **750 horas por mês, por workspace**, e o contador **zera no dia
+1º**. O serviço dorme sozinho depois de **~15 min sem tráfego**.
+
+Até 31/08/2026 o keep-alive era um monitor do UptimeRobot pingando **a cada
+5 min, o tempo todo**. Como 5 < 15, o serviço **nunca dormia**:
+
+```
+ligado 24/7  ×  31 dias  =  744 h
+teto do free             =  750 h
+──────────────────────────────────
+folga do mês inteiro     =    6 h   (0,8%)
+```
+
+Em **29/08/2026** as horas acabaram e o Render suspendeu a API até o dia 1º.
+O site não caiu — as telas de leitura são estáticas com ISR e o
+`nullUnlessPublishing` mantém a última página boa no ar —, mas congelou no
+conteúdo daquele dia, com a `/news` sem carregar, o news sitemap com zero URLs
+e três briefings em 500.
+
+> **A medição que provava o problema já estava escrita, com o sinal trocado.**
+> O `CLAUDE.md` registrava, em 24/08, como boa notícia: *"a API não estava
+> hibernando — o `uptime` cresceu 1.878 s ao longo de uma janela de relógio de
+> 1.881 s sem uma única requisição minha"*. Uptime crescendo 1:1 com o relógio
+> **é** a definição de 24/7, e 24/7 não cabe em 750 h. A pergunta era "ela está
+> dormindo?"; ninguém perguntou "quanto custa ela não dormir?".
+
+#### A janela
+
+**06:00–00:00 BRT** (09:00–02:59 UTC). Dezoito horas ligada, seis dormindo:
+
+```
+18,25 h  ×  31 dias  ≈  566 h    (18,25 e não 18: depois do último
+teto                 =  750 h     ping o serviço fica ~15 min de pé)
+─────────────────────────────
+folga                ≈  184 h    (25%)
+```
+
+Duas razões para estas horas:
+
+- **O pipeline diário cai dentro dela.** Roda às 11:00 UTC (08:00 BRT), então
+  encontra a API acordada e não paga cold start.
+- **A madrugada é quando ninguém lê.** E o custo de dormir é menor do que
+  parece: Home, briefing e página de notícia são **estáticas com ISR**, então o
+  cold start bate na revalidação, não em quem está lendo. Quem sente é a
+  `/news`, que é client-side — ~5 s de esqueleto na primeira visita depois da
+  janela fechada.
+
+#### Por que no GitHub Actions, e não no UptimeRobot
+
+**Janela de horário no UptimeRobot é recurso pago** — o plano free só pausa
+monitor à mão. Este repositório é **público**, e para repositório público o
+GitHub Actions é gratuito e sem teto de minutos: a janela cabe em
+`.github/workflows/keep-alive.yml`, versionada e revisável, sem depender de
+configuração em painel de terceiro.
+
+**O agendamento do GitHub atrasa**, e aqui isso é aceitável: workflow agendado
+pode sair minutos depois da hora ou ser pulado sob carga, e para um keep-alive
+o custo disso é um cold start para quem chegar na janela perdida. Não é gate,
+não reprova nada. **Gatilho para trocar por um serviço de cron dedicado
+(cron-job.org e afins):** a `/news` abrir fria em horário comercial com
+frequência que incomode.
+
+#### O que continua existindo, e por quê
+
+O keep-alive **nunca foi garantia** — é agendamento de terceiro em plano
+gratuito, e uma falha dele foi o que a auditoria da Fase 8 mediu. As duas
+defesas independentes ficam:
+
+- o **aquecimento no workflow do Lighthouse**, que bate duas vezes em cada URL
+  antes de medir;
+- o **prazo de 8 s** do `lib/timeouts.ts`, dimensionado **acima** do cold start
+  medido (4,9 s) e abaixo do teto de 10 s da função da Vercel. Esse arquivo
+  sempre foi escrito para uma API que dorme; o keep-alive é que era a exceção.
+
+#### Se acontecer de novo
+
+1. **Confira a página de uso do Render** antes de qualquer coisa. Ligado 24/7
+   desde o dia 1º, a API sozinha chegaria a ~685 h em 29/08 — abaixo das 750.
+   A suspensão naquele dia sugere **um segundo serviço free no mesmo
+   workspace** consumindo horas junto. O `render.yaml` declara só um; o painel
+   pode ter outro criado à mão.
+2. **Não clique em "Remove usage limits".** Ele tira o teto do free, ou seja,
+   passa a cobrar por uso. É decisão de custo, não botão de reparo.
+3. **A suspensão expira sozinha** no dia 1º. Não é preciso pagar para destravar.
 
 ### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
 
