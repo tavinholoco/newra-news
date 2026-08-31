@@ -3908,6 +3908,27 @@ um disparo manual.
 **Verificadas reprovando:** com o desfecho forçado a `undefined`, os dois testes
 novos do painel falham — que era exatamente o comportamento de 25/08.
 
+#### A medição que ficou pendente, e virou comando
+
+**Em 31/08 a API estava suspensa** (item 40), então a conferência do acervo
+contra o banco não pôde ser feita — o que se mediu foi o HTML estático que a
+Vercel servia: 13 telas de leitura, **maior dek de 273 caracteres**, zero
+rodapé, zero paywall, zero tag HTML, zero `null`, e `promptVersion:
+v2-52effd41` nos briefings de 26–28/08. **A Fase 12 funcionou**; faltou o
+número do banco.
+
+E faltou porque **a medição não morava em lugar nenhum** — ela vivia num arquivo
+temporário da sessão. Virou
+`pnpm --filter @newranews/api archive:hygiene`: varre `/api/news`, conta as seis
+classes de defeito, e sai 1 se alguma tiver linha, 2 se a API não responder.
+Mesmo padrão do `capture-visual-baseline.mjs` — manual, contra produção, com a
+saída servindo de evidência.
+
+Os três caminhos foram verificados contra uma API de mentira: acervo sujo
+(6 classes acusadas, com exemplo em cada), acervo limpo, e API fora (explica em
+vez de estourar com `Unexpected token '<'`, que foi como a primeira versão
+morreu).
+
 #### Números
 
 | Verificação | Resultado |

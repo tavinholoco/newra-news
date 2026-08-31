@@ -17,6 +17,12 @@
 - `pnpm lint` — ESLint em todo o monorepo
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
 - `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`. **O conjunto versionado é capturado de produção**, não do local — ver "Fechar uma fase" abaixo
+- `pnpm --filter @newranews/api archive:hygiene` — **mede a higiene de texto do
+  acervo contra produção** (§12.D). Varre `/api/news` e conta as seis classes de
+  defeito que a Fase 12 zerou; sai 1 se alguma tiver linha, 2 se a API não
+  responder. A correção alcança o que já está gravado pela **etapa 8.5**, que
+  roda uma vez por dia — então o acervo só converge no dia seguinte ao deploy, e
+  é este comando que diz se convergiu
 - `pnpm db:migrate` — rodar migrations Prisma
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
