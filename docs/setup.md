@@ -282,99 +282,103 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 - **Frontend** → Vercel (repo conectado; cron em `vercel.json`)
 - **Backend** → Render (blueprint `render.yaml`; deploy automático a partir da `main`)
 - **Banco** → Neon (PostgreSQL serverless); migrations aplicadas pelo workflow `migrate.yml` (`pnpm db:migrate:deploy`), disparado em push na `main` quando o schema ou as migrations mudam
-- **Keep-alive** → workflow `keep-alive.yml`, pingando `GET /api/health` a cada
-  10 min **entre 06:00 e 00:00 BRT**. Ver §9.0, que explica a janela e por que
-  ela existe — o keep-alive anterior derrubou a API por esgotar o plano free
+- **Keep-alive** → **não há**, por decisão medida. A API dorme com ~15 min sem
+  tráfego e acorda na primeira requisição; quem precisava dela quente — o
+  pipeline e o gate do Lighthouse — acorda sozinho. Ver §9.0, com os números e
+  as duas tentativas que falharam antes
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.
 
-### 9.0 O keep-alive e o teto do plano free (incidente de 29/08/2026)
+### 9.0 Não há keep-alive, e é decisão medida (01/09/2026)
 
-**O plano free do Render não cobra requisição — cobra tempo de instância
-ligada.** São **750 horas por mês, por workspace**, e o contador **zera no dia
-1º**. O serviço dorme sozinho depois de **~15 min sem tráfego**.
+**A API dorme depois de ~15 min sem tráfego, e isso está certo.** O plano free do
+Render não cobra requisição — cobra **tempo de instância ligada**: 750 h por mês
+por workspace, zerando no dia 1º.
 
-Até 31/08/2026 o keep-alive era um monitor do UptimeRobot pingando **a cada
-5 min, o tempo todo**. Como 5 < 15, o serviço **nunca dormia**:
+#### O que veio antes, e por que as duas tentativas falharam
+
+**1. UptimeRobot a cada 5 min, o tempo todo.** Como 5 < 15, o serviço nunca
+dormia — 24 h × 31 dias = **744 h contra o teto de 750**, 0,8% de folga. Em
+**29/08/2026** as horas acabaram e o Render **suspendeu a API até o dia 1º**. O
+site ficou de pé mas congelado: `/news` sem carregar, news sitemap com zero URLs,
+**três briefings perdidos** (30/08, 31/08 e 01/09).
+
+**2. Workflow do GitHub Actions com janela de horário.** Medido em 01/09:
+**2 execuções contra 46 esperadas**, uma delas 47 min atrasada e fora da janela.
+A documentação do GitHub pede **no mínimo 15 min** em repositório público e avisa
+que execução agendada é despriorizada e **descartada em silêncio** — e o Render
+dorme aos 15 min. Os dois números não deixam folga: o mecanismo não podia
+funcionar.
+
+#### Por que não há um terceiro
+
+Porque, ao medir o que o keep-alive comprava, a resposta foi: **quase nada.**
+
+| De onde a tela tira o dado | Rotas | O leitor espera? |
+|---|---|---|
+| **Estática + ISR**, dado no HTML | `/`, `/news`, `/article`, `/about`, `/newsletter` | **não** — recebe a página guardada; a regeneração é atrás |
+| **ISR sob demanda**, 1ª visita àquele item | `/news/[id]`, `/article/[date]` | sim, uma vez, **com esqueleto** (`loading.tsx`) |
+| **Busca no navegador** | `/account`, `/favorites`, `/admin`, e a `/news` ao filtrar | sim, uma vez, **com esqueleto** |
+
+A `/news` **já traz a primeira página no HTML** (`prefetch(getNews(1, 20))` mais
+as facetas) e o TanStack Query tem `staleTime` de 5 min — ela nem busca de novo
+ao montar. A Home é uma chamada só, no servidor, com ISR. Nenhuma rota deixa
+alguém diante de tela em branco.
+
+**O que sobra de custo:** ~5 s de esqueleto na primeira matéria aberta em cada
+sessão — e essa requisição acorda a API para o resto da visita.
+
+#### E as duas peças que dependiam disso já não dependem
+
+- **O pipeline** — a rota do cron **acorda a API antes de disparar**
+  (`warmApi` em `app/api/cron/daily-news`, duas tentativas de 25 s). Foi
+  justamente o que faltou em 01/09, quando o disparo estourou contra uma API
+  dormindo e o dia ficou sem briefing.
+- **O gate do Lighthouse** — o passo "Warm production before measuring" bate
+  duas vezes em cada URL antes do collect, desde 23/08.
+
+#### Consumo
 
 ```
-ligado 24/7  ×  31 dias  =  744 h
-teto do free             =  750 h
-──────────────────────────────────
-folga do mês inteiro     =    6 h   (0,8%)
+sem keep-alive:  ~60–150 h/mês   (8–20% do teto)
+com janela:      ~566 h/mês      (75%)
+24/7:             744 h/mês      (99,2%)  <- foi o que suspendeu a API
 ```
 
-Em **29/08/2026** as horas acabaram e o Render suspendeu a API até o dia 1º.
-O site não caiu — as telas de leitura são estáticas com ISR e o
-`nullUnlessPublishing` mantém a última página boa no ar —, mas congelou no
-conteúdo daquele dia, com a `/news` sem carregar, o news sitemap com zero URLs
-e três briefings em 500.
+#### O que foi medido e recusado: assar as páginas de detalhe
 
-> **A medição que provava o problema já estava escrita, com o sinal trocado.**
-> O `CLAUDE.md` registrava, em 24/08, como boa notícia: *"a API não estava
-> hibernando — o `uptime` cresceu 1.878 s ao longo de uma janela de relógio de
-> 1.881 s sem uma única requisição minha"*. Uptime crescendo 1:1 com o relógio
-> **é** a definição de 24/7, e 24/7 não cabe em 750 h. A pergunta era "ela está
-> dormindo?"; ninguém perguntou "quanto custa ela não dormir?".
+A ideia era pôr as matérias recentes no `generateStaticParams` em vez de `[]`,
+eliminando o único caso em que o leitor espera. **O custo de build é baixo** —
+36 matérias custam ~2 s, 300 custam ~20 s, contra um build de ~1 min.
 
-#### A janela
+**O que o mata é a validade.** Medido em 01/09: **as 36 matérias linkadas na
+Home são todas do dia** (idade mediana 0,0 dias), e o pipeline traz ~530 novas
+por dia. O `generateStaticParams` roda **só no build** — então assar hoje cobre
+as matérias de hoje, e amanhã a Home linka 36 outras, nenhuma assada.
 
-**06:00–00:00 BRT** (09:00–02:59 UTC). Dezoito horas ligada, seis dormindo:
+Só funcionaria com **rebuild diário** disparado depois do pipeline, o que é uma
+peça nova e grande, com falha própria, e que **descarta o cache da ISR inteiro a
+cada deploy** — deixando todas as páginas frias, que é o oposto do objetivo.
 
-```
-18,25 h  ×  31 dias  ≈  566 h    (18,25 e não 18: depois do último
-teto                 =  750 h     ping o serviço fica ~15 min de pé)
-─────────────────────────────
-folga                ≈  184 h    (25%)
-```
+#### Se um dia a lentidão incomodar
 
-Duas razões para estas horas:
+Nessa ordem, e só com medição na mão:
 
-- **O pipeline diário cai dentro dela.** Roda às 11:00 UTC (08:00 BRT), então
-  encontra a API acordada e não paga cold start.
-- **A madrugada é quando ninguém lê.** E o custo de dormir é menor do que
-  parece: Home, briefing e página de notícia são **estáticas com ISR**, então o
-  cold start bate na revalidação, não em quem está lendo. Quem sente é a
-  `/news`, que é client-side — ~5 s de esqueleto na primeira visita depois da
-  janela fechada.
+1. **cron-job.org** com janela `*/10 9-23,0-2 * * *` em UTC — gratuito, mas
+   **sem SLA e sem garantia de execução**, por escrito na documentação deles. É
+   a mesma classe de dependência que já falhou duas vezes aqui.
+2. **Render Starter, US$ 7/mês** — sem hibernação, sem teto, sem terceiro. Se
+   incomodou o bastante para querer resolver, é esta.
 
-#### Por que no GitHub Actions, e não no UptimeRobot
+#### Se a API for suspensa de novo
 
-**Janela de horário no UptimeRobot é recurso pago** — o plano free só pausa
-monitor à mão. Este repositório é **público**, e para repositório público o
-GitHub Actions é gratuito e sem teto de minutos: a janela cabe em
-`.github/workflows/keep-alive.yml`, versionada e revisável, sem depender de
-configuração em painel de terceiro.
-
-**O agendamento do GitHub atrasa**, e aqui isso é aceitável: workflow agendado
-pode sair minutos depois da hora ou ser pulado sob carga, e para um keep-alive
-o custo disso é um cold start para quem chegar na janela perdida. Não é gate,
-não reprova nada. **Gatilho para trocar por um serviço de cron dedicado
-(cron-job.org e afins):** a `/news` abrir fria em horário comercial com
-frequência que incomode.
-
-#### O que continua existindo, e por quê
-
-O keep-alive **nunca foi garantia** — é agendamento de terceiro em plano
-gratuito, e uma falha dele foi o que a auditoria da Fase 8 mediu. As duas
-defesas independentes ficam:
-
-- o **aquecimento no workflow do Lighthouse**, que bate duas vezes em cada URL
-  antes de medir;
-- o **prazo de 8 s** do `lib/timeouts.ts`, dimensionado **acima** do cold start
-  medido (4,9 s) e abaixo do teto de 10 s da função da Vercel. Esse arquivo
-  sempre foi escrito para uma API que dorme; o keep-alive é que era a exceção.
-
-#### Se acontecer de novo
-
-1. **Confira a página de uso do Render** antes de qualquer coisa. Ligado 24/7
-   desde o dia 1º, a API sozinha chegaria a ~685 h em 29/08 — abaixo das 750.
-   A suspensão naquele dia sugere **um segundo serviço free no mesmo
-   workspace** consumindo horas junto. O `render.yaml` declara só um; o painel
-   pode ter outro criado à mão.
+1. **Confira a página de uso do Render** (Dashboard → Billing → *Monthly
+   Included Usage*) antes de qualquer coisa. Ligado 24/7 desde o dia 1º, a API
+   sozinha chegaria a ~685 h em 29/08 — abaixo das 750. A suspensão naquele dia
+   sugere **um segundo serviço free no mesmo workspace**.
 2. **Não clique em "Remove usage limits".** Ele tira o teto do free, ou seja,
-   passa a cobrar por uso. É decisão de custo, não botão de reparo.
-3. **A suspensão expira sozinha** no dia 1º. Não é preciso pagar para destravar.
+   passa a cobrar por uso.
+3. **A suspensão expira sozinha** no dia 1º.
 
 ### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
 
