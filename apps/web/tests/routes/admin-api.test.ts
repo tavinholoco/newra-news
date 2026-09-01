@@ -105,6 +105,9 @@ describe('POST /api/admin/run-pipeline', () => {
             startedAt: '2026-08-25T11:00:00.000Z',
           },
           revalidated: true,
+          // O BFF do cron passou a devolver `warmed` — ele acorda a API antes
+          // de disparar, desde 01/09/2026.
+          warmed: true,
         },
         { status: 200 },
       ),
@@ -121,6 +124,7 @@ describe('POST /api/admin/run-pipeline', () => {
         startedAt: '2026-08-25T11:00:00.000Z',
       },
       revalidated: true,
+      warmed: true,
     });
     const [request] = vi.mocked(cronGet).mock.calls[0] as [Request];
     expect(request.headers.get('authorization')).toBe('Bearer cron-secret');

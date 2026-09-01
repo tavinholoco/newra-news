@@ -343,6 +343,22 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 
 ### Armadilhas que já custaram caro
 
+- **Gatilho agendado que não acorda quem ele chama perde o dia inteiro.** O cron
+  das 11h UTC é justamente a hora em que a API mais provavelmente dorme, e o
+  disparo tinha 20 s — folga sobre o cold start comum (4,9 s), **não** sobre a
+  primeira acordada depois de um mês suspenso. Em 01/09/2026 ele estourou, o
+  `catch` devolveu 500, e **o dia ficou sem briefing** — o único sinal foi o
+  briefing ausente. Hoje a rota do cron **acorda antes de disparar**
+  (`warmApi`, duas tentativas de 25 s no `/api/health`) e devolve `warmed`, que
+  é o que separa "não acordou" de "acordou e recusou". Ao agendar chamada para
+  serviço que hiberna, o prazo do disparo não é o prazo de acordar.
+- **Agendamento do GitHub Actions não serve para keep-alive.** Medido em
+  01/09/2026: o workflow de 10 em 10 minutos rodou **2 vezes contra 46
+  esperadas**, uma delas 47 min atrasada e fora da janela. A documentação do
+  GitHub pede **no mínimo 15 min** em repositório público e avisa que execução
+  agendada é despriorizada e **descartada em silêncio** — e o Render dorme aos
+  15 min, então os dois números não deixam folga. Para agendamento de minutos,
+  serviço dedicado; o `schedule` do Actions serve para o que é diário.
 - **Plano gratuito que cobra tempo ligado não combina com keep-alive.** O free
   do Render dá **750 h/mês de instância**, e dorme sozinho com ~15 min sem
   tráfego. O keep-alive pingava a cada **5 min** — e como 5 < 15, o serviço

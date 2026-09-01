@@ -39,8 +39,31 @@
  * `BFF_TIMEOUT_MS = 12000` é o de fora, com folga sobre o de dentro.
  *
  * `PIPELINE_TRIGGER_TIMEOUT_MS = 20000` é outro caso: o disparo do pipeline
- * responde `{ status: 'started' }` e o trabalho segue no servidor, então o que
- * se espera é só o aceite. Os 20 s cabem no `maxDuration = 30` da rota do cron.
+ * responde o **aceite** (`{ outcome, pipelineId, startedAt }`) e o trabalho
+ * segue no servidor, então não se espera a execução.
+ *
+ * `PIPELINE_WARM_TIMEOUT_MS = 25000`, com retentativa, é o que veio antes dele
+ * **desde 01/09/2026** — e existe porque o briefing daquele dia não saiu.
+ *
+ * O cron das 11h UTC é a hora em que a API mais provavelmente está dormindo: no
+ * plano free do Render ela hiberna com ~15 min sem tráfego, e desde 31/08 o
+ * keep-alive deixa a madrugada passar de propósito. Os 20 s do disparo cobrem
+ * um cold start comum (4,9 s medidos), mas **não cobriram a primeira acordada
+ * depois de um mês suspenso**: o disparo estourou, o `catch` devolveu 500, e o
+ * dia ficou sem briefing — sem que nada além do briefing ausente denunciasse.
+ *
+ * Acordar antes de disparar troca uma aposta por duas etapas com prazo próprio.
+ * O `GET /api/health` é a rota mais barata da API e não tem efeito colateral,
+ * então repeti-la é seguro; o disparo só acontece depois que ela responde.
+ *
+ * ## Por que aqui, e não num workflow do GitHub
+ *
+ * A alternativa considerada era mover o disparo para o GitHub Actions, que
+ * poderia acordar com retentativa. **O agendamento do GitHub nao serve para
+ * isso**: medido em 01/09, o keep-alive rodou **2 vezes contra 46 esperadas**,
+ * e a documentacao deles diz que execucao agendada em repositorio publico e
+ * despriorizada e pode ser descartada em silencio. O cron da Vercel dispara;
+ * o que faltava a ele era margem, e margem cabe aqui dentro.
  *
  * ## E por que isto não desliga a ISR
  *
@@ -61,3 +84,22 @@ export const BFF_TIMEOUT_MS = 12_000;
 
 /** Disparo do pipeline: espera-se o aceite, não a execução. */
 export const PIPELINE_TRIGGER_TIMEOUT_MS = 20_000;
+
+/**
+ * Acordar a API antes de disparar. Uma tentativa; ver `PIPELINE_WARM_ATTEMPTS`.
+ *
+ * 25 s cobre com folga o cold start medido (4,9 s) e ainda a acordada lenta
+ * depois de uma suspensão longa, que foi o caso que derrubou o briefing de
+ * 01/09/2026.
+ */
+export const PIPELINE_WARM_TIMEOUT_MS = 25_000;
+
+/**
+ * Quantas vezes tentar acordar antes de desistir e disparar mesmo assim.
+ *
+ * Duas, e o teto vem da soma: 2 × 25 s + 20 s de disparo = 70 s, dentro do
+ * `maxDuration = 90` da rota do cron. Desistir e **tentar disparar do mesmo
+ * jeito** é de propósito — a API pode ter acordado entre a última tentativa e
+ * o POST, e um disparo que falha custa menos que um dia sem briefing.
+ */
+export const PIPELINE_WARM_ATTEMPTS = 2;
