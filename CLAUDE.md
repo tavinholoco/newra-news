@@ -174,7 +174,10 @@ a suíte de unidade, que roda sem rede.
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - Discovery da V2 (Fase 0 — tokens, sitemap, contratos, baseline visual): docs/v2/
 - **Regras de uso dos tokens da V2 no código: `apps/web/CLAUDE.md`** — tabela papel → classe, o que a suíte proíbe e por quê
-- Diagramas: docs/diagrams/
+- Diagramas: `docs/diagrams/` — **seis**, reescritos em 01/09 contra o código:
+  arquitetura, mapa de rotas do frontend, fluxo de sessão, ER, sequência do
+  pipeline e fluxo de dados. Guarda de deriva em
+  `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
 
@@ -187,6 +190,24 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-01): os seis diagramas passaram a
+  descrever o sistema que existe.** Item **adiantado da Fase 13.5**. Os quatro
+  `.mermaid` eram de 16/08 e tinham sido tocados uma vez desde então: o ER
+  documentava **4 das 12 tabelas**, o de arquitetura anunciava um keep-alive
+  removido dois dias antes e uma UI de Swagger que produção não registra desde
+  a Fase 9, os dois do pipeline diziam **9 etapas** quando são **11**, e o
+  contrato do disparo era o que mentia antes do item 39. Entraram dois:
+  **mapa de rotas do frontend** (15 páginas, com o modo de renderização de cada
+  uma) e **fluxo de sessão** (o JWT com escopo que atravessa do Next para a
+  API — contas e admin existem desde a Fase 6 e não estavam em diagrama
+  nenhum).
+
+  **A sintaxe estava certa o tempo todo — os seis parseiam e renderizam.** O
+  defeito era 100% de conteúdo, que é a razão de nada ter acusado. Guarda nova
+  em `apps/api/tests/docs/diagram-drift.test.ts`, e ela compara **conjuntos
+  derivados da fonte** (models do schema, `page.tsx` do `app/`, etapas que o
+  pipeline anuncia), não contagens. Item **44** do `docs/progress.md`.
+
 - **Fora da linha das fases (2026-08-31): o README virou padrão, nos dois
   idiomas.** `README.md` em inglês e `README.pt-BR.md` espelhado, gerados pelo
   procedimento do `README-GENERATOR.md` — a mesma especificação que vai rodar
@@ -246,7 +267,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.433 em 128 suites (**815 API em 61** + **618 web em 67** — todos
+- **Testes:** 1.441 em 129 suites (**823 API em 62** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
@@ -292,8 +313,10 @@ decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e d
 **A dívida das fases 0–12 que a 13 herda, levantada na auditoria de fechamento
 (item 37) — nenhuma delas é escopo novo, todas são coisa que ficou para trás:**
 
-- **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam as nove da
-  V2; os quatro `.mermaid` são de 15/08;
+- ~~o diagrama ER documenta 4 entidades e o schema tem 12; os quatro
+  `.mermaid` são de 16/08~~ — **fechado em 01/09**: os quatro foram reescritos
+  contra o código, entraram mais dois (rotas do frontend e fluxo de sessão) e há
+  guarda derivada do schema, do `app/` e do pipeline. Item 44;
 - ~~os screenshots do README são de 15/08, da V1~~ — **fechado em 31/08**: o
   README passou a apontar para `docs/v2/baseline-v2/`, e a recaptura da 13.5
   atualiza os dois de uma vez;
@@ -383,6 +406,24 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   segundo clique e custava 99% da cota mensal, e foi o que suspendeu a API por
   dois dias. **Premissa herdada de uma fase anterior tem prazo de validade igual
   à medição que a originou.**
+- **Diagrama é a documentação que apodrece sem deixar sintoma, e a sintaxe
+  válida disfarça.** Os quatro `.mermaid` de 16/08 passavam no parser, rendiam
+  imagem bonita e descreviam um sistema de duas fases atrás: 4 das 12 tabelas,
+  4 das 15 rotas, 9 etapas de 11, um keep-alive apagado e uma UI de Swagger que
+  produção não registra. **Ninguém reabre um `.mermaid` ao acrescentar uma
+  tabela** — a mudança não abre o arquivo, e "renderiza" é o que se confunde
+  com "está certo". A guarda tem de comparar **conjunto derivado da fonte**
+  (models do schema, `page.tsx` do `app/`, etapas que o pipeline anuncia) e
+  nunca contagem: aqui a etapa 2 não grava evento, então contar marcadores dá
+  10 enquanto a prosa diz 11, e os dois estão certos.
+  `apps/api/tests/docs/diagram-drift.test.ts`.
+- **Duas do parser do Mermaid, que só aparecem renderizando.** Linha com `%%`
+  sozinho **quebra `flowchart` e `erDiagram`** (o comentário vazio não consome a
+  quebra de linha, e o parser recebe `%%%%flowchart TB`) e **passa em
+  `sequenceDiagram`** — são parsers diferentes, então um diagrama verde não
+  garante o vizinho. Use `%% ---` como separador. E `;` dentro de um `Note` de
+  `sequenceDiagram` **termina a instrução**: o resto da nota vira instrução nova
+  e o erro sai a três linhas de distância, apontando para texto que está certo.
 - **Remover um item de uma lista é uma linha; a contagem dela está escrita em
   prosa, em oito arquivos que a mudança não abre.** A Reuters saiu de
   `rss-sources.ts` em 24/08 porque o domínio deixou de existir, e o `13`

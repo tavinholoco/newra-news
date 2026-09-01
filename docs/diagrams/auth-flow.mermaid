@@ -1,0 +1,44 @@
+%% Fluxo de Sessão e Autorização — Newra News
+%% ---
+%% Criado em 01/09/2026. Existe porque contas, favoritos, preferências e admin
+%% são funções do produto desde a Fase 6 e não apareciam em diagrama nenhum —
+%% e porque o mecanismo é o menos óbvio do sistema: **a sessão vive no Next e
+%% a API está em outro host**, então o cookie do next-auth nunca chega nela.
+%% Quem atravessa é um JWT HS256 assinado com o `AUTH_JWT_SECRET`
+%% compartilhado, com escopo (`purpose`) declarado.
+sequenceDiagram
+    autonumber
+    actor L as Leitor
+    participant MW as middleware.ts
+    participant NA as next-auth (Next.js)
+    participant OA as Google / GitHub
+    participant BFF as BFF (app/api/*)
+    participant API as Fastify API
+    participant DB as PostgreSQL
+
+    L->>MW: GET /pt-BR/account
+    MW->>MW: existe cookie de sessão?
+    MW-->>L: 307 /pt-BR/signin quando não existe
+    Note over MW: Decide **antes** de renderizar de propósito.<br/>redirect() em server component com loading.tsx<br/>vira meta refresh de 1 s, não 307.
+
+    L->>NA: signIn (Google ou GitHub)
+    NA->>OA: OAuth
+    OA-->>NA: perfil do provedor
+
+    NA->>NA: callback jwt — assina JWT purpose "auth-upsert"
+    NA->>API: POST /api/auth/upsert (Bearer)
+    API->>DB: user.upsert por e-mail
+    API-->>NA: { id, role }
+    Note over NA,API: O id do **provedor** nunca vira token.id.<br/>Sem confirmação da API, o upsert é retentado<br/>na próxima leitura da sessão (espera de 5 min).
+    NA-->>L: cookie de sessão httpOnly · SameSite Lax · 30 dias
+
+    L->>BFF: GET /api/account (cookie)
+    BFF->>BFF: getServerSession — 401 sem sessão, 403 sem o papel
+    BFF->>API: Bearer JWT de sessão (sem purpose)
+    API->>API: authPlugin — confere assinatura e escopo
+    API->>API: requireAdmin nas rotas de admin
+    API->>DB: consulta
+    API-->>BFF: dados
+    BFF-->>L: JSON
+
+    Note over BFF,API: A dupla checagem não é redundância: o BFF evita a<br/>chamada sem sessão, e a API recusa por conta própria<br/>porque este proxy não é a única porta.

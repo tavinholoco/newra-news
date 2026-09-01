@@ -43,22 +43,25 @@ Navegador
    │  HTTPS
    ▼
 Vercel (Next.js 14 — SSG/ISR) ──► cron diário ──► API Route (CRON_SECRET)
-   │                                                    │ POST Bearer
+   │                                                    │ 1. GET /api/health
+   │  BFF (app/api/*)                                   │    acorda a instância
+   │  Bearer JWT                                        │ 2. POST Bearer
    ▼                                                    ▼
                           Render (Fastify + TypeScript + Prisma)
-                              │            │            │
-                              ▼            ▼            ▼
-                        NewsData.io   Gemini/Groq   PostgreSQL (Neon)
-                        + 12 feeds    (briefing
+                              │            │            │         │
+                              ▼            ▼            ▼         ▼
+                        NewsData.io   Gemini/Groq   PostgreSQL   Resend
+                        + 12 feeds    (briefing      (Neon)      (newsletter)
                           RSS          do dia)
-                                                    ▲
-                              GitHub Actions ───────┘
-                              (keep-alive janelado,
-                               06:00–00:00 BRT)
 ```
 
-Diagramas Mermaid completos em [`docs/diagrams/`](diagrams/) — arquitetura,
-entidade-relacionamento, sequência do pipeline e fluxo de dados.
+Não há keep-alive: a API dorme no plano free do Render, e quem precisa dela
+quente acorda antes de chamar. Decisão medida — o ping de 5 em 5 minutos
+consumia 744 h de uma cota de 750 h/mês e suspendeu a API por dois dias.
+
+Seis diagramas Mermaid em [`docs/diagrams/`](diagrams/) — arquitetura do
+sistema, mapa de rotas do frontend, fluxo de sessão, entidade-relacionamento,
+sequência do pipeline e fluxo de dados.
 
 ### Decisões que valem destacar
 

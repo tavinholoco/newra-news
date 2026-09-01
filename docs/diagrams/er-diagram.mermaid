@@ -1,16 +1,30 @@
-%% Diagrama Entidade-Relacionamento — Newra News (PRD §3.3)
-%% Nota: as tabelas são desacopladas por design (sem FKs); as linhas abaixo
-%% representam apenas referências lógicas.
+%% Diagrama Entidade-Relacionamento — Newra News
+%% ---
+%% Atualizado em 01/09/2026: as 12 tabelas do `schema.prisma`, depois das
+%% Fases 0–12 da V2. O de 16/08 documentava quatro.
+%% ---
+%% **Duas relações são chave estrangeira de verdade**, as duas com
+%% `onDelete: Cascade` — BRIEFING_SOURCE → ARTICLE e PIPELINE_EVENT →
+%% PIPELINE_LOG. Todas as outras linhas abaixo são **referências lógicas**:
+%% o ponteiro existe na coluna e nada no banco o obriga, o que é decisão de
+%% projeto (o expurgo da etapa 8 apaga notícia com mais de 30 dias, e um
+%% favorito que apontasse para ela por FK impediria a remoção).
+%% ---
+%% Enums: Category (8) · ArticleStatus (DRAFT · PUBLISHED · FAILED) ·
+%% PipelineStatus (RUNNING · SUCCESS · FAILED) · PipelineEventLevel
+%% (INFO · WARN · ERROR) · SubscriberStatus (ACTIVE · UNSUBSCRIBED) ·
+%% UserRole (USER · ADMIN) · FavoriteItemType (NEWS · ARTICLE) ·
+%% ThemePreference (LIGHT · DARK · SYSTEM).
 erDiagram
     NEWS {
         string id PK "uuid"
         string title
-        string description
-        string content "opcional"
+        string description "dek — separado do corpo na ingestão"
+        string content "corpo, opcional"
         string source
-        string sourceUrl "chave de deduplicação"
+        string sourceUrl UK "chave de deduplicação"
         string imageUrl "opcional"
-        string category "enum Category"
+        Category category "classificador por palavra-chave"
         datetime publishedAt
         datetime createdAt
         datetime updatedAt
@@ -18,23 +32,98 @@ erDiagram
 
     ARTICLE {
         string id PK "uuid"
-        string title
+        string title "texto puro — sem Markdown"
         text content "Markdown gerado por IA"
-        string summary
-        datetime date UK "1 artigo por dia"
+        string summary "dek — texto puro"
+        datetime date UK "1 briefing por dia"
         int newsCount
+        datetime generatedAt "auditoria, nullable"
+        string promptVersion "auditoria, nullable"
+        string modelVersion "auditoria, nullable"
+        ArticleStatus status "default PUBLISHED"
         datetime createdAt
         datetime updatedAt
     }
 
+    BRIEFING_SOURCE {
+        string id PK "uuid"
+        string articleId FK "cascade"
+        string newsId "ponteiro fraco, nullable"
+        int position "ordem em que foi enviada à IA"
+        string title "desnormalizado — News vive 30d, Article vive 90d"
+        string source "desnormalizado"
+        string sourceUrl "chave natural, unica por artigo"
+        datetime createdAt
+    }
+
     PIPELINE_LOG {
         string id PK "uuid"
-        string status "enum PipelineStatus"
+        PipelineStatus status
         int newsCount
-        string articleId "opcional"
-        string error "opcional"
+        string articleId "lógico, nullable"
+        string error "legado — string única"
+        float errorStage "etapa da falha, ex. 7.5"
+        json errorDetail "message, provider, statusCode"
         datetime startedAt
-        datetime completedAt "opcional"
+        datetime completedAt "nullable"
+    }
+
+    PIPELINE_EVENT {
+        string id PK "uuid"
+        string pipelineLogId FK "cascade"
+        float stage "1 a 9, com 7.5 e 8.5"
+        PipelineEventLevel level
+        string message
+        json context "nullable"
+        datetime createdAt
+    }
+
+    USER {
+        string id PK "uuid"
+        string email UK
+        string name "nullable"
+        string image "nullable"
+        UserRole role "default USER"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    USER_PREFERENCE {
+        string id PK "uuid"
+        string userId UK "lógico — 1 por usuário"
+        Category categories "lista, default vazia"
+        ThemePreference theme "default SYSTEM"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    FAVORITE {
+        string id PK "uuid"
+        string userId "lógico"
+        FavoriteItemType itemType "NEWS ou ARTICLE"
+        string itemId "ponteiro fraco — alcança as duas tabelas"
+        datetime createdAt
+    }
+
+    SUBSCRIBER {
+        string id PK "uuid"
+        string email UK
+        string userId "nullable — inscrição não exige conta"
+        SubscriberStatus status "default ACTIVE"
+        string token UK "cancelamento sem sessão"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    NEWSLETTER_LOG {
+        string id PK "uuid"
+        datetime date UK "1 envio por dia"
+        string articleId "lógico, nullable"
+        int total
+        int sent
+        int failed
+        string error "nullable — corpo do Resend é redigido"
+        datetime createdAt
     }
 
     DAILY_METRIC {
@@ -43,34 +132,37 @@ erDiagram
         int newsCollected
         json newsByCategory
         boolean articleGenerated
-        string aiProvider "gemini | groq"
-        int pipelineDuration "ms"
+        int pipelineDuration "ms, nullable"
+        string aiProvider "gemini ou groq, nullable"
+        int aiTokensUsed "nullable"
         int pipelineErrors
-        int newsApiCount "hoje: NewsData.io"
+        int newsApiCount "NewsData.io"
         int rssCount
         int cleanupCount
         datetime createdAt
     }
 
-    %% Referências lógicas (não são FKs no schema)
-    ARTICLE ||--o| DAILY_METRIC : "1 artigo/dia ↔ 1 métrica/dia"
-    PIPELINE_LOG }o--o| ARTICLE : "articleId (lógica)"
+    PRODUCT_EVENT {
+        string id PK "uuid"
+        string type "14 tipos do catálogo"
+        string sessionId "aleatório, de sessão — anônimo por construção"
+        string locale
+        string path
+        datetime occurredAt "quando aconteceu no cliente"
+        json payload "união discriminada, validada por Zod"
+        datetime createdAt
+    }
 
-    %% Enums
-    CATEGORY {
-        string TECHNOLOGY
-        string POLITICS
-        string ECONOMY
-        string SPORTS
-        string SCIENCE
-        string ENTERTAINMENT
-        string WORLD
-        string HEALTH
-    }
-    PIPELINE_STATUS {
-        string RUNNING
-        string SUCCESS
-        string FAILED
-    }
-    NEWS }o--o| CATEGORY : "category (lógica)"
-    PIPELINE_LOG }o--o| PIPELINE_STATUS : "status (lógica)"
+    ARTICLE ||--o{ BRIEFING_SOURCE : "sources — FK, cascade"
+    PIPELINE_LOG ||--o{ PIPELINE_EVENT : "events — FK, cascade"
+
+    BRIEFING_SOURCE }o--o| NEWS : "sourceUrl (lógica)"
+    PIPELINE_LOG }o--o| ARTICLE : "articleId (lógica)"
+    NEWSLETTER_LOG }o--o| ARTICLE : "articleId (lógica)"
+    ARTICLE ||--o| DAILY_METRIC : "1 briefing por dia ↔ 1 métrica por dia"
+
+    USER ||--o| USER_PREFERENCE : "userId (lógica)"
+    USER ||--o{ FAVORITE : "userId (lógica)"
+    USER ||--o| SUBSCRIBER : "userId (lógica, nullable)"
+    FAVORITE }o--o| NEWS : "itemId quando itemType = NEWS"
+    FAVORITE }o--o| ARTICLE : "itemId quando itemType = ARTICLE"
