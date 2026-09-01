@@ -182,6 +182,27 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-08-31): o README virou padrão, nos dois
+  idiomas.** `README.md` em inglês e `README.pt-BR.md` espelhado, gerados pelo
+  procedimento do `README-GENERATOR.md` — a mesma especificação que vai rodar
+  contra os outros três repositórios do conjunto. **Isto fecha uma das dívidas
+  da 13**, a dos screenshots da V1.
+
+  **O achado é o método, não o arquivo: cinco afirmações do README tinham
+  deixado de ser verdade, e nenhuma tinha sintoma.** O `/api/docs` anunciado em
+  produção **não existe lá** desde a Fase 9 (`isDocsUiEnabled`); os feeds RSS
+  eram **12 e não 13** desde a saída da Reuters em 24/08; os screenshots eram de
+  **16/08**, quatro dias antes de o redesign começar; não havia tabela de
+  variáveis de ambiente; e não havia par bilíngue. **Documento não tem CI** — a
+  única coisa que os pegou foi a regra do gerador de conferir toda afirmação
+  contra um arquivo real do repositório.
+
+  O `13` estava escrito em **oito** arquivos, incluindo o parágrafo do
+  `rss.provider.ts` que conta a história da remoção da Reuters. Virou guarda:
+  `apps/api/tests/docs/feed-count-drift.test.ts` compara `rssSources.length` com
+  a contagem escrita em prosa nos nove arquivos vivos. Item **41** do
+  `docs/progress.md`.
+
 - **Última entrega (2026-08-25):** a **Fase 12 (refinamento visual e de
   leitura)**, com os sete eixos fechados. **Sete achados, e o padrão é novo: são
   todos visíveis e nenhum tem sintoma de código** — build, 1.314 testes,
@@ -217,7 +238,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.399 em 126 suites (**794 API em 60** + **605 web em 66** — todos
+- **Testes:** 1.409 em 127 suites (**804 API em 61** + **605 web em 66** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura: API
   **98,72% stmts · 93,30% branch · 99,46% funcs**; web **72,50% stmts · 89,25%
@@ -249,15 +270,24 @@ decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e d
 > **A baseline visual mudou de tela na Fase 12**, e isso é escopo direto da
 > **13.5**: as 51 capturas de `docs/v2/baseline-v2/` são de antes do card de
 > texto, do briefing renderizado e do painel com abas. Recapturar é obrigatório
-> antes de a §31 ser fechada — e o mesmo vale para os screenshots do README.
+> antes de a §31 ser fechada.
+>
+> **E agora a recaptura conserta o README junto.** Desde 31/08 as três telas do
+> README apontam para `home--1440.jpg`, `news--1440.jpg` e
+> `article-detail--1440.jpg` **deste diretório**, em vez de manter cópia
+> própria. O diretório é reescrito a cada fase com os mesmos nomes, então a
+> 13.5 atualiza os dois de uma vez. Foi a cópia própria — `docs/screenshots/`,
+> de 16/08 — que envelheceu quinze dias sem ninguém ver; os três `.png` de lá
+> agora estão órfãos.
 
 **A dívida das fases 0–12 que a 13 herda, levantada na auditoria de fechamento
 (item 37) — nenhuma delas é escopo novo, todas são coisa que ficou para trás:**
 
 - **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam as nove da
   V2; os quatro `.mermaid` são de 15/08;
-- **os screenshots do README são de 15/08, da V1** — o site foi redesenhado a
-  partir de 20/08, e a matéria-prima já existe em `docs/v2/baseline-v2/`;
+- ~~os screenshots do README são de 15/08, da V1~~ — **fechado em 31/08**: o
+  README passou a apontar para `docs/v2/baseline-v2/`, e a recaptura da 13.5
+  atualiza os dois de uma vez;
 - **`docs/presentation.md` é de 16/08** — a peça de portfólio descreve a V1;
 - **a newsletter não entrega a assinante real** — o domínio nunca foi verificado
   no Resend, então o envio funciona só para o e-mail da conta. O produto tem
@@ -317,6 +347,20 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   multiplicação**. Ao pôr um ping periódico em qualquer serviço gratuito,
   calcule as horas antes: a pergunta não é "está dormindo?", é "quanto custa
   não dormir?".
+- **Remover um item de uma lista é uma linha; a contagem dela está escrita em
+  prosa, em oito arquivos que a mudança não abre.** A Reuters saiu de
+  `rss-sources.ts` em 24/08 porque o domínio deixou de existir, e o `13`
+  sobreviveu nos dois `CLAUDE.md`, em dois diagramas, na peça de portfólio, no
+  plano da V2, no README — e no parágrafo do **próprio `rss.provider.ts`** que
+  conta a história da remoção, e que seguia dizendo **treze** ao explicar por
+  que uma suíte não deve bater em todos eles.
+  **O `tsc` não lê prosa e a suíte não lia**; só apareceu quando a padronização
+  do README mandou conferir toda afirmação contra um arquivo real. Hoje há
+  guarda: `apps/api/tests/docs/feed-count-drift.test.ts` compara
+  `rssSources.length` com o que está escrito, e a lista de arquivos é
+  **explícita** — `docs/progress.md` e a §74 do plano guardam o `13` de
+  propósito, porque são registro histórico. Número que descreve uma coleção
+  quer guarda derivada da coleção, nunca um segundo lugar onde ele é digitado.
 - **Resposta que não distingue "fiz" de "não precisei fazer" vira tela que
   mente.** O `triggerPipeline` é idempotente por dia e devolvia **só o id**: com
   um run de hoje já em `SUCCESS`, ele entregava o id daquele, a rota respondia
@@ -427,7 +471,7 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   estrago é o `noindex` no `generateMetadata` do caminho de falta, e essa linha
   tem guarda.
 - **Amostrar "100 por fonte" esconde a cauda longa do acervo.** O pipeline
-  ingere a **NewsData.io** além dos 13 feeds RSS, e ela agrega centenas de
+  ingere a **NewsData.io** além dos 12 feeds RSS, e ela agrega centenas de
   veículos: são **87 fontes** e **95 hosts de imagem** distintos, das quais só 12
   estão em `rss-sources.ts`. Uma lista de hosts derivada das fontes cobria 77,6%
   e teria quebrado **22,4% das imagens** em silêncio (o `SafeImage` degrada sem

@@ -40,7 +40,7 @@ Vercel (Next.js 14 — ISR/SSG) ──► cron diário ──► API Route (CRON
                               │            │            │
                               ▼            ▼            ▼
                         NewsData.io   Gemini/Groq   PostgreSQL (Neon)
-                        + 13 feeds    (artigo do     + UptimeRobot
+                        + 12 feeds    (artigo do     + UptimeRobot
                           RSS         dia)           keep-alive
 ```
 
@@ -51,7 +51,7 @@ Diagramas Mermaid completos: [`docs/diagrams/`](diagrams/) (arquitetura, ER, seq
 - **Monorepo Turborepo + pnpm** — 4 packages compartilhados (`database`, `types`, `eslint-config`, `tsconfig`), tipagem única sem duplicação.
 - **Pipeline de 9 estágios** — coleta → normalização → dedup (por URL) → persistência → seleção → geração IA → artigo → cleanup (retenção de dados ~10-15MB) → métricas.
 - **IA com fallback automático** — Gemini principal, Groq de reserva; se ambos falham, o pipeline continua só com notícias.
-- **Resiliência de fontes** — NewsData.io + 13 feeds RSS independentes; o sistema funciona mesmo se uma fonte cair.
+- **Resiliência de fontes** — NewsData.io + 12 feeds RSS independentes; o sistema funciona mesmo se uma fonte cair.
 - **ISR para performance** — todas as páginas dinâmicas revalidam a cada hora; sitemap e Open Graph automáticos.
 - **Qualidade de código** — 422 testes (330 API + 92 web), cobertura do backend 97%, Lighthouse 96/96/96/100, typecheck no CI, sem `any`.
 - **Auth + i18n + admin (pós-MVP)** — OAuth Google/GitHub (next-auth v4 + JWT compartilhado web↔API), favoritos, site bilíngue pt/en (next-intl, rotas `/pt-BR` `/en`), painel admin (trigger do pipeline + remoção de notícia).

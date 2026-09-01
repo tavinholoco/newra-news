@@ -2045,7 +2045,7 @@ a publicação — o Stage 7 persiste, o 7.5 manda por e-mail para os assinantes
 a Home passa a exibir. Uma manchete construída para instruir o modelo entra pela
 mesma porta por onde entra a notícia real, e sai assinada pelo site.
 
-A superfície é grande e não é controlada por este projeto: 13 feeds RSS mais a
+A superfície é grande e não é controlada por este projeto: 12 feeds RSS mais a
 NewsData.io, centenas de itens por dia, texto escrito por terceiros.
 
 A revisão não precisa resolver o problema inteiro — precisa **decidir a

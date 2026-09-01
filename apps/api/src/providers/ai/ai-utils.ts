@@ -87,7 +87,7 @@ function truncate(text: string, max: number): string {
  * Neutraliza o que, dentro do material, se parece com o **envelope** do prompt.
  *
  * `stripHtml` limpa marcação; não limpa instrução. E o material aqui é escrito
- * por terceiros — 13 feeds RSS mais a NewsData.io, centenas de itens por dia —
+ * por terceiros — 12 feeds RSS mais a NewsData.io, centenas de itens por dia —
  * e vai colado no mesmo texto que carrega as instruções do modelo. O que sai
  * dali é publicado **sem revisão humana**: o Stage 7 persiste, o 7.5 manda por
  * e-mail para os assinantes e a Home passa a exibir. Uma manchete construída

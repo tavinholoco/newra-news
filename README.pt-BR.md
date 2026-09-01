@@ -225,7 +225,7 @@ O web sobe em `http://localhost:3000` e a API em `http://localhost:3001`. Em má
 pnpm test
 ```
 
-**1.399 testes de unidade e integração em 126 suítes** — 794 da API em 60 suítes e 605 do web em 66. A suíte não precisa de banco nem de rede: o backend usa `fastify.inject()` e o frontend usa Testing Library sobre jsdom. A cobertura tem piso de 70% em linhas, statements, funções e branches nos dois apps, e o CI reprova abaixo disso.
+**1.409 testes de unidade e integração em 127 suítes** — 804 da API em 61 suítes e 605 do web em 66. A suíte não precisa de banco nem de rede: o backend usa `fastify.inject()` e o frontend usa Testing Library sobre jsdom. A cobertura tem piso de 70% em linhas, statements, funções e branches nos dois apps, e o CI reprova abaixo disso.
 
 A cobertura end-to-end é separada: **29 specs de Playwright em 5 arquivos**, cobrindo os fluxos de visitante, acervo, conta, newsletter e autorização. Elas rodam contra produção pelo workflow `Smoke E2E` a cada push na `main`, e propositalmente não fazem parte do `pnpm test`.
 
