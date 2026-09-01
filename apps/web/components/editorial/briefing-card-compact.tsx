@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
 import { formatArticleDate, toDateSlug } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
+import { plainTitle } from '@/lib/markdown-text';
 import { cn } from '@/lib/utils';
 import type { EventSource } from '@newranews/types';
 import { track } from '@/lib/analytics';
@@ -62,7 +63,7 @@ export function BriefingCardCompact({
         <p className='text-overline uppercase text-link'>{t('briefKicker')}</p>
 
         <Heading className='mt-1 font-display text-body font-bold leading-snug text-ink transition-colors duration-base line-clamp-3 group-hover:text-link'>
-          {briefing.title}
+          {plainTitle(briefing.title)}
         </Heading>
 
         <p className='mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-ink-muted'>

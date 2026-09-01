@@ -222,6 +222,86 @@ describe('parseMarkdownResponse', () => {
     expect(result.summary).toBe('Resumo depois de linhas vazias.');
   });
 
+  // -- Nem titulo nem resumo renderizam Markdown ---------------------------
+  //
+  // Os dois campos vao direto para `<h1>`, `<meta name="description">`, o
+  // JSON-LD, o sitemap do Google Noticias, os cards e o assunto do e-mail da
+  // newsletter. Medido em 01/09/2026 nos 88 briefings retidos em producao:
+  // 34,1% dos titulos e 21,6% dos subtitulos chegavam ao leitor com asterisco.
+
+  it('tira o marcador de enfase do titulo', () => {
+    const markdown = `# **Ibovespa em xeque: tensao global**\n\nResumo aqui.\n\n${body}`;
+
+    expect(parseMarkdownResponse(markdown).title).toBe(
+      'Ibovespa em xeque: tensao global',
+    );
+  });
+
+  it('tira o marcador de enfase do resumo', () => {
+    const markdown = `# Titulo\n\nHoje o **Ibovespa** recuou.\n\n${body}`;
+
+    expect(parseMarkdownResponse(markdown).summary).toBe(
+      'Hoje o Ibovespa recuou.',
+    );
+  });
+
+  it('deixa o corpo com o Markdown intacto — quem renderiza e a tela', () => {
+    const markdown = `# Titulo\n\nResumo aqui.\n\n## Secao\n\nO **Ibovespa** recuou. ${body}`;
+    const result = parseMarkdownResponse(markdown);
+
+    expect(result.content).toContain('**Ibovespa**');
+    expect(result.content).toContain('## Secao');
+  });
+
+  it('nao confunde multiplicacao com enfase', () => {
+    const markdown = `# Titulo\n\nO indice subiu 3 * 4 = 12 pontos.\n\n${body}`;
+
+    expect(parseMarkdownResponse(markdown).summary).toBe(
+      'O indice subiu 3 * 4 = 12 pontos.',
+    );
+  });
+
+  // -- O resumo tem de ser prosa -------------------------------------------
+  //
+  // A regra antiga era "a primeira linha que nao comeca com `#`", e o modelo
+  // abria o texto com um rotulo ou uma regua: 15 dos 88 retidos (17,0%) tinham
+  // "Introducao:" ou "---" como subtitulo da materia do dia. Reprocessados
+  // contra producao com a regra nova, os 15 viram frase de abertura de verdade.
+
+  it('pula o rotulo de secao que o modelo imprime antes do texto', () => {
+    const markdown = `# Titulo\n\n**INTRODUCAO:**\n\nO dia 5 de agosto foi de tensao.\n\n${body}`;
+
+    expect(parseMarkdownResponse(markdown).summary).toBe(
+      'O dia 5 de agosto foi de tensao.',
+    );
+  });
+
+  it('pula a regua', () => {
+    const markdown = `# Titulo\n\n---\n\nDomingo negro no Brasil.\n\n${body}`;
+
+    expect(parseMarkdownResponse(markdown).summary).toBe(
+      'Domingo negro no Brasil.',
+    );
+  });
+
+  it('pula item de lista, com marcador ou numerado', () => {
+    const comMarcador = `# Titulo\n\n- primeiro item\n\nA frase de abertura.\n\n${body}`;
+    const numerado = `# Titulo\n\n1. primeiro item\n\nA frase de abertura.\n\n${body}`;
+
+    expect(parseMarkdownResponse(comMarcador).summary).toBe('A frase de abertura.');
+    expect(parseMarkdownResponse(numerado).summary).toBe('A frase de abertura.');
+  });
+
+  it('nao come frase que apenas comeca com a palavra do rotulo', () => {
+    // O rotulo so casa quando e a linha **inteira**. "Introducao a um dia
+    // dificil" e manchete, nao rotulo.
+    const markdown = `# Titulo\n\nIntroducao a um dia dificil no mercado.\n\n${body}`;
+
+    expect(parseMarkdownResponse(markdown).summary).toBe(
+      'Introducao a um dia dificil no mercado.',
+    );
+  });
+
   // ── A saida tambem e superficie ──────────────────────────────────────────
   //
   // Ate a Fase 9 estes quatro casos **passavam**: sem `# `, o parser pegava a

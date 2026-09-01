@@ -9,6 +9,7 @@ import { breadcrumbJsonLd, briefingJsonLd } from '@/lib/json-ld';
 import type { BreadcrumbStep } from '@/lib/json-ld';
 import { formatArticleDate } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
+import { plainSummary, plainTitle } from '@/lib/markdown-text';
 
 export const revalidate = 3600;
 
@@ -46,8 +47,8 @@ export async function generateMetadata({
   return pageMetadata({
     locale: params.locale,
     path: `/article/${params.date}`,
-    title: article.title,
-    description: article.summary,
+    title: plainTitle(article.title),
+    description: plainSummary(article.summary),
     openGraph: {
       type: 'article',
       // `generatedAt` é quando o modelo escreveu; `date` é o dia que o briefing

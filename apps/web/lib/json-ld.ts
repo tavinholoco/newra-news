@@ -7,6 +7,7 @@ import {
   type LocalelessPath,
 } from '@/lib/seo';
 import { toDateSlug } from '@/lib/format';
+import { plainSummary, plainTitle } from '@/lib/markdown-text';
 
 /**
  * Um nó de dado estruturado. `unknown` e não `any`: quem monta o nó já sabe o
@@ -149,8 +150,8 @@ export function briefingJsonLd({
     '@id': `${url}#article`,
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
     url,
-    headline: article.title,
-    description: article.summary,
+    headline: plainTitle(article.title),
+    description: plainSummary(article.summary),
     inLanguage: locale,
     datePublished: article.generatedAt ?? article.date,
     dateModified: article.updatedAt,

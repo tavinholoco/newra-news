@@ -8,6 +8,7 @@ import { Link } from '@/i18n/navigation';
 import { ReadingTime } from '@/components/editorial/reading-time';
 import { toDateSlug } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { plainSummary, plainTitle } from '@/lib/markdown-text';
 import type { EventSource } from '@newranews/types';
 import { track } from '@/lib/analytics';
 
@@ -80,11 +81,11 @@ export function BriefingCard({
         id={headingId}
         className='mt-4 max-w-prose font-display text-h2 font-bold text-ink'
       >
-        {briefing.title}
+        {plainTitle(briefing.title)}
       </h2>
 
       <p className='mt-3 max-w-prose text-body-lg text-ink-secondary line-clamp-3'>
-        {briefing.summary}
+        {plainSummary(briefing.summary)}
       </p>
 
       <div className='mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-ink-muted'>

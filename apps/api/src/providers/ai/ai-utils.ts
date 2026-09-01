@@ -184,6 +184,58 @@ export function buildArticleUserPrompt(newsItems: RawNewsItem[]): string {
   return ARTICLE_USER_PROMPT + formatNewsItems(newsItems) + ARTICLE_USER_PROMPT_SUFFIX;
 }
 
+/**
+ * `**forte**` e `*enfase*`, na regra do Markdown: o delimitador cola no texto.
+ *
+ * O `\S` das duas pontas impede que `3 * 4 = 12` vire enfase e perca o sinal.
+ *
+ * > **Copia deliberada de `apps/web/lib/markdown-text.ts`.** Os dois lados
+ * > fazem trabalhos diferentes — aqui e "nao gravar a formatacao do modelo",
+ * > la e "nunca mostrar a formatacao do modelo" — e a web precisa da versao
+ * > dela de qualquer jeito, para os 90 dias ja gravados. Divergir e benigno:
+ * > o pior caso e a tela limpar algo que a gravacao deixou passar.
+ */
+const EMPHASIS = /(\*\*)(\S(?:[^*]*\S)?)\1|(\*)(\S(?:[^*]*\S)?)\3/g;
+
+/** O texto sem os marcadores de enfase, com o conteudo deles preservado. */
+function stripEmphasis(text: string): string {
+  return text.replace(EMPHASIS, (_, __, forte: string, ___, enfase: string) =>
+    forte ?? enfase,
+  );
+}
+
+/**
+ * Linhas que o modelo escreve e que **nao servem de subtitulo**.
+ *
+ * Medido em 01/09/2026 sobre os 88 briefings retidos: **15 (17,0%)** tinham
+ * como `summary` um rotulo de secao (`INTRODUCAO:`, `Introducao`) ou uma regua
+ * (`---`) — porque a regra era "a primeira linha que nao comeca com `#`", e o
+ * modelo abria o texto com um desses. O leitor via "Introducao:" como subtitulo
+ * da materia do dia.
+ *
+ * As 15 estao **todas** na epoca anterior ao versionamento do prompt, que ja
+ * encerrou o padrao. A guarda fica porque **o que a IA escreve muda** e uma
+ * regra que so olha `#` volta a cair no proximo formato que ela inventar.
+ */
+function isProse(line: string): boolean {
+  if (line.length === 0) return false;
+  if (line.startsWith('#')) return false;
+  if (/^([-*_])\1{2,}$/.test(line)) return false;
+  if (/^[-*+]\s/.test(line)) return false;
+  if (/^\d+[.)]\s/.test(line)) return false;
+  return !/^(introdu[cç][aã]o|t[ií]tulo|resumo|abertura|conclus[aã]o)\s*:?$/i.test(line);
+}
+
+/**
+ * O subtitulo: a primeira linha do texto que e **prosa**, ja sem marcadores.
+ *
+ * A enfase sai antes do teste de propria, e nao depois — senao `**INTRODUCAO:**`
+ * nao casaria com o rotulo e passaria como se fosse frase.
+ */
+function deriveSummary(contentLines: readonly string[]): string {
+  return contentLines.map((line) => stripEmphasis(line.trim())).find(isProse) ?? '';
+}
+
 export function parseMarkdownResponse(markdown: string): GeneratedArticle {
   const lines = markdown.split('\n');
   const h1Index = lines.findIndex((line) => line.startsWith('# '));
@@ -192,13 +244,10 @@ export function parseMarkdownResponse(markdown: string): GeneratedArticle {
     throw new MalformedArticleError('no "# " title line');
   }
 
-  const title = (lines[h1Index] ?? '').replace(/^#\s+/, '').trim();
+  const title = stripEmphasis((lines[h1Index] ?? '').replace(/^#\s+/, '')).trim();
   const contentLines = lines.filter((_, i) => i !== h1Index);
 
-  const summary =
-    contentLines
-      .map((l) => l.trim())
-      .find((l) => l.length > 0 && !l.startsWith('#')) ?? '';
+  const summary = deriveSummary(contentLines);
 
   const content = contentLines.join('\n').trim();
 

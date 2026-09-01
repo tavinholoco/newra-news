@@ -246,7 +246,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.409 em 127 suites (**804 API em 61** + **605 web em 66** — todos
+- **Testes:** 1.433 em 128 suites (**815 API em 61** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
@@ -440,6 +440,27 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   Medição sobre saída de modelo tem prazo de validade; ao ler uma dessas notas,
   reconte antes de confiar. O prompt agora fixa um subconjunto fechado, e a
   época dele é `v2` justamente para marcar isso.
+- **Ensinar a tela a renderizar um formato conserta o campo que passa por ela,
+  e deixa os vizinhos piores por contraste.** A Fase 12 ensinou o corpo do
+  briefing a renderizar `**negrito**`. O `title` e o `summary` saem do **mesmo
+  documento** e não passam por renderizador nenhum — vão direto para `<h1>`,
+  `<meta name="description">`, `og:title`, o JSON-LD, o sitemap do Google
+  Notícias, os cards e o assunto do e-mail da newsletter. Medido em 01/09/2026
+  nos 88 briefings retidos: **34,1% dos títulos e 21,6% dos subtítulos** com
+  marcador na tela, **19,3% dos títulos** abrindo com `**TÍTULO:**` — o nome do
+  campo impresso como valor —, e **17,0% dos subtítulos** sendo só
+  `Introdução:` ou `---`. **Ao ensinar um campo a entender um formato, liste os
+  outros campos que vêm da mesma fonte** e decida um por um: aqui a resposta
+  foi renderizar o corpo e **tirar** dos outros dois, porque metadata é texto
+  puro por definição. E a correção tem duas pontas de propósito — a gravação
+  (`parseMarkdownResponse`) conserta o novo em todo consumidor, inclusive o
+  e-mail; a exibição (`lib/markdown-text.ts`) cobre os 90 dias já gravados.
+- **Limpar o dek quebra a deduplicação que usa o dek como chave.** O
+  `parseArticleBody` tira o parágrafo de abertura do corpo comparando-o com o
+  dek exibido. Com o dek limpo e o corpo ainda em Markdown, a comparação para
+  de casar e o parágrafo aparece **duas vezes** — o defeito que a limpeza
+  deveria evitar, em dobro. Normalizar as duas pontas resolve, e de quebra
+  deixa a regra indiferente a de qual lado veio o texto.
 - **`revalidate` só significa alguma coisa onde a rota é guardada.** Rota com
   segmento dinâmico e **sem `generateStaticParams`** é marcada `ƒ` no build —
   renderizada a cada requisição —, e o `export const revalidate` do arquivo

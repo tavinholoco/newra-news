@@ -329,6 +329,21 @@ Três camadas, e as três precisam continuar existindo:
    `# ` e um corpo, e lança `MalformedArticleError`. Antes ela aceitava
    qualquer coisa: sem `# `, pegava a primeira linha não vazia como título.
 
+- **O que a IA escreve também passa por higiene, e são dois campos só.**
+  `parseMarkdownResponse` grava `title` e `summary` **sem marcador de ênfase**,
+  e deriva o `summary` da primeira linha que é **prosa** — pulando régua, item
+  de lista e rótulo de seção. O `content` fica intacto de propósito: é o único
+  dos três que passa por renderizador na tela. Medido em 01/09/2026 nos 88
+  briefings retidos: **34,1% dos títulos** e **21,6% dos subtítulos** com
+  marcador, **19,3% dos títulos** abrindo com `**TÍTULO:**`, e **17,0% dos
+  subtítulos** sendo só `Introdução:` ou `---`. Reprocessados com a regra nova,
+  os 15 degenerados viram frase de abertura de verdade.
+- **Isto conserta o e-mail da newsletter, que a web não alcança.**
+  `newsletter.service.ts` lê `article.title` e `article.summary` direto do banco
+  e escapa HTML antes de enviar — um `**` ali sai como asterisco na caixa de
+  entrada de quem assina. A limpeza de exibição da web (`lib/markdown-text.ts`)
+  cobre os 90 dias já gravados; esta cobre todo consumidor dos novos.
+
 **O que a camada 2 deliberadamente não faz: filtrar frase suspeita.** Lista de
 palavra proibida em texto jornalístico é falso positivo garantido — uma matéria
 *sobre* injeção de prompt seria a primeira censurada — e não fecha nada, porque
