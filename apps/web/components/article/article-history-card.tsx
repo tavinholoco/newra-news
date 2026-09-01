@@ -6,6 +6,7 @@ import type { Article } from '@newranews/types';
 import { formatArticleDate, toDateSlug } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { plainSummary, plainTitle } from '@/lib/markdown-text';
 
 interface ArticleHistoryCardProps {
   article: Article;
@@ -55,10 +56,10 @@ export function ArticleHistoryCard({
             'font-display text-h4 font-bold text-ink transition-colors duration-base line-clamp-2 group-hover:text-link',
           )}
         >
-          {article.title}
+          {plainTitle(article.title)}
         </h3>
         <p className='mt-1.5 text-body-sm text-ink-secondary line-clamp-2'>
-          {article.summary}
+          {plainSummary(article.summary)}
         </p>
         <p className='mt-2 text-meta text-ink-muted'>
           {tCommon('sources', { count: article.newsCount })}

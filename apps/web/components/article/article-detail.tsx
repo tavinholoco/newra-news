@@ -11,6 +11,7 @@ import { ShareButton } from '@/components/editorial/share-button';
 import { SourceList } from '@/components/editorial/source-list';
 import { NewsletterCta } from '@/components/editorial/newsletter-cta';
 import { formatArticleDate, readingTimeFromText } from '@/lib/format';
+import { plainSummary, plainTitle } from '@/lib/markdown-text';
 import { toDateFormatLocale } from '@/lib/i18n';
 import type { BreadcrumbStep } from '@/lib/json-ld';
 import { ScrollDepth } from '@/components/analytics/scroll-depth';
@@ -56,6 +57,10 @@ export async function ArticleDetail({
   const locale = await getLocale();
 
   const sourceCount = article.sources.length || article.newsCount;
+  // Sem os marcadores de enfase: e subtitulo, texto de compartilhamento
+  // e chave da deduplicacao do corpo — nenhum dos tres renderiza Markdown.
+  const dek = plainSummary(article.summary);
+  const title = plainTitle(article.title);
 
   // `article` e não `div`: veio da auditoria de leitor de tela da Fase 7.
   // A tela **é** um artigo, e não havia elemento nenhum dizendo isso — o
@@ -80,8 +85,8 @@ export async function ArticleDetail({
               </span>
             </p>
           }
-          title={article.title}
-          dek={article.summary}
+          title={title}
+          dek={dek}
           meta={
             <div className='flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-body-sm text-ink-muted'>
               <time dateTime={article.date}>
@@ -104,8 +109,8 @@ export async function ArticleDetail({
                 origin='briefing'
               />
               <ShareButton
-                title={article.title}
-                text={article.summary}
+                title={title}
+                text={dek}
                 contentId={article.id}
                 contentType='briefing'
               />
@@ -118,7 +123,7 @@ export async function ArticleDetail({
         <ArticleBody
           id={BODY_ID}
           content={article.content}
-          lede={article.summary}
+          lede={dek}
         />
         <ScrollDepth
           contentId={article.id}

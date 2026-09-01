@@ -1,4 +1,5 @@
 import { getNews, getArticles } from '@/lib/api';
+import { plainTitle } from '@/lib/markdown-text';
 import { toDateSlug } from '@/lib/format';
 import { SITE_NAME, absoluteUrl, type LocalelessPath } from '@/lib/seo';
 import { DEFAULT_LOCALE } from '@/lib/i18n';
@@ -94,7 +95,7 @@ async function collectBriefings(since: Date): Promise<NewsEntry[]> {
     .filter((article) => new Date(article.date).getTime() >= since.getTime())
     .map((article) => ({
       path: `/article/${toDateSlug(article.date)}` as LocalelessPath,
-      title: article.title,
+      title: plainTitle(article.title),
       publishedAt: article.generatedAt ?? article.date,
     }));
 }

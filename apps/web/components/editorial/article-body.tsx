@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { EMPHASIS, stripInlineMarkdown } from '@/lib/markdown-text';
 
 interface ArticleBodyProps {
   /**
@@ -63,15 +64,6 @@ const THEMATIC_BREAK = /^(?:-{3,}|\*{3,}|_{3,})$/;
 
 /** `## Título`. O número de `#` é a profundidade **relativa**. */
 const HEADING = /^(#{1,6})\s+(.*)$/;
-
-/**
- * `**forte**` e `*ênfase*`, na regra do Markdown: o delimitador cola no texto.
- *
- * O `\S` das duas pontas é o que impede `3 * 4 = 12` de virar ênfase — sem ele,
- * qualquer multiplicação escrita com asterisco viraria itálico e comeria o
- * sinal.
- */
-const EMPHASIS = /(\*\*)(\S(?:[^*]*\S)?)\1|(\*)(\S(?:[^*]*\S)?)\3/g;
 
 /**
  * Quebra uma linha em pedaços com e sem ênfase.
@@ -192,7 +184,23 @@ export function parseArticleBody(content: string, lede?: string | null): Block[]
   const first = blocks[0];
   if (!opening || first?.kind !== 'paragraph') return blocks;
 
-  if (first.text === opening) return blocks.slice(1);
+  /**
+   * **A comparacao ignora marcador de enfase, e sem isso ela para de casar.**
+   *
+   * O dek exibido passa por `plainSummary`, e o corpo guarda o Markdown que a
+   * IA escreveu — entao um `summary` que abre com `**Ibovespa**` chega aqui sem
+   * os asteriscos e a linha do corpo ainda os tem. Comparado cru, o paragrafo
+   * de abertura deixaria de ser reconhecido e apareceria **duas vezes**: uma
+   * como subtitulo, outra abrindo o corpo.
+   *
+   * Normalizar as duas pontas tambem deixa a regra indiferente a de qual lado
+   * veio o texto — briefing novo, que a API ja grava limpo, e briefing retido,
+   * gravado com os marcadores, deduplicam igual.
+   */
+  const firstPlain = stripInlineMarkdown(first.text);
+  const openingPlain = stripInlineMarkdown(opening);
+
+  if (firstPlain === openingPlain) return blocks.slice(1);
 
   /**
    * **O dek pode ser um prefixo do corpo, e não só um parágrafo igual a ele.**
@@ -209,8 +217,12 @@ export function parseArticleBody(content: string, lede?: string | null): Block[]
    * corpo deixaria a matéria abrindo por "com um panorama complexo". A
    * fronteira de frase é justamente a garantia que o `toDek` da ingestão dá.
    */
-  if (/[.!?]$/.test(opening) && first.text.startsWith(opening)) {
-    const rest = first.text.slice(opening.length).trim();
+  if (/[.!?]$/.test(openingPlain) && firstPlain.startsWith(openingPlain)) {
+    // O resto sai do texto ja normalizado, porque cortar o cru por um
+    // comprimento medido no limpo erraria o ponto. Nao ha perda na pratica:
+    // este ramo existe para o corpo de RSS da `/news/[id]`, que nao tem
+    // Markdown nenhum — no briefing quem casa e a igualdade acima.
+    const rest = firstPlain.slice(openingPlain.length).trim();
     return rest.length > 0
       ? [{ kind: 'paragraph', text: rest }, ...blocks.slice(1)]
       : blocks.slice(1);
