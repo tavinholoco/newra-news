@@ -20,7 +20,11 @@ vi.mock('../../src/config/env', () => ({
 }));
 
 vi.mock('../../src/services/pipeline.service', () => ({
-  triggerPipeline: vi.fn().mockResolvedValue('pipeline-id-123'),
+  triggerPipeline: vi.fn().mockResolvedValue({
+    outcome: 'started',
+    pipelineId: 'pipeline-id-123',
+    startedAt: '2026-09-01T11:00:00.000Z',
+  }),
 }));
 
 const mockAddCronJob = vi.fn();
@@ -86,6 +90,60 @@ describe('runDailyPipelineTask', () => {
     expect(app.log.info).toHaveBeenCalledWith(
       expect.stringContaining('pipeline-id-123'),
     );
+  });
+
+  /**
+   * **O log dizia "triggered" sempre, e interpolava um objeto.**
+   *
+   * Quando o `triggerPipeline` passou a devolver
+   * `{ outcome, pipelineId, startedAt }` (PR #138), esta linha continuou
+   * interpolando o retorno inteiro: imprimia `id: [object Object]` e afirmava
+   * disparo mesmo quando o run do dia já existia. É a mesma mentira que o
+   * painel de admin contava, sobrevivendo no log — e o `tsc` não pega, porque
+   * interpolar objeto é legal.
+   */
+  it('should never log an interpolated object', async () => {
+    const app = makeMockApp();
+    await runDailyPipelineTask(app.log);
+
+    for (const call of vi.mocked(app.log.info).mock.calls) {
+      expect(String(call[0])).not.toContain('[object Object]');
+    }
+  });
+
+  it('should say nothing was triggered when the day already had a run', async () => {
+    vi.mocked(triggerPipeline).mockResolvedValueOnce({
+      outcome: 'already-succeeded-today',
+      pipelineId: 'earlier-run',
+      startedAt: '2026-09-01T11:00:00.000Z',
+    });
+
+    const app = makeMockApp();
+    await runDailyPipelineTask(app.log);
+
+    const linhas = vi
+      .mocked(app.log.info)
+      .mock.calls.map((call) => String(call[0]))
+      .join(' | ');
+
+    expect(linhas).toContain('nothing triggered');
+    expect(linhas).toContain('already-succeeded-today');
+    expect(linhas).toContain('earlier-run');
+    // e nao pode afirmar que comecou
+    expect(linhas).not.toContain('pipeline started');
+  });
+
+  it('should say it started when it actually did', async () => {
+    const app = makeMockApp();
+    await runDailyPipelineTask(app.log);
+
+    const linhas = vi
+      .mocked(app.log.info)
+      .mock.calls.map((call) => String(call[0]))
+      .join(' | ');
+
+    expect(linhas).toContain('pipeline started');
+    expect(linhas).not.toContain('nothing triggered');
   });
 
   it('should propagate errors thrown by triggerPipeline', async () => {

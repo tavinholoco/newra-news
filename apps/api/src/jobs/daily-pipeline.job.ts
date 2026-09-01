@@ -4,10 +4,37 @@ import { AsyncTask, CronJob } from 'toad-scheduler';
 import { env } from '../config/env';
 import { triggerPipeline } from '../services/pipeline.service';
 
+/**
+ * O cron **interno** da API, e ele não é o gatilho principal.
+ *
+ * Quem dispara de verdade é o cron da Vercel (`app/api/cron/daily-news`), que
+ * acorda a API antes de chamar. Este aqui é um agendador **em processo**: ele só
+ * dispara se o processo estiver de pé às 08:00 BRT, e no plano free do Render
+ * ele frequentemente não está. Não é rede de segurança — é o caminho feliz de
+ * quando a API já estava acordada.
+ *
+ * Os dois apontam para o mesmo instante (`0 8 * * *` em `America/Sao_Paulo` é
+ * `0 11 * * *` em UTC) e a idempotência por dia resolve o encontro: o segundo a
+ * chegar recebe `already-running` ou `already-succeeded-today`.
+ */
 export async function runDailyPipelineTask(log: FastifyBaseLogger): Promise<void> {
   log.info('[cron] starting daily pipeline');
-  const pipelineId = await triggerPipeline();
-  log.info(`[cron] pipeline triggered, id: ${pipelineId}`);
+
+  // **O log diz o desfecho, e antes dizia "triggered" sempre.** Quando o
+  // `triggerPipeline` passou a devolver `{ outcome, pipelineId, startedAt }`,
+  // esta linha continuou interpolando o retorno inteiro — imprimia
+  // `id: [object Object]` e afirmava disparo mesmo quando o run do dia já
+  // existia. É a mesma mentira que o painel de admin contava, sobrevivendo no
+  // log; o `tsc` não pega porque interpolar objeto é legal.
+  const { outcome, pipelineId, startedAt } = await triggerPipeline();
+
+  if (outcome === 'started') {
+    log.info(`[cron] pipeline started, id: ${pipelineId}`);
+  } else {
+    log.info(
+      `[cron] nothing triggered (${outcome}) — run of the day is ${pipelineId}, started at ${startedAt}`,
+    );
+  }
 }
 
 export async function registerDailyPipelineJob(app: FastifyInstance): Promise<void> {

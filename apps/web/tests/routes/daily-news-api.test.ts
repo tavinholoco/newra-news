@@ -69,6 +69,7 @@ describe('GET /api/cron/daily-news', () => {
       success: true,
       data,
       revalidated: true,
+      warmed: true,
     });
     expect(revalidatePathMock).toHaveBeenCalledTimes(3);
     // O padrão /[locale] cobre as duas línguas de uma vez — revalidar por
@@ -114,6 +115,7 @@ describe('GET /api/cron/daily-news', () => {
         success: true,
         data,
         revalidated: false,
+        warmed: true,
       });
       expect(revalidatePathMock).not.toHaveBeenCalled();
     });
@@ -135,7 +137,16 @@ describe('GET /api/cron/daily-news', () => {
 
     await GET(authorizedRequest());
 
-    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    // **A primeira chamada acorda; a segunda dispara.** Desde 01/09/2026 a rota
+    // bate em `/api/health` antes do POST — ver `warmApi`. Quem procurar o
+    // disparo em `calls[0]` acha o aquecimento.
+    const [warmUrl, warmInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(warmUrl).toBe('https://api.example.com/api/health');
+    expect(warmInit.method ?? 'GET').toBe('GET');
+    // O aquecimento não leva o segredo: ele bate numa rota pública.
+    expect(warmInit.headers).toBeUndefined();
+
+    const [url, init] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit];
     expect(url).toBe(JOB_URL);
     expect(init.method).toBe('POST');
     expect(init.headers).toEqual({ Authorization: `Bearer ${JOB_SECRET}` });
@@ -216,7 +227,118 @@ describe('GET /api/cron/daily-news', () => {
     expect(await res.json()).toEqual({
       success: false,
       error: 'Pipeline trigger failed',
+      // **`warmed` viaja na falha, e é o que separa duas causas.** Sem ele, "a
+      // API não acordou" e "a API acordou e recusou" ficam iguais no log da
+      // Vercel — que foi exatamente por que o briefing de 01/09 sumiu sem
+      // explicação.
+      warmed: false,
     });
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **Acordar antes de disparar, e o porquê tem data.**
+   *
+   * Em 01/09/2026 a API voltou de um mês suspenso, estava dormindo às 11h UTC,
+   * e o disparo — que tem 20 s — estourou antes de ela responder. O dia ficou
+   * sem briefing, e o único sinal foi o briefing ausente.
+   */
+  describe('aquecimento', () => {
+    const trigger = {
+      outcome: 'started',
+      pipelineId: 'pipeline-1',
+      startedAt: '2026-09-01T11:00:00.000Z',
+    };
+
+    it('tries again when the first wake attempt times out, then triggers', async () => {
+      const fetchMock = vi
+        .fn()
+        // primeira tentativa de acordar: a API hibernando não responde a tempo
+        .mockRejectedValueOnce(new Error('TimeoutError'))
+        // segunda: já acordou
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        // o disparo
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(trigger),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const res = await GET(authorizedRequest());
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        success: true,
+        data: trigger,
+        revalidated: true,
+        warmed: true,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('triggers anyway when it never manages to wake the API', async () => {
+      // **Desistir de acordar não é desistir de disparar.** A API pode ter
+      // acordado entre a última tentativa e o POST, e um disparo que falha
+      // custa menos que um dia sem briefing.
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('TimeoutError'))
+        .mockRejectedValueOnce(new Error('TimeoutError'))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(trigger),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const res = await GET(authorizedRequest());
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        success: true,
+        data: trigger,
+        revalidated: true,
+        // e a resposta conta que o aquecimento não pegou
+        warmed: false,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not spend a second attempt when the first one wakes it', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(trigger),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await GET(authorizedRequest());
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('wakes the same host it triggers, derived from BACKEND_JOB_URL', async () => {
+      // Usar outra variável abriria a chance de aquecer um host e disparar em
+      // outro — e o sintoma disso seria exatamente o defeito que isto conserta.
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(trigger),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await GET(authorizedRequest());
+
+      const [warmUrl] = fetchMock.mock.calls[0] as [string];
+      const [triggerUrl] = fetchMock.mock.calls[1] as [string];
+      expect(new URL(warmUrl).origin).toBe(new URL(triggerUrl).origin);
+    });
   });
 });
