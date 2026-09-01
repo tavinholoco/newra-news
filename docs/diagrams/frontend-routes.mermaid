@@ -1,0 +1,48 @@
+%% Mapa de Rotas do Frontend — Newra News (V2)
+%% ---
+%% Criado em 01/09/2026. Existe porque o diagrama de arquitetura mostrava
+%% quatro rotas quando o produto já tinha quinze, e porque o modo de
+%% renderização de cada uma é decisão de projeto — não detalhe de build.
+%% ---
+%% Toda rota vive sob `app/[locale]`, e o prefixo de idioma está **sempre**
+%% presente (`localePrefix: 'always'`): `/pt-BR/...` e `/en/...`.
+flowchart LR
+    MW["middleware.ts<br/>1 · negocia o idioma (cookie NEXT_LOCALE → accept-language)<br/>2 · nas rotas de sessão, pergunta só se **existe** cookie<br/>(nunca o valida — validar na borda pediria o segredo ali)"]
+
+    subgraph Leitura["Leitura pública — sem sessão"]
+        H["/ · home editorial<br/>ISR 3600 s"]
+        N["/news · listagem, facetas, busca<br/>ISR 3600 s · estado na URL"]
+        NI["/news/[id] · matéria<br/>ISR 3600 s + generateStaticParams"]
+        A["/article · histórico de briefings<br/>ISR 3600 s"]
+        AA["/article/[date] · briefing do dia<br/>ISR 3600 s + generateStaticParams"]
+        AB["/about · estático"]
+        NL["/newsletter · estático"]
+        NU["/newsletter/unsubscribe · por requisição<br/>(cancelamento por token, sem sessão)"]
+        SI["/signin · force-dynamic<br/>(Google · GitHub)"]
+    end
+
+    subgraph Conta["Conta do leitor — exige sessão"]
+        AC["/account · perfil"]
+        AP["/account/preferences · categorias e tema"]
+        AN["/account/newsletter · inscrição"]
+        FV["/favorites · salvos<br/>force-dynamic"]
+    end
+
+    subgraph Admin["Admin — exige papel ADMIN"]
+        AD["/admin · painel e disparo do pipeline"]
+        AM["/admin/metrics · pipeline, ingestão e produto"]
+    end
+
+    API["Fastify API"]
+    BFF["BFF — app/api/*<br/>getServerSession + assina o JWT da requisição"]
+
+    MW --> Leitura
+    MW --> Conta
+    MW --> Admin
+
+    Leitura -->|"prefetch no servidor<br/>ISR mantém a última página boa no ar"| API
+    Conta -->|"casca estática, dado no cliente"| BFF
+    Admin -->|"casca estática, dado no cliente"| BFF
+    BFF -->|"Bearer JWT · o papel só é assinado<br/>quando a rota o exige"| API
+
+    MW -.->|"sem cookie de sessão → 307"| SI

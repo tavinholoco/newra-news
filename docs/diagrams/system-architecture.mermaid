@@ -1,24 +1,31 @@
-%% Diagrama de Arquitetura do Sistema — Newra News (PRD §3.1)
+%% Diagrama de Arquitetura do Sistema — Newra News
+%% ---
+%% Atualizado em 01/09/2026, depois das Fases 0–12 da V2. Este é o mapa de
+%% caixas grandes: o detalhe das rotas do frontend está em
+%% `frontend-routes.mermaid`, o da sessão em `auth-flow.mermaid`, e o do
+%% pipeline em `pipeline-sequence.mermaid`.
+%% ---
+%% **Não há keep-alive.** A API dorme no plano free do Render com ~15 min sem
+%% tráfego, e isso é decisão medida desde 01/09/2026 — quem precisa dela quente
+%% acorda antes de chamar (é o que o passo 1 do cron faz). Ver `docs/setup.md`.
 flowchart TB
-    U["👤 Usuário<br/>(navegador)"] --> W
+    U["👤 Leitor<br/>(navegador)"]
 
     subgraph Frontend["FRONTEND — Vercel"]
-        W["Next.js 14 (App Router)<br/>Tailwind CSS + shadcn/ui"]
-        H["Home (ISR)"]
-        N["Notícias (ISR + CSR)"]
-        A["Artigo do dia (ISR)"]
-        S["Histórico de artigos (ISR)"]
+        W["Next.js 14 · App Router<br/>Tailwind CSS 4 + Base UI<br/>next-intl · /pt-BR e /en"]
+        PUB["Rotas de leitura<br/>(estáticas com ISR)"]
+        PRIV["Rotas de conta e admin<br/>(exigem sessão)"]
+        BFF["BFF — app/api/*<br/>assina um JWT por requisição"]
         CR["API Route<br/>/api/cron/daily-news"]
-        W --- H
-        W --- N
-        W --- A
-        W --- S
+        W --- PUB
+        W --- PRIV
+        PRIV --> BFF
     end
 
     subgraph Backend["BACKEND — Render"]
-        API["Fastify + TypeScript + Prisma<br/>Rate-limit · CORS · Helmet · Swagger"]
-        PL["Pipeline diário<br/>(9 etapas)"]
-        JOBS["Cron interno<br/>@fastify/schedule (fallback)"]
+        API["Fastify 4 · TypeScript · Prisma<br/>Zod · Rate-limit · CORS · Helmet<br/>OpenAPI sempre gerado, UI só fora de produção"]
+        PL["Pipeline diário<br/>(11 etapas)"]
+        JOBS["Cron interno · @fastify/schedule<br/>(só dispara se o processo estiver de pé)"]
         API --> PL
         JOBS --> PL
     end
@@ -29,16 +36,23 @@ flowchart TB
         RSS["RSS Feeds<br/>(12 fontes)"]
         GEM["Gemini API<br/>(IA principal)"]
         GROQ["Groq API<br/>(IA fallback)"]
+        RES["Resend<br/>(newsletter diária)"]
+        OA["Google · GitHub<br/>(OAuth)"]
     end
 
-    UP["UptimeRobot<br/>(keep-alive)"] -->|"GET /api/health"| API
+    U --> W
+    VC["Vercel Cron<br/>0 11 * * * UTC = 08:00 BRT"] -->|"GET /api/cron/daily-news<br/>Bearer CRON_SECRET"| CR
+    CR -->|"1 · GET /api/health<br/>acorda a instância"| API
+    CR -->|"2 · POST /api/jobs/daily-pipeline<br/>Bearer JOB_SECRET"| API
 
-    V["Vercel Cron<br/>(1x/dia 08:00 BRT)"] -->|"GET /api/cron/daily-news"| CR
-    CR -->|"POST /api/jobs/daily-pipeline<br/>Bearer JOB_SECRET"| API
+    PUB -->|"HTTP REST · JSON"| API
+    BFF -->|"Bearer JWT · AUTH_JWT_SECRET"| API
+    W <-->|"OAuth · next-auth"| OA
 
-    W -->|"HTTP REST (JSON)"| API
     PL -->|"fetch paralelo<br/>Promise.allSettled"| ND
     PL -->|"fetch"| RSS
-    PL -->|"gera artigo<br/>prompt estruturado"| GEM
+    PL -->|"gera o briefing do dia"| GEM
     GEM -.->|"fallback automático"| GROQ
+    PL -->|"envio diário"| RES
     PL <-->|"Prisma ORM"| DB
+    API <-->|"Prisma ORM"| DB

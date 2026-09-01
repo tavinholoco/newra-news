@@ -1,4 +1,8 @@
-%% Diagrama de Sequência do Pipeline Diário — Newra News (PRD §3.2)
+%% Diagrama de Sequência do Pipeline Diário — Newra News
+%% ---
+%% Atualizado em 01/09/2026. São **11 etapas**: 1–7, 7.5 (newsletter), 8, 8.5
+%% (renormalização) e 9. As três não críticas — 7.5, 8 e 8.5 — falham sem
+%% abortar o pipeline.
 sequenceDiagram
     autonumber
     actor VC as Vercel Cron
@@ -7,24 +11,38 @@ sequenceDiagram
     participant ND as NewsData.io
     participant RSS as RSS Feeds
     participant IA as Gemini / Groq
+    participant RES as Resend
     participant DB as PostgreSQL
 
-    VC->>NX: GET /api/cron/daily-news (CRON_SECRET)
-    NX->>API: POST /api/jobs/daily-pipeline (Bearer JOB_SECRET)
-    API->>API: idempotência — já rodou hoje?<br/>(SUCCESS/RUNNING → retorna log existente)
-    API-->>NX: { status: "started", pipelineId } (assíncrono)
+    VC->>NX: GET /api/cron/daily-news (Bearer CRON_SECRET)
 
-    par Coleta paralela
-        API->>ND: fetch 8 categorias (size=10, country=br, language=pt)
-        API->>RSS: fetch 12 feeds
+    loop até 2 tentativas de 25 s
+        NX->>API: GET /api/health — acorda a instância
+    end
+    Note over NX,API: A API dorme no plano free do Render.<br/>Acordar vem antes de disparar: em 01/09/2026<br/>o dia ficou sem briefing por causa disso.
+
+    NX->>API: POST /api/jobs/daily-pipeline (Bearer JOB_SECRET)
+    API->>API: idempotência por dia — já rodou hoje?
+    API-->>NX: { outcome, pipelineId, startedAt }
+    Note over NX,API: outcome ∈ started · already-running · already-succeeded-today.<br/>Só "started" invalida a ISR — o "não fiz" cabe no contrato.
+
+    par 1 · coleta paralela (Promise.allSettled)
+        API->>ND: 8 categorias (size=10, country=br, language=pt)
+        API->>RSS: 12 feeds
     end
     ND-->>API: RawNewsItem[]
-    RSS-->>API: RawNewsItem[] (categoria por keyword classifier)
-    API->>API: deduplicação por sourceUrl
-    API->>DB: news.createMany()
-    API->>IA: top 15 itens → prompt estruturado (truncado)
-    IA-->>API: artigo em Markdown
-    API->>DB: article.upsert (1 artigo por data)
-    API->>DB: cleanup — news >30d, logs >30d, artigos >90d
-    API->>DB: dailyMetric.upsert (newsByCategory, contagens, IA usada)
-    API-->>NX: status final gravado no PipelineLog
+    RSS-->>API: RawNewsItem[] (categoria por classificador de palavra-chave)
+
+    API->>API: 2 · normalização — higiene de texto, dek e corpo separados
+    API->>API: 3 · deduplicação por sourceUrl
+    API->>DB: 4 · news.createMany (skipDuplicates)
+    API->>API: 5 · seleção das 15 notícias mais recentes
+    API->>IA: 6 · prompt estruturado (Gemini, com fallback Groq)
+    IA-->>API: título, dek e corpo do briefing em Markdown
+    API->>DB: 7 · article.upsert por data + auditoria + BriefingSource
+    API->>RES: 7.5 · newsletter do dia (idempotente por data)
+    API->>DB: 8 · expurgo — news >30d · logs >30d · artigos e eventos >90d
+    API->>DB: 8.5 · renormaliza o acervo com as regras de ingestão atuais
+    API->>DB: 9 · dailyMetric.upsert
+
+    Note over API,DB: Toda etapa grava um PipelineEvent (INFO · WARN · ERROR).<br/>A falha grava errorStage e errorDetail no PipelineLog.

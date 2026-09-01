@@ -79,7 +79,7 @@ flowchart LR
     SRC["NewsData.io + 12 RSS feeds"] --> ING
     ING --> DEDUP[Deduplicate]
     DEDUP --> DB[(PostgreSQL)]
-    DB --> SEL[Select 15 most recent]
+    DEDUP --> SEL[Select 15 most recent]
     SEL --> AI["Gemini, Groq fallback"]
     AI --> ART[Daily briefing]
     ART --> MAIL[Newsletter]
@@ -87,9 +87,9 @@ flowchart LR
     API --> WEB[Next.js web]
 ```
 
-The pipeline runs once a day at 08:00 BRT, triggered by a Vercel Cron job with an internal Fastify scheduler as a fallback. It is idempotent per day: a second trigger on a day that already succeeded reports that it did nothing rather than running again. The web app reads the API through static generation with ISR, so a page that has already been built stays up even while the API is unavailable.
+The pipeline runs once a day at 08:00 BRT, triggered by a Vercel Cron job that wakes the API with a health check before firing. An internal Fastify scheduler points at the same instant, but it only runs if the process happens to be up — on the free tier it often is not, so it is a happy path rather than a safety net. It is idempotent per day: a second trigger on a day that already succeeded reports that it did nothing rather than running again. The web app reads the API through static generation with ISR, so a page that has already been built stays up even while the API is unavailable.
 
-Full diagrams — system architecture, entity relationships, pipeline sequence, and data flow — are in [`docs/diagrams/`](docs/diagrams).
+Six full diagrams are in [`docs/diagrams/`](docs/diagrams): system architecture, frontend route map, session and authorization flow, entity relationships, pipeline sequence, and daily data flow.
 
 ## Project Structure
 

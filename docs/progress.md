@@ -4383,6 +4383,126 @@ duas vezes. **Eles envelhecem com a retenção de 90 dias**: o mais novo é de
 
 ---
 
+### 44. Os diagramas descreviam um sistema que não existe mais ✅ 2026-09-01
+
+> Branch `docs/diagrams-v2`. **Item adiantado da Fase 13.5** — nasceu de uma
+> pergunta feita enquanto o README era atualizado ("os diagramas estão certos?")
+> e a conferência achou muito mais do que a pergunta supunha.
+
+#### O que a conferência mediu
+
+Os quatro `.mermaid` eram de **16/08/2026** e tinham sido tocados **uma única
+vez** desde então, no commit que corrigiu a contagem de feeds (`3db28ce`). A
+sintaxe dos seis diagramas do repositório — os quatro do diretório e o bloco
+embutido em cada README — estava **correta**: os seis passam no parser do
+Mermaid 11 e renderizam. O defeito era inteiramente de conteúdo.
+
+| Diagrama | O que dizia | O que é |
+|---|---|---|
+| `er-diagram` | 4 tabelas, 2 enums | **12 tabelas, 8 enums** |
+| `system-architecture` | keep-alive do UptimeRobot | **removido em 01/09** (item 42) |
+| `system-architecture` | Swagger em produção | **desregistrado desde a Fase 9** (`isDocsUiEnabled`) |
+| `system-architecture` | shadcn/ui | **Base UI** — `shadcn` é só o CLI, em devDependencies |
+| `system-architecture` | 4 rotas de frontend | **15 páginas** em `app/[locale]` |
+| `system-architecture` · `data-flow` | pipeline de **9 etapas** | **11** — faltavam a 7.5 e a 8.5 |
+| `pipeline-sequence` | `{ status: "started", pipelineId }` | `{ outcome, pipelineId, startedAt }` desde o item 39 |
+| `data-flow` | `S5 -.-> S9` rotulada "artigo gerado alimenta o site" | aresta sem sentido: sai da seleção e chega nas métricas |
+
+O `er-diagram` ainda declarava, no cabeçalho, que **"as tabelas são
+desacopladas por design (sem FKs)"**. Deixou de ser verdade quando a Fase 12
+criou `BriefingSource` e `PipelineEvent`, as duas com FK real e
+`onDelete: Cascade`.
+
+#### O padrão, e é o mesmo do item 41
+
+**Nada acusava.** `tsc` não lê diagrama, a suíte não lia, e ninguém reabre um
+`.mermaid` ao acrescentar uma tabela ou uma rota — a mudança não abre o arquivo.
+É a família da contagem de feeds em oito lugares: **descrição que mora longe do
+que descreve, e que só um leitor humano compara**. A diferença é que aqui o
+número não está escrito em prosa, está na *forma* do desenho.
+
+Corolário do item 41, agora com um segundo caso: **documento não tem CI**. As
+duas vezes que este projeto pegou deriva de documentação foi porque alguém
+mandou conferir afirmação por afirmação contra um arquivo real — nunca porque
+uma ferramenta reclamou.
+
+#### Seis diagramas, e os dois novos são função que não aparecia em lugar nenhum
+
+Os quatro foram reescritos contra o código, e entraram dois:
+
+- **`frontend-routes.mermaid`** — as 15 páginas de `app/[locale]`, agrupadas por
+  função (leitura pública · conta · admin), com o modo de renderização de cada
+  uma e o papel do `middleware.ts`. O de arquitetura mostrava quatro rotas, e
+  espremer quinze mais os modos ali dentro deixaria os dois ilegíveis.
+- **`auth-flow.mermaid`** — a sessão, que é o mecanismo menos óbvio do sistema:
+  o cookie do next-auth **nunca chega na API**, que está em outro host, e quem
+  atravessa é um JWT HS256 com escopo (`purpose`) assinado com o segredo
+  compartilhado. Contas, favoritos, preferências e admin existem desde a Fase 6
+  e não apareciam em diagrama nenhum.
+
+#### Duas coisas sobre o parser do Mermaid, que custaram uma rodada
+
+As duas só aparecem quando se renderiza de verdade, e **as duas foram
+introduzidas pela reescrita** — não existiam nos arquivos de 16/08:
+
+1. **Linha com `%%` sozinho quebra `flowchart` e `erDiagram`.** O comentário
+   vazio não consome a quebra de linha, e o parser recebe `%%%%flowchart TB`.
+   Em `sequenceDiagram` a mesma linha passa — são parsers diferentes, e foi por
+   isso que o `auth-flow` passou verde enquanto os outros quatro reprovavam.
+   Separador de parágrafo em cabeçalho de diagrama precisa de conteúdo: `%% ---`.
+2. **`;` dentro de `Note` de `sequenceDiagram` termina a instrução.** O resto da
+   nota vira instrução nova e o erro sai a três linhas de distância, apontando
+   para texto que está certo.
+
+#### Guarda
+
+**`apps/api/tests/docs/diagram-drift.test.ts`** — compara **conjuntos derivados
+da fonte**, não contagens:
+
+- toda `model` do `schema.prisma` tem entidade no ER, e todo `enum` é nomeado;
+- toda `page.tsx` de `app/[locale]` está no mapa de rotas — **e o mapa não
+  inventa rota que não existe**, que é a direção oposta e pega o desenho que
+  envelhece ao contrário;
+- toda etapa que o pipeline **anuncia** (o segundo argumento de
+  `logPipelineEvent`) está desenhada nos dois diagramas do pipeline.
+
+**Contagem seria a guarda errada aqui.** A etapa 2 acontece dentro dos providers
+e não grava `PipelineEvent`: contar marcadores dá 10, a prosa diz 11, e os dois
+estão certos. Conjunto não tem esse problema — exige que toda etapa que se
+anuncia esteja desenhada, e não opina sobre as que não se anunciam.
+
+**Confirmada reprovando, uma quebra por asserção:** entidade renomeada, enum
+renomeado, `/about` virando `/aboutx` (que reprova nas duas direções de uma vez)
+e `8.5` virando `8.6` derrubam **5 testes**, e o caso da `pipeline-sequence`
+segue verde — o que prova que o `it.each` é por arquivo, e não uma asserção só
+disfarçada de duas.
+
+O `data-flow.mermaid` também entrou em `ARQUIVOS_VIVOS` da
+`feed-count-drift.test.ts`, porque passou a nomear a contagem de feeds.
+
+**1.433 testes em 128 suítes → 1.441 em 129** — +8 na API (7 do arquivo novo,
+1 do arquivo a mais na guarda de feeds), web inalterada em 618.
+
+#### O que veio junto, porque estava errado pelo mesmo motivo
+
+- **`docs/presentation.md`** — o diagrama ASCII ainda mostrava o keep-alive do
+  GitHub Actions, e apontava a seta para o **Postgres**. Trocado pelo aquecimento
+  antes do disparo, com o Resend e o BFF que faltavam.
+- **Os dois READMEs** — a aresta `DB --> SEL` sugeria que a seleção lê do banco
+  (ela roda sobre a lista deduplicada em memória), e a prosa chamava o cron
+  interno do Fastify de *fallback*, que é justamente o que o comentário do
+  `daily-pipeline.job.ts` nega com todas as letras: *"não é rede de segurança —
+  é o caminho feliz de quando a API já estava acordada"*.
+
+#### O que fica em aberto
+
+A **recaptura da baseline visual** da 13.5 continua pendente — é o outro item
+que envelheceu pelo mesmo motivo, e não foi tocado aqui. As 51 capturas de
+`docs/v2/baseline-v2/` seguem sendo de antes da Fase 12, e são elas que as três
+telas do README apontam.
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

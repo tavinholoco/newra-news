@@ -79,7 +79,7 @@ flowchart LR
     SRC["NewsData.io + 12 feeds RSS"] --> ING
     ING --> DEDUP[Deduplicação]
     DEDUP --> DB[(PostgreSQL)]
-    DB --> SEL[Seleção das 15 mais recentes]
+    DEDUP --> SEL[Seleção das 15 mais recentes]
     SEL --> AI["Gemini, com fallback Groq"]
     AI --> ART[Briefing do dia]
     ART --> MAIL[Newsletter]
@@ -87,9 +87,9 @@ flowchart LR
     API --> WEB[Web Next.js]
 ```
 
-O pipeline roda uma vez por dia às 08:00 BRT, disparado por um cron da Vercel com um agendador interno do Fastify como fallback. Ele é idempotente por dia: um segundo disparo num dia que já teve sucesso informa que não fez nada, em vez de rodar de novo. O web lê a API por geração estática com ISR, então uma página já construída continua no ar mesmo enquanto a API está indisponível.
+O pipeline roda uma vez por dia às 08:00 BRT, disparado por um cron da Vercel que acorda a API com um health check antes de disparar. Um agendador interno do Fastify aponta para o mesmo instante, mas só roda se o processo estiver de pé — no plano free ele frequentemente não está, então é caminho feliz, não rede de segurança. Ele é idempotente por dia: um segundo disparo num dia que já teve sucesso informa que não fez nada, em vez de rodar de novo. O web lê a API por geração estática com ISR, então uma página já construída continua no ar mesmo enquanto a API está indisponível.
 
-Os diagramas completos — arquitetura do sistema, entidade-relacionamento, sequência do pipeline e fluxo de dados — estão em [`docs/diagrams/`](docs/diagrams).
+Seis diagramas completos estão em [`docs/diagrams/`](docs/diagrams): arquitetura do sistema, mapa de rotas do frontend, fluxo de sessão e autorização, entidade-relacionamento, sequência do pipeline e fluxo de dados diário.
 
 ## Estrutura do projeto
 

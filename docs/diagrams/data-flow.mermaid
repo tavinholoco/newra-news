@@ -1,22 +1,35 @@
-%% Fluxo de Dados Diário — Pipeline de Notícias (PRD §3.2)
-flowchart LR
-    subgraph Coleta["Fonte de dados"]
+%% Fluxo de Dados Diário — Pipeline de Notícias (Newra News)
+%% ---
+%% Atualizado em 01/09/2026. As 11 etapas do `pipeline.service.ts`, na ordem em
+%% que rodam, e o que cada uma deixa gravado.
+flowchart TB
+    subgraph Coleta["Fontes"]
         ND["NewsData.io"]
-        RSS["RSS Feeds"]
+        RSS["RSS · 12 feeds"]
     end
 
     S1["1 · Coleta<br/>(NewsData + RSS em paralelo)"]
-    S2["2 · Normalização<br/>(→ RawNewsItem)"]
+    S2["2 · Normalização<br/>(→ RawNewsItem · dek e corpo separados)"]
     S3["3 · Deduplicação<br/>(por sourceUrl)"]
     S4["4 · Persistência<br/>(news.createMany)"]
-    S5["5 · Seleção<br/>(top 15 por data)"]
+    S5["5 · Seleção<br/>(15 mais recentes)"]
     S6["6 · Geração IA<br/>(Gemini → Groq fallback)"]
-    S7["7 · Persistência do artigo<br/>(article.upsert por data)"]
-    S8["8 · Cleanup<br/>(news >30d · logs >30d · artigos >90d)"]
+    S7["7 · Persistência do briefing<br/>(article.upsert + BriefingSource)"]
+    S75["7.5 · Newsletter<br/>(Resend — não crítico)"]
+    S8["8 · Expurgo<br/>(news >30d · logs >30d<br/>artigos e eventos >90d)"]
+    S85["8.5 · Renormalização<br/>(reaplica as regras ao acervo gravado)"]
     S9["9 · Métricas<br/>(dailyMetric.upsert)"]
 
     ND --> S1
     RSS --> S1
-    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S75 --> S8 --> S85 --> S9
 
-    S5 -.->|"artigo gerado<br/>alimenta o site"| S9
+    SITE["Site — Next.js com ISR"]
+    S4 -.->|"acervo de notícias"| SITE
+    S7 -.->|"briefing do dia"| SITE
+    S9 -.->|"painel de admin"| SITE
+
+    LOG["PipelineLog + PipelineEvent<br/>(uma linha por etapa)"]
+    S1 -.-> LOG
+    S6 -.-> LOG
+    S85 -.-> LOG
