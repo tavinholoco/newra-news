@@ -4180,6 +4180,95 @@ motivo escrito e o comando que a preenche.
 
 ---
 
+### 42. O keep-alive sai, e o que ele comprava foi medido ✅ 2026-09-01
+
+> Branch `chore/drop-keep-alive`. Fecha o incidente do item 40 — não com uma
+> terceira tentativa de manter a API acordada, e sim medindo o que isso valia.
+
+#### Duas tentativas, e por que as duas falharam
+
+**1. UptimeRobot a cada 5 min, o tempo todo** (até 31/08). Como o Render dorme
+aos 15 min e 5 < 15, o serviço **nunca dormia**: 744 h contra o teto de 750, com
+0,8% de folga. Em 29/08 as horas acabaram e a API foi suspensa até o dia 1º —
+**três briefings perdidos** (30/08, 31/08, 01/09).
+
+**2. Workflow do GitHub Actions com janela de horário** (31/08 → 01/09). Medido:
+**2 execuções contra 46 esperadas**, uma delas 47 min atrasada e fora da janela.
+A documentação do GitHub pede **no mínimo 15 min** em repositório público e avisa
+que execução agendada é despriorizada e descartada em silêncio. O Render dorme
+aos 15 min: os dois números não deixam folga, e **o mecanismo não podia
+funcionar**. Foi por isso que a API estava fria às 11h de 01/09, quando o
+pipeline tentou disparar.
+
+#### O que faltou fazer antes das duas: medir o que o keep-alive comprava
+
+| De onde a tela tira o dado | Rotas | O leitor espera? |
+|---|---|---|
+| estática + ISR, dado no HTML | `/`, `/news`, `/article`, `/about`, `/newsletter` | **não** |
+| ISR sob demanda, 1ª visita ao item | `/news/[id]`, `/article/[date]` | sim, uma vez, **com esqueleto** |
+| busca no navegador | `/account`, `/favorites`, `/admin`, `/news` ao filtrar | sim, uma vez, **com esqueleto** |
+
+A `/news` **já traz a primeira página e as facetas no HTML estático**
+(`prefetch(getNews(1, 20))`), e o TanStack Query tem `staleTime` de 5 min — ela
+nem busca ao montar. Nenhuma rota deixa alguém diante de tela em branco: os
+`loading.tsx` e os esqueletos já existem.
+
+**O que o keep-alive comprava:** ~5 s de esqueleto na primeira matéria aberta em
+cada sessão — e essa requisição acorda a API para o resto da visita.
+**O que custava:** 99% da cota mensal, e dois dias de site congelado.
+
+> **A premissa vinha da Fase 8**, quando o cold start derrubava o Lighthouse. As
+> fases seguintes puseram prefetch e ISR em tudo, e ninguém reconferiu se ela
+> ainda valia. **Premissa herdada tem prazo de validade igual à medição que a
+> originou.**
+
+#### O que já não depende de a API estar acordada
+
+- **O pipeline** — a rota do cron aquece antes de disparar (item 40 do PR #143).
+- **O gate do Lighthouse** — o passo "Warm production" bate duas vezes em cada
+  URL antes do collect, desde 23/08.
+
+#### Medido e recusado: assar as páginas de detalhe
+
+A ideia era pôr as matérias recentes no `generateStaticParams` em vez de `[]`,
+eliminando o único caso em que o leitor espera.
+
+**O custo de build é baixo** — medido em 01/09, com a API quente, ~199 ms por
+página (duas chamadas em paralelo), nos dois idiomas:
+
+| Matérias assadas | Chamadas | Somado ao build |
+|---|---|---|
+| 36 (as da Home) | 144 | **~2 s** |
+| 300 | 1.200 | ~20 s |
+| 7.724 (tudo) | 30.896 | ~8,5 min |
+
+**O que o mata é a validade.** Medido no mesmo dia: **as 36 matérias linkadas na
+Home são todas do dia** (idade mediana 0,0 dias), e o pipeline traz ~530 novas
+por dia. O `generateStaticParams` roda **só no build** — assar hoje cobre hoje, e
+amanhã a Home linka 36 outras, nenhuma assada.
+
+Só funcionaria com **rebuild diário** disparado depois do pipeline: peça nova,
+com falha própria, que **descarta o cache da ISR inteiro a cada deploy** —
+deixando todas as páginas frias, o oposto do objetivo. Seria a terceira
+engenhoca para o mesmo problema.
+
+#### Consumo, antes e depois
+
+```
+24/7 (até 29/08):   744 h/mês   99,2% do teto   <- suspendeu a API
+janela (31/08):    ~566 h/mês   75%             <- nunca funcionou de fato
+sem keep-alive:  ~60–150 h/mês  8–20%
+```
+
+#### Se um dia incomodar
+
+Nessa ordem, e só com medição na mão: **cron-job.org** (gratuito, mas sem SLA e
+sem garantia de execução, por escrito na documentação deles) ou **Render Starter
+a US$ 7/mês** (sem hibernação, sem teto, sem terceiro). O runbook está em
+`docs/setup.md` §9.0, junto com o que conferir se a API for suspensa de novo.
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

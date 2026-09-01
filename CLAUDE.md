@@ -57,10 +57,15 @@ categoria cair, o relatório completo vem por
 > ⚠️ **E aquela medição era a conta chegando, lida ao contrário.** Uptime
 > crescendo 1:1 com o relógio **é** a definição de 24/7, e 24/7 são 744 h no mês
 > contra as **750 h** que o plano free do Render dá — 0,8% de folga. Em
-> **29/08/2026** as horas acabaram e a API foi **suspensa até o dia 1º**. O
-> keep-alive passou a ser janelado (**06:00–00:00 BRT**, em
-> `.github/workflows/keep-alive.yml`), o que derruba o consumo para ~566 h.
-> Ver `docs/setup.md` §9.0 — inclusive o que conferir se acontecer de novo.
+> **29/08/2026** as horas acabaram e a API foi **suspensa até o dia 1º**, com
+> três briefings perdidos.
+>
+> **Desde 01/09 não há keep-alive nenhum, e é decisão medida.** A API dorme, e
+> quem precisava dela quente acorda sozinho: a rota do cron aquece antes de
+> disparar, e este workflow aquece antes de medir. O custo que sobra é ~5 s de
+> esqueleto na primeira matéria aberta em cada sessão. Ver `docs/setup.md` §9.0
+> — os números, as duas tentativas que falharam, e o que conferir se a API for
+> suspensa de novo.
 >
 > **A causa é a API dormir, e só ficou clara na auditoria da Fase 8.** O plano
 > free do Render hiberna com ~15 min sem tráfego; `/pt-BR` e `/en` chamam
@@ -368,7 +373,16 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   daquele dia. O erro não foi configurar o keep-alive — foi **nunca ter feito a
   multiplicação**. Ao pôr um ping periódico em qualquer serviço gratuito,
   calcule as horas antes: a pergunta não é "está dormindo?", é "quanto custa
-  não dormir?".
+  não dormir?". **Hoje não há keep-alive** — o que ele comprava foi medido e não
+  pagava o preço. `docs/setup.md` §9.0.
+- **Antes de manter um mecanismo, meça o que ele compra.** O keep-alive existia
+  desde a Fase 8, quando o cold start derrubava o Lighthouse. As fases seguintes
+  puseram prefetch e ISR em tudo — a `/news` passou a trazer a primeira página
+  **no HTML**, com `staleTime` de 5 min, sem tocar a API — e ninguém reconferiu
+  se a premissa ainda valia. Ela não valia: o keep-alive comprava ~5 s no
+  segundo clique e custava 99% da cota mensal, e foi o que suspendeu a API por
+  dois dias. **Premissa herdada de uma fase anterior tem prazo de validade igual
+  à medição que a originou.**
 - **Remover um item de uma lista é uma linha; a contagem dela está escrita em
   prosa, em oito arquivos que a mudança não abre.** A Reuters saiu de
   `rss-sources.ts` em 24/08 porque o domínio deixou de existir, e o `13`
@@ -671,7 +685,7 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 ### Onde ler o resto
 
 - **Histórico fase a fase, com o que cada revisão achou:** `docs/progress.md`,
-  itens 11 a 39 — e as fases finais são **34** (backend review), **35**
+  itens 11 a 42 — e as fases finais são **34** (backend review), **35**
   (frontend review), **36** (integração) e **38** (refinamento visual e de
   leitura), com a verificação pós-merge da 12 no **39**. É lá que mora o
   detalhe — este bloco é orientação, não changelog.
