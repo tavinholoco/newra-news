@@ -186,6 +186,21 @@ Regras que não são óbvias no código:
   e lista numerada deram **zero** e continuam não reconhecidos, com teste
   afirmando isso. **Medição sobre saída de modelo tem prazo de validade:**
   reconte antes de confiar numa nota dessas.
+- **`title` e `summary` do briefing são texto puro, e o corpo não.** Os três
+  saem do mesmo Markdown, mas só o corpo passa por renderizador: os outros dois
+  vão direto para `<h1>`, `<meta name="description">`, `og:title`, o JSON-LD, o
+  sitemap do Google Notícias, os cards e o assunto do e-mail da newsletter.
+  Medido em 01/09/2026 nos 88 briefings retidos: **34,1% dos títulos e 21,6%
+  dos subtítulos** exibiam marcador de ênfase na tela, e **19,3% dos títulos**
+  abriam com `**TÍTULO:**` — o nome do campo impresso como valor. Quem limpa é
+  `plainTitle`/`plainSummary` (`lib/markdown-text.ts`), e **a varredura de
+  `tests/lib/markdown-text.test.ts` cobra os oito pontos de leitura** — a tela
+  seguinte a exibir um desses campos não nasce com asterisco.
+- **A deduplicação do corpo usa o dek como chave, então as duas pontas
+  precisam concordar sobre o que é ênfase.** Com o dek limpo e o corpo em
+  Markdown, `parseArticleBody` deixaria de reconhecer o parágrafo de abertura e
+  ele apareceria **duas vezes**. Por isso a comparação normaliza os dois lados
+  e o `EMPHASIS` mora em `lib/markdown-text.ts`, não no componente.
 - **O nível do subtítulo é relativo, e mapeado por posição.** As profundidades
   presentes no documento viram `h2`, `h3`, `h4` na ordem — nunca por subtração,
   que daria `h2` e `h4` num documento com `##` e `####` e reprovaria

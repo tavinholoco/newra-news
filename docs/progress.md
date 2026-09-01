@@ -4269,6 +4269,120 @@ a US$ 7/mês** (sem hibernação, sem teto, sem terceiro). O runbook está em
 
 ---
 
+### 43. O título e o dek do briefing paravam de mostrar Markdown ✅ 2026-09-01
+
+> Branch `fix/briefing-dek-markdown`. Nasceu de um sintoma de uma linha na
+> verificação do item 39 — `**` aparecendo no subtítulo do briefing — e a
+> medição achou um campo pior do que o procurado.
+
+#### O sintoma, no briefing de 01/09 em produção
+
+```
+** no dek?         true
+<strong> no dek?   false
+<strong> no corpo? true
+```
+
+A Fase 12 ensinou o **corpo** a renderizar ênfase (`article-body`). O
+**subtítulo** ficou de fora, e ninguém percebeu porque os dois vêm do mesmo
+documento: `Article.summary` é derivado do Markdown que a IA escreve — a
+primeira linha que não é heading — e vai direto para a tela, sem renderizador.
+
+#### O que a medição achou, nos 88 briefings retidos
+
+| | |
+|---|---|
+| subtítulo com marcador de ênfase | 19 (**21,6%**) |
+| **título** com marcador de ênfase | 30 (**34,1%**) |
+| **título** abrindo com o rótulo `TÍTULO:` impresso como valor | 17 (**19,3%**) |
+| subtítulo que é só um rótulo (`Introdução:`) ou uma régua (`---`) | 15 (**17,0%**) |
+
+**O campo mais afetado não era o que se procurava.** O título aparece no `h1`,
+na aba do navegador, no card de cada mês do histórico, no cartão de
+compartilhamento, no JSON-LD e **no sitemap do Google Notícias** — e o que
+estava escrito em 17 deles era `**TÍTULO:** "Braços de Incêndio: Brasil Vivia
+em Alerta..."`.
+
+#### Separando por época do prompt, e a conclusão que muda o remédio
+
+| Época | n | dek com ênfase | título com ênfase |
+|---|---|---|---|
+| `v2` (atual) | 5 | **2** | 0 |
+| `v1` | 5 | 0 | 0 |
+| `null` (antes do versionamento) | 78 | 17 | 30 |
+
+As 30 do título e as 15 do subtítulo degenerado estão **todas** na época
+anterior ao versionamento — o prompt as encerrou. **A ênfase no dek não:** ela
+está em 2 dos 5 briefings da época `v2`, que é a que roda hoje. Por isso o
+remédio não podia ser "ajusta o prompt e espera".
+
+#### As duas pontas, e por que as duas
+
+- **Na gravação** (`parseMarkdownResponse`, API): tira os marcadores dos dois
+  campos e passa a derivar o subtítulo da primeira linha que é **prosa** —
+  pulando régua, item de lista e rótulo de seção. Conserta o briefing **novo**
+  em todo consumidor de uma vez, inclusive **o e-mail da newsletter**, que não
+  passa pela web.
+- **Na exibição** (`lib/markdown-text.ts`, web): cobre os **90 dias já
+  gravados**, que a correção de gravação não alcança. `plainTitle` também tira
+  o rótulo `TÍTULO:` e, **só quando o rótulo estava lá**, as aspas em volta —
+  sem rótulo, aspas ficam, porque uma manchete pode ser inteira uma citação.
+
+É a mesma divisão de trabalho da higiene de texto da Fase 12: a ingestão
+conserta o que entra, a tela cobre o que já está lá.
+
+#### Ensaiado contra produção antes de mergear
+
+Reprocessando os 88 briefings com a regra nova de derivação:
+
+```
+subtítulo degenerado:  15 antes  ->  0 depois
+21 dos 88 summaries mudariam, e cada substituição é uma frase de abertura real
+```
+
+E as duas funções de exibição sobre os mesmos 88: **30 títulos e 19 subtítulos
+mudam, 0 campos viraram vazios, e 0 títulos perderam texto além dos
+marcadores.** A regra do projeto — correção de dado se ensaia contra produção —
+é o que separou "tira o rótulo" de "come a manchete".
+
+#### O detalhe que quase passou: a deduplicação usa o dek como chave
+
+`parseArticleBody` remove o parágrafo de abertura do corpo comparando-o com o
+dek exibido. Com o dek limpo e o corpo ainda em Markdown, a comparação **para
+de casar** e o parágrafo apareceria **duas vezes** — uma como subtítulo, outra
+abrindo o corpo. A comparação passou a normalizar as duas pontas, o que também
+a deixa indiferente a de qual lado veio o texto: briefing novo (gravado limpo)
+e retido (gravado com marcador) deduplicam igual.
+
+#### Guardas
+
+- **`tests/lib/markdown-text.test.ts`** (web) — comportamento das duas funções
+  mais **uma varredura exaustiva**: todo módulo de produção que lê `.title` ou
+  `.summary` de um briefing tem de envolver a leitura no helper. Confirmada
+  reprovando: tirar o `plainTitle` de um dos oito pontos acusa
+  `components\editorial\briefing-card.tsx:84 — briefing.title`. Ela existe
+  porque este defeito nasceu de um campo exibido sem que ninguém perguntasse de
+  onde vinha.
+- **`tests/providers/ai-utils.test.ts`** (API) — 8 casos novos, e **5 deles
+  reprovam contra o código antigo** (os outros 3 são regressão: o corpo
+  continua com o Markdown intacto, `3 * 4 = 12` não é ênfase, e "Introdução a
+  um dia difícil" é manchete, não rótulo).
+
+**1.416 testes em 127 suítes → 1.433 em 128** — +8 na API, +9 na web, que é
+o arquivo novo. (A contagem escrita no `CLAUDE.md` dizia 1.409: estava 7 testes
+atrás, e foi medida de novo em vez de incrementada.)
+
+#### O que fica em aberto, e é limitado
+
+Os **15 subtítulos degenerados já gravados** continuam degenerados na tela: o
+texto certo não está no campo, e a exibição não tem de onde tirá-lo. Trocá-lo
+pela primeira linha do corpo ali seria pior — é ele que a deduplicação usa como
+chave, e um dek que não casa com o corpo faz o parágrafo de abertura aparecer
+duas vezes. **Eles envelhecem com a retenção de 90 dias**: o mais novo é de
+05/08/2026 e sai em ~03/11/2026. Nenhum briefing novo pode nascer assim.
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
