@@ -4136,12 +4136,47 @@ são servidas pela ISR — inclusive "a listagem carrega com contagem e cards" e
 "a contagem das facetas não é zero". **O site de pé com o backend suspenso é o
 comportamento desenhado**, e o smoke é o instrumento que mostra a diferença.
 
+#### As duas dívidas de documentação que fecharam junto
+
+**`docs/screenshots/` foi apagado.** Os três `.png` de 16/08 ficaram órfãos
+quando o README passou a apontar para a `baseline-v2`, e não havia o que
+recuperar deles: são a V1. A lição fica: **captura de tela que mora fora do
+conjunto que o ritual recaptura é cópia condenada a divergir** — foi por morar
+sozinha que essa envelheceu quinze dias sem ninguém ver.
+
+**`docs/presentation.md` foi reescrito.** A peça de portfólio era de 16/08 e
+descrevia a V1 inteira. O que estava errado nela, além do desenho:
+
+| Dizia | É |
+|---|---|
+| 422 testes (330 API + 92 web) em 49 suites | 1.409 em 127 (804 API/61 + 605 web/66) |
+| cobertura backend 97% — e 94% três parágrafos depois | API 98,77% stmts, web 72,79%, medidos em 31/08 |
+| Lighthouse 96/96/96/100 | sete rotas, medianas de 92 a 97 (24/08) |
+| UptimeRobot mantém o servidor ativo | é o que **causou** a suspensão; hoje é GitHub Actions janelado |
+| pipeline de 9 estágios | onze — nove numeradas mais a 7.5 e a 8.5 |
+| Swagger em `/api/docs` (produção) | só em desenvolvimento, desde a Fase 9 |
+| `docs/diagrams/system-architecture.mmd` | a extensão é `.mermaid` — o link estava quebrado |
+| painel dev-only `/dev/dashboard` | não existe mais |
+| branch `dev` é a fonte da verdade | `dev` está **182 commits atrás** da `main` |
+| "~92 dias de uptime" | a API estava suspensa quando isto foi escrito |
+
+Os "desafios reais" eram todos da V1. Foram trocados pelos sete da V2, que são
+melhores como material de entrevista porque cada um tem número e guarda: a
+multiplicação de 744 h contra 750 h, o `revalidate` que não revalidava, o token
+`--spacing-block` gerando um segundo `.inline-block`, a correção de dado que
+quase apagou 5.635 corpos, o balde de rate limit compartilhado por
+`request.ip`, a 404 sem folha de estilo e o botão que confirmava sem ter feito.
+
+**O bloco de volume diário saiu, e não foi substituído.** A API está suspensa;
+medir produção sem produção no ar é chute. O documento carrega a lacuna com o
+motivo escrito e o comando que a preenche.
+
 #### Dívida que não fecha aqui
 
-- `docs/screenshots/*.png` ficaram **órfãos** — nenhum arquivo aponta para eles.
-- `docs/presentation.md` continua sendo de 16/08 e descrevendo a V1; só o número
-  de feeds foi corrigido. Segue como dívida da 13.
 - O diagrama ER continua com 3 entidades contra 12 no schema (item 37).
+- Zero tags e nenhum `CHANGELOG.md`.
+- A newsletter continua sem entregar a assinante real — domínio não verificado
+  no Resend.
 
 ---
 

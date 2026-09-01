@@ -185,8 +185,11 @@ a suíte de unidade, que roda sem rede.
 - **Fora da linha das fases (2026-08-31): o README virou padrão, nos dois
   idiomas.** `README.md` em inglês e `README.pt-BR.md` espelhado, gerados pelo
   procedimento do `README-GENERATOR.md` — a mesma especificação que vai rodar
-  contra os outros três repositórios do conjunto. **Isto fecha uma das dívidas
-  da 13**, a dos screenshots da V1.
+  contra os outros três repositórios do conjunto. **Isto fecha duas das dívidas
+  da 13**: a dos screenshots da V1 (o `docs/screenshots/` foi apagado e as telas
+  passaram a sair da `baseline-v2`) e a do `docs/presentation.md`, reescrito
+  depois das Fases 0–12 — com os números medidos e datados, e os desafios da V1
+  trocados pelos da V2.
 
   **O achado é o método, não o arquivo: cinco afirmações do README tinham
   deixado de ser verdade, e nenhuma tinha sintoma.** O `/api/docs` anunciado em
@@ -240,10 +243,10 @@ a suíte de unidade, que roda sem rede.
   **assinantes ativos e contas**, os dois persistentes.
 - **Testes:** 1.409 em 127 suites (**804 API em 61** + **605 web em 66** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
-  pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura: API
-  **98,72% stmts · 93,30% branch · 99,46% funcs**; web **72,50% stmts · 89,25%
-  branch · 71,42% funcs** — com piso de 70% no CI desde a Fase 10, que antes
-  media só a API.
+  pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
+  medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
+  **72,79% stmts · 89,59% branch · 72,43% funcs** — com piso de 70% no CI desde
+  a Fase 10, que antes media só a API.
 
 ### Por onde começar a Fase 13 (Ajustes finos e release final)
 
@@ -277,8 +280,9 @@ decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e d
 > `article-detail--1440.jpg` **deste diretório**, em vez de manter cópia
 > própria. O diretório é reescrito a cada fase com os mesmos nomes, então a
 > 13.5 atualiza os dois de uma vez. Foi a cópia própria — `docs/screenshots/`,
-> de 16/08 — que envelheceu quinze dias sem ninguém ver; os três `.png` de lá
-> agora estão órfãos.
+> de 16/08 — que envelheceu quinze dias sem ninguém ver, e ela **foi apagada**:
+> o diretório não existe mais. Captura de tela que mora fora do conjunto que o
+> ritual recaptura é cópia condenada a divergir.
 
 **A dívida das fases 0–12 que a 13 herda, levantada na auditoria de fechamento
 (item 37) — nenhuma delas é escopo novo, todas são coisa que ficou para trás:**
@@ -288,7 +292,9 @@ decide cada coisa que ficou em aberto, fecha os critérios de aceite da §31 e d
 - ~~os screenshots do README são de 15/08, da V1~~ — **fechado em 31/08**: o
   README passou a apontar para `docs/v2/baseline-v2/`, e a recaptura da 13.5
   atualiza os dois de uma vez;
-- **`docs/presentation.md` é de 16/08** — a peça de portfólio descreve a V1;
+- ~~`docs/presentation.md` é de 16/08~~ — **fechado em 31/08**: reescrito
+  depois das Fases 0–12, com os números medidos e datados, e os desafios
+  trocados pelos da V2;
 - **a newsletter não entrega a assinante real** — o domínio nunca foi verificado
   no Resend, então o envio funciona só para o e-mail da conta. O produto tem
   inscrição, cancelamento, estágio no pipeline e tela, e **não envia**;
