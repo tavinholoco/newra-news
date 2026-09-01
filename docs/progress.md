@@ -4047,6 +4047,139 @@ e o prazo do `timeouts.ts`.
 
 ---
 
+### 41. O README padronizado, e o número que envelheceu em oito arquivos ✅ 2026-08-31
+
+> Branches `docs/standardize-readme` (PR #141, mergeado) e
+> `docs/sync-after-readme-standard`. Padronização de documento, não fase.
+
+#### O pedido, e o que ele virou
+
+O pedido era aplicar o `README-GENERATOR.md` — uma especificação de README
+padronizado para os quatro repositórios do portfólio (TRAK Assessoria,
+Repertório Progressivo, Newra News, Netsheet Engine). A regra central dele é
+uma só: **toda afirmação sobre stack, comando, feature ou deploy precisa vir de
+um arquivo real do repositório**; o que não for verificável vira pergunta ou é
+omitido.
+
+Aplicá-la ao README existente **encontrou cinco afirmações que tinham deixado
+de ser verdade** — e nenhuma tinha sintoma. O README é o único documento do
+repositório que ninguém guarda: `lint`, `typecheck`, `build`, 1.399 testes,
+Lighthouse e smoke passavam por cima de todas.
+
+| O que o README dizia | O que é verdade | Desde |
+|---|---|---|
+| "Swagger em `/api/docs`" na seção de produção | `isDocsUiEnabled()` devolve `false` em produção — foi assim que `@fastify/static` saiu do processo | Fase 9 |
+| "13 feeds RSS" | 12. A Reuters saiu porque `feeds.reuters.com` devolve NXDOMAIN | 24/08 |
+| Screenshots de `docs/screenshots/` | São de **16/08**, quatro dias antes de o redesign começar | 20/08 |
+| Sem tabela de variáveis de ambiente | São 30, em três `.env.example` | sempre |
+| Só português | O padrão exige par bilíngue espelhado | — |
+
+O de produção era o mais caro dos cinco: **um endereço que o leitor tenta e não
+existe**. Os outros envelhecem em silêncio; esse falha na cara de quem confiou.
+
+#### O que foi entregue
+
+`README.md` em inglês como padrão e `README.pt-BR.md` espelhado — 281 linhas
+cada, 15 seções na mesma ordem. As três telas apontam para
+`docs/v2/baseline-v2/`, **em vez de manter cópia própria**: o diretório é
+reescrito a cada fase com os mesmos nomes, então a recaptura da 13.5 conserta
+os dois de uma vez. Foi a cópia própria que envelheceu quinze dias sem ninguém
+ver. **Isto fecha a dívida dos screenshots que a 13 herdava** (item 37).
+
+A coluna "obrigatória" da tabela de env saiu do `envSchema` do Zod, não de
+suposição: só `DATABASE_URL`, `GEMINI_API_KEY`, `GROQ_API_KEY` e `JOB_SECRET`
+não têm default nem `.optional()`. E as três métricas impressas foram medidas —
+`pnpm test` para os testes, `playwright test --list` para os 29 specs, os
+`vitest.config.ts` para o piso de 70%. As porcentagens exatas de cobertura
+ficaram **de fora**, porque `test:coverage` não foi rodado.
+
+#### O achado que virou guarda
+
+O `13` estava escrito em **oito** arquivos: os dois `CLAUDE.md`, dois
+diagramas, a peça de portfólio, o plano da V2, o README, e o parágrafo do
+**próprio `rss.provider.ts`** que conta a história da remoção da Reuters e
+seguia dizendo treze ao explicar por que uma suíte não deve bater em todas as
+fontes.
+
+**Remover uma fonte é uma linha; a contagem dela está escrita em prosa, longe
+do array, em arquivos que a mudança não abre.** O `tsc` não lê prosa e a suíte
+não lia. Hoje lê: `apps/api/tests/docs/feed-count-drift.test.ts` compara
+`rssSources.length` com a contagem escrita nos nove arquivos vivos, nas quatro
+formas em que este repositório a escreve (`12 feeds`, `doze feeds`,
+`twelve RSS feeds`, `(12 fontes)`).
+
+A lista de arquivos é **explícita**, e é o ponto: `docs/progress.md` — este
+arquivo — e a §74 do plano da V2 guardam o `13` de propósito. O primeiro é
+diário, a segunda cita o README de 15/08 nomeando a URL de onde copiou.
+Corrigir os dois seria reescrever o passado.
+
+**A guarda reprovou na estreia, sobre o texto que a anuncia.** A armadilha
+escrita no `CLAUDE.md` para explicar o defeito citava a string velha entre
+aspas, e o regex não distingue "afirmo treze" de "cito quem dizia treze". É a
+quinta vez que este projeto tropeça na mesma família — guarda estática vê
+caractere, não intenção — e a primeira em que o tropeço apareceu antes do
+merge, porque desta vez a guarda foi quebrada de propósito para conferir que
+reprova.
+
+#### O smoke vermelho, que não era do merge
+
+O merge do PR #141 deixou o `Smoke E2E` vermelho: **3 falharam, 6 puladas, 20
+passaram**. Ele falhou igual nos merges #139 e #140, antes deste PR.
+
+Sonda direta: `https://newra-news-api.onrender.com/api/health` devolve **HTTP
+503 "This service has been suspended"** em 0,51 s. É a suspensão do item 40 —
+as horas do plano free acabaram em 29/08 e voltam no dia 1º.
+
+O que separa as três que caem das 20 que passam é **precisar da API viva**: a
+busca por `brasil`, o hero abrindo a matéria e o briefing do dia. As que passam
+são servidas pela ISR — inclusive "a listagem carrega com contagem e cards" e
+"a contagem das facetas não é zero". **O site de pé com o backend suspenso é o
+comportamento desenhado**, e o smoke é o instrumento que mostra a diferença.
+
+#### As duas dívidas de documentação que fecharam junto
+
+**`docs/screenshots/` foi apagado.** Os três `.png` de 16/08 ficaram órfãos
+quando o README passou a apontar para a `baseline-v2`, e não havia o que
+recuperar deles: são a V1. A lição fica: **captura de tela que mora fora do
+conjunto que o ritual recaptura é cópia condenada a divergir** — foi por morar
+sozinha que essa envelheceu quinze dias sem ninguém ver.
+
+**`docs/presentation.md` foi reescrito.** A peça de portfólio era de 16/08 e
+descrevia a V1 inteira. O que estava errado nela, além do desenho:
+
+| Dizia | É |
+|---|---|
+| 422 testes (330 API + 92 web) em 49 suites | 1.409 em 127 (804 API/61 + 605 web/66) |
+| cobertura backend 97% — e 94% três parágrafos depois | API 98,77% stmts, web 72,79%, medidos em 31/08 |
+| Lighthouse 96/96/96/100 | sete rotas, medianas de 92 a 97 (24/08) |
+| UptimeRobot mantém o servidor ativo | é o que **causou** a suspensão; hoje é GitHub Actions janelado |
+| pipeline de 9 estágios | onze — nove numeradas mais a 7.5 e a 8.5 |
+| Swagger em `/api/docs` (produção) | só em desenvolvimento, desde a Fase 9 |
+| `docs/diagrams/system-architecture.mmd` | a extensão é `.mermaid` — o link estava quebrado |
+| painel dev-only `/dev/dashboard` | não existe mais |
+| branch `dev` é a fonte da verdade | `dev` está **182 commits atrás** da `main` |
+| "~92 dias de uptime" | a API estava suspensa quando isto foi escrito |
+
+Os "desafios reais" eram todos da V1. Foram trocados pelos sete da V2, que são
+melhores como material de entrevista porque cada um tem número e guarda: a
+multiplicação de 744 h contra 750 h, o `revalidate` que não revalidava, o token
+`--spacing-block` gerando um segundo `.inline-block`, a correção de dado que
+quase apagou 5.635 corpos, o balde de rate limit compartilhado por
+`request.ip`, a 404 sem folha de estilo e o botão que confirmava sem ter feito.
+
+**O bloco de volume diário saiu, e não foi substituído.** A API está suspensa;
+medir produção sem produção no ar é chute. O documento carrega a lacuna com o
+motivo escrito e o comando que a preenche.
+
+#### Dívida que não fecha aqui
+
+- O diagrama ER continua com 3 entidades contra 12 no schema (item 37).
+- Zero tags e nenhum `CHANGELOG.md`.
+- A newsletter continua sem entregar a assinante real — domínio não verificado
+  no Resend.
+
+---
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

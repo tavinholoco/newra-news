@@ -16,7 +16,7 @@ sequenceDiagram
 
     par Coleta paralela
         API->>ND: fetch 8 categorias (size=10, country=br, language=pt)
-        API->>RSS: fetch 13 feeds
+        API->>RSS: fetch 12 feeds
     end
     ND-->>API: RawNewsItem[]
     RSS-->>API: RawNewsItem[] (categoria por keyword classifier)

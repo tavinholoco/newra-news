@@ -313,7 +313,7 @@ código corrigido — o motivo pelo qual ele está daquele jeito.
 
 **É o risco mais próprio deste produto**, porque a saída do modelo vai ao ar
 sozinha: o Stage 7 persiste, o 7.5 manda e-mail aos assinantes, a Home exibe.
-Nenhuma revisão humana no meio, e o material é escrito por terceiros — 13 feeds
+Nenhuma revisão humana no meio, e o material é escrito por terceiros — 12 feeds
 RSS mais a NewsData.io, centenas de itens por dia.
 
 Três camadas, e as três precisam continuar existindo:

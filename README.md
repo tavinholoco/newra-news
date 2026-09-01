@@ -225,7 +225,7 @@ The web app runs on `http://localhost:3000` and the API on `http://localhost:300
 pnpm test
 ```
 
-**1,399 unit and integration tests across 126 suites** — 794 for the API in 60 suites, 605 for the web app in 66. The suite needs no database and no network: the backend uses `fastify.inject()`, the frontend uses Testing Library on jsdom. Coverage is enforced at a 70% floor for lines, statements, functions, and branches in both apps, and CI fails below it.
+**1,409 unit and integration tests across 127 suites** — 804 for the API in 61 suites, 605 for the web app in 66. The suite needs no database and no network: the backend uses `fastify.inject()`, the frontend uses Testing Library on jsdom. Coverage is enforced at a 70% floor for lines, statements, functions, and branches in both apps, and CI fails below it.
 
 End-to-end coverage is separate: **29 Playwright specs across 5 files**, covering the visitor, archive, account, newsletter, and authorization flows. They run against production through the `Smoke E2E` workflow on every push to `main`, and are deliberately not part of `pnpm test`.
 

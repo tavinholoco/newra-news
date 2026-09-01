@@ -40,7 +40,7 @@ const parser = new Parser<Record<string, never>, CustomItem>({
  *
  * O aviso por fonte é o mínimo que torna a próxima visível — ele sai no log do
  * Render, ao lado do resto da execução. **Não vira teste de rede**: uma suíte
- * que bate nos treze feeds reprovaria no dia em que um publisher espirrasse, e
+ * que bate nos doze feeds reprovaria no dia em que um publisher espirrasse, e
  * gate que falha por motivo alheio é gate que se aprende a ignorar.
  */
 export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<RawNewsItem[]> {
