@@ -55,3 +55,6 @@ apps/web/blob-report/
 
 # Internal docs (not for public repo)
 docs/PRD-NewraNews_V1.1.md
+
+# Arquivo de processo interno, nao versionado
+README-GENERATOR.md

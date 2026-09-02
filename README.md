@@ -15,7 +15,7 @@ AI-generated daily briefing that turns hundreds of news sources into one reliabl
 
 ## Table of Contents
 
-- [Screens](#screens)
+- [Screenshots](#screenshots)
 - [About](#about)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
@@ -30,7 +30,7 @@ AI-generated daily briefing that turns hundreds of news sources into one reliabl
 - [License](#license)
 - [Author](#author)
 
-## Screens
+## Screenshots
 
 | Home | News archive | Daily briefing |
 | --- | --- | --- |
