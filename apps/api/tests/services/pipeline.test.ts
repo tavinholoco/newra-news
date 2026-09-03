@@ -105,6 +105,7 @@ const mockFetchResult = {
       publishedAt: new Date('2024-01-01T09:00:00Z'),
     },
   ],
+  warnings: [],
 };
 
 const mockGeneratedArticle = {

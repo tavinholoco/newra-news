@@ -157,7 +157,7 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
   try {
     // Stage 1: Collect news (NewsData.io + RSS)
     currentStage = 1;
-    const { newsDataItems, rssItems, allItems } = await fetchAll();
+    const { newsDataItems, rssItems, allItems, warnings } = await fetchAll();
     metrics.newsDataCount = newsDataItems.length;
     metrics.rssCount = rssItems.length;
     await logPipelineEvent(pipelineLogId, 1, 'INFO', 'News collected', {
@@ -165,6 +165,30 @@ async function runPipeline(pipelineLogId: string): Promise<void> {
       rssCount: rssItems.length,
       total: allItems.length,
     });
+
+    // **A colheita degradada vira registro, e não só um número menor.**
+    //
+    // Um provider que falha ou volta vazio não aborta o dia — e é justamente
+    // por isso que ele sumia: o run seguia para `SUCCESS` com metade das
+    // notícias, indistinguível de um dia bom, e o único rastro era um
+    // `console.warn` no stdout do Render, que ninguém lê. Aqui ele passa a
+    // caber no `PipelineEvent` (visível em `GET /api/dev/logs/:id`) e a
+    // contar em `DailyMetric.pipelineErrors`.
+    //
+    // **Só o nível de provider conta como erro.** Feed especializado que
+    // publica devagar fica legitimamente vazio em dia comum — contá-lo faria a
+    // luz acender todos os dias, e luz que acende todo dia é luz que se
+    // aprende a ignorar. Ele é gravado no evento assim mesmo, porque a fonte
+    // que morreu de vez só aparece na sequência de dias vazios (foi como a
+    // `Reuters` passou despercebida).
+    if (warnings.length > 0) {
+      metrics.pipelineErrors += warnings.filter(
+        (warning) => warning.kind !== 'feed-empty',
+      ).length;
+      await logPipelineEvent(pipelineLogId, 1, 'WARN', 'Collection degraded', {
+        warnings,
+      });
+    }
 
     // Stage 2: Normalization already handled by providers (RawNewsItem format)
 
