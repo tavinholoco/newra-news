@@ -201,11 +201,25 @@ a suíte de unidade, que roda sem rede.
   linhas, e `RUNNING` há mais de 15 min é enterrado antes do disparo seguinte.
   **837 → 848 testes.** Item **46** do `docs/progress.md`.
 
-  > **Sobrou dívida com gatilho:** três dos 12 feeds RSS (Superinteressante,
+  > ~~**Sobrou dívida com gatilho:** três dos 12 feeds RSS (Superinteressante,
   > Veja Saúde, Drauzio Varella) estão em `ETIMEDOUT` desde 02/09 e o pipeline
   > os registra como `feed-empty` — a classe de "publicou devagar", que não
-  > conta em `pipelineErrors`. Eles respondem 200 de fora. **Gatilho:** o mesmo
-  > feed em zero por três dias seguidos.
+  > conta em `pipelineErrors`.~~ **Fechado no mesmo PR:** `fetchFromRss` agora
+  > devolve `failures` por fonte, e a fonte que lançou vira `feed-failed` — que
+  > **conta** — em vez de `feed-empty`. Ver `FetchWarningKind` em
+  > `news-fetcher.service.ts`. **848 → 853 testes.**
+  >
+  > **O outro fio (o Groq nos dois últimos briefings) foi investigado, e não
+  > pede correção.** O log de 03/09 mostra três tentativas, todas 503
+  > `UNAVAILABLE — This model is currently experiencing high demand`: é o
+  > `gemini-2.5-flash` sobrecarregado do lado do Google, reportado em massa por
+  > terceiros ao longo de 2026 (fóruns oficiais do Google AI, issues do
+  > `googleapis/python-genai`), não uma cota nossa — o pipeline chama a Gemini
+  > **uma vez por dia**, longe de qualquer teto de RPD. `isTransientApiError`
+  > classificou certo, `withRetry` tentou três vezes com backoff, e o fallback
+  > para o Groq entregou o briefing sem perda. **Gatilho para agir:** três dias
+  > seguidos de fallback (hoje são dois, medidos por
+  > `aiProviderUsage.groq` em `/api/metrics/weekly`).
 
 - **Fora da linha das fases (2026-09-01): os seis diagramas passaram a
   descrever o sistema que existe.** Item **adiantado da Fase 13.5**. Os quatro

@@ -4687,25 +4687,76 @@ ele só roda depois de tudo (`readsWhenLoopTurned === reads.n`); com o respiro,
 no meio. Confirmadas quebrando o código de propósito: as duas reprovaram, as
 outras 23 seguiram verdes.
 
-#### O que ficou em aberto
+#### `feed-empty` que era `feed-failed`, fechado no mesmo PR
 
-- **Três dos 12 feeds RSS estão fora desde 02/09.** Superinteressante, Veja
-  Saúde e Drauzio Varella (índices 9, 10 e 11) morrem com `ETIMEDOUT` no connect
-  a partir do Render. **Não é feed morto**: respondem 200 em 0,23–0,65 s de
-  fora, e entregaram até 01/09 (35, 37 e 10 itens). Não é bloqueio de rede da
-  Automattic — `super` e `saude` resolvem para `192.0.66.x` e o **TechCrunch
-  está no mesmo bloco** e entregou 20 itens no mesmo run.
-- **E o pipeline registra os três como `feed-empty`**, a mesma classe de "feed
-  especializado que publicou devagar", que **não conta** em `pipelineErrors`. A
-  detecção é por ausência de nome no resultado (`fetchAll`), e o
-  `Promise.allSettled` interno do `rss.provider` já engoliu a rejeição — então o
-  stack trace de `ETIMEDOUT` existe no stdout e **é descartado na
-  classificação**. O item 45 fechou essa distinção no nível de *provider*
-  (`provider-failed` × `provider-empty`) e no nível de *feed* ela não existe.
-  **Gatilho:** o mesmo feed em zero por três dias seguidos.
-- **O Gemini caiu com 503 `high demand`** (três tentativas, backoff de 1.442 ms
-  e 2.298 ms) e o briefing saiu pelo Groq — em 02/09 também. O fallback fez o
-  trabalho dele; dois dias seguidos é padrão novo, não incidente.
+Os três feeds ficaram documentados acima como dívida com gatilho e fecharam
+antes de o gatilho disparar — a pergunta seguinte na mesma conversa foi "então
+classifica esses três como falhou".
+
+**O problema não era a detecção, era onde ela perdia a informação.**
+`fetchFromRss` já sabia, por fonte, qual `fetchSource` tinha lançado — o
+`Promise.allSettled` interno via a rejeição direto —, mas só imprimia
+`console.warn` e devolvia a lista achatada dos que **deram certo**. `fetchAll`
+via essa lista, comparava contra `rssSources` e via a ausência — sem jeito
+nenhum de distinguir "lançou" de "respondeu com zero". Superinteressante, Veja
+Saúde e Drauzio Varella, em `ETIMEDOUT` havia dois dias, saíam como
+`feed-empty`: a mesma classe de "publicou devagar", que **não conta** em
+`pipelineErrors`.
+
+A correção é uma função nova, `fetchFromRssWithFailures`, que devolve
+`{ items, failures }` em vez de só os itens — `failures` é o `{ source, detail
+}` que o `Promise.allSettled` interno já tinha em mãos. `fetchFromRss`
+continua existindo como atalho fino sobre ela (`.then(r => r.items)`), então
+os 20 testes de `rss.provider.test.ts` não mudaram uma linha. `fetchAll` ganhou
+um quarto `FetchWarningKind`: `feed-failed`, que **conta** como erro do run
+(a mesma regra de filtro em `pipeline.service.ts` — `kind !== 'feed-empty'` —
+já cobria qualquer kind novo sem precisar mexer lá). `feed-empty` continua
+existindo para o caso genuíno: fonte que respondeu e não tinha nada.
+
+**848 → 853 testes**, cinco novos: o feed que lança vira `feed-failed` e não
+`feed-empty`; a mesma fonte não aparece nas duas classificações ao mesmo
+tempo; as duas convivem no mesmo run (o caso real de 03/09 — alguns feeds
+fora, outros só quietos); os itens dos feeds que **deram certo** continuam
+valendo quando outros do lote falham; e o caso raro em que as doze respondem
+sem lançar e sem trazer item nenhum continua virando um único `provider-empty`
+para `rss`, em vez de doze `feed-failed`/`feed-empty` idênticos afogando a
+linha — o padrão ali sugere o provider inteiro mudo, não doze fontes
+coincidentemente quietas na mesma hora.
+
+#### O Gemini caindo pro Groq, investigado — e não é bug daqui
+
+Pergunta seguinte: por que dois dias seguidos (02 e 03/09) o briefing saiu pelo
+Groq? O log de 03/09 mostra o quadro inteiro:
+
+```
+Gemini API transient error (attempt 1/3), retrying in 1442ms
+Gemini API transient error (attempt 2/3), retrying in 2298ms
+Gemini provider failed, falling back to Groq: Error: Gemini API error 503:
+{ "error": { "code": 503, "message": "This model is currently experiencing
+  high demand. Spikes in demand are usually temporary. Please try again
+  later.", "status": "UNAVAILABLE" } }
+```
+
+Três tentativas, três 503 `UNAVAILABLE`. Não é cota nossa — o pipeline chama a
+Gemini **uma vez por dia**, ordens de grandeza abaixo de qualquer teto de
+requisições diárias — e não é bug de classificação: `isTransientApiError`
+reconhece 503 como transitório, `withRetry` tentou as três vezes com backoff
+(1.442 ms, depois 2.298 ms), e o fallback entregou o briefing pelo Groq sem
+perda nenhuma. É sobrecarga do lado do Google: "high demand"/`UNAVAILABLE" é a
+mensagem pública deles para capacidade insuficiente no modelo, e está
+reportada em massa ao longo de 2026 nos fóruns oficiais do Google AI e em
+issues como `googleapis/python-genai#1373` — não um sintoma isolado deste
+projeto.
+
+`GET /api/metrics/weekly` mostra `aiProviderUsage: { gemini: 3, groq: 1 }` para
+a janela 28/08–03/09, que deveria ter **dois** dias de Groq (02 e 03) — o
+`groq: 1` conta só o 02/09, porque o `DailyMetric` de 03/09 nunca foi gravado
+(a etapa 9 não rodou: é exatamente a consequência do `SIGTERM` na etapa 8.5
+descrita acima). Depois desta correção, o `03/09` volta a contar.
+
+**Não pede correção — o mecanismo fez o que devia.** Fica em aberto com
+gatilho, não como bug: três dias seguidos de fallback, medido pelo mesmo
+`aiProviderUsage.groq` que expôs a lacuna acima.
 
 ---
 
