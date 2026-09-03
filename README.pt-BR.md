@@ -15,7 +15,7 @@ Briefing diário gerado por IA que transforma centenas de fontes de notícias em
 
 ## Índice
 
-- [Telas](#telas)
+- [Screenshots](#screenshots)
 - [Sobre](#sobre)
 - [Funcionalidades](#funcionalidades)
 - [Stack](#stack)
@@ -30,7 +30,7 @@ Briefing diário gerado por IA que transforma centenas de fontes de notícias em
 - [Licença](#licença)
 - [Autor](#autor)
 
-## Telas
+## Screenshots
 
 | Home | Acervo de notícias | Briefing do dia |
 | --- | --- | --- |
