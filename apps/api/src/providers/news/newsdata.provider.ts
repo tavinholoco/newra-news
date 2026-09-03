@@ -13,6 +13,17 @@ import type { RawNewsItem } from '../types';
 const API_URL = 'https://newsdata.io/api/1/news';
 const PAGE_SIZE = 10; // max size on the free tier
 
+/**
+ * **Prazo, pela mesma razão que o provider de RSS tem o seu.** Uma requisição
+ * que abre a conexão e não responde prenderia a etapa 1 sem teto — e aqui são
+ * oito em paralelo, então basta uma. O RSS ganhou o dele na Fase 9 e este
+ * ficou para trás; a assimetria não tinha motivo.
+ *
+ * Quinze segundos é folga larga sobre o medido em 02/09/2026, quando as oito
+ * categorias responderam entre 0,52 s e 0,84 s.
+ */
+const CATEGORY_TIMEOUT_MS = 15_000;
+
 // No tier gratuito, o conteudo completo vem com este placeholder.
 const PAID_CONTENT_PLACEHOLDER = /ONLY AVAILABLE IN PAID PLANS/i;
 
@@ -60,15 +71,35 @@ export async function fetchFromNewsData(categories: Category[]): Promise<RawNews
     throw new Error('NEWSDATA_API_KEY is not configured');
   }
 
-  const results = await Promise.all(categories.map((category) => fetchCategory(category)));
-  return results.flat();
+  // **`allSettled`, e não `all`.** Com `Promise.all` uma única categoria que
+  // rejeita descarta a colheita inteira da NewsData — as outras sete já tinham
+  // respondido e iam para o lixo junto. É a mesma escolha que o provider de RSS
+  // faz por feed, e pela mesma razão: fonte fora do ar não derruba o dia.
+  const results = await Promise.allSettled(
+    categories.map((category) => fetchCategory(category)),
+  );
+
+  // Categoria que falha ou vem vazia avisa, uma a uma — espelha `fetchFromRss`.
+  // Sem isto, oito respostas viram um número só e a que sumiu não deixa rastro.
+  results.forEach((result, index) => {
+    const name = categories[index] ?? 'desconhecida';
+    if (result.status === 'rejected') {
+      console.warn(`[newsdata] ${name}: falhou —`, result.reason);
+    } else if (result.value.length === 0) {
+      console.warn(`[newsdata] ${name}: zero itens`);
+    }
+  });
+
+  return results
+    .filter((r): r is PromiseFulfilledResult<RawNewsItem[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value);
 }
 
 async function fetchCategory(category: Category): Promise<RawNewsItem[]> {
   const apiCategory = CATEGORY_MAP[category];
   const url = `${API_URL}?apikey=${env.NEWSDATA_API_KEY}&country=br&language=pt&category=${apiCategory}&size=${PAGE_SIZE}`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(CATEGORY_TIMEOUT_MS) });
 
   if (!response.ok) {
     throw new Error(`NewsData error: ${response.status} ${response.statusText}`);

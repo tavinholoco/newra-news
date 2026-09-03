@@ -65,20 +65,32 @@ describe('fetchFromNewsData', () => {
   it('should use category=business in URL for ECONOMY', async () => {
     await fetchFromNewsData([Category.ECONOMY]);
 
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('category=business'));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('category=business'),
+      expect.anything(),
+    );
   });
 
   it('should use category=world in URL for WORLD', async () => {
     await fetchFromNewsData([Category.WORLD]);
 
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('category=world'));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('category=world'),
+      expect.anything(),
+    );
   });
 
   it('should use country=br and language=pt in URL', async () => {
     await fetchFromNewsData([Category.TECHNOLOGY]);
 
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('country=br'));
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('language=pt'));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('country=br'),
+      expect.anything(),
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('language=pt'),
+      expect.anything(),
+    );
   });
 
   it('should filter articles without description', async () => {
@@ -105,28 +117,123 @@ describe('fetchFromNewsData', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('should throw when the API returns an error status', async () => {
+  /**
+   * **As oito categorias deixaram de ser tudo-ou-nada.**
+   *
+   * Com `Promise.all`, a categoria que rejeitasse levava junto as sete que já
+   * tinham respondido: a colheita inteira da NewsData virava zero e o pipeline
+   * seguia para `SUCCESS` só com o RSS — que é o modo de falha silenciosa que
+   * ninguém veria, porque o dia continua tendo briefing. O provider de RSS já
+   * fazia a escolha certa por feed desde o começo; este ficou para trás, e a
+   * assimetria não tinha motivo.
+   *
+   * Os três casos abaixo são as três formas de uma categoria falhar:
+   * transporte, `status: error` no corpo, e HTTP não-ok.
+   */
+  it('keeps the other categories when one of them fails on transport', async () => {
     vi.stubGlobal(
       'fetch',
-      makeFetchMock({
-        status: 'error',
-        results: { message: 'The provided API key is not valid.', code: 'Unauthorized' },
-      }),
+      vi.fn().mockImplementation((url: string) =>
+        url.includes('category=world')
+          ? Promise.reject(new Error('socket hang up'))
+          : Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue(mockApiResponse) }),
+      ),
     );
 
-    await expect(fetchFromNewsData([Category.TECHNOLOGY])).rejects.toThrow(
-      'NewsData returned status: The provided API key is not valid.',
-    );
+    const result = await fetchFromNewsData([
+      Category.TECHNOLOGY,
+      Category.WORLD,
+      Category.SPORTS,
+    ]);
+
+    expect(result).toHaveLength(2);
   });
 
-  it('should throw on HTTP errors', async () => {
+  it('keeps the other categories when one returns an API error status', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 429, statusText: 'Too Many Requests' }),
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: vi.fn().mockResolvedValue(
+            url.includes('category=technology')
+              ? {
+                  status: 'error',
+                  results: {
+                    message: 'The provided API key is not valid.',
+                    code: 'Unauthorized',
+                  },
+                }
+              : mockApiResponse,
+          ),
+        }),
+      ),
     );
 
-    await expect(fetchFromNewsData([Category.TECHNOLOGY])).rejects.toThrow(
-      'NewsData error: 429 Too Many Requests',
+    const result = await fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS]);
+
+    expect(result).toHaveLength(1);
+  });
+
+  it('keeps the other categories when one returns an HTTP error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) =>
+        url.includes('category=technology')
+          ? Promise.resolve({ ok: false, status: 429, statusText: 'Too Many Requests' })
+          : Promise.resolve({ ok: true, json: vi.fn().mockResolvedValue(mockApiResponse) }),
+      ),
+    );
+
+    const result = await fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS]);
+
+    expect(result).toHaveLength(1);
+  });
+
+  it('comes back empty instead of throwing when every category fails', async () => {
+    // Quem decide o que fazer com a colheita vazia é o `fetchAll`, que a
+    // transforma em aviso gravado no run. Lançar aqui nao acrescentaria
+    // informacao e custaria as categorias boas do dia em que so uma quebrou.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
+
+    await expect(
+      fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS]),
+    ).resolves.toEqual([]);
+  });
+
+  it('names the category that failed and the one that came back empty', async () => {
+    // Oito respostas viram um numero so; sem o aviso por categoria, a que
+    // sumiu nao deixa rastro nenhum. E o mesmo aviso que o RSS emite por feed.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) =>
+        url.includes('category=technology')
+          ? Promise.reject(new Error('socket hang up'))
+          : Promise.resolve({
+              ok: true,
+              json: vi
+                .fn()
+                .mockResolvedValue({ status: 'success', totalResults: 0, results: [] }),
+            }),
+      ),
+    );
+
+    await fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS]);
+
+    expect(warn).toHaveBeenCalledWith('[newsdata] TECHNOLOGY: falhou —', expect.any(Error));
+    expect(warn).toHaveBeenCalledWith('[newsdata] SPORTS: zero itens');
+    warn.mockRestore();
+  });
+
+  it('gives every category request a deadline', async () => {
+    // Sem prazo, uma requisicao que abre a conexao e nao responde prende a
+    // etapa 1 sem teto — e sao oito em paralelo, entao basta uma.
+    await fetchFromNewsData([Category.TECHNOLOGY]);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 

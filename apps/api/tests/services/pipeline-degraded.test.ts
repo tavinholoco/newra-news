@@ -49,7 +49,7 @@ vi.mock('../../src/services/newsletter.service', () => ({
 }));
 
 import { prisma } from '@newranews/database';
-import { fetchAll } from '../../src/services/news-fetcher.service';
+import { fetchAll, type FetchWarning } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
@@ -69,6 +69,7 @@ const fetchResult = {
   newsDataItems: [item('https://g1.com/1')],
   rssItems: [item('https://bbc.com/1')],
   allItems: [item('https://g1.com/1'), item('https://bbc.com/1')],
+  warnings: [],
 };
 
 /** Espera o `void runPipeline(...)` que o `triggerPipeline` dispara. */
@@ -178,6 +179,7 @@ describe('9.4 — a etapa crítica falha: o que para junto', () => {
       newsDataItems: [],
       rssItems: [],
       allItems: [],
+      warnings: [],
     });
 
     await triggerPipeline();
@@ -231,6 +233,105 @@ describe('9.4 — a etapa não-crítica falha: o que segue', () => {
   it('still marks the run SUCCESS when only non-critical stages failed', async () => {
     vi.mocked(sendDailyNewsletter).mockRejectedValue(new Error('resend down'));
     vi.mocked(renormalizeStoredNews).mockRejectedValue(new Error('boom'));
+
+    await triggerPipeline();
+    await settle();
+
+    const statuses = vi
+      .mocked(prisma.pipelineLog.update)
+      .mock.calls.map((call) => (call[0] as { data: { status?: string } }).data.status)
+      .filter(Boolean);
+
+    expect(statuses).toContain('SUCCESS');
+    expect(statuses).not.toContain('FAILED');
+  });
+});
+
+/**
+ * **A colheita degradada, que é o degrau abaixo da etapa que falha.**
+ *
+ * Aqui nada quebra: a etapa 1 devolve notícia, o briefing sai, o run fecha em
+ * `SUCCESS`. O que muda é *quanto* veio — e até 02/09/2026 esse "quanto" não
+ * cabia em lugar nenhum que se pudesse ler depois. Um provider inteiro podia
+ * voltar zero e o dia parecia normal.
+ */
+describe('a colheita veio degradada: o que fica registrado', () => {
+  const collected = (warnings: FetchWarning[]) => ({ ...fetchResult, warnings });
+
+  const stageOneWarn = () =>
+    vi
+      .mocked(prisma.pipelineEvent.create)
+      .mock.calls.map((call) => (call[0] as { data: Record<string, unknown> }).data)
+      .find((data) => data.stage === 1 && data.level === 'WARN');
+
+  const pipelineErrors = () =>
+    (
+      vi.mocked(prisma.dailyMetric.upsert).mock.calls[0]?.[0] as {
+        create: { pipelineErrors: number };
+      }
+    )?.create.pipelineErrors;
+
+  it('records which provider came back empty, and does not just log it', async () => {
+    vi.mocked(fetchAll).mockResolvedValue(
+      collected([{ kind: 'provider-empty', source: 'newsdata' }]),
+    );
+
+    await triggerPipeline();
+    await settle();
+
+    expect(stageOneWarn()).toMatchObject({
+      message: 'Collection degraded',
+      context: { warnings: [{ kind: 'provider-empty', source: 'newsdata' }] },
+    });
+  });
+
+  it('counts a provider that failed or came back empty as a pipeline error', async () => {
+    vi.mocked(fetchAll).mockResolvedValue(
+      collected([
+        { kind: 'provider-failed', source: 'newsdata', detail: 'socket hang up' },
+        { kind: 'provider-empty', source: 'rss' },
+      ]),
+    );
+
+    await triggerPipeline();
+    await settle();
+
+    expect(pipelineErrors()).toBe(2);
+  });
+
+  it('does not count a quiet feed as a pipeline error', async () => {
+    // Feed especializado publica devagar e fica legitimamente vazio em dia
+    // comum. Contá-lo faria a luz acender todos os dias, e luz que acende todo
+    // dia é luz que se aprende a ignorar — mas ele **é** gravado no evento,
+    // porque a fonte que morreu de vez só aparece na sequência de dias vazios.
+    vi.mocked(fetchAll).mockResolvedValue(
+      collected([{ kind: 'feed-empty', source: 'Veja Saúde' }]),
+    );
+
+    await triggerPipeline();
+    await settle();
+
+    expect(pipelineErrors()).toBe(0);
+    expect(stageOneWarn()).toMatchObject({
+      context: { warnings: [{ kind: 'feed-empty', source: 'Veja Saúde' }] },
+    });
+  });
+
+  it('says nothing at all when the harvest was whole', async () => {
+    // Sem isto, o evento de WARN vira ruído diário e para de significar coisa
+    // alguma.
+    await triggerPipeline();
+    await settle();
+
+    expect(stageOneWarn()).toBeUndefined();
+  });
+
+  it('still marks the run SUCCESS — degraded is not failed', async () => {
+    // O dia teve briefing; reprovar o run mentiria na direção oposta e
+    // acionaria o alarme de "não saiu nada".
+    vi.mocked(fetchAll).mockResolvedValue(
+      collected([{ kind: 'provider-failed', source: 'newsdata', detail: 'down' }]),
+    );
 
     await triggerPipeline();
     await settle();
