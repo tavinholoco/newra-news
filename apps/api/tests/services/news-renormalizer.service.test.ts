@@ -347,3 +347,152 @@ describe('renormalizeStoredNews — categoryMode', () => {
     expect(report.categorySkipped).toBe(1);
   });
 });
+
+/**
+ * A varredura em páginas, e o respiro entre elas.
+ *
+ * **Isto existe por causa de 03/09/2026.** A etapa 8.5 chamava este job sem
+ * `limit`, então o `findMany` trazia o acervo inteiro — 8.190 linhas com
+ * `content` — e o laço passava por todas sem devolver o event loop uma vez. No
+ * plano free do Render (0.1 CPU) são 45 s de processo mudo: os health checks do
+ * `/api/health`, que chegam a cada 5 s, pararam de ser respondidos às 11:00:22
+ * e o Render matou a instância com `SIGTERM` às 11:01:07 — no meio da 8.5,
+ * deixando o `PipelineLog` do dia preso em `RUNNING`.
+ *
+ * O que a suíte precisa travar não é a paginação em si, é a consequência dela:
+ * **que o event loop gire no meio da varredura**. Um teste que só conferisse
+ * `take` passaria com o laço de novo síncrono.
+ */
+describe('renormalizeStoredNews — varredura em páginas', () => {
+  /** Espelha `READ_PAGE_SIZE` do serviço. */
+  const PAGE = 500;
+
+  const idAt = (page: number, i: number) =>
+    `${page}-${i}`.padEnd(36, '0').slice(0, 36);
+
+  const fullPage = (page: number, size: number = PAGE) =>
+    Array.from({ length: size }, (_, i) => row({ id: idAt(page, i) }));
+
+  it('should ask for a bounded page instead of the whole archive', async () => {
+    mockFindMany.mockResolvedValue([]);
+
+    await renormalizeStoredNews();
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: PAGE }),
+    );
+  });
+
+  it('should order by a total order, so a cursor cannot skip or repeat a row', async () => {
+    // `publishedAt` repete — a colheita carimba dezenas de linhas no mesmo
+    // segundo. Sem o desempate, a paginação perde e duplica linha.
+    mockFindMany.mockResolvedValue([]);
+
+    await renormalizeStoredNews();
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      }),
+    );
+  });
+
+  it('should walk to the next page with a cursor when a page comes back full', async () => {
+    mockFindMany
+      .mockResolvedValueOnce(fullPage(1))
+      .mockResolvedValueOnce(fullPage(2, 10));
+
+    const report = await renormalizeStoredNews();
+
+    expect(mockFindMany).toHaveBeenCalledTimes(2);
+    expect(mockFindMany.mock.calls[1]?.[0]).toMatchObject({
+      cursor: { id: idAt(1, PAGE - 1) },
+      skip: 1,
+    });
+    expect(report.scanned).toBe(PAGE + 10);
+  });
+
+  it('should stop on a partial page instead of spending one more query', async () => {
+    mockFindMany.mockResolvedValue(fullPage(1, 3));
+
+    const report = await renormalizeStoredNews();
+
+    expect(mockFindMany).toHaveBeenCalledTimes(1);
+    expect(report.scanned).toBe(3);
+  });
+
+  it('should keep limit as a ceiling on the whole scan, not on the page', async () => {
+    mockFindMany.mockResolvedValue(fullPage(1, 50));
+
+    await renormalizeStoredNews({ limit: 50 });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 50 }),
+    );
+    // Página cheia contra o `take` pedido, mas o teto já foi alcançado.
+    expect(mockFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('should let the event loop breathe in the middle of the scan', async () => {
+    // Conta leituras de campo: o laço lê `row.title` ao higienizar e de novo ao
+    // comparar, então o contador cresce enquanto a varredura anda. É o que
+    // permite perguntar **em que ponto** o event loop girou.
+    const reads = { n: 0 };
+    const countingRow = (id: string) => {
+      const base = row({ id });
+      return Object.defineProperty({ ...base }, 'title', {
+        get() {
+          reads.n++;
+          return base.title;
+        },
+        enumerable: true,
+      });
+    };
+    mockFindMany.mockResolvedValue(
+      Array.from({ length: 250 }, (_, i) => countingRow(idAt(7, i))),
+    );
+
+    // Agendado **antes** da varredura: só roda quando o event loop chega à fase
+    // check, isto é, quando alguém devolve o controle ao Node.
+    let readsWhenLoopTurned = -1;
+    setImmediate(() => {
+      readsWhenLoopTurned = reads.n;
+    });
+
+    await renormalizeStoredNews();
+
+    // Com o laço síncrono de antes, este `setImmediate` só rodava depois da
+    // varredura inteira (`readsWhenLoopTurned === reads.n`) — nunca no meio.
+    // As duas asserções juntas são o que separa "respirou" de "não respirou".
+    expect(readsWhenLoopTurned).toBeGreaterThan(0);
+    expect(readsWhenLoopTurned).toBeLessThan(reads.n);
+  });
+
+  it('should breathe between write batches too', async () => {
+    mockFindMany.mockResolvedValue(
+      Array.from({ length: 250 }, (_, i) =>
+        row({ id: idAt(8, i), title: `\nMatéria ${i}` }),
+      ),
+    );
+
+    let batchesWhenLoopTurned = -1;
+    const seen: number[] = [];
+    mockTransaction.mockImplementation(async () => {
+      seen.push(1);
+      if (batchesWhenLoopTurned === -1) {
+        setImmediate(() => {
+          batchesWhenLoopTurned = seen.length;
+        });
+      }
+      return [];
+    });
+
+    await renormalizeStoredNews({ dryRun: false });
+
+    // 250 linhas em lotes de 100 → 3 transações, e o event loop gira antes da
+    // última.
+    expect(seen).toHaveLength(3);
+    expect(batchesWhenLoopTurned).toBeGreaterThan(0);
+    expect(batchesWhenLoopTurned).toBeLessThan(3);
+  });
+});

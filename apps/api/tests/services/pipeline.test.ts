@@ -242,10 +242,16 @@ describe('PipelineService', () => {
 
   it('should report already-running when the day has a RUNNING run', async () => {
     // Desfecho proprio porque leva a uma acao oposta: aqui vale esperar.
+    //
+    // **O instante e relativo a agora de proposito.** Um `RUNNING` so conta
+    // como em andamento dentro de `STALE_RUN_MS`; com a data fixa que este
+    // teste usava, ele passaria a medir o caminho do run morto sem que o nome
+    // mudasse.
+    const startedAt = new Date(Date.now() - 60_000);
     vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
       id: 'running-log-id',
       status: 'RUNNING',
-      startedAt: new Date('2026-08-25T16:25:00.000Z'),
+      startedAt,
     } as never);
 
     const result = await triggerPipeline();
@@ -253,10 +259,87 @@ describe('PipelineService', () => {
     expect(result).toEqual({
       outcome: 'already-running',
       pipelineId: 'running-log-id',
-      startedAt: '2026-08-25T16:25:00.000Z',
+      startedAt: startedAt.toISOString(),
     });
     expect(prisma.pipelineLog.create).not.toHaveBeenCalled();
     expect(fetchAll).not.toHaveBeenCalled();
+  });
+
+  /**
+   * O run que morreu sem conseguir contar.
+   *
+   * O `status` so vira `SUCCESS` na etapa 9, entao um processo que morre antes
+   * — `SIGTERM` do Render no meio da etapa 8.5, em 03/09/2026 — deixa a linha
+   * em `RUNNING` para sempre. Como a idempotencia aceita `RUNNING` como "ja tem
+   * run hoje", o cadaver recusava todo disparo pelo resto do dia.
+   */
+  describe('triggerPipeline — run travado em RUNNING', () => {
+    const staleStartedAt = () => new Date(Date.now() - 20 * 60_000);
+
+    it('should bury a RUNNING run older than the threshold and start a new one', async () => {
+      vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+        id: 'zombie-log-id',
+        status: 'RUNNING',
+        startedAt: staleStartedAt(),
+      } as never);
+
+      const result = await triggerPipeline();
+
+      expect(result.outcome).toBe('started');
+      expect(result.pipelineId).toBe(mockLog.id);
+      expect(prisma.pipelineLog.create).toHaveBeenCalled();
+    });
+
+    it('should mark the dead run FAILED, and leave errorStage null', async () => {
+      vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+        id: 'zombie-log-id',
+        status: 'RUNNING',
+        startedAt: staleStartedAt(),
+      } as never);
+
+      await triggerPipeline();
+
+      const burial = vi
+        .mocked(prisma.pipelineLog.update)
+        .mock.calls.find((call) => call[0]?.where?.id === 'zombie-log-id');
+
+      expect(burial).toBeDefined();
+      expect(burial?.[0].data).toMatchObject({ status: 'FAILED' });
+      expect(burial?.[0].data.completedAt).toBeInstanceOf(Date);
+      // Chutar a etapa poria no banco um numero que ninguem mediu.
+      expect(burial?.[0].data).not.toHaveProperty('errorStage');
+    });
+
+    it('should never bury a run that is merely slow', async () => {
+      vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+        id: 'slow-but-alive',
+        status: 'RUNNING',
+        startedAt: new Date(Date.now() - 14 * 60_000),
+      } as never);
+
+      const result = await triggerPipeline();
+
+      expect(result.outcome).toBe('already-running');
+      expect(prisma.pipelineLog.create).not.toHaveBeenCalled();
+      expect(prisma.pipelineLog.update).not.toHaveBeenCalled();
+    });
+
+    it('should never bury a SUCCESS run, however old it is', async () => {
+      // O expurgo e sobre run que morreu sem contar. Um `SUCCESS` de horas
+      // atras e o caso normal do dia — reabri-lo faria o briefing ser gerado
+      // duas vezes, que e exatamente o que a idempotencia existe para evitar.
+      vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue({
+        id: 'finished-log-id',
+        status: 'SUCCESS',
+        startedAt: new Date(Date.now() - 10 * 60 * 60_000),
+      } as never);
+
+      const result = await triggerPipeline();
+
+      expect(result.outcome).toBe('already-succeeded-today');
+      expect(prisma.pipelineLog.create).not.toHaveBeenCalled();
+      expect(prisma.pipelineLog.update).not.toHaveBeenCalled();
+    });
   });
 
   it('should report started, with the id of the run it just created', async () => {

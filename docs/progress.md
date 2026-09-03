@@ -4589,6 +4589,177 @@ alarme de verdade:** o primeiro run com `pipelineErrors > 0` que passar
 despercebido por mais de um dia.
 
 ---
+### 46. A etapa 8.5 segurava o event loop, e o Render matava a instância ✅ 2026-09-03
+
+> Nasceu de um e-mail do Render — *"HTTP health check failed (timed out after 5
+> seconds)"* — e da pergunta de sempre: **o pipeline de hoje rodou?** Rodou, e o
+> briefing foi gravado **2 s antes** de o processo parar de responder. A margem
+> era essa.
+
+#### O que a verificação mediu, antes de olhar o log
+
+Tudo verde do lado de fora: briefing de 03/09 no ar, **377 itens de 45 fontes**
+(faixa normal — 02/09: 351/42, 01/09: 442/51), NewsData presente, CI, Gitleaks e
+Smoke E2E verdes no merge da madrugada, e o `archive:hygiene` fechando com
+**`Acervo limpo`** — as seis classes de defeito da Fase 12 em **0,0%** sobre
+8.190 linhas.
+
+**E foi a higiene limpa que deu a primeira pista.** A etapa 8.5 tocou **zero
+linhas antigas** naquele run: em regime ela varre o acervo inteiro e **não
+escreve nada**. O trabalho que derrubou a API era trabalho jogado fora.
+
+#### A linha do tempo, do log do Render
+
+```
+11:00:20.717  artigo persistido (etapa 7)
+11:00:22.677  /api/health -> 200 em 0,84 ms      <- ultimo respondido
+              --- 45,2 s de silencio absoluto ---  ~9 health checks perdidos
+11:01:07.926  [server] received SIGTERM            <- o Render matou a instancia
+11:01:19.913  Server listening (processo novo)
+11:02        e-mail do alerta
+```
+
+Os health checks chegavam a cada **5,0 s** como relógio, respondidos em
+**0,80–1,20 ms** durante as etapas 1 a 6. Depois das 11:00:22, nenhum.
+
+**A hipótese foi levantada, descartada e reconfirmada** — e o descarte foi erro
+de amostra: o primeiro recorte de log cobria só as etapas 1–6, que são **I/O**
+(fetch de feed, chamada de IA) e deixam o event loop livre. A única etapa
+CPU-bound é a **8.5**, e ela começa exatamente onde o silêncio começa.
+
+#### A causa
+
+`renormalizeStoredNews` era **uma consulta só**: `findMany` sem `take` trazendo
+as 8.190 linhas com `content`, e um `for` síncrono passando por todas —
+`decodeEntities`, `sanitizeTitle`, `sanitizeDescription`, `splitDekAndBody`,
+`extractImageFromHtml` e o classificador lendo o texto inteiro — sem devolver o
+event loop uma vez sequer. Com **0.1 vCPU** no plano free, 45 s.
+
+**Não era memória, e medir isso primeiro evitou a correção errada.** O acervo
+inteiro são ~27 MB de texto (1.706 chars por linha × 8.190), ~53 MB com
+overhead de objeto — folgado nos 512 MB. Paginar aqui é sobre **não segurar a
+CPU**, não sobre caber na RAM.
+
+#### A consequência que passou do e-mail
+
+O `SIGTERM` chegou no meio da 8.5, e o `shutdown` faz `process.exit(0)`:
+
+- **o run ficou zumbi.** O `status` só vira `SUCCESS` na **etapa 9**, e o update
+  pós-etapa 7 grava apenas `newsCount` e `articleId`. A linha ficou em `RUNNING`
+  para sempre — e como a idempotência aceita `RUNNING` como "já tem run hoje",
+  **o cadáver recusava todo disparo pelo resto do dia**, com a tela dizendo "já
+  está rodando" sobre algo que morreu de manhã. É o espelho do episódio de
+  25/08 (item 39), quando o painel dizia "disparado com sucesso" sem ter
+  disparado;
+- **a `DailyMetric` de 03/09 não foi gravada** — etapa 9 nunca chegou.
+
+#### A correção
+
+**Na varredura** (`news-renormalizer.service.ts`): leitura paginada por cursor
+(`READ_PAGE_SIZE = 500`) com respiro a cada `YIELD_EVERY = 100` linhas, mais um
+respiro entre lotes de escrita. O respiro é `setImmediate`, que roda na fase
+*check* — **depois** da fase de poll —, então o I/O que esperava é atendido;
+`await Promise.resolve()` não serviria, porque a microtask volta no mesmo tick.
+Maior bloqueio contínuo: de 45 s para ~0,55 s.
+
+O `orderBy` ganhou `{ id: 'asc' }` como desempate: `publishedAt` repete —
+a colheita carimba dezenas de linhas no mesmo segundo — e cursor sobre ordem
+ambígua pula e duplica linha.
+
+**Na idempotência** (`pipeline.service.ts`): `RUNNING` há mais de
+`STALE_RUN_MS` (15 min) é enterrado como `FAILED` e o disparo segue. Quinze
+minutos é folga sobre o **pipeline inteiro** — os runs medidos fecham entre 20 s
+e 60 s, mesmo com as três tentativas do Gemini e o fallback no caminho. O
+`errorStage` fica **null de propósito**: o `currentStage` morreu com o processo,
+e chutar uma etapa poria no banco um número que ninguém mediu.
+
+O desfecho continua `started`, porque é o que o chamado fez. O cadáver é história
+do run velho e está gravada nele — `FAILED` com `reason: 'stale-running'` e um
+`PipelineEvent` de etapa 0.
+
+#### As guardas, e vê-las falhar
+
+**837 → 848 testes.** As duas que importam são as do respiro, e elas não
+conferem `take`: um teste de `take` passaria com o laço de novo síncrono. Elas
+agendam um `setImmediate` **antes** da varredura e perguntam **em que ponto** ele
+rodou — contando leituras de campo por um getter na fixture. Com o laço síncrono
+ele só roda depois de tudo (`readsWhenLoopTurned === reads.n`); com o respiro,
+no meio. Confirmadas quebrando o código de propósito: as duas reprovaram, as
+outras 23 seguiram verdes.
+
+#### `feed-empty` que era `feed-failed`, fechado no mesmo PR
+
+Os três feeds ficaram documentados acima como dívida com gatilho e fecharam
+antes de o gatilho disparar — a pergunta seguinte na mesma conversa foi "então
+classifica esses três como falhou".
+
+**O problema não era a detecção, era onde ela perdia a informação.**
+`fetchFromRss` já sabia, por fonte, qual `fetchSource` tinha lançado — o
+`Promise.allSettled` interno via a rejeição direto —, mas só imprimia
+`console.warn` e devolvia a lista achatada dos que **deram certo**. `fetchAll`
+via essa lista, comparava contra `rssSources` e via a ausência — sem jeito
+nenhum de distinguir "lançou" de "respondeu com zero". Superinteressante, Veja
+Saúde e Drauzio Varella, em `ETIMEDOUT` havia dois dias, saíam como
+`feed-empty`: a mesma classe de "publicou devagar", que **não conta** em
+`pipelineErrors`.
+
+A correção é uma função nova, `fetchFromRssWithFailures`, que devolve
+`{ items, failures }` em vez de só os itens — `failures` é o `{ source, detail
+}` que o `Promise.allSettled` interno já tinha em mãos. `fetchFromRss`
+continua existindo como atalho fino sobre ela (`.then(r => r.items)`), então
+os 20 testes de `rss.provider.test.ts` não mudaram uma linha. `fetchAll` ganhou
+um quarto `FetchWarningKind`: `feed-failed`, que **conta** como erro do run
+(a mesma regra de filtro em `pipeline.service.ts` — `kind !== 'feed-empty'` —
+já cobria qualquer kind novo sem precisar mexer lá). `feed-empty` continua
+existindo para o caso genuíno: fonte que respondeu e não tinha nada.
+
+**848 → 853 testes**, cinco novos: o feed que lança vira `feed-failed` e não
+`feed-empty`; a mesma fonte não aparece nas duas classificações ao mesmo
+tempo; as duas convivem no mesmo run (o caso real de 03/09 — alguns feeds
+fora, outros só quietos); os itens dos feeds que **deram certo** continuam
+valendo quando outros do lote falham; e o caso raro em que as doze respondem
+sem lançar e sem trazer item nenhum continua virando um único `provider-empty`
+para `rss`, em vez de doze `feed-failed`/`feed-empty` idênticos afogando a
+linha — o padrão ali sugere o provider inteiro mudo, não doze fontes
+coincidentemente quietas na mesma hora.
+
+#### O Gemini caindo pro Groq, investigado — e não é bug daqui
+
+Pergunta seguinte: por que dois dias seguidos (02 e 03/09) o briefing saiu pelo
+Groq? O log de 03/09 mostra o quadro inteiro:
+
+```
+Gemini API transient error (attempt 1/3), retrying in 1442ms
+Gemini API transient error (attempt 2/3), retrying in 2298ms
+Gemini provider failed, falling back to Groq: Error: Gemini API error 503:
+{ "error": { "code": 503, "message": "This model is currently experiencing
+  high demand. Spikes in demand are usually temporary. Please try again
+  later.", "status": "UNAVAILABLE" } }
+```
+
+Três tentativas, três 503 `UNAVAILABLE`. Não é cota nossa — o pipeline chama a
+Gemini **uma vez por dia**, ordens de grandeza abaixo de qualquer teto de
+requisições diárias — e não é bug de classificação: `isTransientApiError`
+reconhece 503 como transitório, `withRetry` tentou as três vezes com backoff
+(1.442 ms, depois 2.298 ms), e o fallback entregou o briefing pelo Groq sem
+perda nenhuma. É sobrecarga do lado do Google: "high demand"/`UNAVAILABLE" é a
+mensagem pública deles para capacidade insuficiente no modelo, e está
+reportada em massa ao longo de 2026 nos fóruns oficiais do Google AI e em
+issues como `googleapis/python-genai#1373` — não um sintoma isolado deste
+projeto.
+
+`GET /api/metrics/weekly` mostra `aiProviderUsage: { gemini: 3, groq: 1 }` para
+a janela 28/08–03/09, que deveria ter **dois** dias de Groq (02 e 03) — o
+`groq: 1` conta só o 02/09, porque o `DailyMetric` de 03/09 nunca foi gravado
+(a etapa 9 não rodou: é exatamente a consequência do `SIGTERM` na etapa 8.5
+descrita acima). Depois desta correção, o `03/09` volta a contar.
+
+**Não pede correção — o mecanismo fez o que devia.** Fica em aberto com
+gatilho, não como bug: três dias seguidos de fallback, medido pelo mesmo
+`aiProviderUsage.groq` que expôs a lacuna acima.
+
+---
+
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
