@@ -4501,6 +4501,93 @@ que envelheceu pelo mesmo motivo, e não foi tocado aqui. As 51 capturas de
 `docs/v2/baseline-v2/` seguem sendo de antes da Fase 12, e são elas que as três
 telas do README apontam.
 
+### 45. A NewsData que não tinha voltado vazia, e o run que ninguém sabia medir ✅ 2026-09-02
+
+> Branch `claude/newra-pipeline-news-collection-ff9b6f`, PR #148. Nasceu de uma
+> pergunta de uso — *"as notícias estão todas de ontem, o pipeline rodou hoje?"*
+> — e a resposta foi **sim**. O que a investigação achou não foi o defeito
+> procurado, e sim o fato de que **não havia como responder aquela pergunta**.
+
+#### A pergunta, e a resposta medida
+
+O run de 02/09 abriu às 11h00 UTC, colheu **351 notícias de 42 fontes** e gravou
+o briefing 12 s depois. Contra os seis runs anteriores, está dentro da faixa:
+
+| coleta | itens | fontes | RSS | NewsData (veículos) | publicadas na véspera |
+|---|---|---|---|---|---|
+| **02/09** | **351** | **42** | 284 | **67 (34)** | 39% |
+| 01/09 | 444 | 51 | 371 | 73 (39) | 36% |
+| 29/08 | 425 | 49 | 351 | 74 (38) | 52% |
+| 28/08 | 385 | 54 | 312 | 73 (43) | 42% |
+| 27/08 | 367 | 36 | 299 | 68 (26) | 38% |
+| 26/08 | 376 | 47 | 305 | 71 (36) | 39% |
+
+O que o leitor viu tem duas causas somadas, e nenhuma é defeito: **o pipeline
+roda uma vez por dia, às 08h de Brasília** — às 22h, a matéria mais nova do site
+tem catorze horas — e **~39% de toda colheita chega carimbada com a data da
+véspera**, porque é assim que os feeds publicam. Os 39% de 02/09 são a norma da
+série, não uma anomalia.
+
+#### O erro de medição, que é o achado transferível
+
+A primeira leitura afirmou que **a NewsData tinha voltado vazia em 01/09** e que
+aquele run colhera 49 itens de 7 fontes. Estava errado, e a conclusão saiu antes
+da verificação.
+
+A causa: a varredura pegou as **400 notícias mais recentes por `publishedAt`** e
+agrupou por dia. O run de 02/09 (351 itens) cabe inteiro nessa janela; o de
+01/09 (444) não — só os 49 mais frescos dele apareciam, e o que sobrava era RSS
+por acaso, então a ausência da NewsData virou conclusão. **Foi a cauda de um
+recorte lida como se fosse um run.** Varrendo 2.600 itens e agrupando por
+`createdAt`, os números da tabela aparecem e a NewsData está lá todos os dias.
+
+`publishedAt` é do veículo e `createdAt` é do pipeline — **só o segundo responde
+"o que esta execução trouxe"**. Está na lista de armadilhas do `CLAUDE.md`.
+
+A NewsData foi sondada direto para fechar a questão: as **oito categorias
+respondem 200** entre 0,52 s e 0,84 s, isoladas e nas oito em paralelo, e os
+limites do plano free (`X-RateLimit-Limit: 60` por janela e
+`X-API-Limit-Remaining: 190` de 200 diárias) estão longe das **8 requisições por
+dia** que o pipeline gasta.
+
+#### O defeito real, achado de passagem
+
+**Não havia como distinguir um run de 351 de um run de 49.** O provider de RSS
+trata falha por feed desde o começo — `Promise.allSettled`, prazo de 30 s por
+requisição e um aviso por fonte vazia. O da NewsData.io não tinha nenhuma das
+três, e a assimetria não tinha motivo.
+
+| Ponto | Antes | Agora |
+|---|---|---|
+| `newsdata.provider.ts` | `Promise.all` nas 8 categorias | `Promise.allSettled` — uma que rejeita não descarta as outras sete |
+| `newsdata.provider.ts` | `fetch(url)` sem prazo | `AbortSignal.timeout(15_000)` |
+| `newsdata.provider.ts` | oito respostas viram um número só | aviso por categoria que falha ou vem vazia |
+| `news-fetcher.service.ts` | `console.warn` no stdout do Render | `warnings: FetchWarning[]` no retorno |
+| `pipeline.service.ts` | run degradado idêntico a run bom | `PipelineEvent` `WARN` + `DailyMetric.pipelineErrors` |
+
+**Feed vazio é registrado e não conta como erro.** No run de 02/09, quatro dos
+doze feeds ficaram legitimamente vazios — os especializados publicam devagar.
+Contá-los faria a luz acender todo dia, e luz que acende todo dia é luz que se
+aprende a ignorar; mas a fonte que morreu de vez só aparece na sequência de dias
+vazios, que é exatamente como a Reuters passou despercebida.
+
+**Degradado não é falho:** o run continua `SUCCESS`, porque o dia teve briefing.
+Reprová-lo mentiria na direção oposta.
+
+**823 → 837 testes**, em 62 suítes. Os dois que afirmavam `rejects.toThrow`
+codificavam o contrato antigo — uma categoria ruim derrubando as oito — e
+viraram as três formas de uma categoria falhar sem levar as outras. As guardas
+foram verificadas quebrando o código de propósito (`allSettled` de volta para
+`all`, bloco de `warnings` desligado) e reprovaram.
+
+#### O que fica em aberto
+
+O sinal existe, mas **ninguém é avisado**: `GET /api/dev/logs` lista só runs
+`FAILED`, e um run degradado fecha em `SUCCESS`. Ler o `WARN` exige abrir
+`GET /api/dev/logs/:id` ou olhar `DailyMetric.pipelineErrors`. **Gatilho para
+alarme de verdade:** o primeiro run com `pipelineErrors > 0` que passar
+despercebido por mais de um dia.
+
 ---
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13

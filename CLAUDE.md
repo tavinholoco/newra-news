@@ -267,7 +267,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.441 em 129 suites (**823 API em 62** + **618 web em 67** — todos
+- **Testes:** 1.455 em 129 suites (**837 API em 62** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
@@ -574,6 +574,17 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   estão em `rss-sources.ts`. Uma lista de hosts derivada das fontes cobria 77,6%
   e teria quebrado **22,4% das imagens** em silêncio (o `SafeImage` degrada sem
   gritar). Ao medir acervo, varra páginas — não filtre por fonte.
+- **Medir "o que um run coletou" por `publishedAt` numa janela truncada dá o
+  retrato errado, e ele é convincente.** As 400 notícias mais recentes por data
+  de publicação diziam que o run da véspera colhera **49 itens de 7 fontes** e
+  que a NewsData tinha voltado vazia; varrendo 2.600 e agrupando por
+  **`createdAt`**, aquele mesmo run tinha **444 itens de 51 fontes** e a
+  NewsData estava lá. O run recente cabe inteiro na janela, o anterior aparece
+  só pela cauda — e o que sobra dele é RSS por acaso, então a ausência da
+  NewsData vira conclusão. **Os dois campos respondem perguntas diferentes:**
+  `publishedAt` é do veículo, `createdAt` é do pipeline, e só o segundo diz o
+  que uma execução trouxe. Some a isso que **~39% de toda colheita chega
+  carimbada com a data da véspera** — norma da série, nunca sintoma.
 - **A varredura de cor crua exigia sufixo numérico**, então `bg-white`,
   `text-black` e os cinzas neutros passavam batido — as classes que somem no
   claro e ficam ilegíveis no escuro. Corrigida, com as quatro ocorrências de
