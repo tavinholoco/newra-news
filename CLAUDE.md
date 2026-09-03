@@ -190,6 +190,23 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-03): a etapa 8.5 parou de derrubar a
+  instância, e o run morto parou de travar o dia.** Nasceu de um alerta do
+  Render (*health check timed out after 5 seconds*). O pipeline do dia estava
+  íntegro — briefing no ar, **377 itens de 45 fontes**, `archive:hygiene`
+  fechando com **`Acervo limpo`** —, mas a varredura do acervo segurava o event
+  loop por **45 s** e o Render matava a instância com `SIGTERM` **no meio da
+  etapa**, deixando o `PipelineLog` preso em `RUNNING` e recusando todo disparo
+  pelo resto do dia. Hoje a varredura pagina por cursor e respira a cada 100
+  linhas, e `RUNNING` há mais de 15 min é enterrado antes do disparo seguinte.
+  **837 → 848 testes.** Item **46** do `docs/progress.md`.
+
+  > **Sobrou dívida com gatilho:** três dos 12 feeds RSS (Superinteressante,
+  > Veja Saúde, Drauzio Varella) estão em `ETIMEDOUT` desde 02/09 e o pipeline
+  > os registra como `feed-empty` — a classe de "publicou devagar", que não
+  > conta em `pipelineErrors`. Eles respondem 200 de fora. **Gatilho:** o mesmo
+  > feed em zero por três dias seguidos.
+
 - **Fora da linha das fases (2026-09-01): os seis diagramas passaram a
   descrever o sistema que existe.** Item **adiantado da Fase 13.5**. Os quatro
   `.mermaid` eram de 16/08 e tinham sido tocados uma vez desde então: o ER
@@ -370,6 +387,30 @@ rota ⇒ contrato de tipo declarado, `fetch` ⇒ prazo declarado, página com
 schema ⇒ linha no blueprint, e o mapa de confiança como teste.
 
 ### Armadilhas que já custaram caro
+
+- **Laço síncrono sobre coleção que cresce derruba o servidor que o hospeda, e
+  o sintoma chega por e-mail do provedor.** A etapa 8.5 varria as 8.190 linhas
+  do acervo num `for` sem devolver o event loop; com 0.1 vCPU no plano free do
+  Render isso são **45 s de processo mudo**. Os health checks de 5 s pararam de
+  ser respondidos às 11:00:22 de 03/09/2026 e o Render matou a instância com
+  `SIGTERM` às 11:01:07 — no meio da etapa, deixando o run preso em `RUNNING`.
+  **Nada no código parece errado**: não há laço infinito, não há vazamento, a
+  função retorna. O que faltava era o `await` que cede o controle — e o teste
+  que trava isso não pode conferir `take`, tem de perguntar **em que ponto** do
+  laço o event loop girou (`setImmediate` agendado antes, contador lido dentro).
+  **E meça antes de escolher a correção:** a suspeita óbvia era memória, e o
+  acervo inteiro são ~27 MB em 512 MB — paginar aqui é sobre CPU, nunca RAM.
+  Corolário: em regime a varredura **não escrevia nada** (zero linhas tocadas),
+  então o trabalho que derrubou a API era trabalho jogado fora.
+
+- **Run que só é marcado no fim fica `RUNNING` para sempre quando o processo
+  morre — e trava o dia inteiro.** O `status` vira `SUCCESS` na etapa 9, e o
+  `catch` não alcança um `process.exit`. Como a idempotência aceita `RUNNING`
+  como "já tem run hoje", **um cadáver recusa todo disparo até a meia-noite**,
+  com a tela dizendo "já está rodando". É a família do episódio de 25/08 pelo
+  avesso. Hoje há `STALE_RUN_MS` (15 min) enterrando o run morto antes de
+  seguir. Ao escrever máquina de estado com estado terminal só no fim do
+  caminho feliz, decida **quem marca o estado quando o processo não volta**.
 
 - **Gatilho agendado que não acorda quem ele chama perde o dia inteiro.** O cron
   das 11h UTC é justamente a hora em que a API mais provavelmente dorme, e o
