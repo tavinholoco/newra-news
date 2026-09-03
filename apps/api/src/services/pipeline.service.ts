@@ -18,6 +18,31 @@ function startOfDay(date: Date): Date {
 }
 
 /**
+ * Depois de quanto tempo um `RUNNING` deixa de ser "está rodando" e passa a ser
+ * "morreu sem conseguir contar".
+ *
+ * **O run só vira `SUCCESS` na etapa 9.** Se o processo morre antes — e ele
+ * morre: em 03/09/2026 o Render mandou `SIGTERM` no meio da etapa 8.5, porque a
+ * varredura do acervo segurou o event loop por 45 s e os health checks pararam
+ * de ser respondidos —, a linha fica em `RUNNING` para sempre. Não há `catch`
+ * que alcance isso, porque `process.exit` não desenrola pilha nenhuma.
+ *
+ * O estrago não é o registro errado, é a idempotência: o `findFirst` abaixo
+ * aceita `RUNNING` como "já tem run hoje", então **um cadáver recusa todo
+ * disparo pelo resto do dia** — e a tela responde "já está rodando" sobre algo
+ * que morreu de manhã. É a mesma família do episódio de 25/08, quando o painel
+ * dizia "disparado com sucesso" sem ter disparado: resposta que não distingue
+ * o que de fato aconteceu.
+ *
+ * **Quinze minutos é folga sobre o pipeline inteiro, não sobre uma etapa.** Os
+ * runs medidos fecham em torno de 20 s a 60 s; o mais lento tem a geração de
+ * IA com três tentativas e o fallback do Groq no caminho, e ainda assim não
+ * passa de poucos minutos. Um `RUNNING` de quinze minutos não está lento, está
+ * morto.
+ */
+const STALE_RUN_MS = 15 * 60 * 1000;
+
+/**
  * Grava a lista de fontes do briefing (plano V2 §18.4).
  *
  * Substitui as fontes em vez de acrescentar: o artigo é um upsert por data, e
@@ -107,16 +132,51 @@ export async function triggerPipeline(): Promise<PipelineTrigger> {
     },
   });
   if (existingLog) {
-    return {
-      // Os dois merecem frases diferentes na tela: "já está rodando, espere" e
-      // "já rodou, não vai rodar de novo hoje" levam a ações opostas.
-      outcome:
-        existingLog.status === 'RUNNING'
-          ? 'already-running'
-          : 'already-succeeded-today',
-      pipelineId: existingLog.id,
-      startedAt: existingLog.startedAt.toISOString(),
+    const staleForMs = Date.now() - existingLog.startedAt.getTime();
+    const isStale = existingLog.status === 'RUNNING' && staleForMs > STALE_RUN_MS;
+
+    if (!isStale) {
+      return {
+        // Os dois merecem frases diferentes na tela: "já está rodando, espere" e
+        // "já rodou, não vai rodar de novo hoje" levam a ações opostas.
+        outcome:
+          existingLog.status === 'RUNNING'
+            ? 'already-running'
+            : 'already-succeeded-today',
+        pipelineId: existingLog.id,
+        startedAt: existingLog.startedAt.toISOString(),
+      };
+    }
+
+    // Enterra o cadáver antes de seguir. Ver `STALE_RUN_MS`.
+    //
+    // `errorStage` fica **null de propósito**: o processo morreu sem escrever, e
+    // o `currentStage` foi embora com ele. Chutar uma etapa aqui poria no banco
+    // um número que ninguém mediu — a etapa real, quando existe, sai dos
+    // `PipelineEvent` que o run alcançou a gravar.
+    const detail = {
+      message: `Run marked FAILED after ${Math.round(staleForMs / 60_000)} min in RUNNING with no completion — the process very likely died mid-run (SIGTERM, OOM or restart).`,
+      reason: 'stale-running',
     };
+    await prisma.pipelineLog.update({
+      where: { id: existingLog.id },
+      data: {
+        status: 'FAILED',
+        error: detail.message,
+        errorDetail: detail as unknown as Prisma.InputJsonValue,
+        completedAt: new Date(),
+      },
+    });
+    // Etapa 0: o evento é sobre o run inteiro, não sobre uma das nove etapas —
+    // e 0 não colide com nenhuma delas.
+    await logPipelineEvent(existingLog.id, 0, 'ERROR', detail.message, {
+      ...detail,
+      startedAt: existingLog.startedAt.toISOString(),
+    });
+
+    // E segue para criar um run novo: o desfecho é `started` porque é o que
+    // este chamado fez. Que havia um cadáver no caminho é história do run
+    // velho, e está gravada nele — não no contrato de quem acabou de disparar.
   }
 
   const log = await prisma.pipelineLog.create({

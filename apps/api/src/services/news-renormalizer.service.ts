@@ -134,6 +134,49 @@ const SAMPLE_SIZE = 25;
 /** Linhas por transação. Uma transação com milhares de updates estoura o pool. */
 const BATCH_SIZE = 100;
 
+/**
+ * Linhas por consulta na varredura.
+ *
+ * **A varredura era uma consulta só, e foi ela que derrubou a API em
+ * 03/09/2026.** O `findMany` sem `take` trazia o acervo inteiro — 8.190 linhas
+ * com `content` — e o laço de higiene passava por todas sem devolver o event
+ * loop uma vez sequer. No plano free do Render (0.1 CPU) isso são **45 s** de
+ * processo mudo: os health checks de 5 s do `/api/health`, que vinham a cada
+ * 5 s como relógio, pararam de ser respondidos às 11:00:22 e o Render matou a
+ * instância com `SIGTERM` às 11:01:07. O briefing do dia tinha sido gravado
+ * 2 s antes do travamento — foi por isso que o dia não se perdeu.
+ *
+ * Paginar não é sobre memória: o acervo inteiro mede ~27 MB de texto, folgado
+ * nos 512 MB da instância. É sobre **não segurar a CPU** — cada página é um
+ * `await` que deixa o Node atender quem está esperando.
+ */
+const READ_PAGE_SIZE = 500;
+
+/**
+ * Linhas processadas entre dois respiros do event loop.
+ *
+ * A página sozinha não basta: 500 linhas seguidas ainda são ~2,7 s de CPU
+ * travada com 0.1 vCPU, perto demais do timeout de 5 s do health check. Com
+ * 100, o maior bloqueio contínuo fica em ~0,55 s — uma ordem de grandeza de
+ * folga. São ~82 respiros para o acervo inteiro, custo desprezível ao lado de
+ * uma instância morta.
+ */
+const YIELD_EVERY = 100;
+
+/**
+ * Devolve o event loop ao Node.
+ *
+ * `setImmediate` roda na fase *check*, **depois** da fase de poll — então o
+ * I/O que estava esperando (a conexão do health check, entre outras) é atendido
+ * antes de a varredura continuar. `await Promise.resolve()` não serve: a
+ * microtask volta para o mesmo tick e nada de I/O acontece no meio.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
 interface PendingUpdate {
   id: string;
   data: {
@@ -160,21 +203,6 @@ export async function renormalizeStoredNews(
   // ela texto sujo ou não.
   const classifierOwned = new Set(CLASSIFIER_OWNED_SOURCES);
 
-  const rows = await prisma.news.findMany({
-    where: scanFilter,
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      content: true,
-      imageUrl: true,
-      source: true,
-      category: true,
-    },
-    orderBy: { publishedAt: 'desc' },
-    ...(options.limit ? { take: options.limit } : {}),
-  });
-
   const updates: PendingUpdate[] = [];
   const transitions = new Map<string, CategoryTransition>();
   const sample: RenormalizeChange[] = [];
@@ -182,74 +210,126 @@ export async function renormalizeStoredNews(
   let imageRecovered = 0;
   let categoryChanged = 0;
   let categorySkipped = 0;
+  let scanned = 0;
+  let sinceLastYield = 0;
+  // `undefined` na primeira página; daí em diante, o id da última linha lida.
+  let cursor: string | undefined;
 
-  for (const row of rows) {
-    const title = sanitizeTitle(decodeEntities(row.title));
-    const fullText = sanitizeDescription(decodeEntities(row.description), title);
-    // O `source` nunca passou por `decodeEntities` na ingestão do NewsData, e o
-    // acervo tem "Jornal Do Com&eacute;rcio" para provar.
-    const source = decodeEntities(row.source);
-    const excerpt = sanitizeContent(row.content, fullText);
-    const { dek, body } = splitDekAndBody(fullText, excerpt);
-    // A `<img>` sai do corpo com a higiene, então a busca é sobre o **bruto** —
-    // e só quando não há foto declarada, para nunca sobrescrever a do veículo.
-    const imageUrl = row.imageUrl ?? extractImageFromHtml(row.content);
+  for (;;) {
+    // `limit` continua sendo teto da varredura inteira, não da página.
+    const remaining = options.limit === undefined ? READ_PAGE_SIZE : options.limit - scanned;
+    if (remaining <= 0) break;
+    const take = Math.min(READ_PAGE_SIZE, remaining);
 
-    // **O classificador continua lendo o texto inteiro, e é o que mantém este
-    // job idempotente.** Depois da primeira passada a `description` é um dek de
-    // 320 caracteres; alimentá-lo com ela mudaria a categoria de metade do
-    // acervo na segunda execução, sem que nada acusasse — o piso de 5 palavras
-    // distintas foi calibrado contra o corpo. `body ?? dek` é o texto inteiro
-    // nas duas passadas: antes ele está na descrição, depois no corpo.
-    const category = classifyCategory(title, body ?? dek);
+    const rows = await prisma.news.findMany({
+      where: scanFilter,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        content: true,
+        imageUrl: true,
+        source: true,
+        category: true,
+      },
+      // **O `id` entrou como desempate porque a paginação exige ordem total.**
+      // `publishedAt` repete — a colheita carimba dezenas de linhas no mesmo
+      // segundo —, e cursor sobre ordem ambígua pula ou repete linha entre
+      // páginas. O sentido da varredura (mais recentes primeiro) não muda.
+      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      take,
+      ...(cursor === undefined ? {} : { cursor: { id: cursor }, skip: 1 }),
+    });
 
-    const data: PendingUpdate['data'] = {};
-    if (title !== row.title) data.title = title;
-    if (dek !== row.description) data.description = dek;
-    if (body !== row.content) data.content = body;
-    if (source !== row.source) data.source = source;
-    if (imageUrl !== row.imageUrl) data.imageUrl = imageUrl;
+    // A última linha da página é o cursor da próxima. Ler pelo elemento (e não
+    // por `rows.length === 0`) é o que satisfaz `noUncheckedIndexedAccess` sem
+    // asserção: página vazia e ausência de última linha são o mesmo fim.
+    const last = rows[rows.length - 1];
+    if (last === undefined) break;
+    cursor = last.id;
+    scanned += rows.length;
 
-    if (category !== row.category && classifierOwned.has(row.source)) {
-      // Em `clear-only`, promoção e troca entram na contagem de ignoradas em
-      // vez de virar update — a linha ainda pode ter reparo de texto.
-      if (categoryMode === 'all' || category === 'WORLD') {
-        data.category = category;
-      } else {
-        categorySkipped++;
+    for (const row of rows) {
+      // Antes de qualquer `continue` do laço, senão a linha sem mudança —
+      // que é a maioria em regime — pularia o respiro junto.
+      if (++sinceLastYield >= YIELD_EVERY) {
+        sinceLastYield = 0;
+        await yieldToEventLoop();
       }
+
+      const title = sanitizeTitle(decodeEntities(row.title));
+      const fullText = sanitizeDescription(decodeEntities(row.description), title);
+      // O `source` nunca passou por `decodeEntities` na ingestão do NewsData, e o
+      // acervo tem "Jornal Do Com&eacute;rcio" para provar.
+      const source = decodeEntities(row.source);
+      const excerpt = sanitizeContent(row.content, fullText);
+      const { dek, body } = splitDekAndBody(fullText, excerpt);
+      // A `<img>` sai do corpo com a higiene, então a busca é sobre o **bruto** —
+      // e só quando não há foto declarada, para nunca sobrescrever a do veículo.
+      const imageUrl = row.imageUrl ?? extractImageFromHtml(row.content);
+
+      // **O classificador continua lendo o texto inteiro, e é o que mantém este
+      // job idempotente.** Depois da primeira passada a `description` é um dek de
+      // 320 caracteres; alimentá-lo com ela mudaria a categoria de metade do
+      // acervo na segunda execução, sem que nada acusasse — o piso de 5 palavras
+      // distintas foi calibrado contra o corpo. `body ?? dek` é o texto inteiro
+      // nas duas passadas: antes ele está na descrição, depois no corpo.
+      const category = classifyCategory(title, body ?? dek);
+
+      const data: PendingUpdate['data'] = {};
+      if (title !== row.title) data.title = title;
+      if (dek !== row.description) data.description = dek;
+      if (body !== row.content) data.content = body;
+      if (source !== row.source) data.source = source;
+      if (imageUrl !== row.imageUrl) data.imageUrl = imageUrl;
+
+      if (category !== row.category && classifierOwned.has(row.source)) {
+        // Em `clear-only`, promoção e troca entram na contagem de ignoradas em
+        // vez de virar update — a linha ainda pode ter reparo de texto.
+        if (categoryMode === 'all' || category === 'WORLD') {
+          data.category = category;
+        } else {
+          categorySkipped++;
+        }
+      }
+
+      if (Object.keys(data).length === 0) continue;
+
+      // `in`, e não truthiness: `content: null` é a correção mais comum das três
+      // — o corpo que era o dek repetido — e `if (data.content)` a contaria como
+      // "nada mudou".
+      if (
+        'title' in data ||
+        'description' in data ||
+        'content' in data ||
+        'source' in data
+      ) {
+        textChanged++;
+      }
+      if ('imageUrl' in data) imageRecovered++;
+
+      if (data.category) {
+        categoryChanged++;
+        const key = `${row.category}->${category}`;
+        const seen = transitions.get(key);
+        if (seen) {
+          seen.count++;
+        } else {
+          transitions.set(key, { from: row.category, to: category, count: 1 });
+        }
+        if (sample.length < SAMPLE_SIZE) {
+          sample.push({ id: row.id, title, from: row.category, to: category });
+        }
+      }
+
+      updates.push({ id: row.id, data });
     }
 
-    if (Object.keys(data).length === 0) continue;
-
-    // `in`, e não truthiness: `content: null` é a correção mais comum das três
-    // — o corpo que era o dek repetido — e `if (data.content)` a contaria como
-    // "nada mudou".
-    if (
-      'title' in data ||
-      'description' in data ||
-      'content' in data ||
-      'source' in data
-    ) {
-      textChanged++;
-    }
-    if ('imageUrl' in data) imageRecovered++;
-
-    if (data.category) {
-      categoryChanged++;
-      const key = `${row.category}->${category}`;
-      const seen = transitions.get(key);
-      if (seen) {
-        seen.count++;
-      } else {
-        transitions.set(key, { from: row.category, to: category, count: 1 });
-      }
-      if (sample.length < SAMPLE_SIZE) {
-        sample.push({ id: row.id, title, from: row.category, to: category });
-      }
-    }
-
-    updates.push({ id: row.id, data });
+    // Página incompleta é fim de acervo — pedir a próxima só para receber zero
+    // linhas é uma consulta a mais em toda varredura. Comparar contra o `take`
+    // efetivo, e não contra `READ_PAGE_SIZE`, é o que mantém isto certo quando
+    // o `limit` encurta a última página.
+    if (rows.length < take) break;
   }
 
   if (!dryRun) {
@@ -260,12 +340,15 @@ export async function renormalizeStoredNews(
           prisma.news.update({ where: { id: update.id }, data: update.data }),
         ),
       );
+      // A transação é I/O, mas montá-la e serializar a resposta não são; com
+      // milhares de updates os lotes se emendam sem folga nenhuma.
+      await yieldToEventLoop();
     }
   }
 
   return {
     dryRun,
-    scanned: rows.length,
+    scanned,
     textChanged,
     imageRecovered,
     categoryChanged,
