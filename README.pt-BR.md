@@ -278,4 +278,4 @@ Distribuído sob a Licença MIT. Veja [LICENSE](LICENSE) para os detalhes.
 
 **Pedro Levi Dias** — Desenvolvedor Fullstack
 
-[GitHub](https://github.com/tavinholoco) · [LinkedIn](https://www.linkedin.com/in/pedro-levi-dias-96720126a/) · [Portfólio](https://portfolio-tau-five-f86nc5khr8.vercel.app/)
+[GitHub](https://github.com/tavinholoco) · [LinkedIn](https://www.linkedin.com/in/pedro-levi-dias-96720126a/) · [Portfólio](https://pedrolevi.vercel.app/)
