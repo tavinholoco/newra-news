@@ -241,7 +241,7 @@ pnpm --filter @newranews/web test:e2e
 | API | Render | Blueprint `render.yaml`, plano free, health check em `/api/health` |
 | Banco | Neon | PostgreSQL gerenciado. Migrations aplicadas pelo workflow `Migrate`, nunca de máquina local |
 
-Seis workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build), `Gitleaks` (varredura de segredos), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria), `Migrate` e `Keep-alive` (que mantém a API acordada entre 06:00 e 00:00 BRT e a deixa dormir de madrugada, para caber nas horas mensais do plano gratuito).
+Cinco workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build), `Gitleaks` (varredura de segredos), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria) e `Migrate`.
 
 A UI interativa do Swagger é servida apenas em desenvolvimento, em `/api/docs`. Em produção o documento OpenAPI continua sendo gerado, mas a UI não é registrada — o contrato é a [`docs/api.md`](docs/api.md), guardada contra deriva por um teste.
 
