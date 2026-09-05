@@ -27,10 +27,61 @@
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
 
+## Onde o trabalho integra: `dev`, e a `main` só por promoção
+
+**Decidido em 05/09/2026.** O trabalho entra por PR na **`dev`**; a `main` recebe
+`dev → main` quando **você decide**, e é esse merge que publica. O motivo é
+direto: a `main` é o que está no ar, e mergear fase a fase nela é convidar
+janela de site quebrado por mudança que ainda não precisava estar em produção.
+
+A `dev` foi alinhada à `main` em 05/09 (era 217 commits atrás, zero à frente —
+fast-forward limpo). **Se ela voltar a ficar para trás, alinhe antes de abrir
+qualquer PR**, senão a fase é desenvolvida contra código velho:
+
+```bash
+git fetch origin && git push origin origin/main:refs/heads/dev
+```
+
+**O que roda em cada base — confira antes de assumir:**
+
+| Workflow | Base `dev` | Base `main` |
+|---|---|---|
+| CI (Lint, Test, Build, `pnpm audit`) | ✅ | ✅ |
+| CodeQL | ✅ | ✅ |
+| Gitleaks | ✅ | ✅ |
+| Smoke E2E | ❌ | ✅ (push) |
+| Migrate (Prisma) | ❌ | ✅ (push) |
+
+As duas últimas ficam **só na `main` de propósito**: o smoke mede o site no ar, e
+migration se aplica a produção uma vez. A consequência prática é que **um lote
+de fases com schema aplica todas as migrations juntas na promoção** — o que é
+uma janela controlada, mas é uma janela: promova com isso em mente.
+
+**A promoção dispara sozinha o que precisa disparar.** `dev → main` é um push na
+`main`, então Smoke E2E e Migrate rodam sem ninguém lembrar; o Lighthouse e a
+baseline continuam manuais, e estão logo abaixo.
+
+**As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
+padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
+porque o `render.yaml` **não declara `branch:`**: a configuração vive no painel,
+então nenhum arquivo deste repositório prova onde ela está. Se a API um dia
+passar a publicar de outra branch, é lá que a resposta está — e a política de
+promoção estaria invertida sem nada aqui acusar.
+
+A `dev` ganha deploy de preview na Vercel, que é onde dá para olhar o lote antes
+de promover.
+
 ## Fechar uma fase (o ritual, contra produção)
 
-Roda **depois** do merge e do deploy — as duas medições são contra o site no ar,
-e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as duas acharam defeito.
+Roda **depois da promoção `dev → main` e do deploy** — as duas medições são
+contra o site no ar, e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as
+duas acharam defeito.
+
+> **O merge na `dev` não fecha fase nenhuma.** Ele passa o CI e para aí; nada do
+> que está abaixo mede uma branch que não foi publicada. Rodar o ritual depois
+> de um merge na `dev` mede a produção **anterior** e devolve verde sobre
+> mudança que não está lá — que é o defeito mais caro que este projeto sabe
+> produzir. O ritual é do lote promovido, não da fase.
 
 **1. Lighthouse por rota.** Não espere a execução de segunda:
 
@@ -174,10 +225,17 @@ a suíte de unidade, que roda sem rede.
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
-  `ErrorEvent`, invariantes e as três abas do admin. Base aberta, nenhuma fase
-  implementada. Traz a pesquisa de quais métricas e eventos de segurança um
+  `ErrorEvent`, invariantes e as três abas do admin. **A Fase 10 (segurança do
+  CI/CD) está no ar desde 05/09; as outras dez continuam abertas.** O **§19** é
+  o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
+  fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
   SRE, dimensões de qualidade de dado)
+- **Advisories aceitas, com motivo, data e gatilho:**
+  `docs/security-advisories.md` — o que `pnpm audit --audit-level=high --prod`
+  não reprova, e por quê. A lista silenciada mora em
+  `pnpm.auditConfig.ignoreGhsas` no `package.json` da raiz, e os dois não podem
+  divergir
 - Discovery da V2 (Fase 0 — tokens, sitemap, contratos, baseline visual): docs/v2/
 - **Regras de uso dos tokens da V2 no código: `apps/web/CLAUDE.md`** — tabela papel → classe, o que a suíte proíbe e por quê
 - Diagramas: `docs/diagrams/` — **seis**, reescritos em 01/09 contra o código:
@@ -196,6 +254,30 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-05): a esteira ganhou etapa de segurança —
+  a Fase 10 do plano de observabilidade, primeiro PR de código dele.** Os cinco
+  workflows tinham **1 `permissions:` declarado** e **zero actions fixadas**;
+  hoje são seis workflows, todos com o `GITHUB_TOKEN` no mínimo, e as **21
+  ocorrências de `uses:` fixadas em SHA de 40 hex** com o comentário da versão.
+  Entraram `pnpm audit --audit-level=high --prod` reprovando o merge, **CodeQL**
+  e **Dependabot**. **856 → 865 testes na API.** Item **47** do
+  `docs/progress.md`.
+
+  > **O `--prod` é a decisão que faz o gate durar, e foi medida:** sem ele são
+  > 35 advisories *high* em 17 pacotes, quase todas em ferramenta que nunca é
+  > publicada, e lista de exceção com 35 linhas vira ruído até alguém desligar o
+  > passo. Com ele são **18**, todas já analisadas nos itens 9.S e 10.S, com
+  > **três gatilhos**: `next@15`, `fastify@5`, e reabrir a UI do Swagger em
+  > produção. Elas ficam em `docs/security-advisories.md`, e a guarda impede que
+  > o documento e o `package.json` divirjam.
+  >
+  > **A guarda achou dois defeitos enquanto era escrita.** A contagem de
+  > workflows em prosa nos dois READMEs (o item 41 outra vez, no mesmo turno em
+  > que o arquivo novo entrou); e ela mesma passando verde sobre
+  > `permissions: write-all` — escrito na **coluna zero**, ele escapava do
+  > `^\s+` da asserção de escrita e passava na de declaração. Sexta vez nesta
+  > família: a guarda vê caractere, não intenção.
+
 - **Fora da linha das fases (2026-09-03): a etapa 8.5 parou de derrubar a
   instância, e o run morto parou de travar o dia.** Nasceu de um alerta do
   Render (*health check timed out after 5 seconds*). O pipeline do dia estava

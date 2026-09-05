@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [main, dev]
 
+# O piso do `GITHUB_TOKEN` para todo job deste arquivo.
+#
+# Sem esta linha o token herda o padrão do repositório e vai **inteiro** para
+# dentro de cada action de terceiro que o job executa. Nenhum dos três jobs
+# escreve nada no repositório: eles clonam, instalam e rodam.
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -14,15 +22,36 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo lint
       - run: pnpm turbo typecheck
+
+      # **A advisory de produção reprova o merge.**
+      #
+      # `--prod` é a escolha que faz este passo sobreviver. Sem ele são 35
+      # advisories *high* em 17 pacotes, quase todas em ferramenta que nunca é
+      # publicada (`eslint@8`, `vitest@2`, o CLI do `shadcn`) — e uma lista de
+      # exceção com 35 linhas vira ruído até alguém desligar o passo. Com ele
+      # são 18, todas já com alcance analisado nos itens 9.S e 10.S do
+      # `docs/progress.md`.
+      #
+      # O que silencia cada uma é `pnpm.auditConfig.ignoreGhsas` no
+      # `package.json`, e o **motivo, a data e o gatilho** de cada linha estão em
+      # `docs/security-advisories.md`. Os dois arquivos não podem divergir:
+      # `workflow-hardening.test.ts` reprova se divergirem, e reprova também a
+      # linha que ficar sem motivo. Sem essa amarração, a lista seria um
+      # `--force` com passos extras.
+      #
+      # O outro lado — dependência de desenvolvimento — fica com o Dependabot,
+      # que propõe a atualização em vez de reprovar o merge.
+      - name: Audit de dependências de produção
+        run: pnpm audit --audit-level=high --prod
 
   test:
     name: Test
@@ -42,9 +71,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: 'pnpm'
@@ -65,9 +94,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test]
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: 'pnpm'

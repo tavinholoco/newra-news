@@ -1133,12 +1133,26 @@ pipeline anuncia. É a guarda funcionando como projetada.
 
 ---
 
-## §14 Fase 10 — A esteira: segurança do CI/CD
+## §14 Fase 10 — A esteira: segurança do CI/CD ✅ 2026-09-05
 
 **Fecha:** o pipeline que **constrói e publica** o site não tem etapa de
 segurança além do Gitleaks.
 
 Esta fase é curta de propósito. É higiene de esteira, não arquitetura.
+
+> **Entregue em 05/09/2026 — o primeiro PR de código deste plano.** O
+> inventário abaixo foi reconferido contra os arquivos antes de abrir e os
+> quatro achados estavam certos. O detalhe do que entrou, os números medidos e
+> os dois defeitos que a guarda achou enquanto era escrita estão no item **47**
+> do `docs/progress.md`; as advisories aceitas, em
+> `docs/security-advisories.md`.
+>
+> **Uma decisão foi tomada aqui e não estava escrita no plano: o `--prod`.** O
+> texto abaixo pede `pnpm audit --audit-level=high`, e sem o filtro são 35
+> advisories *high* em 17 pacotes — quase todas em ferramenta que nunca é
+> publicada. Uma lista de exceção com 35 linhas é a armadilha 21 escrita por
+> extenso. Com `--prod` são 18, todas já analisadas nos itens 9.S e 10.S, e o
+> lado de desenvolvimento fica com o Dependabot, que propõe em vez de reprovar.
 
 ### O que a inspeção achou
 
@@ -1474,15 +1488,47 @@ bastam, porque tudo o mais está neste documento:
 arrasta a outra no revert, e as fases 4 e 11 tocam schema, que `git revert`
 sozinho não desfaz.
 
-**A worktree sobrevive ao merge.** Depois que um PR entra, `git pull` dentro
-dela e segue para a fase seguinte — ela ramifica de `main`, então não há nada a
+**As fases integram na `dev`, não na `main` — decidido em 05/09/2026.** A `main`
+é o que está no ar; ela recebe `dev → main` quando o dono do projeto decide, e é
+esse merge que publica. Mergear fase a fase na `main` é convidar janela de site
+quebrado por mudança que ainda não precisava estar em produção.
+
+**A `dev` é base de primeira classe no CI, e é isso que torna a decisão
+possível:** `ci.yml` e `codeql.yml` disparam nas duas, então um PR de fase roda
+Lint, Test, Build, `pnpm audit`, Gitleaks e CodeQL igual. **Smoke E2E e Migrate
+ficam só na `main`** — o smoke mede o site no ar e migration se aplica a
+produção uma vez. Consequência a não esquecer: **um lote com as fases 4 e 11
+aplica as duas migrations juntas na promoção.**
+
+**A worktree sobrevive ao merge.** Depois que um PR entra, `git fetch` dentro
+dela e segue para a fase seguinte — ela ramifica da `dev`, então não há nada a
 recriar.
 
-1. **Abrir da `main` atualizada.** Worktree própria, e `pnpm install` +
-   `pnpm db:generate` nela: worktree nova não tem `node_modules` nem Prisma
-   Client, e sem o segundo **45 suítes falham na coleta** com
+1. **Abrir da `dev` atualizada**, dentro da worktree:
+
+   ```bash
+   cd ".claude/worktrees/observability-plan"
+   git fetch origin
+   git checkout -B observability/fase-N-<assunto> origin/dev
+   ```
+
+   Worktree **nova** precisa de `pnpm install` + `pnpm db:generate`: sem o
+   segundo, **45 suítes falham na coleta** com
    `Cannot find module '.prisma/client/default'` — o que parece a suíte
-   quebrada e é só ambiente.
+   quebrada e é só ambiente. A `observability-plan` já tem os dois.
+
+   > **Confira que a `dev` não ficou para trás da `main` antes de ramificar.**
+   > Ela já esteve **217 commits atrás**, e uma fase desenvolvida sobre `dev`
+   > velha é uma fase desenvolvida contra código que não existe mais:
+   >
+   > ```bash
+   > git rev-list --count origin/dev..origin/main   # 0 = alinhada
+   > git push origin origin/main:refs/heads/dev     # fast-forward, se não for
+   > ```
+   >
+   > O `push` só é fast-forward enquanto a `dev` não tiver commit próprio —
+   > confira `git rev-list --count origin/main..origin/dev` antes, e **nunca
+   > force**: se ela estiver à frente, o certo é abrir `dev → main`.
 2. **Escrever a guarda antes do código, e vê-la reprovar.** É a regra da §2, e
    nesta sessão ela já pagou duas vezes: a guarda de contagem passava verde
    sobre um `treze` real, e passou a reprovar só depois de a varredura ler prosa
@@ -1490,11 +1536,20 @@ recriar.
 3. **Implementar até a guarda ficar verde.**
 4. **`pnpm test && pnpm lint && pnpm turbo typecheck`** — os três, localmente,
    antes do push.
-5. **PR com o número da fase no título.** O corpo diz o que fecha, qual guarda
-   trava, e qual gatilho numérico nasce.
-6. **Depois do merge, o ritual do `CLAUDE.md`:** Lighthouse, baseline visual e
-   smoke E2E. As fases 5, 9 e 11 mexem em tela ou em produto e **precisam** dos
-   três; as de substrato (1, 3, 4) precisam só do smoke.
+5. **PR com base `dev` e o número da fase no título** —
+   `gh pr create --base dev`. O corpo diz o que fecha, qual guarda trava, e qual
+   gatilho numérico nasce. **O merge na `dev` fecha o PR e não fecha a fase:** o
+   CI passou, e nada foi publicado.
+6. **Depois da promoção `dev → main` e do deploy, o ritual do `CLAUDE.md`:**
+   Lighthouse, baseline visual e smoke E2E. As fases 5, 9 e 11 mexem em tela ou
+   em produto e **precisam** dos três; as de substrato (1, 3, 4) precisam só do
+   smoke.
+
+   > **O ritual é do lote promovido, não da fase.** Rodá-lo depois de um merge
+   > na `dev` mede a produção **anterior** e devolve verde sobre mudança que não
+   > está lá — o defeito mais caro que este projeto sabe produzir, e ele já
+   > apareceu duas vezes em outra forma (o gate medindo cold start, e o gate
+   > assertando a melhor amostra).
 
 ### A ordem, com o motivo de cada passo
 
@@ -1502,7 +1557,7 @@ recriar.
 
 | PR | Fase | Por que primeiro |
 |---|---|---|
-| 1 | **§14 — Fase 10, CI** | Não depende de nada e é o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fecha um risco de supply chain antes de o resto encostar no código |
+| ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
 | 2 | **§5 — Fase 1, logger** | **Fecha o vazamento da DSN, que está aberto agora.** Tudo depois dele loga direito de nascença |
 | 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
 | 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |

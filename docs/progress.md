@@ -4760,6 +4760,194 @@ gatilho, não como bug: três dias seguidos de fallback, medido pelo mesmo
 
 ---
 
+### 47. A esteira que constrói e publica não tinha etapa de segurança ✅ 2026-09-05
+
+> **Fase 10 do `docs/Newra-News-Observability-Plan.md` — o primeiro PR de código
+> do plano.** Ela é a primeira porque não depende de nenhuma outra e é a mais
+> barata; e é higiene de esteira, não arquitetura.
+
+#### O inventário, reconferido antes de abrir (a regra do §19)
+
+| Achado | Estado em 05/09/2026 |
+|---|---|
+| `permissions:` declarado | **1 de 5** workflows — só o `gitleaks.yml` |
+| Actions fixadas em SHA | **0 de 6** — todas em tag movível (`@v5`, `@v4`, `@v2`, `@v12`) |
+| Auditoria de dependência no CI | **nenhuma** |
+| SAST | **nenhum** |
+| Dependabot | **inexistente** |
+
+Os quatro primeiros são o que o plano escreveu em 04/09; conferidos um a um
+contra os arquivos, os quatro estavam certos. As seis actions distintas são
+`actions/checkout`, `actions/setup-node`, `actions/upload-artifact`,
+`pnpm/action-setup`, `gitleaks/gitleaks-action` e `treosh/lighthouse-ci-action`,
+em **21 ocorrências** de `uses:`.
+
+#### O que entrou
+
+**1. `permissions: contents: read` no topo dos cinco workflows** (o Gitleaks já
+tinha). Sem a linha, o `GITHUB_TOKEN` herda o padrão do repositório e vai
+**inteiro** para dentro de cada action de terceiro que o job executa. Só duas
+escritas sobrevivem, e as duas têm motivo escrito: o Gitleaks comenta no PR
+(`pull-requests: write`) e o CodeQL publica o SARIF (`security-events: write`).
+
+**2. As 21 ocorrências fixadas em SHA de 40 hex, com o comentário da versão ao
+lado** — que é a armadilha 20 do §17: SHA sem `# v4.3.0` é indecifrável, e
+ninguém atualiza o que não consegue ler.
+
+> **A tag movível já estava atrás, e isso é o argumento inteiro em uma linha.**
+> `pnpm/action-setup@v4` aponta para **v4.3.0** enquanto a v4.4.0 existe há
+> tempo. Ou seja: quem usa `@v4` não está em "sempre a última v4" — está em
+> "onde o dono da tag deixou o ponteiro", e ele pode movê-lo em qualquer
+> direção, retroativamente, sem abrir PR aqui.
+
+**3. `pnpm audit --audit-level=high --prod` no job de lint**, reprovando o
+merge.
+
+> **O `--prod` foi medido, não escolhido por gosto.** Sem ele são **35**
+> advisories *high/critical* em **17 pacotes**, e a maioria esmagadora é
+> ferramenta que nunca é publicada: `eslint@8`, `vitest@2`, o CLI do `shadcn`.
+> Uma lista de exceção com 35 linhas é a armadilha 21 do §17 escrita por
+> extenso — vira ruído, alguém desliga o passo, e ele deixa de existir de fato
+> enquanto continua existindo no arquivo. Com `--prod` são **18**, e as 18 já
+> tinham alcance analisado nos itens **9.S** e **10.S**.
+>
+> O outro lado fica com o Dependabot, e a divisão é de propósito: o `audit`
+> **reprova o merge**, o Dependabot **propõe a atualização** — de tudo,
+> produção e desenvolvimento.
+
+**4. `pnpm.auditConfig.ignoreGhsas` no `package.json` da raiz**, com as 18, e
+**`docs/security-advisories.md`** com o motivo, a data e o gatilho de cada uma.
+JSON não aceita comentário, então o identificador fica num arquivo e o argumento
+no outro — e os dois não podem divergir. Dezoito advisories, **três gatilhos**:
+
+| Gatilho | Quantas |
+|---|---|
+| `next` 14 → 15 | 8 do `next` + 7 da cadeia de build que ele carrega (`nanoid`, `postcss`, `browserslist`) |
+| `fastify` 4 → 5 | `fastify` e `find-my-way` |
+| reabrir a UI do Swagger em produção | `@fastify/static` |
+
+**5. CodeQL** (`javascript-typescript`, `security-and-quality`) no `push` da
+`main`, no PR contra ela, e semanalmente — o agendamento é o que pega advisory
+nova sobre código que não mudou. **6. Dependabot** para `npm` e
+`github-actions`, semanal e agrupado; sem agrupar, uma semana ruim abre quinze
+PRs e a resposta humana a quinze PRs de bump é fechar todos.
+
+#### A guarda, e os dois defeitos que ela achou enquanto era escrita
+
+`apps/api/tests/build/workflow-hardening.test.ts` — estática, lendo os `.yml`
+como texto, na mesma família do `env-parity.test.ts`. Nove asserções; ela
+**reprovou em 7 na estreia**, que é o jeito certo de a fase começar.
+
+Ela achou duas coisas que não estavam no inventário:
+
+- **A contagem de workflows escrita em prosa, e é o item 41 outra vez.** Os dois
+  READMEs afirmavam *"Cinco / Five workflows"*; o CodeQL fez seis, e a contagem
+  mora em dois arquivos que a mudança não abre — exatamente como o `13` dos
+  feeds sobreviveu em oito. A asserção pegou no mesmo turno em que o arquivo
+  novo entrou.
+- **A própria guarda passava verde sobre o pior caso que existe.** A asserção de
+  escrita procurava `^\s+chave: write` — indentado, porque é assim que uma
+  permissão aparece dentro do mapa. Só que **`permissions: write-all` é escrito
+  na coluna zero**, como escalar, e concede tudo de uma vez: ele passava na
+  asserção anterior (declara `permissions:`) e escapava desta. Achado na revisão
+  do próprio código, e provado quebrando o `smoke.yml` de propósito para ver a
+  versão nova reprovar.
+
+**É a mesma família de sempre, e já é a sexta vez:** a guarda vê caractere, não
+intenção. Só se descobre insistindo em vê-la falhar.
+
+#### Números
+
+| | Antes | Depois |
+|---|---|---|
+| Workflows | 5 | **6** |
+| Workflows com `permissions:` | 1 | **6** |
+| `uses:` fixados em SHA | 0 de 21 | **21 de 21** |
+| Advisories *high* de produção reprovando o CI | — (não havia gate) | **0**, com 18 aceitas por escrito |
+| Testes da API | 856 em 62 suítes | **868 em 63** |
+| Testes totais | 1.474 em 129 | **1.486 em 130** |
+
+#### A política de merge mudou no meio do PR, e expôs um defeito dele
+
+**Decidido em 05/09/2026: as fases integram na `dev`, e a `main` recebe
+`dev → main` por promoção deliberada.** O argumento é da dona da produção: a
+`main` é o que está no ar, e mergear fase a fase nela abre janela de site
+quebrado por mudança que ainda não precisava estar publicada.
+
+A `dev` estava **217 commits atrás da `main` e zero à frente** — fast-forward
+limpo, feito na hora. Uma `dev` velha teria custado mais que a política resolve:
+fase desenvolvida contra código que não existe mais.
+
+**E aí o `codeql.yml` deste mesmo PR virou o primeiro defeito da política nova.**
+Ele nasceu com `pull_request: branches: [main]`, porque no dia em que foi escrito
+tudo mergeava na `main`. Sob a política nova, **todo PR de fase pularia o SAST em
+silêncio** — verde, com Lint, Test e Build passando, e nenhuma linha dizendo que
+a análise não rodou. O `ci.yml` já aceitava as duas bases desde sempre; o arquivo
+novo é que nasceu com uma só.
+
+Virou guarda, e ela compara **conjunto**: `ci.yml` e `codeql.yml` têm de reprovar
+PR nas mesmas bases, e workflow novo tem de ser declarado portão de PR ou ganhar
+linha escrita dizendo por que não é. `smoke.yml` e `migrate.yml` ficam **só na
+`main` de propósito** — um mede o site no ar, o outro aplica migration em
+produção.
+
+**A consequência que a promoção herda:** um lote com as fases 4 e 11 aplica as
+**duas migrations juntas**. É janela controlada, não é janela zero.
+
+**E o ritual do `CLAUDE.md` mudou de dono:** ele é do **lote promovido**, não da
+fase. Rodá-lo depois de um merge na `dev` mede a produção *anterior* e devolve
+verde sobre mudança que não está lá — a terceira forma do mesmo defeito que o
+gate do Lighthouse já produziu duas vezes.
+
+#### A auditoria da mudança achou mais três, e um item não verificável
+
+Mudança de política não termina no arquivo que a implementa — ela termina quando
+todo documento que instrui alguém concorda com ela. A varredura achou:
+
+- **O `CONTRIBUTING.md` mandava ramificar da `main`.** É *o* arquivo que declara
+  a política de branch do repositório, e ele contradizia a decisão do mesmo dia.
+- **O §19 tinha dois itens seguidos sobre o mesmo PR** (um dizia o título, o
+  outro a base), que é como uma sessão fria se confunde. Viraram um.
+- **O plano dizia "abrir da `dev`" em prosa e nunca dava o comando** — e o
+  próprio §19 declara que *o documento vence a memória da sessão anterior*. Sem
+  o comando escrito lá, essa regra não se sustentava: quem seguisse só o plano
+  não sabia de onde ramificar. Hoje o §19 traz o `checkout -B ... origin/dev`, a
+  conferência dos dois `rev-list --count` e o aviso de nunca forçar o
+  alinhamento.
+
+**A guarda nova cobre o modo de falha silencioso das duas direções:** o conjunto
+de bases vem do `branches:` do `ci.yml` — a fonte —, e a prosa do
+`CONTRIBUTING.md` e do plano é conferida contra ele. Tirar `dev` do workflow
+deixa os documentos mentindo; escrever uma base que os portões não guardam dá no
+mesmo. Provado quebrando os dois lados.
+
+**O item que a auditoria não conseguiu medir, e a resposta veio pelo painel:** de
+qual branch o Render publica. O `render.yaml` **não declara `branch:`** e o token
+do CLI estava expirado, então nenhum arquivo deste repositório respondia.
+**Conferido no painel em 05/09/2026: `main`** — as duas plataformas publicam da
+mesma branch, e a política de promoção está de pé.
+
+Fica a nota de onde a resposta mora: **no painel, não no blueprint.** Se a API um
+dia passar a publicar de outra branch, todo merge de fase publicaria a API sem
+publicar o site, e nada neste repositório acusaria.
+
+#### O que fica pendente daqui
+
+- **A lista de exceção envelhece por fora.** Advisory nova publicada sobre
+  dependência de produção reprova o CI de um PR que não tem nada com ela — é o
+  comportamento desejado de um gate, mas surpreende. O procedimento de
+  acrescentar linha está no fim do `docs/security-advisories.md`.
+- **O CodeQL rodou pela primeira vez neste PR: 201 regras, zero resultados.** O
+  número de regras é o que separa "passou" de "passou vazio" — é a suíte
+  `security-and-quality` inteira carregada, não um pack que não subiu. **Zero
+  hoje não é zero para sempre:** a análise semanal existe justamente para pegar
+  regra nova sobre código que não mudou, e o que ela achar entra como trabalho
+  próprio, não como correção desta fase.
+- **A próxima é a Fase 1 (o logger)**, que é o PR 2 da ordem do §19 e fecha o
+  vazamento da DSN.
+
+---
+
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
