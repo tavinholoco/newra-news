@@ -3,6 +3,7 @@ import { rssSources } from '../config/rss-sources';
 import { fetchFromNewsData } from '../providers/news/newsdata.provider';
 import { fetchFromRssWithFailures } from '../providers/news/rss.provider';
 import type { RawNewsItem } from '../providers/types';
+import { baseLogger } from '../utils/logger';
 
 const ALL_CATEGORIES = Object.values(Category) as Category[];
 
@@ -68,7 +69,7 @@ export async function fetchAll(): Promise<FetchResult> {
     // porque `fetchFromRssWithFailures` engole toda rejeição por feed. Fica
     // por simetria com o `newsdata`, cujo provider pode mesmo lançar cedo
     // (ex.: `NEWSDATA_API_KEY` ausente).
-    console.warn('[pipeline] rss fetch failed:', rssResult.reason);
+    baseLogger.warn({ err: rssResult.reason }, '[pipeline] rss fetch failed');
     warnings.push({
       kind: 'provider-failed',
       source: 'rss',
@@ -103,7 +104,7 @@ export async function fetchAll(): Promise<FetchResult> {
       ]);
       for (const source of rssSources) {
         if (accountedFor.has(source.name)) continue;
-        console.warn(`[pipeline] rss: feed "${source.name}" rendeu zero itens`);
+        baseLogger.warn({ feed: source.name }, '[pipeline] rss: feed rendeu zero itens');
         warnings.push({ kind: 'feed-empty', source: source.name });
       }
     } else {
@@ -113,7 +114,7 @@ export async function fetchAll(): Promise<FetchResult> {
       // repetição afogaria o que de fato aconteceu: o provider inteiro veio
       // mudo no mesmo instante, um padrão que pede suspeita sobre a coleta
       // como um todo, não sobre cada fonte).
-      console.warn('[pipeline] rss: zero itens');
+      baseLogger.warn({ provider: 'rss' }, '[pipeline] provider rendeu zero itens');
       warnings.push({ kind: 'provider-empty', source: 'rss' });
     }
   }
@@ -127,7 +128,7 @@ function collect(
   warnings: FetchWarning[],
 ): RawNewsItem[] {
   if (result.status === 'rejected') {
-    console.warn(`[pipeline] ${provider} fetch failed:`, result.reason);
+    baseLogger.warn({ provider, err: result.reason }, '[pipeline] provider fetch failed');
     warnings.push({
       kind: 'provider-failed',
       source: provider,
@@ -137,7 +138,7 @@ function collect(
   }
 
   if (result.value.length === 0) {
-    console.warn(`[pipeline] ${provider}: zero itens`);
+    baseLogger.warn({ provider }, '[pipeline] provider rendeu zero itens');
     warnings.push({ kind: 'provider-empty', source: provider });
   }
 

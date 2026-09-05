@@ -5,6 +5,7 @@ import {
   MATERIAL_START,
 } from '../../config/ai-prompts';
 import type { RawNewsItem, GeneratedArticle } from '../types';
+import { baseLogger } from '../../utils/logger';
 
 const MAX_DESCRIPTION_LENGTH = 300;
 const MAX_CONTENT_LENGTH = 400;
@@ -351,8 +352,15 @@ export async function withRetry<T>(
       }
 
       const delayMs = retryDelayMs(error, attempt);
-      console.warn(
-        `${provider} API transient error (attempt ${attempt}/${MAX_RETRY_ATTEMPTS}), retrying in ${Math.round(delayMs)}ms`,
+      baseLogger.warn(
+        {
+          provider,
+          attempt,
+          maxAttempts: MAX_RETRY_ATTEMPTS,
+          delayMs: Math.round(delayMs),
+          err: error,
+        },
+        'AI provider transient error, retrying',
       );
       await sleep(delayMs);
     }

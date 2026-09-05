@@ -190,5 +190,31 @@ export const observabilityPlugin = fp(async function observabilityPlugin(
       reply.statusCode,
       reply.elapsedTime,
     );
+
+    /**
+     * **A linha de acesso, uma por requisição.**
+     *
+     * O log padrão do Fastify escrevia duas — `incoming request` e `request
+     * completed` — e o `buildApp` o desliga (`disableRequestLogging: true`)
+     * justamente porque este hook já tem tudo que aquelas duas diziam, e sabe
+     * mais: a rota como **padrão**, não como URL.
+     *
+     * **O nível casa com o status**, e é o que torna a linha filtrável: com
+     * `LOG_LEVEL=warn` o log passa a ser só o que deu errado, sem tirar a
+     * instrumentação do lugar. O `reqId` vem do child logger da requisição, e é
+     * o mesmo `x-request-id` que a resposta devolve.
+     */
+    const level =
+      reply.statusCode >= 500 ? 'error' : reply.statusCode >= 400 ? 'warn' : 'info';
+
+    request.log[level](
+      {
+        method: request.method,
+        route,
+        statusCode: reply.statusCode,
+        durationMs: Math.round(reply.elapsedTime),
+      },
+      'request completed',
+    );
   });
 });

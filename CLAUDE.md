@@ -225,8 +225,8 @@ a suíte de unidade, que roda sem rede.
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
-  `ErrorEvent`, invariantes e as três abas do admin. **A Fase 10 (segurança do
-  CI/CD) está no ar desde 05/09; as outras dez continuam abertas.** O **§19** é
+  `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
+  CI/CD) e 1 (o logger) fecharam em 05/09; as outras nove continuam abertas.** O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -254,6 +254,34 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-05): o log virou sistema, e a DSN com senha
+  parou de sair no stdout.** A **Fase 1** do plano de observabilidade, PR 2 da
+  ordem do §19. A API tinha **6** chamadas ao logger do Fastify contra **14
+  `console.*`** que o contornavam, e `logger:` era um **booleano** — sem `level`,
+  sem `redact`, sem `serializers`. Hoje há `apps/api/src/utils/logger.ts` (uma
+  instância de pino), `redactSecrets` ao lado do `redactEmails`, `LOG_LEVEL` no
+  blueprint, uma linha de log por requisição em vez de duas, `pipelineLogId` em
+  toda linha escrita durante um run (por `AsyncLocalStorage`, sem nenhuma
+  assinatura mudar) e `no-console: 'error'` no ESLint da API. **868 → 892 testes
+  na API.** Item **48** do `docs/progress.md`.
+
+  > **Os dois achados foram da implementação, e nenhum estava no plano.**
+  > Declarar `baseLogger` com o tipo que `pino()` devolve **fixa o parâmetro de
+  > logger do `FastifyInstance`**, e `registerDailyPipelineJob(app)` para de
+  > compilar a três arquivos de distância — a suíte inteira passava, só o `tsc`
+  > viu; a correção é declarar o export como `FastifyBaseLogger`. E resolver o
+  > nível por `NODE_ENV !== 'test'` faz **mock parcial de `env` acender o
+  > logger**: duas suítes de provider passaram a despejar JSON com stack trace no
+  > stdout do CI sem que teste nenhum falhasse. A condição virou lista de
+  > permissão. É o `env` lido na carga do módulo em mais uma forma — o mock
+  > parcial não erra, mente por omissão.
+  >
+  > **E a revisão da fase achou um terceiro, na guarda recém-escrita:** a
+  > varredura de `console.*` passava verde sobre um `console.warn` real, porque
+  > uma aspa **dentro de um literal de regex** (`.replace(/"/g, …)`) abria uma
+  > string que nunca fechava e apagava **481 linhas do `src/`**. Virou parser do
+  > TypeScript. Detalhe na armadilha, abaixo.
+
 - **Fora da linha das fases (2026-09-05): a esteira ganhou etapa de segurança —
   a Fase 10 do plano de observabilidade, primeiro PR de código dele.** Os cinco
   workflows tinham **1 `permissions:` declarado** e **zero actions fixadas**;
@@ -386,7 +414,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.474 em 129 suites (**856 API em 62** + **618 web em 67** — todos
+- **Testes:** 1.510 em 132 suites (**892 API em 65** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
@@ -664,6 +692,29 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   `middleware.ts`, e ele pergunta **só se existe cookie de sessão**, nunca se
   ele é válido: validar na borda exigiria o `NEXTAUTH_SECRET` ali, e o modo de
   falha (variável ausente → todo mundo deslogado) é muito pior.
+- **Guarda estática que varre fonte não deve varrer fonte com regex — use o
+  parser.** É a sexta vez desta família, e a primeira em que "ler melhor o
+  texto" não era a saída. A varredura de `console.*` da Fase 1 tratava aspas
+  como delimitador de string, para não repetir o erro conhecido de apagar a
+  linha a partir do `//` de um `'https://…'`. Só que **a aspa dentro de um
+  literal de regex** — `.replace(/"/g, '&quot;')`, que existe em
+  `routes/dev/dashboard.ts:23` e em `services/newsletter.service.ts:27` — abria
+  uma string que nunca fechava: **481 linhas do `src/` ficavam invisíveis**, e um
+  `console.warn` acrescentado ao fim do `dashboard.ts` passava sem uma falha.
+  **Distinguir literal de regex de uma divisão exige o token anterior**, que é
+  gramática, não caractere. `ts.createSourceFile` já vem com o `typescript` que
+  todo pacote daqui tem, e responde exatamente o que a guarda pergunta. Quando a
+  pergunta for sobre a **estrutura** do código, o parser é mais curto que o
+  regex e não tem esse tipo de buraco; regex continua certo para prosa e para
+  YAML.
+- **A guarda pode estar certa e não guardar nada, se ninguém liga o que ela
+  protege.** As 17 asserções do `secrets-in-logs.test.ts` provam que o
+  serializer redige; nenhuma provava que o `buildApp` o **usa**. Trocar
+  `logger: baseLogger` por `logger: true` deixava tudo verde e reabria o
+  vazamento inteiro. Ao fechar um achado com uma guarda sobre uma função, escreva
+  a segunda asserção sobre a **fiação** — e note que `app.log` **não é** a
+  instância passada ao Fastify, é um `child({ reqId })` dela: quem atravessa são
+  os serializers (`app.log[pino.symbols.serializersSym]`).
 - **Guarda estática que varre fonte precisa tirar comentário e declaração de
   tipo antes do regex.** Aconteceu **quatro vezes na Fase 11**, nas duas
   direções: um `201` dentro de prosa contado como declaração de rota; um
@@ -826,6 +877,14 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   de escopo do `purpose` nesta fase. Em teste que envolve JWT, use
   `vi.mock('../../src/config/env', ...)` — como as suítes de rota já faziam — e
   inclua uma asserção de caminho feliz provando que o harness não é vazio.
+  **E o mock parcial tem o defeito espelhado, achado na Fase 1 do plano de
+  observabilidade:** a suíte declara só as chaves de que precisa, e o resto do
+  código lê `undefined` sem que nada falhe. `NODE_ENV` indefinido fez o logger
+  resolver o nível para `info` em duas suítes de provider, que passaram a
+  **despejar JSON com stack trace no stdout do CI** com todos os testes verdes.
+  Ao ler uma variável de ambiente fora de uma rota, decida o que
+  **indefinido** significa — aqui virou lista de permissão: `info` só nos dois
+  ambientes reais, `silent` no resto.
 - **Validação de schema responde antes da autorização.** A ordem de hooks do
   Fastify é `preValidation` → `validation` → `preHandler`, e o `authPlugin`
   está no `preHandler`: um POST anônimo com corpo inválido numa rota protegida
