@@ -225,8 +225,8 @@ a suíte de unidade, que roda sem rede.
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
-  `ErrorEvent`, invariantes e as três abas do admin. **A Fase 10 (segurança do
-  CI/CD) está no ar desde 05/09; as outras dez continuam abertas.** O **§19** é
+  `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
+  CI/CD) e 1 (o logger) fecharam em 05/09; as outras nove continuam abertas.** O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -254,6 +254,28 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-05): o log virou sistema, e a DSN com senha
+  parou de sair no stdout.** A **Fase 1** do plano de observabilidade, PR 2 da
+  ordem do §19. A API tinha **6** chamadas ao logger do Fastify contra **14
+  `console.*`** que o contornavam, e `logger:` era um **booleano** — sem `level`,
+  sem `redact`, sem `serializers`. Hoje há `apps/api/src/utils/logger.ts` (uma
+  instância de pino), `redactSecrets` ao lado do `redactEmails`, `LOG_LEVEL` no
+  blueprint, uma linha de log por requisição em vez de duas, `pipelineLogId` em
+  toda linha escrita durante um run (por `AsyncLocalStorage`, sem nenhuma
+  assinatura mudar) e `no-console: 'error'` no ESLint da API. **868 → 889 testes
+  na API.** Item **48** do `docs/progress.md`.
+
+  > **Os dois achados foram da implementação, e nenhum estava no plano.**
+  > Declarar `baseLogger` com o tipo que `pino()` devolve **fixa o parâmetro de
+  > logger do `FastifyInstance`**, e `registerDailyPipelineJob(app)` para de
+  > compilar a três arquivos de distância — a suíte inteira passava, só o `tsc`
+  > viu; a correção é declarar o export como `FastifyBaseLogger`. E resolver o
+  > nível por `NODE_ENV !== 'test'` faz **mock parcial de `env` acender o
+  > logger**: duas suítes de provider passaram a despejar JSON com stack trace no
+  > stdout do CI sem que teste nenhum falhasse. A condição virou lista de
+  > permissão. É o `env` lido na carga do módulo em mais uma forma — o mock
+  > parcial não erra, mente por omissão.
+
 - **Fora da linha das fases (2026-09-05): a esteira ganhou etapa de segurança —
   a Fase 10 do plano de observabilidade, primeiro PR de código dele.** Os cinco
   workflows tinham **1 `permissions:` declarado** e **zero actions fixadas**;
@@ -386,7 +408,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.474 em 129 suites (**856 API em 62** + **618 web em 67** — todos
+- **Testes:** 1.507 em 132 suites (**889 API em 65** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
@@ -826,6 +848,14 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   de escopo do `purpose` nesta fase. Em teste que envolve JWT, use
   `vi.mock('../../src/config/env', ...)` — como as suítes de rota já faziam — e
   inclua uma asserção de caminho feliz provando que o harness não é vazio.
+  **E o mock parcial tem o defeito espelhado, achado na Fase 1 do plano de
+  observabilidade:** a suíte declara só as chaves de que precisa, e o resto do
+  código lê `undefined` sem que nada falhe. `NODE_ENV` indefinido fez o logger
+  resolver o nível para `info` em duas suítes de provider, que passaram a
+  **despejar JSON com stack trace no stdout do CI** com todos os testes verdes.
+  Ao ler uma variável de ambiente fora de uma rota, decida o que
+  **indefinido** significa — aqui virou lista de permissão: `info` só nos dois
+  ambientes reais, `silent` no resto.
 - **Validação de schema responde antes da autorização.** A ordem de hooks do
   Fastify é `preValidation` → `validation` → `preHandler`, e o `authPlugin`
   está no `preHandler`: um POST anônimo com corpo inválido numa rota protegida

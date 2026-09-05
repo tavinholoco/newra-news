@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { triggerPipeline } from '../../src/services/pipeline.service';
+import { pipelineContext } from '../../src/utils/logger';
 
 /**
  * **O caminho degradado.** A §9.4 não persegue o dia em que tudo dá certo —
@@ -456,5 +457,30 @@ describe('9.4 — os números da retenção', () => {
     expect(cutoffDays(vi.mocked(prisma.article.deleteMany))).toBe(
       cutoffDays(vi.mocked(prisma.news.deleteMany)) * 3,
     );
+  });
+});
+
+describe('Fase 1 — o run se identifica em toda linha que escrever', () => {
+  it('reaches the stages inside the pipeline log context', async () => {
+    /**
+     * **A ponta viva da correlação.** `tests/utils/logger.test.ts` prova que o
+     * `AsyncLocalStorage` atravessa profundidade e `await`; o que falta provar é
+     * que `runPipeline` de fato **abriu** o contexto — sem isto, o mixin
+     * funciona perfeitamente e nunca vê nada.
+     *
+     * `fetchAll` é a etapa 1 e é onde moram cinco dos avisos que a fase moveu
+     * para o logger. Perguntar de dentro dela qual é o store é perguntar
+     * exatamente o que uma linha de log escrita ali perguntaria.
+     */
+    let visto: string | undefined;
+    vi.mocked(fetchAll).mockImplementation(async () => {
+      visto = pipelineContext.getStore()?.pipelineLogId;
+      return fetchResult;
+    });
+
+    const { pipelineId } = await triggerPipeline();
+    await settle();
+
+    expect(visto).toBe(pipelineId);
   });
 });

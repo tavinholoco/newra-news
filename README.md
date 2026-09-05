@@ -163,6 +163,7 @@ Backend — `apps/api/.env`:
 | `SITE_URL` | Public frontend URL used in newsletter links | No |
 | `NEWSLETTER_FROM` | Sender address, on a domain verified in Resend | No |
 | `ADMIN_EMAILS` | Comma-separated emails that get the ADMIN role on sign-up | No |
+| `LOG_LEVEL` | Structured log level: `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`. Defaults to `info` (`silent` in tests) | No |
 
 Frontend — `apps/web/.env.local`:
 

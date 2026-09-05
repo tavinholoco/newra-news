@@ -10,6 +10,7 @@ import {
 } from './feed-text';
 import type { RawNewsItem } from '../types';
 import { rssSources, type RssSource } from '../../config/rss-sources';
+import { baseLogger } from '../../utils/logger';
 
 interface CustomItem {
   mediaContent?: { $?: { url?: string } };
@@ -74,13 +75,13 @@ export async function fetchFromRssWithFailures(
   results.forEach((result, index) => {
     const name = sources[index]?.name ?? 'desconhecida';
     if (result.status === 'rejected') {
-      console.warn(`[rss] ${name}: falhou —`, result.reason);
+      baseLogger.warn({ feed: name, err: result.reason }, '[rss] feed falhou');
       failures.push({
         source: name,
         detail: result.reason instanceof Error ? result.reason.message : String(result.reason),
       });
     } else if (result.value.length === 0) {
-      console.warn(`[rss] ${name}: zero itens`);
+      baseLogger.warn({ feed: name }, '[rss] feed rendeu zero itens');
     }
   });
 

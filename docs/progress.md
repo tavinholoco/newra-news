@@ -4948,6 +4948,131 @@ publicar o site, e nada neste repositório acusaria.
 
 ---
 
+### 48. O log não existia como sistema, e a DSN com senha ia para o stdout ✅ 2026-09-05
+
+> **Fase 1 do `docs/Newra-News-Observability-Plan.md` (§5) — PR 2 da ordem do
+> §19.** É a fase de substrato: nada acima dela loga direito enquanto ela não
+> existir.
+
+#### O inventário, reconferido antes de abrir (a regra do §19)
+
+| Achado escrito em 01/09 | Estado em 05/09/2026 |
+|---|---|
+| `app.ts` passa um **booleano** como `logger` | confirmado — `logger: env.NODE_ENV !== 'test'`, sem `level`, `redact`, `serializers` ou `disableRequestLogging` |
+| `console.*` contornando o logger | **14**, conferidos um a um (18 ocorrências no `grep`, quatro delas prosa dentro de comentário) |
+| A DSN com senha no log | confirmado — `request.log.error({ err })` sem serializer, e a `PrismaClientInitializationError` cita a string de conexão em `err.message` |
+| A redação existente cobre só e-mail, num call site | confirmado — `utils/redact.ts`, chamado pelo `resend.provider` |
+
+#### O que entrou
+
+**1. `apps/api/src/utils/logger.ts` — uma instância, duas portas de entrada.**
+`buildApp` passa **a instância** para o Fastify; quem não tem `request` importa
+`baseLogger` direto. Sem `transport` em nenhum ambiente (armadilha 1 do §17):
+`pino-pretty` em produção é um segundo processo em 0.1 vCPU. Quem quiser cor,
+`pnpm dev | npx pino-pretty`.
+
+**2. `redactSecrets`, irmão do `redactEmails` no mesmo arquivo — e é ele que
+fecha o vazamento.** O `redact` do pino trabalha por **caminho**
+(`req.headers.authorization`); uma senha no meio de uma frase não é caminho
+nenhum. Três camadas, e a terceira é a que fecha: o **valor literal** de cada um
+dos sete segredos que o processo carrega, a senha de uma DSN de Postgres, e o
+token de um `Bearer`. Conhecer o valor é o que tira a redação da corrida
+armamentista de regex — um segredo que vaze em formato irreconhecível continua
+sendo pego.
+
+**3. O diagnóstico sobrevive de propósito.** `name`, `code` e `statusCode`
+passam; o host da DSN e a palavra `Bearer` ficam. É o mesmo argumento que o
+`redact.ts` já fazia sobre o 422 do Resend — sem `P1001` na frase, a linha não
+diz o que aconteceu. E o serializer é **lista de permissão**: o `primaryError`
+que o `ai.service` pendura na exceção do fallback é descartado, senão seria um
+segundo erro serializado sem passar por redação nenhuma.
+
+**4. Duas linhas de log por requisição viram uma.**
+`disableRequestLogging: true` desliga o par `incoming request` / `request
+completed` do Fastify — que saía inclusive em cada sonda do `/api/health` — e o
+`onResponse` do `plugins/observability.ts`, que já calculava rota, status e
+`elapsedTime`, passa a escrever a linha. **O nível casa com o status** (5xx →
+`error`, 4xx → `warn`), que é o que torna `LOG_LEVEL=warn` uma opção real.
+
+**5. Correlação sem alterar assinatura.** Um `AsyncLocalStorage` aberto por
+`runPipeline` e lido pelo `mixin` do pino: os cinco avisos do `news-fetcher`, os
+dois de cada provider de notícia e o retry do `ai-utils` passam a carregar o
+`pipelineLogId` **três camadas abaixo**, sem que nenhuma função ganhe parâmetro.
+A alternativa — passar um logger por essas camadas — é o que faz correlação
+virar intenção: basta uma camada esquecer o argumento e o rastro some sem nada
+acusar.
+
+**6. `LOG_LEVEL`, com linha no `render.yaml` e no `.env.example`.** Ela fica
+**sem `default` no schema**: com um default, "não configurado" e "configurado
+como `info`" seriam indistinguíveis, e não haveria como pedir `LOG_LEVEL=debug`
+numa suíte sob depuração.
+
+**7. `no-console: 'error'` em `packages/eslint-config/node.js`.** A exceção que
+permitia `warn` e `error` era exatamente por onde as 14 chamadas passavam.
+
+#### Os dois achados da implementação, e nenhum estava no plano
+
+**O tipo da instância fixa o `FastifyInstance` inteiro, e o erro sai a três
+arquivos de distância.** `logger: baseLogger` com o tipo concreto que `pino()`
+devolve faz o parâmetro de logger do `FastifyInstance` virar `pino.Logger` — e a
+partir daí `registerDailyPipelineJob(app)`, que recebe o `FastifyInstance`
+default, para de compilar com dez linhas de "types of property
+`childLoggerFactory` are incompatible". **A correção é declarar o export como
+`FastifyBaseLogger`**, que é a interface que o Fastify espera e tem tudo que este
+projeto chama. A suíte inteira passava; só o `tsc` viu.
+
+**Resolver o nível por `NODE_ENV !== 'test'` faz mock parcial de `env` acender o
+logger.** Várias suítes fazem `vi.mock('../../src/config/env')` declarando só as
+chaves de que precisam — `NODE_ENV` fica indefinido, e a comparação com `'test'`
+dá falso. Medido: duas suítes de provider passaram a **despejar JSON no stdout
+do CI**, com stack trace inteiro, sem que teste nenhum falhasse. A condição virou
+**lista de permissão** (`info` só em `development` e `production`), e o comentário
+diz por quê. É a armadilha do `env` lido na carga do módulo em mais uma forma: o
+mock parcial não erra, ele mente por omissão.
+
+#### A guarda
+
+`apps/api/tests/security/secrets-in-logs.test.ts`, irmã do `pii-in-logs.test.ts`,
+com três metades:
+
+- **o segredo não sobrevive** — DSN, `Bearer`, e o valor literal dos sete
+  segredos, alimentando o serializer **real**;
+- **o diagnóstico sobrevive** — sem esta metade, um serializer que devolvesse
+  string vazia passaria na primeira;
+- **`console.*` não volta** — varredura estática de `src/`, com mapa de exceção
+  que exige motivo escrito **e** que reprova exceção obsoleta.
+
+**A varredura tira comentário e string com um scanner de caracteres, não com
+regex.** Um `replace(/\/\/.*$/gm, '')` apagaria a linha inteira a partir do `//`
+de um `'https://…'` — e com ela apagaria um `console.warn` que viesse depois na
+mesma linha. É a quinta vez que esta família aparece no projeto, e o pior caso
+continua sendo o silencioso. Há um teste alimentando o scanner com as quatro
+formas (comentário de linha, de bloco, string, template) e exigindo que **só** a
+chamada real apareça.
+
+Mais `apps/api/tests/utils/logger.test.ts` (o `mixin` atravessa profundidade e
+`await`, e não vaza para fora do run) e uma asserção no
+`pipeline-degraded.test.ts` provando que `runPipeline` **abriu** o contexto —
+sem ela o mixin funcionaria perfeitamente e nunca veria nada.
+
+**As quatro guardas foram vistas reprovar**, nas duas direções (§2, princípio 5):
+redação removida → cinco falhas; redação que apaga a frase inteira → o
+`toContain('P1001')` cai; `console.warn` de volta no `src` → a metade estática e
+o `eslint` reprovam; `pipelineContext.run` removido → `expected undefined to be
+'log-1'`. E o `LOG_LEVEL` fora do `render.yaml` reprova no `env-parity.test.ts`
+que já existia, que é o ponto de a variável ter linha no blueprint.
+
+**868 → 889 testes na API** (63 → 65 suítes). Web inalterado em 618.
+
+#### O que fica pendente daqui
+
+- **A DSN some do log a partir do próximo deploy, não retroativamente.** O que
+  já está no stdout do Render continua lá até a retenção do plano expirar.
+- **A próxima é a Fase 2 (pipeline visível ao ADMIN)**, e depois a 7a (os
+  `catch` vazios do BFF). As duas são do bloco 1 e não tocam schema.
+
+---
+
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

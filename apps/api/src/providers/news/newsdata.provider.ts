@@ -9,6 +9,7 @@ import {
   splitDekAndBody,
 } from './feed-text';
 import type { RawNewsItem } from '../types';
+import { baseLogger } from '../../utils/logger';
 
 const API_URL = 'https://newsdata.io/api/1/news';
 const PAGE_SIZE = 10; // max size on the free tier
@@ -84,9 +85,9 @@ export async function fetchFromNewsData(categories: Category[]): Promise<RawNews
   results.forEach((result, index) => {
     const name = categories[index] ?? 'desconhecida';
     if (result.status === 'rejected') {
-      console.warn(`[newsdata] ${name}: falhou —`, result.reason);
+      baseLogger.warn({ category: name, err: result.reason }, '[newsdata] categoria falhou');
     } else if (result.value.length === 0) {
-      console.warn(`[newsdata] ${name}: zero itens`);
+      baseLogger.warn({ category: name }, '[newsdata] categoria rendeu zero itens');
     }
   });
 

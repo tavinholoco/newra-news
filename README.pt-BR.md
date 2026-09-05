@@ -163,6 +163,7 @@ Backend — `apps/api/.env`:
 | `SITE_URL` | URL pública do frontend, usada nos links do e-mail | Não |
 | `NEWSLETTER_FROM` | Remetente, em domínio verificado no Resend | Não |
 | `ADMIN_EMAILS` | E-mails que nascem com o papel ADMIN, separados por vírgula | Não |
+| `LOG_LEVEL` | Nível do log estruturado: `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`. Default `info` (`silent` nos testes) | Não |
 
 Frontend — `apps/web/.env.local`:
 

@@ -12,7 +12,7 @@
 - Services são classes ou funções puras (sem dependência de Fastify)
 - Providers organizados em `providers/news/` (NewsData.io, RSS) e `providers/ai/` (Gemini, Groq, ai-utils)
 - Erros customizados em src/utils/errors.ts
-- Logger via Fastify built-in (pino)
+- Logger em `src/utils/logger.ts` (pino) — ver "O log" abaixo. **`console.*` é erro de lint na API**
 - Plugins registrados em src/plugins/
 
 ## Rotas
@@ -357,6 +357,45 @@ segue até o fim do texto — a condição exata que a fronteira existe para imp
 **O sufixo entra no hash de `ARTICLE_PROMPT_VERSION`.** Mexer na fronteira é
 mudança de segurança, e dois briefings gerados sob regras diferentes precisam
 ser distinguíveis pelo campo de auditoria que a §18.4 grava.
+
+## O log (Fase 1 do plano de observabilidade)
+
+`src/utils/logger.ts` — uma instância de pino, e todo o resto passa por ela.
+
+- **`console.*` é erro de lint**, com **uma** exceção escrita: `config/env.ts`,
+  que roda antes de o logger existir e termina em `process.exit(1)`. Guarda em
+  `tests/security/secrets-in-logs.test.ts`, que também varre `src/` e recusa
+  exceção sem motivo — e a varredura tira comentário e string com um **scanner
+  de caracteres**, porque um regex de `//` apagaria a linha a partir do
+  `'https://…'` e engoliria a chamada que viesse depois.
+- **O serializer de `err` é quem fecha o vazamento de segredo, não o `redact` do
+  pino.** O `redact` trabalha por *caminho* (`req.headers.authorization`); a DSN
+  do Prisma chega dentro de `err.message`, que é texto livre. Os dois são
+  necessários e nenhum substitui o outro.
+- **`redactSecrets` conhece o valor de cada segredo do ambiente**, e não só o
+  formato — é isso que o tira da corrida armamentista de regex. O que sobrevive
+  é diagnóstico de propósito: `name`, `code`, `statusCode`, o host da DSN e a
+  palavra `Bearer`.
+- **O serializer é lista de permissão.** Propriedade acrescentada a um erro não
+  é serializada — o `primaryError` que o `ai.service` pendura na exceção do
+  fallback seria um segundo erro sem passar por redação nenhuma.
+- **Uma linha por requisição**, escrita pelo `onResponse` do
+  `plugins/observability.ts`; o par padrão do Fastify está desligado
+  (`disableRequestLogging: true`). O nível casa com o status, o que faz
+  `LOG_LEVEL=warn` deixar no log só o que deu errado.
+- **`pipelineLogId` em toda linha escrita durante um run**, por
+  `AsyncLocalStorage` aberto em `runPipeline` e lido pelo `mixin` do pino —
+  nenhuma função ganhou parâmetro. **Não há `reqId` no store**: quem tem
+  requisição já escreve por `request.log`, cujo child logger o carrega.
+- **O tipo do export é `FastifyBaseLogger`, e trocá-lo por `pino.Logger` quebra
+  o build.** O tipo concreto fixa o parâmetro de logger do `FastifyInstance`, e
+  toda função que recebe o app default (`registerDailyPipelineJob`, helpers de
+  teste) deixa de casar. A suíte não vê; só o `tsc`.
+- **`LOG_LEVEL` não tem default no schema.** `utils/logger.ts` resolve a
+  ausência para `info` **só** em `development` e `production`; qualquer outra
+  coisa é `silent`. Escrito como `!== 'test'`, toda suíte que faz
+  `vi.mock('../../src/config/env')` pela metade acordaria o logger em `info` e
+  despejaria JSON no stdout do CI — medido, em duas suítes.
 
 ## Observabilidade da API
 

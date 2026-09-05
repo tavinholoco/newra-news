@@ -40,6 +40,13 @@ export const envSchema = z.object({
   AUTH_JWT_SECRET: z.string().optional(),
   // E-mails que nascem com role ADMIN (lista separada por vírgula)
   ADMIN_EMAILS: z.string().default(''),
+  // Nivel do log estruturado. **Sem `default` de proposito**: `utils/logger.ts`
+  // resolve a ausencia para `info`, e para `silent` em teste — com um default
+  // aqui, "nao configurado" e "configurado como info" seriam indistinguiveis, e
+  // nao haveria como pedir `LOG_LEVEL=debug` numa suite que esta sendo depurada.
+  LOG_LEVEL: z
+    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+    .optional(),
 });
 
 const result = envSchema.safeParse(process.env);
@@ -48,6 +55,13 @@ if (!result.success) {
   const missing = result.error.issues.map(
     (i) => `  - ${i.path.join('.')}: ${i.message}`,
   );
+  // **O unico `console.*` que sobrevive na API, e a razao e de ordem de carga:**
+  // isto roda no `import` do modulo, antes de `utils/logger.ts` existir — ele
+  // importa este arquivo —, e termina em `process.exit(1)`. Um logger aqui seria
+  // um logger configurado pelas variaveis que acabaram de ser declaradas
+  // invalidas. A excecao esta escrita tambem em
+  // `tests/security/secrets-in-logs.test.ts`, e as duas tem de concordar.
+  // eslint-disable-next-line no-console
   console.error(
     [
       '',

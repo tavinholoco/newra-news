@@ -2,6 +2,7 @@ import { generateArticleWithGemini } from '../providers/ai/gemini.provider';
 import { generateArticleWithGroq } from '../providers/ai/groq.provider';
 import { env } from '../config/env';
 import type { RawNewsItem, GeneratedArticle } from '../providers/types';
+import { baseLogger } from '../utils/logger';
 
 export interface GenerateArticleResult {
   article: GeneratedArticle;
@@ -17,7 +18,7 @@ export async function generateArticle(
     const article = await generateArticleWithGemini(newsItems);
     return { article, provider: 'gemini', modelVersion: env.GEMINI_MODEL };
   } catch (geminiError) {
-    console.warn('Gemini provider failed, falling back to Groq:', geminiError);
+    baseLogger.warn({ err: geminiError }, 'Gemini provider failed, falling back to Groq');
     try {
       const article = await generateArticleWithGroq(newsItems);
       return { article, provider: 'groq', modelVersion: env.GROQ_MODEL };

@@ -406,7 +406,7 @@ gráfico e não entra nenhuma: a CSP e o orçamento de bundle não pagam. Rosqui
 
 ---
 
-## §5 Fase 1 — Um logger, um redator, e o fim dos `console.*`
+## §5 Fase 1 — Um logger, um redator, e o fim dos `console.*` ✅ 2026-09-05
 
 **Fecha:** a DSN com senha no log do Render, e o ruído que torna a linha certa
 inencontrável.
@@ -431,8 +431,11 @@ inencontrável.
 `baseLogger`; o `buildApp` passa **a instância** para o Fastify (que aceita
 instância, não só opções), e os services importam `baseLogger` direto.
 
-**Correlação sem alterar assinatura.** Um `AsyncLocalStorage<{ pipelineLogId?,
-reqId? }>` lido pelo `mixin` do pino. O `runPipeline` embrulha o corpo em
+**Correlação sem alterar assinatura.** Um `AsyncLocalStorage<{ pipelineLogId }>`
+lido pelo `mixin` do pino. **O `reqId` não entrou no store, e é decisão da
+implementação:** quem tem requisição já escreve por `request.log`, cujo child
+logger carrega o `reqId` que o `genReqId` do `buildApp` gerou — um segundo lugar
+guardando o mesmo fato é um segundo lugar para ele divergir. O `runPipeline` embrulha o corpo em
 `pipelineContext.run({ pipelineLogId }, ...)` e, a partir daí, os cinco avisos
 do `news-fetcher.service.ts`, os dois do `rss.provider.ts`, os dois do
 `newsdata.provider.ts` e o retry do `ai-utils.ts` passam a carregar o
@@ -1606,7 +1609,7 @@ aplica as duas migrations juntas na promoção.**
 | PR | Fase | Por que primeiro |
 |---|---|---|
 | ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
-| 2 | **§5 — Fase 1, logger** | **Fecha o vazamento da DSN, que está aberto agora.** Tudo depois dele loga direito de nascença |
+| ~~2~~ ✅ | **§5 — Fase 1, logger** — **entregue em 05/09/2026** | Fechou o vazamento da DSN. Tudo depois dele loga direito de nascença. Item **48** do `docs/progress.md` |
 | 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
 | 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |
 
