@@ -50,9 +50,11 @@ const ARQUIVOS_VIVOS = [
   'README.md',
   'README.pt-BR.md',
   'apps/api/CLAUDE.md',
+  'apps/api/src/config/rss-sources.ts',
   'apps/api/src/providers/ai/ai-utils.ts',
   'apps/api/src/providers/news/rss.provider.ts',
   'docs/presentation.md',
+  'docs/Newra-News-Observability-Plan.md',
   'docs/diagrams/data-flow.mermaid',
   'docs/diagrams/pipeline-sequence.mermaid',
   'docs/diagrams/system-architecture.mermaid',
@@ -73,21 +75,74 @@ const POR_EXTENSO: Record<string, number> = {
   fifteen: 15,
 };
 
+/** O numeral, por extenso ou em dígito. Fragmento reusado pelos dois padrões. */
+const NUMERAL = String.raw`\d{1,3}|onze|doze|treze|quatorze|catorze|quinze|eleven|twelve|thirteen|fourteen|fifteen`;
+
 /**
- * "12 feeds", "doze feeds", "twelve RSS feeds", "(12 fontes)" — todas as formas
- * em que este repositório escreve a contagem, e nenhuma a mais.
+ * "12 feeds", "doze feeds", "twelve RSS feeds", "(12 fontes)".
  *
- * O `fontes` exige parênteses de propósito: solto, ele casaria com as **87
- * fontes** distintas do acervo que a armadilha do `CLAUDE.md` cita, que é outro
- * número e está certo. Só o rótulo do nó de RSS no diagrama escreve
- * `(12 fontes)`.
+ * O `fontes` exige parênteses **fora do escopo de RSS**: solto, ele casaria com
+ * as **87 fontes** distintas do acervo que a armadilha do `CLAUDE.md` cita, que
+ * é outro número e está certo.
  */
-const CONTAGEM_ESCRITA =
-  /\b(\d{1,3}|onze|doze|treze|quatorze|catorze|quinze|eleven|twelve|thirteen|fourteen|fifteen)\s+(?:RSS\s+)?feeds\b|\((\d{1,3}|doze|twelve)\s+fontes\)/gi;
+const CONTAGEM_ESCRITA = new RegExp(
+  String.raw`\b(${NUMERAL})\s+(?:RSS\s+)?feeds\b|\((${NUMERAL})\s+fontes\)`,
+  'gi',
+);
+
+/**
+ * Dentro destes arquivos, **"N fontes" solto também é a contagem de feeds** —
+ * eles não falam de outra coleção.
+ *
+ * **É a segunda metade do furo que a auditoria de 04/09/2026 achou.** O
+ * `rss.provider.ts` dizia "e treze / fontes em paralelo significam que basta
+ * uma", e a guarda passou verde por dois motivos somados: o padrão de `fontes`
+ * exigia parênteses, e a varredura era **linha a linha** — a frase quebrava
+ * entre a 105 e a 106, então nem o `feeds` teria casado. Guarda que lê prosa
+ * tem de ler a prosa como ela é lida: corrida, sem a quebra de linha do editor.
+ */
+const ESCOPO_RSS = new Set([
+  'apps/api/src/providers/news/rss.provider.ts',
+  'apps/api/src/config/rss-sources.ts',
+]);
+
+const CONTAGEM_FONTES_SOLTA = new RegExp(String.raw`\b(${NUMERAL})\s+fontes\b`, 'gi');
 
 function valorDe(bruto: string): number {
-  const chave = bruto.toLowerCase();
-  return POR_EXTENSO[chave] ?? Number(chave);
+  return POR_EXTENSO[bruto.toLowerCase()] ?? Number(bruto);
+}
+
+/**
+ * O arquivo como texto corrido, mais o índice de onde cada linha começa.
+ *
+ * O prefixo de comentário (`//`, `*`, `#`, `>`) sai: numa frase que atravessa
+ * duas linhas de um bloco `/** *\/`, o `*` fica no meio das palavras e quebra o
+ * `\s+` do padrão.
+ */
+function textoCorrido(conteudo: string): { texto: string; inicios: number[] } {
+  const inicios: number[] = [];
+  let acumulado = 0;
+
+  const partes = conteudo.split('\n').map((linha) => {
+    inicios.push(acumulado);
+    const limpa = linha.replace(/^\s*(?:\/\/|\*|#|>)\s?/, '');
+    acumulado += limpa.length + 1;
+    return limpa;
+  });
+
+  return { texto: partes.join(' '), inicios };
+}
+
+/** A linha (1-based) em que um índice do texto corrido caiu. */
+function linhaDe(indice: number, inicios: number[]): number {
+  let baixo = 0;
+  let alto = inicios.length - 1;
+  while (baixo < alto) {
+    const meio = Math.ceil((baixo + alto) / 2);
+    if (inicios[meio]! <= indice) baixo = meio;
+    else alto = meio - 1;
+  }
+  return baixo + 1;
 }
 
 describe('a contagem de feeds escrita em prosa acompanha rss-sources.ts', () => {
@@ -97,24 +152,42 @@ describe('a contagem de feeds escrita em prosa acompanha rss-sources.ts', () => 
     expect(esperado).toBeGreaterThan(0);
   });
 
+  it('acha uma contagem quebrada entre duas linhas — o furo de 04/09', () => {
+    const { texto, inicios } = textoCorrido(
+      ['// prende a etapa 1 do pipeline sem teto — e treze', '// fontes em paralelo bastam.'].join(
+        '\n',
+      ),
+    );
+    const achados = [...texto.matchAll(CONTAGEM_FONTES_SOLTA)];
+
+    expect(achados).toHaveLength(1);
+    expect(valorDe(achados[0]![1]!)).toBe(13);
+    expect(linhaDe(achados[0]!.index!, inicios)).toBe(1);
+  });
+
   it.each(ARQUIVOS_VIVOS)('%s não cita outra contagem', (relativo) => {
-    const conteudo = readFileSync(path.join(RAIZ, relativo), 'utf8');
-    const linhas = conteudo.split('\n');
+    const { texto, inicios } = textoCorrido(readFileSync(path.join(RAIZ, relativo), 'utf8'));
+
+    const padroes = ESCOPO_RSS.has(relativo)
+      ? [CONTAGEM_ESCRITA, CONTAGEM_FONTES_SOLTA]
+      : [CONTAGEM_ESCRITA];
 
     const divergentes: string[] = [];
 
-    linhas.forEach((linha, indice) => {
-      for (const casamento of linha.matchAll(CONTAGEM_ESCRITA)) {
+    for (const padrao of padroes) {
+      for (const casamento of texto.matchAll(padrao)) {
         const escrito = valorDe(casamento[1] ?? casamento[2] ?? '');
         if (escrito !== esperado) {
-          divergentes.push(`${relativo}:${indice + 1}  "${casamento[0].trim()}"`);
+          divergentes.push(
+            `${relativo}:${linhaDe(casamento.index!, inicios)}  "${casamento[0].trim()}"`,
+          );
         }
       }
-    });
+    }
 
     expect(
       divergentes,
-      `rss-sources.ts tem ${esperado} fontes, mas estas linhas dizem outra coisa:\n${divergentes.join('\n')}`,
+      `rss-sources.ts tem ${esperado} fontes, mas isto diz outra coisa:\n${divergentes.join('\n')}`,
     ).toEqual([]);
   });
 });
