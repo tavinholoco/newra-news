@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { FastifyBaseLogger } from 'fastify';
 import pino from 'pino';
-import { env } from '../config/env';
+import { env, type LogLevel } from '../config/env';
 import { redactEmails, redactSecrets } from './redact';
 
 /**
@@ -29,19 +29,6 @@ import { redactEmails, redactSecrets } from './redact';
  * desenvolvimento é modo de falha no boot por ganho cosmético. Quem quiser cor
  * no terminal: `pnpm dev | npx pino-pretty`.
  */
-
-/** Níveis aceitos em `LOG_LEVEL`. `silent` desliga sem tirar o logger do lugar. */
-export const LOG_LEVELS = [
-  'fatal',
-  'error',
-  'warn',
-  'info',
-  'debug',
-  'trace',
-  'silent',
-] as const;
-
-export type LogLevel = (typeof LOG_LEVELS)[number];
 
 /** Teto da mensagem serializada, em caracteres. */
 export const MAX_MESSAGE_CHARS = 500;

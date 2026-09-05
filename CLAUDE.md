@@ -262,7 +262,7 @@ a suíte de unidade, que roda sem rede.
   instância de pino), `redactSecrets` ao lado do `redactEmails`, `LOG_LEVEL` no
   blueprint, uma linha de log por requisição em vez de duas, `pipelineLogId` em
   toda linha escrita durante um run (por `AsyncLocalStorage`, sem nenhuma
-  assinatura mudar) e `no-console: 'error'` no ESLint da API. **868 → 889 testes
+  assinatura mudar) e `no-console: 'error'` no ESLint da API. **868 → 892 testes
   na API.** Item **48** do `docs/progress.md`.
 
   > **Os dois achados foram da implementação, e nenhum estava no plano.**
@@ -275,6 +275,12 @@ a suíte de unidade, que roda sem rede.
   > stdout do CI sem que teste nenhum falhasse. A condição virou lista de
   > permissão. É o `env` lido na carga do módulo em mais uma forma — o mock
   > parcial não erra, mente por omissão.
+  >
+  > **E a revisão da fase achou um terceiro, na guarda recém-escrita:** a
+  > varredura de `console.*` passava verde sobre um `console.warn` real, porque
+  > uma aspa **dentro de um literal de regex** (`.replace(/"/g, …)`) abria uma
+  > string que nunca fechava e apagava **481 linhas do `src/`**. Virou parser do
+  > TypeScript. Detalhe na armadilha, abaixo.
 
 - **Fora da linha das fases (2026-09-05): a esteira ganhou etapa de segurança —
   a Fase 10 do plano de observabilidade, primeiro PR de código dele.** Os cinco
@@ -408,7 +414,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.507 em 132 suites (**889 API em 65** + **618 web em 67** — todos
+- **Testes:** 1.510 em 132 suites (**892 API em 65** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
@@ -686,6 +692,29 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   `middleware.ts`, e ele pergunta **só se existe cookie de sessão**, nunca se
   ele é válido: validar na borda exigiria o `NEXTAUTH_SECRET` ali, e o modo de
   falha (variável ausente → todo mundo deslogado) é muito pior.
+- **Guarda estática que varre fonte não deve varrer fonte com regex — use o
+  parser.** É a sexta vez desta família, e a primeira em que "ler melhor o
+  texto" não era a saída. A varredura de `console.*` da Fase 1 tratava aspas
+  como delimitador de string, para não repetir o erro conhecido de apagar a
+  linha a partir do `//` de um `'https://…'`. Só que **a aspa dentro de um
+  literal de regex** — `.replace(/"/g, '&quot;')`, que existe em
+  `routes/dev/dashboard.ts:23` e em `services/newsletter.service.ts:27` — abria
+  uma string que nunca fechava: **481 linhas do `src/` ficavam invisíveis**, e um
+  `console.warn` acrescentado ao fim do `dashboard.ts` passava sem uma falha.
+  **Distinguir literal de regex de uma divisão exige o token anterior**, que é
+  gramática, não caractere. `ts.createSourceFile` já vem com o `typescript` que
+  todo pacote daqui tem, e responde exatamente o que a guarda pergunta. Quando a
+  pergunta for sobre a **estrutura** do código, o parser é mais curto que o
+  regex e não tem esse tipo de buraco; regex continua certo para prosa e para
+  YAML.
+- **A guarda pode estar certa e não guardar nada, se ninguém liga o que ela
+  protege.** As 17 asserções do `secrets-in-logs.test.ts` provam que o
+  serializer redige; nenhuma provava que o `buildApp` o **usa**. Trocar
+  `logger: baseLogger` por `logger: true` deixava tudo verde e reabria o
+  vazamento inteiro. Ao fechar um achado com uma guarda sobre uma função, escreva
+  a segunda asserção sobre a **fiação** — e note que `app.log` **não é** a
+  instância passada ao Fastify, é um `child({ reqId })` dela: quem atravessa são
+  os serializers (`app.log[pino.symbols.serializersSym]`).
 - **Guarda estática que varre fonte precisa tirar comentário e declaração de
   tipo antes do regex.** Aconteceu **quatro vezes na Fase 11**, nas duas
   direções: um `201` dentro de prosa contado como declaração de rota; um

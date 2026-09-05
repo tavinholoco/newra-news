@@ -1,6 +1,28 @@
 import { z } from 'zod';
 import 'dotenv/config';
 
+/**
+ * Os niveis do pino, do mais severo ao menos. `silent` desliga o log sem tirar
+ * o logger do lugar.
+ *
+ * **Mora aqui e nao em `utils/logger.ts` porque o schema e quem valida** — e
+ * porque o logger importa este arquivo, entao o caminho contrario seria ciclo.
+ * Escrever a lista nos dois e vocabulario duplicado, que e o defeito que este
+ * projeto ja pagou com o `13` dos feeds: numero (ou lista) que descreve uma
+ * colecao sai derivado da colecao, nunca digitado num segundo lugar.
+ */
+export const LOG_LEVELS = [
+  'fatal',
+  'error',
+  'warn',
+  'info',
+  'debug',
+  'trace',
+  'silent',
+] as const;
+
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
 export const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   HOST: z.string().default('0.0.0.0'),
@@ -44,9 +66,7 @@ export const envSchema = z.object({
   // resolve a ausencia para `info`, e para `silent` em teste — com um default
   // aqui, "nao configurado" e "configurado como info" seriam indistinguiveis, e
   // nao haveria como pedir `LOG_LEVEL=debug` numa suite que esta sendo depurada.
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .optional(),
+  LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 });
 
 const result = envSchema.safeParse(process.env);

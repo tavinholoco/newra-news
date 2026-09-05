@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import ts from 'typescript';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
@@ -217,49 +218,48 @@ const CONSOLE_ALLOWED: Record<string, string> = {
 };
 
 /**
- * Tira comentário e literal de string do fonte, deixando só código.
+ * As chamadas a `console.*` de um arquivo, contadas pelo **parser do
+ * TypeScript**.
  *
- * **É um scanner de caracteres de propósito.** Um `replace(/\/\/.*$/gm, '')`
- * ingênuo apagaria da linha inteira a partir do `//` de `'postgresql://…'` — e
- * com ele apagaria um `console.warn` que viesse depois na mesma linha. A
- * armadilha catalogada nesta família é sempre a mesma: *guarda que lê texto vê
- * caractere, não intenção*, e aqui o pior caso seria o silencioso.
+ * ## A primeira versão era um scanner de caracteres, e ela passou verde sobre o
+ * defeito que existe para achar
+ *
+ * O raciocínio parecia sólido — um `replace(/\/\/.*$/gm, '')` apagaria a linha
+ * a partir do `//` de um `'https://…'`, então escrevi um scanner que trata
+ * aspas como delimitador de string. **Ele engolia 481 linhas do `src/`.**
+ *
+ * A causa é uma aspa **dentro de um literal de expressão regular**:
+ * `.replace(/"/g, '&quot;')`, que existe em `routes/dev/dashboard.ts:23` e em
+ * `services/newsletter.service.ts:27`. O scanner via aquela `"` como abertura de
+ * string e consumia tudo até a próxima — que não vinha —, deixando **254 e 227
+ * linhas invisíveis**. Medido: um `console.warn` acrescentado ao fim do
+ * `dashboard.ts` passava na guarda sem uma falha.
+ *
+ * **Distinguir literal de regex de uma divisão exige o token anterior**, que é
+ * gramática, não caractere. É a sexta vez que esta família aparece no projeto e
+ * a lição finalmente virou outra: onde existe um parser de verdade, use o
+ * parser. `typescript` já é dependência de desenvolvimento daqui, e
+ * `createSourceFile` responde exatamente o que a guarda pergunta.
  */
-function codeOnly(source: string): string {
-  let out = '';
-  let i = 0;
+function consoleCalls(source: string, fileName: string): number {
+  const tree = ts.createSourceFile(fileName, source, ts.ScriptTarget.ES2022, false, ts.ScriptKind.TS);
+  let found = 0;
 
-  while (i < source.length) {
-    const two = source.slice(i, i + 2);
-
-    if (two === '//') {
-      while (i < source.length && source[i] !== '\n') i++;
-      continue;
+  const visit = (node: ts.Node): void => {
+    // `console.warn(...)` e também `console['warn'](...)`.
+    if (ts.isCallExpression(node)) {
+      const target = ts.isPropertyAccessExpression(node.expression)
+        ? node.expression.expression
+        : ts.isElementAccessExpression(node.expression)
+          ? node.expression.expression
+          : undefined;
+      if (target && ts.isIdentifier(target) && target.text === 'console') found += 1;
     }
-    if (two === '/*') {
-      i += 2;
-      while (i < source.length && source.slice(i, i + 2) !== '*/') i++;
-      i += 2;
-      continue;
-    }
+    ts.forEachChild(node, visit);
+  };
 
-    const char = source[i] as string;
-    if (char === "'" || char === '"' || char === '`') {
-      i++;
-      while (i < source.length && source[i] !== char) {
-        if (source[i] === '\\') i++;
-        i++;
-      }
-      i++;
-      out += '""';
-      continue;
-    }
-
-    out += char;
-    i++;
-  }
-
-  return out;
+  visit(tree);
+  return found;
 }
 
 /** Todo `.ts` sob `src/`, como caminho relativo com barra normal. */
@@ -271,12 +271,10 @@ function sourceFiles(dir: string = API_SRC): string[] {
   });
 }
 
-const CONSOLE_CALL = /\bconsole\s*\.\s*[a-z]+\s*\(/g;
-
-/** Arquivos com chamada real a `console.*` — comentário e string já removidos. */
+/** Arquivos com chamada real a `console.*`. */
 function filesCallingConsole(): string[] {
-  return sourceFiles().filter((file) =>
-    new RegExp(CONSOLE_CALL.source).test(codeOnly(readFileSync(join(API_SRC, file), 'utf8'))),
+  return sourceFiles().filter(
+    (file) => consoleCalls(readFileSync(join(API_SRC, file), 'utf8'), file) > 0,
   );
 }
 
@@ -296,13 +294,12 @@ describe('nenhum `console.*` contorna o logger', () => {
     expect(files.length).toBeGreaterThan(50);
     expect(files).toContain('utils/logger.ts');
     expect(files).toContain('services/pipeline.service.ts');
+    // Controle positivo: a única exceção escrita **é** encontrada. Uma varredura
+    // que devolvesse lista vazia passaria nas duas primeiras asserções.
+    expect(filesCallingConsole()).toContain('config/env.ts');
   });
 
-  it('strips comments and strings without eating the code beside them', () => {
-    /**
-     * A asserção que prova que a varredura não passa verde por engano. As três
-     * primeiras linhas **não** são chamadas; a última é.
-     */
+  it('counts the call and nothing else — comment, string, template, regex', () => {
     const snippet = [
       '// antes isto era console.warn(x)',
       '/* e aqui também: console.error(y) */',
@@ -310,8 +307,20 @@ describe('nenhum `console.*` contorna o logger', () => {
       'console.debug(w);',
     ].join('\n');
 
-    expect(codeOnly(snippet).match(new RegExp(CONSOLE_CALL.source, 'g'))).toEqual([
-      'console.debug(',
-    ]);
+    expect(consoleCalls(snippet, 'sintetico.ts')).toBe(1);
+  });
+
+  it('is not fooled by a quote inside a regex literal — the bug this guard had', () => {
+    /**
+     * A regressão exata. O scanner de caracteres devolvia **zero** aqui: a `"`
+     * do literal de regex abria uma string que nunca fechava, e a chamada da
+     * linha seguinte desaparecia junto com o resto do arquivo.
+     */
+    const snippet = [
+      `const escape = (s) => s.replace(/"/g, '&quot;').replace(/'/g, '&#39;');`,
+      'console.debug("depois do literal de regex");',
+    ].join('\n');
+
+    expect(consoleCalls(snippet, 'sintetico.ts')).toBe(1);
   });
 });

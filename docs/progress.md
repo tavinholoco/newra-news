@@ -5042,13 +5042,12 @@ com três metades:
 - **`console.*` não volta** — varredura estática de `src/`, com mapa de exceção
   que exige motivo escrito **e** que reprova exceção obsoleta.
 
-**A varredura tira comentário e string com um scanner de caracteres, não com
-regex.** Um `replace(/\/\/.*$/gm, '')` apagaria a linha inteira a partir do `//`
-de um `'https://…'` — e com ela apagaria um `console.warn` que viesse depois na
-mesma linha. É a quinta vez que esta família aparece no projeto, e o pior caso
-continua sendo o silencioso. Há um teste alimentando o scanner com as quatro
-formas (comentário de linha, de bloco, string, template) e exigindo que **só** a
-chamada real apareça.
+**A varredura usa o parser do TypeScript, e a primeira versão dela é o primeiro
+achado da revisão abaixo.** `ts.createSourceFile` mais uma visita procurando
+`CallExpression` cujo alvo é o identificador `console` — exato, sem heurística de
+comentário, string ou literal de regex. Há um teste alimentando a contagem com
+as cinco formas (comentário de linha, de bloco, string, template, literal de
+regex) e exigindo que **só** a chamada real apareça.
 
 Mais `apps/api/tests/utils/logger.test.ts` (o `mixin` atravessa profundidade e
 `await`, e não vaza para fora do run) e uma asserção no
@@ -5062,7 +5061,72 @@ o `eslint` reprovam; `pipelineContext.run` removido → `expected undefined to b
 'log-1'`. E o `LOG_LEVEL` fora do `render.yaml` reprova no `env-parity.test.ts`
 que já existia, que é o ponto de a variável ter linha no blueprint.
 
-**868 → 889 testes na API** (63 → 65 suítes). Web inalterado em 618.
+**868 → 892 testes na API** (63 → 65 suítes). Web inalterado em 618.
+
+#### A revisão da própria fase, e ela achou o defeito na guarda
+
+Feita depois do PR aberto e do CI verde, contra o próprio diff. **Três achados,
+e o primeiro é do tipo que este projeto já catalogou cinco vezes — só que desta
+vez estava na guarda recém-escrita.**
+
+**1. A varredura de `console.*` passava verde sobre um `console.warn` real.**
+
+O scanner de caracteres foi escrito justamente para evitar a armadilha
+conhecida: um `replace(/\/\/.*$/gm, '')` apagaria a linha a partir do `//` de um
+`'https://…'`. Ele tratava aspas como delimitador de string — e **a aspa dentro
+de um literal de expressão regular** não é delimitador de nada:
+
+```ts
+.replace(/"/g, '&quot;')      // routes/dev/dashboard.ts:23
+.replace(/'/g, '&#39;')       // services/newsletter.service.ts:27
+```
+
+O scanner via aquela `"` como abertura de string e consumia até a próxima, que
+não vinha. **481 linhas do `src/` ficavam invisíveis** — 254 no `dashboard.ts` e
+227 no `newsletter.service.ts`, os dois arquivos inteiros a partir do gatilho.
+Medido: um `console.warn` acrescentado ao fim do `dashboard.ts` **passava na
+guarda sem uma única falha**.
+
+**A lição finalmente é outra, e é a que faltava.** As cinco vezes anteriores
+terminaram em "leia melhor o texto": ler prosa corrida em vez de linha a linha,
+tirar comentário antes do regex, olhar a coluna zero. Aqui não havia leitura
+melhor a fazer — **distinguir literal de regex de uma divisão exige o token
+anterior**, que é gramática e não caractere. Onde existe um parser de verdade,
+use o parser: `ts.createSourceFile` responde exatamente o que a guarda pergunta,
+e o `typescript` já era dependência de desenvolvimento da API. A guarda agora
+conta `CallExpression` cujo alvo é o identificador `console`, e o teste de
+regressão traz o literal de regex pelo nome.
+
+**2. Nada guardava a fiação — só o serializer.** As 17 asserções do
+`secrets-in-logs.test.ts` continuariam verdes se alguém devolvesse
+`logger: baseLogger` a um booleano: o serializer seguiria correto, apenas não
+seria chamado por ninguém, e o vazamento reabriria inteiro. Guarda nova em
+`server-hardening.test.ts`.
+
+> **E ela ensinou uma coisa sobre o Fastify no caminho:** `app.log` **não é** a
+> instância passada, é um `child({ reqId })` dela — a primeira versão da
+> asserção, por identidade, reprovou. O que atravessa o `child` são os
+> serializers, então o que a guarda compara é
+> `app.log[pino.symbols.serializersSym].err` com o `redactingErrSerializer`. Com
+> `logger: true` ali estaria o `errSerializer` padrão do pino, que não redige
+> nada — e é exatamente essa a diferença que importa.
+
+**3. O vocabulário de níveis estava escrito duas vezes** — a tupla em
+`utils/logger.ts` e os mesmos sete literais no `z.enum` do `config/env.ts`, que é
+a lição do `13` dos feeds em forma nova. A tupla passou a morar no `env.ts` (é o
+schema quem valida, e o logger já importa aquele arquivo — o caminho contrário
+seria ciclo) e o `LogLevel` é derivado dela. De quebra saiu um `export` morto: o
+`LOG_LEVELS` do logger não era lido por ninguém.
+
+Junto, duas simplificações sem achado atrás: a linha de acesso repetia
+`'request completed'` em três ramos (virou nível computado), e a varredura
+recriava um `RegExp` a cada arquivo para escapar do `lastIndex` da flag `g` —
+problema que sumiu com o parser.
+
+**As duas guardas novas foram vistas reprovar**: `console.warn` no fim do
+`dashboard.ts` → `expected [ 'routes/dev/dashboard.ts' ] to deeply equal []` (a
+versão anterior passava); `logger: true` no `buildApp` → `expected [Function
+errSerializer] to be [Function redactingErrSerializer]`.
 
 #### O que fica pendente daqui
 

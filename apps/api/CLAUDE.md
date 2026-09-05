@@ -365,9 +365,14 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
 - **`console.*` é erro de lint**, com **uma** exceção escrita: `config/env.ts`,
   que roda antes de o logger existir e termina em `process.exit(1)`. Guarda em
   `tests/security/secrets-in-logs.test.ts`, que também varre `src/` e recusa
-  exceção sem motivo — e a varredura tira comentário e string com um **scanner
-  de caracteres**, porque um regex de `//` apagaria a linha a partir do
-  `'https://…'` e engoliria a chamada que viesse depois.
+  exceção sem motivo. **A varredura usa `ts.createSourceFile`, e não regex nem
+  scanner de caracteres:** a primeira versão tratava aspas como delimitador de
+  string e a aspa de um literal de regex (`.replace(/"/g, …)`) apagava 481
+  linhas do `src/` — com um `console.warn` real passando verde dentro delas.
+- **A fiação tem guarda própria**, em `server-hardening.test.ts`: o serializer
+  correto não vale nada se o `buildApp` não o usar. Ela compara
+  `app.log[pino.symbols.serializersSym].err` — porque `app.log` **não é** a
+  instância passada, é um `child({ reqId })` dela.
 - **O serializer de `err` é quem fecha o vazamento de segredo, não o `redact` do
   pino.** O `redact` trabalha por *caminho* (`req.headers.authorization`); a DSN
   do Prisma chega dentro de `err.message`, que é texto livre. Os dois são
@@ -391,6 +396,9 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
   o build.** O tipo concreto fixa o parâmetro de logger do `FastifyInstance`, e
   toda função que recebe o app default (`registerDailyPipelineJob`, helpers de
   teste) deixa de casar. A suíte não vê; só o `tsc`.
+- **O vocabulário de níveis mora em `config/env.ts`**, não aqui: é o schema quem
+  valida, e o logger já importa aquele arquivo (o contrário seria ciclo). O
+  `LogLevel` é derivado da tupla, nunca digitado de novo.
 - **`LOG_LEVEL` não tem default no schema.** `utils/logger.ts` resolve a
   ausência para `info` **só** em `development` e `production`; qualquer outra
   coisa é `silent`. Escrito como `!== 'test'`, toda suíte que faz

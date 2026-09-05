@@ -495,6 +495,24 @@ logger existir, e é seguido de `process.exit(1)`.
   exceções com motivo escrito;
 - uma asserção de caminho feliz, para o harness não poder estar vazio.
 
+> **Duas coisas mudaram na entrega, e as duas saíram da revisão da fase.**
+>
+> **A metade estática usa `ts.createSourceFile`, não varredura de texto.** A
+> primeira versão era um scanner de caracteres — escrito para não repetir o erro
+> conhecido de apagar a linha a partir do `//` de um `'https://…'` — e ela
+> **passava verde sobre um `console.warn` real**: a aspa de um literal de regex
+> (`.replace(/"/g, '&quot;')`, em `routes/dev/dashboard.ts:23` e
+> `services/newsletter.service.ts:27`) abria uma string que nunca fechava e
+> tornava **481 linhas do `src/` invisíveis**. Distinguir regex de divisão exige
+> o token anterior, que é gramática. Onde há parser, use o parser.
+>
+> **E há uma terceira metade, que faltava: a fiação.** As asserções sobre o
+> serializer continuam verdes se alguém devolver `logger: baseLogger` a um
+> booleano — o serializer segue correto e ninguém o chama. A guarda mora no
+> `server-hardening.test.ts` e compara
+> `app.log[pino.symbols.serializersSym].err`, porque `app.log` **não é** a
+> instância passada ao Fastify: é um `child({ reqId })` dela.
+
 O `LOG_LEVEL` no `render.yaml` cai de graça no `env-parity.test.ts` que já
 existe — **se você esquecer a linha do blueprint, o CI reprova, e é esse o
 ponto.**
@@ -1430,6 +1448,16 @@ Não-objetivos declarados como número, nunca como item de lista.
     deduplicação é quem separa as duas.
 26. **Remover uma fonte e ela virar "quebrada" para sempre no gráfico** — é o
     que `NOT_ATTEMPTED` existe para impedir.
+27. **Guarda estática que pergunta sobre a estrutura do código, escrita como
+    varredura de texto.** Sexta ocorrência da família e a primeira em que ler
+    melhor o texto não resolvia: a aspa dentro de um literal de regex fez a
+    varredura de `console.*` da Fase 1 ignorar 481 linhas do `src/`. Onde a
+    pergunta é sobre gramática, use `ts.createSourceFile`; regex continua certo
+    para prosa e para YAML.
+28. **Guarda sobre a função, sem guarda sobre a fiação.** O serializer que
+    redige não vale nada se o `buildApp` deixar de usá-lo, e a suíte inteira
+    fica verde nesse cenário. Todo achado fechado com guarda sobre uma peça pede
+    a segunda asserção sobre quem a liga.
 
 ---
 
@@ -1444,6 +1472,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia |
 | **Workflow novo ou alterado** | `workflow-hardening.test.ts` (Fase 10) — `permissions:` declarado e `uses:` fixado em SHA |
+| **Chamada a `console.*` na API** | `secrets-in-logs.test.ts` (Fase 1) — e o `no-console: 'error'` do ESLint, que reprova antes |
 
 ---
 
@@ -1658,7 +1687,7 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
       na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
       decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
       primeiro modelo pago.
-- [ ] Ler o §17 inteiro. São 26 armadilhas e a maioria custou um incidente.
+- [ ] Ler o §17 inteiro. São 28 armadilhas e a maioria custou um incidente.
 
 **Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
 não depende de nada neste plano, o que a torna a partida natural.

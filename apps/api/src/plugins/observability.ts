@@ -204,15 +204,17 @@ export const observabilityPlugin = fp(async function observabilityPlugin(
      * instrumentação do lugar. O `reqId` vem do child logger da requisição, e é
      * o mesmo `x-request-id` que a resposta devolve.
      */
-    const line = {
-      method: request.method,
-      route,
-      statusCode: reply.statusCode,
-      durationMs: Math.round(reply.elapsedTime),
-    };
+    const level =
+      reply.statusCode >= 500 ? 'error' : reply.statusCode >= 400 ? 'warn' : 'info';
 
-    if (reply.statusCode >= 500) request.log.error(line, 'request completed');
-    else if (reply.statusCode >= 400) request.log.warn(line, 'request completed');
-    else request.log.info(line, 'request completed');
+    request.log[level](
+      {
+        method: request.method,
+        route,
+        statusCode: reply.statusCode,
+        durationMs: Math.round(reply.elapsedTime),
+      },
+      'request completed',
+    );
   });
 });
