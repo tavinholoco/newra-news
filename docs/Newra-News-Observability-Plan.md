@@ -225,11 +225,50 @@ primeira é de código:
    construção.
 3. **Retenção própria**, mais curta que a do `ErrorEvent`.
 
-**O caminho de menor risco, se você quiser adiar tudo isso:** não guardar IP
-nenhum e usar `sessionId` e `userId` como eixo de agrupamento nos eventos de
-segurança. Perde-se detectar um atacante anônimo; mantém-se detectar uma **conta
-comprometida**, que num produto com login social e sem senha nossa é o vetor
-mais provável. Fica registrado como decisão consciente, não como esquecimento.
+### A recomendação: não encaminhar, não guardar — e o motivo é uma medição
+
+> **Recomendação, não decisão tomada.** O §19 mantém isto no checklist. O que
+> segue é o argumento, para a decisão ser sobre fatos e não sobre gosto.
+
+Três leituras do código, e elas fecham a questão:
+
+**1. Onde o IP falta, já existe identificador melhor.** Os dois eventos de maior
+valor da §3.2 são `authz_fail` (rota de admin negada) e `authn_token_reuse`
+(`purpose` trocado). Os dois exigem **um JWT válido** — quem os dispara está
+logado, e o token carrega `sub` e `email`. O IP não acrescentaria nada a uma
+identidade que já é nominal.
+
+**2. A tentativa anônima nem chega à API.** O `proxyToApi` chama
+`getServerSession` primeiro e devolve **401 sem chamar a API**; o 403 de papel
+errado sai no passo seguinte, também antes. Um atacante sem sessão martelando
+`/api/admin/metrics` produz **zero** requisições no Render. Não é que a API veja
+o IP errado: ela não vê requisição nenhuma.
+
+**3. Onde há anônimo de verdade, o IP já funciona.** As rotas que o navegador
+chama direto — `/api/news`, `/api/articles`, as facetas — chegam com
+`X-Forwarded-For` e o `trustProxy: 1` lê certo. É lá que mora o rate limit, e
+ele já usa esse IP.
+
+Portanto: **não mexer no `api-proxy.ts` e não criar campo de IP.** Os eventos de
+segurança agrupam por `userId` quando autenticados e por `request.ip` quando
+públicos, que é o dado que já existe em cada caso.
+
+**E a lacuna que sobra tem dono, e é a Fase 7a.** A tentativa anônima contra
+rota autenticada é invisível para a API **e é exatamente onde o IP seria útil**.
+Ela acontece dentro da função da Vercel, que **recebe** o IP do cliente no
+`x-forwarded-for` — só não o repassa. Então quem registra esse evento é o
+`logServerError` da §11.1, no lugar onde o dado está, sem contrato novo entre os
+dois apps e sem coluna nova no banco.
+
+> **Confirmar em produção antes de escrever a linha:** que a função da Vercel de
+> fato recebe `x-forwarded-for`. É o comportamento documentado da plataforma,
+> mas este projeto tem o hábito de sondar antes de concluir — foi o que separou
+> "a API está dormindo" de "a API foi suspensa".
+
+O que se perde: detectar um atacante distribuído e anônimo contra rota
+autenticada. Pelo item 2, essa classe não existe do lado da API. O que se
+mantém: detectar **conta comprometida**, que num produto com login social e sem
+senha nossa é o vetor provável.
 
 ### §3.3 Qualidade de dado — o eixo das inconsistências
 
@@ -630,11 +669,30 @@ devolvendo erro agora?".
 - **As três colunas órfãs** — `newsApiCount`, `rssCount`, `cleanupCount` entram
   no `dashboardMetricsSchema` e viram cartão.
 
-**`aiTokensUsed` não entra.** Verificado: só o `schema.prisma:205` e o
-`seed.ts:161` a mencionam — **nenhum provider captura uso de token**. É coluna
-morta, e renderizá-la mostraria número em dev e branco em produção. Decidir
-entre popular (os dois providers devolvem uso no envelope) ou remover por
-migration. A recomendação é remover.
+### `aiTokensUsed`: a recomendação é remover, e o argumento a favor foi medido
+
+Verificado: só o `schema.prisma:205` e o `seed.ts:161` a mencionam — **nenhum
+provider captura uso de token**. É coluna morta, e renderizá-la mostraria número
+em dev e branco em produção.
+
+**Há um argumento honesto a favor de populá-la**, e ele vem da §3.1: token
+consumido é a **saturação** da dependência de IA, o mesmo tipo de teto que
+suspendeu a API por 750 horas. Os dois providers devolvem uso no envelope
+(`usageMetadata` no Gemini, `usage` no Groq), então popular é trabalho pequeno.
+
+**O argumento não bite nos números deste produto.** É **uma** chamada por dia,
+com ~15 matérias de entrada e um briefing de saída — ordem de dezenas de
+milhares de tokens por dia, contra tetos de plano gratuito que estão duas ou
+três ordens de grandeza acima. Instrumentar uma saturação a ~1% do teto é
+construir um termômetro para uma febre que não existe.
+
+**Então: remover por migration, e o lugar é a Fase 5** — é lá que a extensão do
+`response-schema-contract.test.ts` ao `DailyMetric` **força** a decisão, em vez
+de deixá-la parada mais um mês. Sai com o motivo escrito no `progress.md`.
+
+**Gatilho para voltar atrás**, e é barato: mais de um briefing por dia, ou a
+primeira troca para um modelo pago. Aí a coluna volta com uma migration de uma
+linha e os dois providers passam a preencher.
 
 ### Aba Logs e segurança — o que entra
 
@@ -1410,8 +1468,13 @@ bastam, porque tudo o mais está neste documento:
 
 ### O ritual de cada fase
 
-Uma fase, um PR. **Nunca duas fases no mesmo PR** — a que quebrar arrasta a
-outra no revert.
+**Uma fase, um PR, uma sessão.** Nunca duas fases no mesmo PR — a que quebrar
+arrasta a outra no revert, e as fases 4 e 11 tocam schema, que `git revert`
+sozinho não desfaz.
+
+**A worktree sobrevive ao merge.** Depois que um PR entra, `git pull` dentro
+dela e segue para a fase seguinte — ela ramifica de `main`, então não há nada a
+recriar.
 
 1. **Abrir da `main` atualizada.** Worktree própria, e `pnpm install` +
    `pnpm db:generate` nela: worktree nova não tem `node_modules` nem Prisma
@@ -1480,11 +1543,13 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
 ### O que fazer antes do primeiro PR
 
 - [ ] Ler o §17 inteiro. São 26 armadilhas e a maioria custou um incidente.
-- [ ] Decidir a questão do IP (§3.2). São **três** decisões, e a primeira é de
-      código: o BFF encaminha o IP de origem, ou não? Sem essa, IP em evento de
-      rota autenticada é o IP da Vercel. O caminho de menor risco — agrupar por
-      `sessionId`/`userId` e não guardar IP nenhum — está descrito lá.
-- [ ] Decidir o `aiTokensUsed` (§9): popular ou remover por migration.
+- [ ] **Bater o martelo no IP (§3.2).** A recomendação está escrita e
+      argumentada — *não encaminhar, não guardar*, agrupando por `userId` no
+      autenticado e por `request.ip` no público, com a tentativa anônima ficando
+      a cargo do `logServerError` da Fase 7a. Falta só o seu aceite, ou a
+      objeção.
+- [ ] **Bater o martelo no `aiTokensUsed` (§9).** Recomendação: remover por
+      migration, junto da Fase 5, onde a guarda força a decisão.
 - [ ] Confirmar que a Fase 10 pode ir sozinha — ela é a única que não bloqueia
       nada e a única que reduz risco antes de qualquer código novo.
 
