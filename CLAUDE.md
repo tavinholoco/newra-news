@@ -27,10 +27,47 @@
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
 
+## Onde o trabalho integra: `dev`, e a `main` só por promoção
+
+**Decidido em 05/09/2026.** O trabalho entra por PR na **`dev`**; a `main` recebe
+`dev → main` quando **você decide**, e é esse merge que publica. O motivo é
+direto: a `main` é o que está no ar, e mergear fase a fase nela é convidar
+janela de site quebrado por mudança que ainda não precisava estar em produção.
+
+A `dev` foi alinhada à `main` em 05/09 (era 217 commits atrás, zero à frente —
+fast-forward limpo). **Se ela voltar a ficar para trás, alinhe antes de abrir
+qualquer PR**, senão a fase é desenvolvida contra código velho:
+
+```bash
+git fetch origin && git push origin origin/main:refs/heads/dev
+```
+
+**O que roda em cada base — confira antes de assumir:**
+
+| Workflow | Base `dev` | Base `main` |
+|---|---|---|
+| CI (Lint, Test, Build, `pnpm audit`) | ✅ | ✅ |
+| CodeQL | ✅ | ✅ |
+| Gitleaks | ✅ | ✅ |
+| Smoke E2E | ❌ | ✅ (push) |
+| Migrate (Prisma) | ❌ | ✅ (push) |
+
+As duas últimas ficam **só na `main` de propósito**: o smoke mede o site no ar, e
+migration se aplica a produção uma vez. A consequência prática é que **um lote
+de fases com schema aplica todas as migrations juntas na promoção** — o que é
+uma janela controlada, mas é uma janela: promova com isso em mente.
+
 ## Fechar uma fase (o ritual, contra produção)
 
-Roda **depois** do merge e do deploy — as duas medições são contra o site no ar,
-e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as duas acharam defeito.
+Roda **depois da promoção `dev → main` e do deploy** — as duas medições são
+contra o site no ar, e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as
+duas acharam defeito.
+
+> **O merge na `dev` não fecha fase nenhuma.** Ele passa o CI e para aí; nada do
+> que está abaixo mede uma branch que não foi publicada. Rodar o ritual depois
+> de um merge na `dev` mede a produção **anterior** e devolve verde sobre
+> mudança que não está lá — que é o defeito mais caro que este projeto sabe
+> produzir. O ritual é do lote promovido, não da fase.
 
 **1. Lighthouse por rota.** Não espere a execução de segunda:
 

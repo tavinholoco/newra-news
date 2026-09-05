@@ -196,6 +196,95 @@ describe('workflows: actions fixadas em SHA', () => {
   });
 });
 
+describe('os portões de PR aceitam as mesmas bases', () => {
+  /**
+   * **O achado que esta asserção existe para impedir, e ele nasceu no mesmo PR
+   * que criou o arquivo.**
+   *
+   * O `codeql.yml` da Fase 10 nasceu com `pull_request: branches: [main]`,
+   * porque naquele momento tudo mergeava na `main`. No dia seguinte a política
+   * mudou — as fases passaram a integrar na **`dev`**, e a `main` a receber só
+   * promoção deliberada. O `ci.yml` já aceitava as duas; o `codeql.yml`, não.
+   *
+   * O efeito seria **SAST pulado em silêncio** em todo PR de fase: o PR ficaria
+   * verde, com Lint, Test e Build passando, e nenhuma linha dizendo que a
+   * análise não rodou. É a família do PR empilhado na base errada, que este
+   * repositório já registrou uma vez.
+   *
+   * Por isso a guarda compara **conjunto**, e não confere uma lista escrita à
+   * mão: acrescentar uma base integradora em um dos dois e esquecer o outro é
+   * a única coisa que ela precisa pegar.
+   */
+
+  /** Os workflows que existem para reprovar um PR antes do merge. */
+  const PORTOES = ['ci.yml', 'codeql.yml'];
+
+  /**
+   * Os que **não** entram, e por quê. Nenhum dos dois é portão de PR: eles agem
+   * sobre o que já foi publicado, e ampliá-los para a `dev` os faria medir ou
+   * escrever fora de produção.
+   */
+  const FORA: Record<string, string> = {
+    'gitleaks.yml': 'roda em todo `pull_request`, sem filtro de base',
+    'smoke.yml': 'mede o site no ar — só faz sentido no push da `main`',
+    'migrate.yml': 'aplica migration em produção — só no push da `main`',
+    'lighthouse.yml': 'agendado e manual, contra produção; não reage a PR',
+  };
+
+  /**
+   * A lista de `branches:` do bloco `pull_request:` de um workflow.
+   *
+   * Textual, como o resto do arquivo. Procura a chave e lê o primeiro
+   * `branches:` **mais indentado** que venha depois — que é a forma que os dois
+   * arquivos usam, e a única que o GitHub aceita aqui.
+   */
+  function basesDePullRequest(nome: string): string[] {
+    const linhas = linhasDeCodigo(ler(path.join(WORKFLOWS, nome))).map((l) => l.texto);
+    const inicio = linhas.findIndex((texto) => /^\s*pull_request:\s*$/.test(texto));
+    if (inicio === -1) return [];
+
+    const indentacao = (linhas[inicio] ?? '').search(/\S/);
+
+    for (let i = inicio + 1; i < linhas.length; i += 1) {
+      const linha = linhas[i] ?? '';
+      if (linha.search(/\S/) <= indentacao) break;
+
+      const casou = linha.match(/^\s*branches:\s*\[(.*)\]\s*$/);
+      if (casou?.[1] !== undefined) {
+        return casou[1]
+          .split(',')
+          .map((b) => b.trim().replace(/^['"]|['"]$/g, ''))
+          .filter(Boolean)
+          .sort();
+      }
+    }
+
+    return [];
+  }
+
+  it('`ci.yml` e `codeql.yml` reprovam PR nas mesmas bases', () => {
+    const porArquivo = Object.fromEntries(PORTOES.map((n) => [n, basesDePullRequest(n)]));
+
+    // Sem isto, um parser que devolvesse vazio faria a comparação passar para
+    // sempre — a lição da terceira asserção do `api-docs-drift.test.ts`.
+    for (const [nome, bases] of Object.entries(porArquivo)) {
+      expect(bases.length, `${nome} não declara base de \`pull_request\``).toBeGreaterThan(0);
+    }
+
+    const [primeiro, ...resto] = PORTOES;
+    for (const nome of resto) {
+      expect(porArquivo[nome], `bases de ${nome} × ${primeiro}`).toEqual(porArquivo[primeiro ?? '']);
+    }
+  });
+
+  it('todo workflow é portão de PR ou tem motivo escrito para não ser', () => {
+    const classificados = new Set([...PORTOES, ...Object.keys(FORA)]);
+    const semClassificacao = arquivosDeWorkflow().filter((nome) => !classificados.has(nome));
+
+    expect(semClassificacao, 'workflow novo: portão de PR, ou linha em `FORA`').toEqual([]);
+  });
+});
+
 describe('CI: a auditoria de dependência e a lista de exceções', () => {
   const CI = path.join(WORKFLOWS, 'ci.yml');
   const PACKAGE_JSON = path.join(RAIZ, 'package.json');

@@ -1488,15 +1488,33 @@ bastam, porque tudo o mais está neste documento:
 arrasta a outra no revert, e as fases 4 e 11 tocam schema, que `git revert`
 sozinho não desfaz.
 
-**A worktree sobrevive ao merge.** Depois que um PR entra, `git pull` dentro
-dela e segue para a fase seguinte — ela ramifica de `main`, então não há nada a
+**As fases integram na `dev`, não na `main` — decidido em 05/09/2026.** A `main`
+é o que está no ar; ela recebe `dev → main` quando o dono do projeto decide, e é
+esse merge que publica. Mergear fase a fase na `main` é convidar janela de site
+quebrado por mudança que ainda não precisava estar em produção.
+
+**A `dev` é base de primeira classe no CI, e é isso que torna a decisão
+possível:** `ci.yml` e `codeql.yml` disparam nas duas, então um PR de fase roda
+Lint, Test, Build, `pnpm audit`, Gitleaks e CodeQL igual. **Smoke E2E e Migrate
+ficam só na `main`** — o smoke mede o site no ar e migration se aplica a
+produção uma vez. Consequência a não esquecer: **um lote com as fases 4 e 11
+aplica as duas migrations juntas na promoção.**
+
+**A worktree sobrevive ao merge.** Depois que um PR entra, `git fetch` dentro
+dela e segue para a fase seguinte — ela ramifica da `dev`, então não há nada a
 recriar.
 
-1. **Abrir da `main` atualizada.** Worktree própria, e `pnpm install` +
+1. **Abrir da `dev` atualizada.** Worktree própria, e `pnpm install` +
    `pnpm db:generate` nela: worktree nova não tem `node_modules` nem Prisma
    Client, e sem o segundo **45 suítes falham na coleta** com
    `Cannot find module '.prisma/client/default'` — o que parece a suíte
    quebrada e é só ambiente.
+
+   > **Confira que a `dev` não ficou para trás da `main` antes de ramificar.**
+   > Ela já esteve **217 commits atrás**, e uma fase desenvolvida sobre `dev`
+   > velha é uma fase desenvolvida contra código que não existe mais. O
+   > alinhamento é fast-forward enquanto a `dev` não tiver commit próprio:
+   > `git push origin origin/main:refs/heads/dev`.
 2. **Escrever a guarda antes do código, e vê-la reprovar.** É a regra da §2, e
    nesta sessão ela já pagou duas vezes: a guarda de contagem passava verde
    sobre um `treze` real, e passou a reprovar só depois de a varredura ler prosa
@@ -1506,9 +1524,18 @@ recriar.
    antes do push.
 5. **PR com o número da fase no título.** O corpo diz o que fecha, qual guarda
    trava, e qual gatilho numérico nasce.
-6. **Depois do merge, o ritual do `CLAUDE.md`:** Lighthouse, baseline visual e
-   smoke E2E. As fases 5, 9 e 11 mexem em tela ou em produto e **precisam** dos
-   três; as de substrato (1, 3, 4) precisam só do smoke.
+6. **PR com base `dev`.** O merge na `dev` fecha o PR e **não fecha a fase**: o
+   CI passou, e nada foi publicado.
+7. **Depois da promoção `dev → main` e do deploy, o ritual do `CLAUDE.md`:**
+   Lighthouse, baseline visual e smoke E2E. As fases 5, 9 e 11 mexem em tela ou
+   em produto e **precisam** dos três; as de substrato (1, 3, 4) precisam só do
+   smoke.
+
+   > **O ritual é do lote promovido, não da fase.** Rodá-lo depois de um merge
+   > na `dev` mede a produção **anterior** e devolve verde sobre mudança que não
+   > está lá — o defeito mais caro que este projeto sabe produzir, e ele já
+   > apareceu duas vezes em outra forma (o gate medindo cold start, e o gate
+   > assertando a melhor amostra).
 
 ### A ordem, com o motivo de cada passo
 

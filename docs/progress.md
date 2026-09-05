@@ -4864,8 +4864,40 @@ intenção. Só se descobre insistindo em vê-la falhar.
 | Workflows com `permissions:` | 1 | **6** |
 | `uses:` fixados em SHA | 0 de 21 | **21 de 21** |
 | Advisories *high* de produção reprovando o CI | — (não havia gate) | **0**, com 18 aceitas por escrito |
-| Testes da API | 856 em 62 suítes | **865 em 63** |
-| Testes totais | 1.474 em 129 | **1.483 em 130** |
+| Testes da API | 856 em 62 suítes | **867 em 63** |
+| Testes totais | 1.474 em 129 | **1.485 em 130** |
+
+#### A política de merge mudou no meio do PR, e expôs um defeito dele
+
+**Decidido em 05/09/2026: as fases integram na `dev`, e a `main` recebe
+`dev → main` por promoção deliberada.** O argumento é da dona da produção: a
+`main` é o que está no ar, e mergear fase a fase nela abre janela de site
+quebrado por mudança que ainda não precisava estar publicada.
+
+A `dev` estava **217 commits atrás da `main` e zero à frente** — fast-forward
+limpo, feito na hora. Uma `dev` velha teria custado mais que a política resolve:
+fase desenvolvida contra código que não existe mais.
+
+**E aí o `codeql.yml` deste mesmo PR virou o primeiro defeito da política nova.**
+Ele nasceu com `pull_request: branches: [main]`, porque no dia em que foi escrito
+tudo mergeava na `main`. Sob a política nova, **todo PR de fase pularia o SAST em
+silêncio** — verde, com Lint, Test e Build passando, e nenhuma linha dizendo que
+a análise não rodou. O `ci.yml` já aceitava as duas bases desde sempre; o arquivo
+novo é que nasceu com uma só.
+
+Virou guarda, e ela compara **conjunto**: `ci.yml` e `codeql.yml` têm de reprovar
+PR nas mesmas bases, e workflow novo tem de ser declarado portão de PR ou ganhar
+linha escrita dizendo por que não é. `smoke.yml` e `migrate.yml` ficam **só na
+`main` de propósito** — um mede o site no ar, o outro aplica migration em
+produção.
+
+**A consequência que a promoção herda:** um lote com as fases 4 e 11 aplica as
+**duas migrations juntas**. É janela controlada, não é janela zero.
+
+**E o ritual do `CLAUDE.md` mudou de dono:** ele é do **lote promovido**, não da
+fase. Rodá-lo depois de um merge na `dev` mede a produção *anterior* e devolve
+verde sobre mudança que não está lá — a terceira forma do mesmo defeito que o
+gate do Lighthouse já produziu duas vezes.
 
 #### O que fica pendente daqui
 

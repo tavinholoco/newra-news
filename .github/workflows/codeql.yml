@@ -14,15 +14,21 @@ name: CodeQL
 # é —, e por isso não entra na conta de minutos que já suspendeu a API uma vez.
 #
 # **Por que não roda no `pull_request` de toda branch**: a análise leva alguns
-# minutos e o valor dela está em não deixar defeito entrar na `main`. Rodando no
-# `push` da `main` e no `pull_request` que a tem como base, o resultado chega
-# antes do merge — que é quando ainda dá para agir.
+# minutos e o valor dela está em não deixar defeito entrar nas duas branches
+# integradoras. Rodando no `push` delas e no `pull_request` que as tem como
+# base, o resultado chega antes do merge — que é quando ainda dá para agir.
+#
+# **A `dev` entrou em 05/09/2026, e não é simetria decorativa.** O trabalho
+# passou a integrar nela e a `main` só recebe promoção deliberada — então um PR
+# de fase tem a `dev` como base, e sem esta linha ele passaria **sem SAST**. É
+# a mesma lista que o `ci.yml` já usava; o CodeQL nasceu com uma só porque
+# nasceu antes da decisão.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   schedule:
     # Segunda 06:00 UTC. O agendamento pega advisory nova sobre código que não
     # mudou — o caso que o gatilho por `push` nunca alcança. É o mesmo motivo do
