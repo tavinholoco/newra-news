@@ -53,6 +53,7 @@ const ARQUIVOS_VIVOS = [
   'apps/api/src/providers/ai/ai-utils.ts',
   'apps/api/src/providers/news/rss.provider.ts',
   'docs/presentation.md',
+  'docs/Newra-News-Observability-Plan.md',
   'docs/diagrams/data-flow.mermaid',
   'docs/diagrams/pipeline-sequence.mermaid',
   'docs/diagrams/system-architecture.mermaid',
