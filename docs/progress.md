@@ -4873,8 +4873,12 @@ intenção. Só se descobre insistindo em vê-la falhar.
   dependência de produção reprova o CI de um PR que não tem nada com ela — é o
   comportamento desejado de um gate, mas surpreende. O procedimento de
   acrescentar linha está no fim do `docs/security-advisories.md`.
-- **O CodeQL nunca rodou aqui.** Este PR é a primeira execução; o que ele achar
-  entra como trabalho próprio, não como correção desta fase.
+- **O CodeQL rodou pela primeira vez neste PR: 201 regras, zero resultados.** O
+  número de regras é o que separa "passou" de "passou vazio" — é a suíte
+  `security-and-quality` inteira carregada, não um pack que não subiu. **Zero
+  hoje não é zero para sempre:** a análise semanal existe justamente para pegar
+  regra nova sobre código que não mudou, e o que ela achar entra como trabalho
+  próprio, não como correção desta fase.
 - **A próxima é a Fase 1 (o logger)**, que é o PR 2 da ordem do §19 e fecha o
   vazamento da DSN.
 
