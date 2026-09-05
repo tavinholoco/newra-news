@@ -102,7 +102,7 @@ export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<R
 
 async function fetchFeedXml(url: string): Promise<string> {
   // **Prazo, pela mesma razão que o resto da fase.** Um feed que aceita a
-  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e treze
+  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e doze
   // fontes em paralelo significam que basta uma. O provider de e-mail já tinha
   // o seu (15 s); este não tinha nenhum. Trinta segundos é folga sobre o pior
   // caso observado num feed lento e cabe no orçamento do cron diário.
