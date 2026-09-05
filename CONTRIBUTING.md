@@ -17,13 +17,35 @@ Requisitos: Node >= 22, pnpm 9, Docker. **Nunca use `npm install`** — o monore
 
 ## Branches
 
-Trabalhe sempre em uma branch a partir de `main`:
+**O trabalho integra na `dev`. A `main` é o que está no ar e recebe `dev → main`
+por promoção deliberada** — é esse merge que publica, dispara as migrations e
+roda o smoke contra produção.
+
+Ramifique da `dev` atualizada, e abra o PR com base `dev`:
 
 ```
 feat/<escopo>     nova funcionalidade
 fix/<escopo>      correção de bug
 chore/<escopo>    build, deps, config
 docs/<escopo>     documentação
+```
+
+```bash
+git fetch origin && git checkout -b feat/<escopo> origin/dev
+gh pr create --base dev
+```
+
+**As duas são base de primeira classe no CI** — `ci.yml` e `codeql.yml` disparam
+nas duas, então um PR para a `dev` roda lint, typecheck, testes, cobertura,
+`pnpm audit` e CodeQL igual. PR empilhado sobre outra **feature branch**, não:
+ali só Gitleaks e Vercel aparecem, e já aconteceu de uma mudança nunca chegar na
+`main` por causa disso.
+
+Se a `dev` tiver ficado para trás da `main`, alinhe antes de ramificar — enquanto
+ela não tiver commit próprio, é fast-forward:
+
+```bash
+git push origin origin/main:refs/heads/dev
 ```
 
 ## Commits

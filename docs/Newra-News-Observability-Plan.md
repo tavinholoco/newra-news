@@ -1504,17 +1504,31 @@ aplica as duas migrations juntas na promoção.**
 dela e segue para a fase seguinte — ela ramifica da `dev`, então não há nada a
 recriar.
 
-1. **Abrir da `dev` atualizada.** Worktree própria, e `pnpm install` +
-   `pnpm db:generate` nela: worktree nova não tem `node_modules` nem Prisma
-   Client, e sem o segundo **45 suítes falham na coleta** com
+1. **Abrir da `dev` atualizada**, dentro da worktree:
+
+   ```bash
+   cd ".claude/worktrees/observability-plan"
+   git fetch origin
+   git checkout -B observability/fase-N-<assunto> origin/dev
+   ```
+
+   Worktree **nova** precisa de `pnpm install` + `pnpm db:generate`: sem o
+   segundo, **45 suítes falham na coleta** com
    `Cannot find module '.prisma/client/default'` — o que parece a suíte
-   quebrada e é só ambiente.
+   quebrada e é só ambiente. A `observability-plan` já tem os dois.
 
    > **Confira que a `dev` não ficou para trás da `main` antes de ramificar.**
    > Ela já esteve **217 commits atrás**, e uma fase desenvolvida sobre `dev`
-   > velha é uma fase desenvolvida contra código que não existe mais. O
-   > alinhamento é fast-forward enquanto a `dev` não tiver commit próprio:
-   > `git push origin origin/main:refs/heads/dev`.
+   > velha é uma fase desenvolvida contra código que não existe mais:
+   >
+   > ```bash
+   > git rev-list --count origin/dev..origin/main   # 0 = alinhada
+   > git push origin origin/main:refs/heads/dev     # fast-forward, se não for
+   > ```
+   >
+   > O `push` só é fast-forward enquanto a `dev` não tiver commit próprio —
+   > confira `git rev-list --count origin/main..origin/dev` antes, e **nunca
+   > force**: se ela estiver à frente, o certo é abrir `dev → main`.
 2. **Escrever a guarda antes do código, e vê-la reprovar.** É a regra da §2, e
    nesta sessão ela já pagou duas vezes: a guarda de contagem passava verde
    sobre um `treze` real, e passou a reprovar só depois de a varredura ler prosa
@@ -1522,11 +1536,11 @@ recriar.
 3. **Implementar até a guarda ficar verde.**
 4. **`pnpm test && pnpm lint && pnpm turbo typecheck`** — os três, localmente,
    antes do push.
-5. **PR com o número da fase no título.** O corpo diz o que fecha, qual guarda
-   trava, e qual gatilho numérico nasce.
-6. **PR com base `dev`.** O merge na `dev` fecha o PR e **não fecha a fase**: o
+5. **PR com base `dev` e o número da fase no título** —
+   `gh pr create --base dev`. O corpo diz o que fecha, qual guarda trava, e qual
+   gatilho numérico nasce. **O merge na `dev` fecha o PR e não fecha a fase:** o
    CI passou, e nada foi publicado.
-7. **Depois da promoção `dev → main` e do deploy, o ritual do `CLAUDE.md`:**
+6. **Depois da promoção `dev → main` e do deploy, o ritual do `CLAUDE.md`:**
    Lighthouse, baseline visual e smoke E2E. As fases 5, 9 e 11 mexem em tela ou
    em produto e **precisam** dos três; as de substrato (1, 3, 4) precisam só do
    smoke.

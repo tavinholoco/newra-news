@@ -283,6 +283,49 @@ describe('os portões de PR aceitam as mesmas bases', () => {
 
     expect(semClassificacao, 'workflow novo: portão de PR, ou linha em `FORA`').toEqual([]);
   });
+
+  /**
+   * **A base que a documentação manda usar tem de ser uma base que o CI guarda.**
+   *
+   * Desde 05/09/2026 o trabalho integra na `dev` e a `main` recebe promoção
+   * deliberada — a `main` é o que está no ar, e mergear fase a fase nela abre
+   * janela de site quebrado. A política inteira só se sustenta porque `ci.yml` e
+   * `codeql.yml` tratam a `dev` como base de primeira classe.
+   *
+   * **O modo de falha é silencioso nas duas direções.** Tirar `dev` do
+   * `branches:` de um workflow deixa a prosa mentindo, e todo PR de fase passa a
+   * ser verde sem ter rodado nada; trocar a base escrita na prosa por uma que os
+   * portões não guardam dá no mesmo. Nenhum dos dois quebra um build.
+   *
+   * Por isso a asserção deriva o conjunto **da fonte** — o `branches:` do
+   * workflow — e confere a prosa contra ele, como o `feed-count-drift.test.ts`
+   * faz com `rssSources.length`. Nunca o contrário.
+   */
+  it('a base escrita nos documentos é uma base que os portões guardam', () => {
+    const DOCUMENTOS = ['CONTRIBUTING.md', 'docs/Newra-News-Observability-Plan.md'];
+    const guardadas = new Set(basesDePullRequest('ci.yml'));
+
+    const escritas: { onde: string; base: string }[] = [];
+    for (const relativo of DOCUMENTOS) {
+      const conteudo = ler(path.join(RAIZ, relativo));
+      for (const casou of conteudo.matchAll(/--base\s+([A-Za-z0-9._/-]+)/g)) {
+        escritas.push({ onde: relativo, base: casou[1] ?? '' });
+      }
+    }
+
+    // Sem isto, apagar a instrução dos dois documentos faria a asserção passar
+    // para sempre — a lição da terceira asserção do `api-docs-drift.test.ts`.
+    expect(
+      escritas.length,
+      'nenhum documento diz com que base abrir o PR',
+    ).toBeGreaterThanOrEqual(DOCUMENTOS.length);
+
+    const orfas = escritas
+      .filter(({ base }) => !guardadas.has(base))
+      .map(({ onde, base }) => `${onde}: --base ${base}`);
+
+    expect(orfas, `bases guardadas pelo CI: ${[...guardadas].join(', ')}`).toEqual([]);
+  });
 });
 
 describe('CI: a auditoria de dependência e a lista de exceções', () => {

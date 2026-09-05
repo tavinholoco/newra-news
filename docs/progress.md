@@ -4864,8 +4864,8 @@ intenção. Só se descobre insistindo em vê-la falhar.
 | Workflows com `permissions:` | 1 | **6** |
 | `uses:` fixados em SHA | 0 de 21 | **21 de 21** |
 | Advisories *high* de produção reprovando o CI | — (não havia gate) | **0**, com 18 aceitas por escrito |
-| Testes da API | 856 em 62 suítes | **867 em 63** |
-| Testes totais | 1.474 em 129 | **1.485 em 130** |
+| Testes da API | 856 em 62 suítes | **868 em 63** |
+| Testes totais | 1.474 em 129 | **1.486 em 130** |
 
 #### A política de merge mudou no meio do PR, e expôs um defeito dele
 
@@ -4898,6 +4898,35 @@ produção.
 fase. Rodá-lo depois de um merge na `dev` mede a produção *anterior* e devolve
 verde sobre mudança que não está lá — a terceira forma do mesmo defeito que o
 gate do Lighthouse já produziu duas vezes.
+
+#### A auditoria da mudança achou mais três, e um item não verificável
+
+Mudança de política não termina no arquivo que a implementa — ela termina quando
+todo documento que instrui alguém concorda com ela. A varredura achou:
+
+- **O `CONTRIBUTING.md` mandava ramificar da `main`.** É *o* arquivo que declara
+  a política de branch do repositório, e ele contradizia a decisão do mesmo dia.
+- **O §19 tinha dois itens seguidos sobre o mesmo PR** (um dizia o título, o
+  outro a base), que é como uma sessão fria se confunde. Viraram um.
+- **O plano dizia "abrir da `dev`" em prosa e nunca dava o comando** — e o
+  próprio §19 declara que *o documento vence a memória da sessão anterior*. Sem
+  o comando escrito lá, essa regra não se sustentava: quem seguisse só o plano
+  não sabia de onde ramificar. Hoje o §19 traz o `checkout -B ... origin/dev`, a
+  conferência dos dois `rev-list --count` e o aviso de nunca forçar o
+  alinhamento.
+
+**A guarda nova cobre o modo de falha silencioso das duas direções:** o conjunto
+de bases vem do `branches:` do `ci.yml` — a fonte —, e a prosa do
+`CONTRIBUTING.md` e do plano é conferida contra ele. Tirar `dev` do workflow
+deixa os documentos mentindo; escrever uma base que os portões não guardam dá no
+mesmo. Provado quebrando os dois lados.
+
+**O que não deu para verificar daqui:** de qual branch o Render publica. O
+`render.yaml` **não declara `branch:`**, então vale o que está no painel — e o
+token do CLI está expirado. O padrão do Render é a branch padrão do repositório,
+que é a `main`, e é o que o comportamento até hoje indica. **Confira no painel
+antes da primeira promoção:** se estiver em `dev`, a política está invertida
+para a API e todo merge de fase publicaria.
 
 #### O que fica pendente daqui
 

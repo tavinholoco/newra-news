@@ -57,6 +57,18 @@ migration se aplica a produção uma vez. A consequência prática é que **um l
 de fases com schema aplica todas as migrations juntas na promoção** — o que é
 uma janela controlada, mas é uma janela: promova com isso em mente.
 
+**A promoção dispara sozinha o que precisa disparar.** `dev → main` é um push na
+`main`, então Smoke E2E e Migrate rodam sem ninguém lembrar; o Lighthouse e a
+baseline continuam manuais, e estão logo abaixo.
+
+> **O que ainda não foi conferido: de qual branch o Render publica.** O
+> `render.yaml` **não declara `branch:`**, então vale o que está no painel. O
+> padrão do Render é a branch padrão do repositório — `main` — e é o que o
+> comportamento indica, mas **confira no painel antes da primeira promoção**: se
+> estiver apontado para `dev`, a política está invertida para a API e todo merge
+> de fase publicaria. A Vercel já está certa: produção pela `main`, e a `dev`
+> ganha deploy de preview, que é onde dá para olhar o lote antes de promover.
+
 ## Fechar uma fase (o ritual, contra produção)
 
 Roda **depois da promoção `dev → main` e do deploy** — as duas medições são
