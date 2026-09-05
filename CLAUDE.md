@@ -172,6 +172,12 @@ a suíte de unidade, que roda sem rede.
 ## Referência
 - PRD completo: docs/PRD-NewraNews_V1.1.md (local-only, gitignored)
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
+- **Plano de observabilidade e painel do admin (à parte da linha das fases):**
+  `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
+  `ErrorEvent`, invariantes e as três abas do admin. Base aberta, nenhuma fase
+  implementada. Traz a pesquisa de quais métricas e eventos de segurança um
+  painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
+  SRE, dimensões de qualidade de dado)
 - Discovery da V2 (Fase 0 — tokens, sitemap, contratos, baseline visual): docs/v2/
 - **Regras de uso dos tokens da V2 no código: `apps/web/CLAUDE.md`** — tabela papel → classe, o que a suíte proíbe e por quê
 - Diagramas: `docs/diagrams/` — **seis**, reescritos em 01/09 contra o código:
@@ -298,7 +304,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.455 em 129 suites (**837 API em 62** + **618 web em 67** — todos
+- **Testes:** 1.472 em 129 suites (**854 API em 62** + **618 web em 67** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
