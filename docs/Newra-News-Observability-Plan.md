@@ -1461,6 +1461,37 @@ A partir daí, `git status`, `git commit` e `gh pr create` já apontam para a
 branch da worktree, e o `CLAUDE.md` da raiz do repositório é lido normalmente —
 ele está versionado, então existe dentro da worktree também.
 
+**Pelo app do Claude Desktop**, a seleção é: a **branch que estiver pareada com
+a `observability-plan`**, com a caixa **`worktree` marcada**. O par não é
+convenção do app — está registrado no git, em
+`.git/worktrees/observability-plan/HEAD`, e é de lá que ele o lê.
+
+> **A branch a escolher é a da fase ANTERIOR, e isso é de propósito.** O app só
+> precisa acertar o **diretório**; a branch certa é o passo 1 do ritual abaixo,
+> feito pela própria sessão. Depois da Fase 1, a worktree continua em
+> `observability/fase-1-logger` — escolha essa mesma para abrir a Fase 2, e a
+> sessão troca sozinha.
+>
+> **Dois modos de errar, e um deles não dá erro:**
+>
+> - **Caixa `worktree` desmarcada** → o app tenta trocar o *checkout principal*
+>   para aquela branch, e o git recusa com
+>   `fatal: '<branch>' is already used by worktree at '<caminho>'`. O app
+>   traduz isso como *"Não foi possível trocar de branch — faça commit ou stash
+>   das alterações"*, que é **fallback genérico e não descreve a causa**: os
+>   dois check-outs podem estar limpos.
+> - **Branch que não está em worktree nenhuma** → o app cria uma worktree
+>   **nova**, sem `node_modules`, sem Prisma Client e possivelmente numa branch
+>   já mergeada. **Isso não dá erro** — é o modo de falha caro, porque só
+>   aparece na contagem de testes errada.
+>
+> **Confira em uma linha assim que a sessão abrir:** `pwd` tem de terminar em
+> `.claude/worktrees/observability-plan`. Se não terminar, feche e reabra — não
+> trabalhe ali.
+>
+> Corolário: **branch mergeada não pode ficar ocupando a worktree.** Ela vira
+> isca no seletor. O passo 1 do ritual libera a anterior; apague-a logo depois.
+
 **O prompt de abertura, que é o que substitui o contexto perdido.** Duas frases
 bastam, porque tudo o mais está neste documento:
 
@@ -1508,9 +1539,15 @@ recriar.
 
    ```bash
    cd ".claude/worktrees/observability-plan"
-   git fetch origin
+   git fetch origin --prune
    git checkout -B observability/fase-N-<assunto> origin/dev
+   git branch -d observability/fase-<N-1>-<assunto>   # livre só agora
    ```
+
+   **É o primeiro passo por dois motivos.** A worktree chega na branch da fase
+   anterior — o app abre o diretório, não a branch —, e a branch anterior só
+   pode ser apagada depois que o `checkout` a desocupa. Deixá-la viva a
+   transforma em isca no seletor do app.
 
    Worktree **nova** precisa de `pnpm install` + `pnpm db:generate`: sem o
    segundo, **45 suítes falham na coleta** com
