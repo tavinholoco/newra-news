@@ -1448,82 +1448,72 @@ Não-objetivos declarados como número, nunca como item de lista.
 
 ### Abrir uma sessão de contexto zerado
 
-O desenvolvimento acontece numa **worktree**, e a única coisa que faz uma sessão
-saber disso é **de onde ela foi aberta**. Não há configuração a ajustar: o
-diretório de trabalho decide o `git`, o `pnpm` e quais `CLAUDE.md` são
-carregados.
+**O trabalho acontece no repositório de sempre**
+(`C:\Users\tavin\Desktop\Projetos\Newra News`), **numa branch por fase**. Não há
+worktree, não há segunda pasta, não há nada a configurar.
 
-```bash
-cd "../newra-observability-plan" && claude
-```
+Pela interface: projeto **`Newra News`**, branch **da fase**, e a caixa
+`worktree` **desmarcada**. Pelo terminal, `claude` dentro da pasta do
+repositório.
 
-A partir daí, `git status`, `git commit` e `gh pr create` já apontam para a
-branch da worktree, e o `CLAUDE.md` da raiz do repositório é lido normalmente —
-ele está versionado, então existe dentro da worktree também.
+> ### Por que este documento pedia worktree, e por que parou
+>
+> **Ele nunca justificou.** A versão de 05/09/2026 dizia *"worktree própria"* e
+> em seguida explicava apenas o **custo** dela (worktree nova precisa de
+> `pnpm install`). Nenhuma linha dizia o que ela traz.
+>
+> Foi para lá porque as sessões daquele dia já rodavam em worktrees criadas
+> automaticamente pela ferramenta — `claude/newra-pipeline-news-collection-…`,
+> `claude/render-pipeline-status-…` são nomes gerados, não escolhidos. **O
+> ambiente encontrado virou regra escrita**, que é a mesma família do
+> keep-alive: premissa herdada que ninguém remediu.
+>
+> **Worktree resolve um problema real, e não é o deste projeto:** duas branches
+> abertas ao mesmo tempo — hotfix enquanto uma feature anda, build longo numa
+> enquanto se edita outra, revisão de PR sem largar o trabalho, e
+> principalmente **duas sessões do agente em paralelo**, que brigariam pela
+> mesma árvore. Aqui é **uma fase, uma sessão, em sequência**: nada disso
+> acontece.
+>
+> **A conta que ela deu:** quatro travadas seguidas para abrir sessão. A pior
+> não dava erro — aninhada em `Newra News/.claude/worktrees/`, a ferramenta
+> subia até a raiz do projeto que já conhecia e abria **a `main`, em silêncio**.
+> As outras três eram a recusa do git em ter a mesma branch em dois lugares,
+> que a interface traduzia por *"faça commit ou stash das alterações"* — um
+> fallback genérico, com os dois check-outs limpos.
+>
+> **Se um dia a worktree voltar a fazer sentido** (duas sessões em paralelo é o
+> gatilho), ela mora **ao lado** do repositório, nunca dentro dele.
 
-### A worktree mora FORA da pasta do projeto, e isso não é arrumação
-
-```
-C:\Users\tavin\Desktop\Projetos\
-├── Newra News                   <- o repositorio, na `main`
-└── newra-observability-plan     <- a worktree deste plano
-```
-
-**Ela já morou em `Newra News/.claude/worktrees/observability-plan`, e foi a
-causa de quatro travadas seguidas ao abrir sessão pela interface gráfica.** O
-git tratava aquela pasta como raiz própria — `rev-parse --show-toplevel`
-devolvia o caminho da worktree —, mas a **ferramenta** não: apontada para uma
-subpasta de um projeto que ela já conhecia, ela subia até a raiz e abria o
-projeto de cima. O sintoma era exatamente o pior possível: **abria sem erro
-nenhum**, na `main`, e só se descobria perguntando `pwd`.
-
-**A regra, e vale para qualquer ferramenta gráfica: worktree é pasta irmã do
-repositório, nunca subpasta dele.** Aninhada, ela depende de a ferramenta
-respeitar o `.git` de dentro — e a única coisa que decide onde a sessão abre é
-a ferramenta, não o git.
-
-**Confira em uma linha assim que a sessão abrir** — é barato e pega o modo de
-falha silencioso:
+**Confira em uma linha assim que a sessão abrir** — barato, e é o que pega o
+modo de falha silencioso:
 
 ```bash
 pwd && git branch --show-current
 ```
 
-Tem de responder o caminho da worktree e a branch da fase. Se responder a pasta
-do repositório e `main`, a sessão está no lugar errado: feche e reabra, não
-trabalhe ali.
-
-> **Sobre trocar de branch pela interface: não troque.** A worktree chega na
-> branch da fase anterior, e quem a repõe é o passo 1 do ritual, feito pela
-> própria sessão. Selecionar branch pela interface encontra a recusa do git —
-> `fatal: '<branch>' is already used by worktree at '<caminho>'` —, que a
-> ferramenta costuma traduzir por *"faça commit ou stash das alterações"*, um
-> fallback genérico que **não descreve a causa**: os dois check-outs podem
-> estar limpos, e estavam.
->
-> Corolário: **branch mergeada não pode ficar ocupando a worktree.** O passo 1
-> do ritual libera a anterior; apague-a logo depois.
+Tem de responder a pasta do repositório e a branch da fase. Se a branch vier
+`main`, a sessão está no lugar errado: não trabalhe ali.
 
 **O prompt de abertura, que é o que substitui o contexto perdido.** Duas frases
 bastam, porque tudo o mais está neste documento:
 
 > Vamos implementar a **Fase N** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual e a ordem), depois a seção da fase, e o §17 (armadilhas).
-> Estamos na worktree `observability-plan` e é aqui que fica o trabalho.
 
 **O que uma sessão fria erra se ninguém avisar:**
 
-- **Worktree nova não tem `node_modules` nem Prisma Client.** Sem
-  `pnpm install` e `pnpm db:generate`, **45 suítes falham na coleta** com
-  `Cannot find module '.prisma/client/default'` — o que parece a suíte quebrada
-  e é só ambiente. A worktree atual já tem os dois; uma worktree nova, não.
-- **O stash é compartilhado entre worktrees.** `git stash pop` pode trazer o
-  trabalho de outra sessão. Commit temporário resolve melhor.
-- **Não voltar para o repositório principal para rodar nada.** Comando rodado
-  lá mede outra árvore.
+- **Não usar `git stash` sem etiqueta.** O stash é compartilhado com qualquer
+  outra árvore do mesmo repositório, e um `pop` pode trazer trabalho alheio.
+  Commit temporário resolve melhor.
 - **Este documento é a fonte, não a memória da sessão anterior.** Se algo aqui
   contradisser o que a sessão "lembra", o documento vence — e se o documento
   estiver errado, corrija o documento no mesmo PR.
+- **Convenção escrita aqui não é justificativa.** Este §19 já mandou usar
+  worktree por três semanas sem nunca dizer o que ela trazia — era o ambiente
+  daquele dia, escrito como regra. Ao seguir uma instrução de processo daqui,
+  se ela não vier com o motivo, **o motivo pode não existir**: pergunte antes
+  de pagar o custo dela.
 
 ### O ritual de cada fase
 
@@ -1543,26 +1533,21 @@ ficam só na `main`** — o smoke mede o site no ar e migration se aplica a
 produção uma vez. Consequência a não esquecer: **um lote com as fases 4 e 11
 aplica as duas migrations juntas na promoção.**
 
-**A worktree sobrevive ao merge.** Depois que um PR entra, `git fetch` dentro
-dela e segue para a fase seguinte — ela ramifica da `dev`, então não há nada a
-recriar.
-
-1. **Abrir da `dev` atualizada**, dentro da worktree:
+1. **Ramificar da `dev` atualizada**, no repositório:
 
    ```bash
-   cd "../newra-observability-plan"     # irmã do repo, não subpasta dele
    git fetch origin --prune
    git checkout -B observability/fase-N-<assunto> origin/dev
-   git branch -d observability/fase-<N-1>-<assunto>   # livre só agora
+   git branch -d observability/fase-<N-1>-<assunto>
    ```
 
-   **É o primeiro passo por dois motivos.** A worktree chega na branch da fase
-   anterior — o app abre o diretório, não a branch —, e a branch anterior só
-   pode ser apagada depois que o `checkout` a desocupa. Deixá-la viva a
-   transforma em isca no seletor do app.
+   **É o primeiro passo porque a sessão pode abrir em qualquer branch** — a
+   interface lembra a última usada. O `checkout -B` torna isso irrelevante:
+   qualquer que seja o ponto de partida, a fase começa da `dev` do momento.
 
-   Worktree **nova** precisa de **três** passos, e pular um deles produz uma
-   suíte que passa com o número errado:
+   O repositório já tem `node_modules` e os pacotes construídos. **Se algum dia
+   for preciso montar um clone do zero, são três passos** — e pular um produz
+   uma suíte que passa com o número errado:
 
    ```bash
    pnpm install --frozen-lockfile
@@ -1570,11 +1555,11 @@ recriar.
    pnpm --filter @newranews/database build   # prisma generate && tsc
    ```
 
-   **`pnpm db:generate` sozinho não basta**, e foi o erro cometido ao montar
-   esta worktree em 05/09/2026: com `install` + `db:generate` + build de
-   `types`, a suíte da API rodou **145 testes em vez de 868** — o resto morreu
-   na coleta. O que faltava era o `dist` do `@newranews/database`; o
-   `db:generate` produz o Prisma Client, não o JavaScript do pacote.
+   **`pnpm db:generate` sozinho não basta**, e foi o erro cometido em
+   05/09/2026: com `install` + `db:generate` + build de `types`, a suíte da API
+   rodou **145 testes em vez de 868** — o resto morreu na coleta. Faltava o
+   `dist` do `@newranews/database`; o `db:generate` produz o Prisma Client, não
+   o JavaScript do pacote.
 
    **O sintoma é traiçoeiro porque é verde:** o vitest reporta os 145 que
    coletou como *passed*, não como falha. Só a contagem denuncia — por isso o
