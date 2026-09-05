@@ -1454,43 +1454,55 @@ diretório de trabalho decide o `git`, o `pnpm` e quais `CLAUDE.md` são
 carregados.
 
 ```bash
-cd ".claude/worktrees/observability-plan" && claude
+cd "../newra-observability-plan" && claude
 ```
 
 A partir daí, `git status`, `git commit` e `gh pr create` já apontam para a
 branch da worktree, e o `CLAUDE.md` da raiz do repositório é lido normalmente —
 ele está versionado, então existe dentro da worktree também.
 
-**Pelo app do Claude Desktop**, a seleção é: a **branch que estiver pareada com
-a `observability-plan`**, com a caixa **`worktree` marcada**. O par não é
-convenção do app — está registrado no git, em
-`.git/worktrees/observability-plan/HEAD`, e é de lá que ele o lê.
+### A worktree mora FORA da pasta do projeto, e isso não é arrumação
 
-> **A branch a escolher é a da fase ANTERIOR, e isso é de propósito.** O app só
-> precisa acertar o **diretório**; a branch certa é o passo 1 do ritual abaixo,
-> feito pela própria sessão. Depois da Fase 1, a worktree continua em
-> `observability/fase-1-logger` — escolha essa mesma para abrir a Fase 2, e a
-> sessão troca sozinha.
+```
+C:\Users\tavin\Desktop\Projetos\
+├── Newra News                   <- o repositorio, na `main`
+└── newra-observability-plan     <- a worktree deste plano
+```
+
+**Ela já morou em `Newra News/.claude/worktrees/observability-plan`, e foi a
+causa de quatro travadas seguidas ao abrir sessão pela interface gráfica.** O
+git tratava aquela pasta como raiz própria — `rev-parse --show-toplevel`
+devolvia o caminho da worktree —, mas a **ferramenta** não: apontada para uma
+subpasta de um projeto que ela já conhecia, ela subia até a raiz e abria o
+projeto de cima. O sintoma era exatamente o pior possível: **abria sem erro
+nenhum**, na `main`, e só se descobria perguntando `pwd`.
+
+**A regra, e vale para qualquer ferramenta gráfica: worktree é pasta irmã do
+repositório, nunca subpasta dele.** Aninhada, ela depende de a ferramenta
+respeitar o `.git` de dentro — e a única coisa que decide onde a sessão abre é
+a ferramenta, não o git.
+
+**Confira em uma linha assim que a sessão abrir** — é barato e pega o modo de
+falha silencioso:
+
+```bash
+pwd && git branch --show-current
+```
+
+Tem de responder o caminho da worktree e a branch da fase. Se responder a pasta
+do repositório e `main`, a sessão está no lugar errado: feche e reabra, não
+trabalhe ali.
+
+> **Sobre trocar de branch pela interface: não troque.** A worktree chega na
+> branch da fase anterior, e quem a repõe é o passo 1 do ritual, feito pela
+> própria sessão. Selecionar branch pela interface encontra a recusa do git —
+> `fatal: '<branch>' is already used by worktree at '<caminho>'` —, que a
+> ferramenta costuma traduzir por *"faça commit ou stash das alterações"*, um
+> fallback genérico que **não descreve a causa**: os dois check-outs podem
+> estar limpos, e estavam.
 >
-> **Dois modos de errar, e um deles não dá erro:**
->
-> - **Caixa `worktree` desmarcada** → o app tenta trocar o *checkout principal*
->   para aquela branch, e o git recusa com
->   `fatal: '<branch>' is already used by worktree at '<caminho>'`. O app
->   traduz isso como *"Não foi possível trocar de branch — faça commit ou stash
->   das alterações"*, que é **fallback genérico e não descreve a causa**: os
->   dois check-outs podem estar limpos.
-> - **Branch que não está em worktree nenhuma** → o app cria uma worktree
->   **nova**, sem `node_modules`, sem Prisma Client e possivelmente numa branch
->   já mergeada. **Isso não dá erro** — é o modo de falha caro, porque só
->   aparece na contagem de testes errada.
->
-> **Confira em uma linha assim que a sessão abrir:** `pwd` tem de terminar em
-> `.claude/worktrees/observability-plan`. Se não terminar, feche e reabra — não
-> trabalhe ali.
->
-> Corolário: **branch mergeada não pode ficar ocupando a worktree.** Ela vira
-> isca no seletor. O passo 1 do ritual libera a anterior; apague-a logo depois.
+> Corolário: **branch mergeada não pode ficar ocupando a worktree.** O passo 1
+> do ritual libera a anterior; apague-a logo depois.
 
 **O prompt de abertura, que é o que substitui o contexto perdido.** Duas frases
 bastam, porque tudo o mais está neste documento:
@@ -1538,7 +1550,7 @@ recriar.
 1. **Abrir da `dev` atualizada**, dentro da worktree:
 
    ```bash
-   cd ".claude/worktrees/observability-plan"
+   cd "../newra-observability-plan"     # irmã do repo, não subpasta dele
    git fetch origin --prune
    git checkout -B observability/fase-N-<assunto> origin/dev
    git branch -d observability/fase-<N-1>-<assunto>   # livre só agora
@@ -1549,10 +1561,24 @@ recriar.
    pode ser apagada depois que o `checkout` a desocupa. Deixá-la viva a
    transforma em isca no seletor do app.
 
-   Worktree **nova** precisa de `pnpm install` + `pnpm db:generate`: sem o
-   segundo, **45 suítes falham na coleta** com
-   `Cannot find module '.prisma/client/default'` — o que parece a suíte
-   quebrada e é só ambiente. A `observability-plan` já tem os dois.
+   Worktree **nova** precisa de **três** passos, e pular um deles produz uma
+   suíte que passa com o número errado:
+
+   ```bash
+   pnpm install --frozen-lockfile
+   pnpm --filter @newranews/types build
+   pnpm --filter @newranews/database build   # prisma generate && tsc
+   ```
+
+   **`pnpm db:generate` sozinho não basta**, e foi o erro cometido ao montar
+   esta worktree em 05/09/2026: com `install` + `db:generate` + build de
+   `types`, a suíte da API rodou **145 testes em vez de 868** — o resto morreu
+   na coleta. O que faltava era o `dist` do `@newranews/database`; o
+   `db:generate` produz o Prisma Client, não o JavaScript do pacote.
+
+   **O sintoma é traiçoeiro porque é verde:** o vitest reporta os 145 que
+   coletou como *passed*, não como falha. Só a contagem denuncia — por isso o
+   passo 4 do ritual compara o número, e não o pass/fail.
 
    > **Confira que a `dev` não ficou para trás da `main` antes de ramificar.**
    > Ela já esteve **217 commits atrás**, e uma fase desenvolvida sobre `dev`
