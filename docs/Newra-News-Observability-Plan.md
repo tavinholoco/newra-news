@@ -1133,12 +1133,26 @@ pipeline anuncia. É a guarda funcionando como projetada.
 
 ---
 
-## §14 Fase 10 — A esteira: segurança do CI/CD
+## §14 Fase 10 — A esteira: segurança do CI/CD ✅ 2026-09-05
 
 **Fecha:** o pipeline que **constrói e publica** o site não tem etapa de
 segurança além do Gitleaks.
 
 Esta fase é curta de propósito. É higiene de esteira, não arquitetura.
+
+> **Entregue em 05/09/2026 — o primeiro PR de código deste plano.** O
+> inventário abaixo foi reconferido contra os arquivos antes de abrir e os
+> quatro achados estavam certos. O detalhe do que entrou, os números medidos e
+> os dois defeitos que a guarda achou enquanto era escrita estão no item **47**
+> do `docs/progress.md`; as advisories aceitas, em
+> `docs/security-advisories.md`.
+>
+> **Uma decisão foi tomada aqui e não estava escrita no plano: o `--prod`.** O
+> texto abaixo pede `pnpm audit --audit-level=high`, e sem o filtro são 35
+> advisories *high* em 17 pacotes — quase todas em ferramenta que nunca é
+> publicada. Uma lista de exceção com 35 linhas é a armadilha 21 escrita por
+> extenso. Com `--prod` são 18, todas já analisadas nos itens 9.S e 10.S, e o
+> lado de desenvolvimento fica com o Dependabot, que propõe em vez de reprovar.
 
 ### O que a inspeção achou
 
@@ -1502,7 +1516,7 @@ recriar.
 
 | PR | Fase | Por que primeiro |
 |---|---|---|
-| 1 | **§14 — Fase 10, CI** | Não depende de nada e é o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fecha um risco de supply chain antes de o resto encostar no código |
+| ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
 | 2 | **§5 — Fase 1, logger** | **Fecha o vazamento da DSN, que está aberto agora.** Tudo depois dele loga direito de nascença |
 | 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
 | 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |

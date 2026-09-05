@@ -241,7 +241,7 @@ pnpm --filter @newranews/web test:e2e
 | API | Render | Blueprint `render.yaml`, plano free, health check em `/api/health` |
 | Banco | Neon | PostgreSQL gerenciado. Migrations aplicadas pelo workflow `Migrate`, nunca de máquina local |
 
-Cinco workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build), `Gitleaks` (varredura de segredos), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria) e `Migrate`.
+Seis workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build e um `pnpm audit` que reprova qualquer advisory *high* em dependência de produção), `Gitleaks` (varredura de segredos), `CodeQL` (análise estática dos dois apps), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria) e `Migrate`. Todo workflow declara o mínimo de permissão para o `GITHUB_TOKEN`, e toda action de terceiro está fixada em SHA completo — as advisories aceitas, cada uma com motivo, data e gatilho de revisão, estão em [`docs/security-advisories.md`](docs/security-advisories.md).
 
 A UI interativa do Swagger é servida apenas em desenvolvimento, em `/api/docs`. Em produção o documento OpenAPI continua sendo gerado, mas a UI não é registrada — o contrato é a [`docs/api.md`](docs/api.md), guardada contra deriva por um teste.
 

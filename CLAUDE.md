@@ -174,10 +174,17 @@ a suíte de unidade, que roda sem rede.
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
-  `ErrorEvent`, invariantes e as três abas do admin. Base aberta, nenhuma fase
-  implementada. Traz a pesquisa de quais métricas e eventos de segurança um
+  `ErrorEvent`, invariantes e as três abas do admin. **A Fase 10 (segurança do
+  CI/CD) está no ar desde 05/09; as outras dez continuam abertas.** O **§19** é
+  o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
+  fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
   SRE, dimensões de qualidade de dado)
+- **Advisories aceitas, com motivo, data e gatilho:**
+  `docs/security-advisories.md` — o que `pnpm audit --audit-level=high --prod`
+  não reprova, e por quê. A lista silenciada mora em
+  `pnpm.auditConfig.ignoreGhsas` no `package.json` da raiz, e os dois não podem
+  divergir
 - Discovery da V2 (Fase 0 — tokens, sitemap, contratos, baseline visual): docs/v2/
 - **Regras de uso dos tokens da V2 no código: `apps/web/CLAUDE.md`** — tabela papel → classe, o que a suíte proíbe e por quê
 - Diagramas: `docs/diagrams/` — **seis**, reescritos em 01/09 contra o código:
@@ -196,6 +203,30 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-05): a esteira ganhou etapa de segurança —
+  a Fase 10 do plano de observabilidade, primeiro PR de código dele.** Os cinco
+  workflows tinham **1 `permissions:` declarado** e **zero actions fixadas**;
+  hoje são seis workflows, todos com o `GITHUB_TOKEN` no mínimo, e as **21
+  ocorrências de `uses:` fixadas em SHA de 40 hex** com o comentário da versão.
+  Entraram `pnpm audit --audit-level=high --prod` reprovando o merge, **CodeQL**
+  e **Dependabot**. **856 → 865 testes na API.** Item **47** do
+  `docs/progress.md`.
+
+  > **O `--prod` é a decisão que faz o gate durar, e foi medida:** sem ele são
+  > 35 advisories *high* em 17 pacotes, quase todas em ferramenta que nunca é
+  > publicada, e lista de exceção com 35 linhas vira ruído até alguém desligar o
+  > passo. Com ele são **18**, todas já analisadas nos itens 9.S e 10.S, com
+  > **três gatilhos**: `next@15`, `fastify@5`, e reabrir a UI do Swagger em
+  > produção. Elas ficam em `docs/security-advisories.md`, e a guarda impede que
+  > o documento e o `package.json` divirjam.
+  >
+  > **A guarda achou dois defeitos enquanto era escrita.** A contagem de
+  > workflows em prosa nos dois READMEs (o item 41 outra vez, no mesmo turno em
+  > que o arquivo novo entrou); e ela mesma passando verde sobre
+  > `permissions: write-all` — escrito na **coluna zero**, ele escapava do
+  > `^\s+` da asserção de escrita e passava na de declaração. Sexta vez nesta
+  > família: a guarda vê caractere, não intenção.
+
 - **Fora da linha das fases (2026-09-03): a etapa 8.5 parou de derrubar a
   instância, e o run morto parou de travar o dia.** Nasceu de um alerta do
   Render (*health check timed out after 5 seconds*). O pipeline do dia estava
