@@ -10,7 +10,7 @@
 
 ## §1 Por que este plano existe
 
-O sistema tem 1.472 testes, seis workflows de CI, gate de Lighthouse, smoke E2E
+O sistema tem 1.474 testes, seis workflows de CI, gate de Lighthouse, smoke E2E
 contra produção e seis diagramas guardados contra deriva. E ainda assim, **nas
 duas últimas semanas, três incidentes de produção foram descobertos por
 acidente**:
@@ -101,25 +101,36 @@ independentes**, que não se bloqueiam:
 | 6 | Invariantes | §10 | qualidade | não | 4, 5 |
 | 7 | Erro do cliente | §11 | cliente | não | 1 (7a) · 4 (7c) |
 | 8 | O log de sucesso | §12 | qualidade | não | 2 |
-| 9 | Os dois portões da IA | §13 | qualidade | não | 1 |
+| 9 | Os dois portões da IA | §13 | qualidade | não | 1, **4** |
 | 10 | Segurança do CI/CD | §14 | esteira | não | — |
+| 11 | Saúde por fonte | §15 | qualidade | **sim** | 5 |
 
 **Ordem recomendada de merge: 1, 2, 7a, 10** — as quatro de maior razão
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
 não depende de nada neste plano.
 
-Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8 e 9** em qualquer
-ordem.
+Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
-**A 9 é a única que muda o comportamento do produto em produção** — ela pode
-impedir um briefing de ser publicado. Merecer mais cautela que as outras nove
-não é excesso de zelo: é a única que pode deixar o site sem conteúdo do dia.
+**Duas fases pedem cautela extra, por razões diferentes:**
+
+- **A 9 é a única que pode impedir um briefing de ser publicado.** É a única
+  que muda o comportamento do produto em produção, e a única cuja calibração
+  errada tira conteúdo do ar. O §13 traz o comportamento de partida e os dois
+  caminhos de degradação exatamente por isso.
+- **A 4 e a 11 são as duas que tocam schema**, e portanto as duas que não são
+  revertidas por um `git revert` sozinho. Migration primeiro, código depois, em
+  PRs separados.
+
+> **A dependência da 9 na 4 foi corrigida na auditoria de 04/09.** A tabela
+> dizia "1", mas o §13.3 emite `recordError`, que nasce na Fase 4. Sem ela, a
+> decisão de cada portão não teria onde ser registrada — e um portão que
+> bloqueia sem deixar rastro é pior que nenhum portão.
 
 ---
 
 ## §3 O que a pesquisa mandou incluir
 
-Esta seção existe porque pensar de cabeça perde ponto. As fontes estão no §19.
+Esta seção existe porque pensar de cabeça perde ponto. As fontes estão no §21.
 
 ### §3.1 Os quatro sinais de ouro — e o que falta
 
@@ -186,7 +197,7 @@ Guardar IP em evento de segurança é uma escolha **diferente e deliberada**, co
 retenção própria e justificativa própria. A recomendação deste plano é o meio
 termo: guardar um **hash truncado do IP com sal que roda por dia**, que permite
 contar "quantas falhas vieram da mesma origem hoje" sem guardar a origem. Se
-você preferir IP em claro ou nada, é ponto para acrescentar no §18.
+você preferir IP em claro ou nada, é ponto para acrescentar no §20.
 
 ### §3.3 Qualidade de dado — o eixo das inconsistências
 
@@ -211,12 +222,12 @@ indefinido, porque não existe a tela. Ele passa a ser mensurável na Fase 5.
 
 - **Alerta por e-mail/webhook.** A A09 de 2025 insiste em alerta, e está certa.
   Mas alerta sem *playbook* vira fadiga, e fadiga faz o alerta importante sumir
-  no meio dos outros — a própria A09 diz isso. Entra como **§18**, depois de a
+  no meio dos outros — a própria A09 diz isso. Entra como **§20**, depois de a
   tela existir e de sabermos qual sinal de fato dispara. Alertar antes de medir
   é como o keep-alive: mecanismo antes da conta.
 - **Retenção longa de log.** O Render free não guarda log entre deploys, e
   agregador externo é custo. A retenção deste plano é **14 dias em Postgres**,
-  coalescida — e o §15 diz qual número muda essa decisão.
+  coalescida — e o §16 diz qual número muda essa decisão.
 - **Integridade de log (append-only, assinatura).** A A09 pede. É
   desproporcional para um projeto de portfólio de um dono só; fica registrado
   como recusa consciente, não como esquecimento.
@@ -453,12 +464,18 @@ duração, mensagem do erro; (2) os últimos 20 runs, como lista com pílula de
 status; (3) o detalhe de um run — os ~19 `PipelineEvent` agrupados por etapa,
 coloridos por nível, com o `context` atrás de um `<details>`.
 
-**Decisão da matriz de estados, tomada antes de escrever uma linha** (a guarda
-afirma que o arquivo existe **se e somente se** a linha disser): a linha nova é
-`carregando: 'componente'`, `erro: 'componente'`, `vazio: 'componente'`,
-`naoEncontrado: 'n/a'`. **Sem `loading.tsx` e sem `error.tsx`** — o dado é
-buscado no cliente por TanStack, então um boundary de rota cobriria só a casca.
-`toHaveLength(15)` vira `16`.
+**Os painéis entram na `/admin`, sem rota nova.** A primeira versão desta fase
+criava `/admin/pipeline` — e isso **contradizia o §4.1**, que declara três abas
+e não lista essa. A auditoria de 04/09 resolveu para o lado mais barato: a
+`/admin` já existe, já é a aba "está tudo de pé agora?", e o histórico de runs é
+exatamente essa pergunta. Sem rota nova significa **sem linha na matriz de
+estados, sem chave de rota nos dois arquivos de mensagem e sem `alternatesFor`**
+— o `toHaveLength(15)` fica em 15 nesta fase, e só a Fase 5 o move para 16 ao
+criar a `/admin/security`.
+
+O **detalhe de um run** é linha expansível, não rota própria. Rota `/[id]`
+pediria `loading.tsx`, `error.tsx`, `not-found.tsx` e uma linha na matriz para
+uma tela que só um admin abre — e a matriz de estados cobraria os três.
 
 ### Guarda
 
@@ -535,9 +552,15 @@ por `startedAt desc` e a etapa 8 apagar por `startedAt`.
 
 ### As decisões que o mantêm dentro do plano free
 
-- **Sem FK para `PipelineLog`.** Ele é expurgado aos 30 dias e cascateia; o
-  `ErrorEvent` vive 14. Cascata apagaria o registro da falha junto do run que
-  falhou.
+- **Sem FK para `PipelineLog`, e o motivo não é o que parecia.** A primeira
+  versão desta linha dizia que a cascata apagaria o `ErrorEvent` junto do run.
+  **Isso não pode acontecer**: o `ErrorEvent` vive 14 dias e o `PipelineLog`
+  30, então o erro sempre morre primeiro e a cascata nunca alcançaria uma linha
+  viva. O motivo verdadeiro é o **coalescimento**: uma linha cobre uma janela de
+  uma hora e pode acumular ocorrências de mais de uma origem, então
+  `pipelineLogId` é o **último visto**, não uma relação. Uma FK afirmaria um
+  vínculo que a agregação torna falso — e o banco passaria a impedir o expurgo
+  do run por causa de um ponteiro aproximado.
 - **A escrita é bufferizada, e `recordError` é síncrona por contrato.** Ela
   muta um `Map` em memória e retorna; um intervalo de 30 s (mais um flush no
   `onClose`) faz os upserts. **É a lição de 03/09 aplicada à escrita: o caminho
@@ -626,7 +649,7 @@ checagens — **reusando o helper do `news-renormalizer.service.ts:174`**, não
 escrevendo um segundo. Suíte de invariante é exatamente o tipo de coisa que
 vira varredura sem ninguém perceber, que é a forma do 03/09.
 
-### As oito
+### As nove
 
 | id | Consulta | Pega |
 |---|---|---|
@@ -636,16 +659,16 @@ vira varredura sem ninguém perceber, que é a forma do 03/09.
 | `retention.errorEvent` | idem, 15d | idem |
 | `briefing.one_per_day` | datas distintas de `Article` nos últimos 7d == 7 | **a falha de 01/09, cujo único sinal foi o briefing ausente** |
 | `pipeline.no_stale_running` | `RUNNING` mais velho que `STALE_RUN_MS` == 0 | o cadáver, antes de travar o disparo de amanhã |
-| `briefing.has_sources` | `Article` dos últimos 7d sem `BriefingSource` == 0 | a auditoria da §18.4, conferida em vez de suposta |
+| `briefing.has_sources` | `Article` dos últimos 7d sem `BriefingSource` == 0 | a auditoria da §18.4 **do plano da V2**, conferida em vez de suposta |
 | `metrics.day_recorded` | dias com run SUCCESS e sem `DailyMetric` == 0 | a etapa 9 engolindo a própria falha |
 
-Uma nona converte dívida em prosa para número: `newsletter.delivered` — dias
-com assinante ativo e `NewsletterLog.sent = 0`. Hoje "a newsletter não entrega a
+A nona converte dívida em prosa para número: `newsletter.delivered` — dias com
+assinante ativo e `NewsletterLog.sent = 0`. Hoje "a newsletter não entrega a
 assinante real" é uma frase no `CLAUDE.md`; como invariante vira linha vermelha
 numa tela.
 
 **Todas são `count`/`groupBy`/`aggregate` sobre coluna indexada. Nenhuma
-carrega linha.**
+carrega linha.** Nove consultas, dentro do orçamento de dez declarado abaixo.
 
 ### Para onde o resultado vai — e é aqui que a fase se paga
 
@@ -856,17 +879,41 @@ três matérias de uma fonte só.
 | Checagem | Regra | Ação |
 |---|---|---|
 | Volume | itens colhidos ≥ 30% da mediana móvel de 7 dias | **BLOQUEIA** |
-| Diversidade de fonte | ≥ 3 fontes distintas entre os 15 selecionados | **BLOQUEIA** |
+| Diversidade de fonte | ≥ 3 fontes distintas entre os selecionados | **alarga, depois BLOQUEIA** |
 | Frescor | ≥ 1 item publicado nas últimas 24 h | **BLOQUEIA** |
 | Taxa de duplicata | duplicados / colhidos ≤ 60% | avisa |
 | Deriva de categoria | distribuição contra a média de 7 dias | avisa |
 
-Os três primeiros bloqueiam porque a saída seria demonstravelmente ruim; os
-dois últimos avisam porque a saída ainda serve. **A calibração é o ponto
-delicado**, e a literatura é explícita: um disjuntor sensível demais causa
-fadiga de alerta e parada desnecessária, e um frouxo demais não pega nada.
-Daí os números serem relativos a **mediana móvel** e não absolutos — o acervo
-cresce, e limiar fixo apodrece.
+**A calibração é o ponto delicado**, e a literatura é explícita: um disjuntor
+sensível demais causa fadiga de alerta e parada desnecessária, e um frouxo
+demais não pega nada. Daí os números serem relativos a **mediana móvel** e não
+absolutos — o acervo cresce, e limiar fixo apodrece.
+
+**Duas correções da auditoria de 04/09, e as duas evitariam um dia sem briefing
+por engano:**
+
+**1. A diversidade tenta alargar antes de desistir.** `selectTopItems` pega as
+15 mais recentes; se elas vierem de menos de 3 fontes, isso é acidente de
+ordenação, não escassez de matéria. O portão **refaz a seleção com 30 itens**
+uma vez e só bloqueia se ainda assim não houver diversidade. Bloquear na
+primeira tentativa trocaria "a ordenação concentrou" por "o dia não tem
+notícia", que são coisas diferentes.
+
+**2. Mediana móvel sem histórico não bloqueia — isso é o comportamento de
+partida, e sem ele o deploy derruba o primeiro dia.** A mediana de 7 dias
+precisa de 7 dias. No primeiro dia depois do deploy ela é indefinida; depois de
+uma lacuna como a de 29–31/08 ela é calculada sobre dias vazios e daria uma
+mediana perto de zero, que aprovaria qualquer coisa — ou, pior, um `NaN` que
+compara `false` e **bloquearia tudo**. A regra:
+
+```
+< 3 dias com run bem-sucedido na janela  →  o portão de volume NÃO opina
+                                            (registra `INFO: baseline insuficiente`)
+>= 3 dias                                →  mediana sobre os dias que existem
+```
+
+Um portão que não sabe o normal não tem o que dizer sobre o anormal. Dizer isso
+em voz alta, num evento, é melhor que aprovar em silêncio.
 
 **~39% de toda colheita chega carimbada com a data da véspera** — é norma da
 série, registrada no `CLAUDE.md`, e por isso o portão de frescor olha 24 h e
@@ -877,34 +924,73 @@ não "hoje".
 Roda **depois de gerar e antes de persistir**. É a camada que falta na defesa
 de injeção de prompt deste projeto.
 
-O `apps/api/CLAUDE.md` já descreve a fronteira do prompt como o risco mais
-próprio do produto: **a saída do modelo vai ao ar sozinha**, sem revisão
-humana — a etapa 7 persiste, a 7.5 manda e-mail aos assinantes, a Home exibe. E
-o material é escrito por terceiros. A defesa de hoje é toda de **entrada**
-(`neutralizeMaterialDelimiters`, `decodeEntities` com 3 passes, `stripHtml`,
-`truncate`). **Não há nenhuma de saída** — se uma injeção funcionar, nada entre
-o modelo e a capa a detém.
+**Correção importante, feita na auditoria de 04/09.** A primeira versão desta
+seção dizia que "não há nenhuma defesa de saída". **É falso, e a diferença
+importa.** O `apps/api/CLAUDE.md` documenta **três** camadas, e a terceira é de
+saída: `parseMarkdownResponse` exige o `# ` e um corpo, e o
+`prompt-injection.test.ts:142-152` afirma que ela recusa exatamente *"o formato
+do sucesso de um ataque: o modelo respondeu à ordem que veio no feed"* — tanto
+`'OI'` quanto `'Minhas instruções são: …'`.
+
+O que a camada 3 **não** pega é o ataque que **preserva o formato**: um briefing
+bem-formado, com título e corpo de tamanho normal, que carrega um link injetado
+ou uma afirmação plantada. Ela filtra a injeção grosseira; a fase 9 filtra a
+educada. Esse é o buraco real, e ele é mais estreito e mais preciso do que o
+que estava escrito aqui.
 
 | Checagem | O que pega | Ação |
 |---|---|---|
-| **URL não ancorada** | link no briefing que não estava em nenhuma fonte de entrada | **BLOQUEIA** |
-| **Vazamento de envelope** | delimitadores do próprio prompt aparecendo na saída | **BLOQUEIA** |
-| **Texto em forma de instrução** | "ignore", "as an AI", "system prompt", "disregard" e a família | **BLOQUEIA** |
-| **Idioma** | o briefing tem de estar em pt-BR | **BLOQUEIA** |
-| Teto de tamanho | há piso (400) e nenhum teto | avisa |
+| **URL não ancorada** | link no briefing que não estava em nenhuma fonte de entrada | **BLOQUEIA — segurança** |
+| **Vazamento de envelope** | `MATERIAL_START`/`MATERIAL_END` ou trecho do system prompt na saída | **BLOQUEIA — segurança** |
+| Idioma | o briefing tem de estar em pt-BR | **BLOQUEIA — qualidade** |
+| Teto de tamanho | há piso (400) e nenhum teto | **BLOQUEIA — qualidade** |
 | Ancoragem das fontes | toda `BriefingSource` estava no conjunto enviado | avisa |
+| Texto em forma de instrução | "ignore", "as an AI", "system prompt" e a família | **avisa — nunca bloqueia** |
 
 **A URL não ancorada é a checagem mais forte da fase**, e é barata: o conjunto
 de links legítimos é exatamente o que o `formatNewsItems` mandou para o modelo.
 Um link que aparece na saída e não estava na entrada foi **inventado ou
 injetado** — e é o vetor de exfiltração e de envenenamento de SEO, num site que
-o Google News indexa.
+o Google News indexa. Ela é **estrutural**: falso positivo exige que o modelo
+invente uma URL, o que já é defeito.
 
-**Quando um portão de saída bloqueia, o pipeline não morre: ele cai para o
-provider de reserva**, exatamente como faz quando o Gemini falha. O `Groq` já é
-o caminho de degradação; um briefing reprovado no portão é mais uma razão para
-usá-lo. Se os dois reprovarem, o dia fica sem briefing — e `FAILED` com
-`errorStage: 6.5` diz por quê, o que é infinitamente melhor que publicar.
+### O bloqueio por palavra-chave foi rebaixado, e o motivo é um teste que existe
+
+A primeira versão desta tabela mandava **bloquear** por lista de palavras.
+Isso **contradiz uma decisão testada deste repositório**. O
+`prompt-injection.test.ts:125-131` se chama
+`does not censor journalism that is about prompt injection` e o comentário dele
+diz, sobre a camada de entrada:
+
+> lista de palavra proibida. Uma matéria sobre o assunto seria o primeiro falso
+> positivo, e a mesma ordem se escreve de mil maneiras.
+
+O argumento vale **igual ou mais** na saída. Um dia em que a notícia É um
+ataque de injeção produz um briefing que resume o ataque — e bloquear ali
+suprime o briefing do dia por estar fazendo jornalismo. Pior: a lista é em
+inglês e uma injeção em português não casa com ela, então o filtro seria **alto
+em falso positivo e baixo em verdadeiro positivo**, que é a pior combinação
+possível. Vira `avisa`, com evento registrado, e quem decide olha.
+
+### Bloqueio de segurança **não** cai para o provider de reserva
+
+A primeira versão dizia que qualquer bloqueio derrubava para o Groq, "como já
+faz quando o Gemini falha". **Para falha de qualidade está certo. Para falha de
+segurança é uma vulnerabilidade**, e é o achado mais sério da auditoria.
+
+Se o portão bloqueou porque detectou injeção, **a causa está no material de
+entrada, não no modelo**. Mandar o mesmo material envenenado para o segundo
+modelo é repetir o ataque com um oráculo diferente — e **dobra a chance de um
+dos dois escapar**, porque basta um passar. A regra fica escrita ao lado do
+código:
+
+| Motivo do bloqueio | O que acontece |
+|---|---|
+| Qualidade (idioma, tamanho) | cai para o provider de reserva, uma vez |
+| **Segurança (URL não ancorada, envelope vazado)** | **o dia falha. Sem repetir, sem fallback.** `FAILED` com `errorStage: 6.5`, `recordError` com `severity: FATAL` |
+
+Um dia sem briefing é um custo conhecido e reversível. Um briefing com link
+injetado indexado pelo Google Notícias não é.
 
 ### §13.3 O sinal que a própria literatura pede
 
@@ -1007,7 +1093,143 @@ configuração. E ela **reprova hoje**, o que é o jeito certo de a fase começa
 
 ---
 
-## §15 Dívidas com gatilho numérico
+## §15 Fase 11 — A saúde de cada fonte, uma por uma
+
+**Fecha:** o pipeline sabe **hoje** qual fonte falhou, e esquece amanhã. Uma
+fonte que entregava 20 matérias por dia e passou a entregar 2 é **invisível** —
+ela não falha, só definha.
+
+### O que já existe, e é mais do que parece
+
+A classificação por fonte foi construída em 03/09 e está pronta:
+`FetchWarningKind` (`news-fetcher.service.ts:27`) distingue quatro casos, e a
+distinção que importa já foi paga com um episódio:
+
+| Classe | Significa | Conta como erro? |
+|---|---|---|
+| `provider-failed` | o provider inteiro lançou | sim |
+| `provider-empty` | o provider devolveu lista vazia sem lançar | sim — é o pior, indistinguível de dia sem notícia |
+| `feed-failed` | **aquele** feed lançou (timeout, DNS, XML inválido) | sim |
+| `feed-empty` | aquele feed respondeu e não tinha nada | **não** — é o normal de fonte especializada |
+
+O `fetchFromRssWithFailures` devolve `failures` por fonte, com nome e mensagem.
+**Nada disso é perdido por falta de dado. É perdido por falta de memória:** o
+aviso vira o `context` de um `PipelineEvent` da etapa 1 e acabou.
+
+### As três perguntas que hoje não têm resposta
+
+1. **"Há quantos dias a Superinteressante está fora?"** Exige ler os eventos de
+   N dias e cruzar à mão. Em 03/09 a resposta era "dois", e ela só apareceu
+   porque alguém foi olhar.
+2. **"Esta fonte entrega menos do que entregava?"** Não tem como perguntar. O
+   `feed-empty` de uma fonte que sempre teve pouco e o de uma fonte que secou
+   são o mesmo registro.
+3. **"Vale a pena trocar este provedor?"** — que é o seu caso de uso declarado.
+   Exige série histórica por fonte, e ela não existe.
+
+### O modelo
+
+Uma linha por **`(source, dia)`**. Diária, não por hora: a colheita é diária, e
+uma granularidade mais fina só multiplicaria linha sem responder nada.
+
+```prisma
+model SourceHealth {
+  id            String    @id @default(uuid())
+  /// Nome da fonte como `rss-sources.ts` a escreve, ou `newsdata`.
+  source        String
+  kind          SourceKind   // RSS | AGGREGATOR
+  day           DateTime     // data de calendário, meia-noite UTC
+  /// Itens que **esta fonte** trouxe no run do dia.
+  fetched       Int       @default(0)
+  /// Quantos sobreviveram à deduplicação — a medida que importa de verdade.
+  kept          Int       @default(0)
+  outcome       SourceOutcome  // OK | EMPTY | FAILED | NOT_ATTEMPTED
+  /// Já redigida e truncada; `null` quando `outcome` não é FAILED.
+  failureReason String?
+  latencyMs     Int?
+  @@unique([source, day])
+  @@index([day])
+  @@index([source, day])
+}
+```
+
+**`kept` é o campo que faz a fase valer.** `fetched` mede o que a fonte
+publicou; `kept` mede o que ela **acrescentou** ao acervo depois da
+deduplicação. Uma fonte que republica o que o G1 já deu tem `fetched` alto e
+`kept` perto de zero — e é exatamente essa a fonte que se troca primeiro. Sem
+`kept`, a decisão de trocar provedor seria tomada sobre o número errado.
+
+**`NOT_ATTEMPTED` existe de propósito.** Uma fonte removida de
+`rss-sources.ts`, ou um run que morreu antes da etapa 1, não é a mesma coisa que
+uma fonte que respondeu vazio. Sem esse valor, remover uma fonte a faria parecer
+quebrada para sempre no gráfico.
+
+### Retenção: 90 dias, e é mais que o resto de propósito
+
+O `ErrorEvent` vive 14 dias porque responde "o que está quebrado agora". Este
+responde **"esta fonte vale a pena?"**, que é uma pergunta trimestral. Noventa
+dias × 13 fontes = **~1.170 linhas**, um custo desprezível — e alinha com a
+retenção do `Article`, então dá para cruzar "o briefing daquele dia" com "quem
+alimentou o briefing daquele dia".
+
+### O que aparece na tela
+
+Na aba **Métricas**, um painel "Fontes":
+
+- **Tabela por fonte**, no formato da referência (§4.2): nome, estado de hoje,
+  `fetched`/`kept` de hoje, média de 7 e de 30 dias, **variação**, e dias
+  seguidos em falha. Ordenável por qualquer coluna — é assim que se acha a fonte
+  que definhou.
+- **Faixa de 30 dias por fonte**, um quadradinho por dia, mesmo componente da
+  Fase 8. Uma fonte que caiu no dia 12 e não voltou é uma linha que muda de cor
+  no meio e não volta mais.
+- **Rosquinha de contribuição** — que fatia do acervo dos últimos 30 dias veio
+  de cada fonte, por `kept`. É o retrato que responde "de que eu realmente
+  dependo".
+
+### O limite honesto, e ele é grande
+
+**A NewsData.io entra como *uma* fonte, e ela agrega dezenas.** O `CLAUDE.md`
+registra a medição: são **87 fontes** e 95 hosts de imagem distintos no acervo,
+das quais só 12 estão em `rss-sources.ts`. Ou seja: `source: 'newsdata'` é um
+balde que esconde a maior parte da diversidade real.
+
+Dividi-lo exigiria agrupar por `News.source` no que a NewsData trouxe naquele
+run — dado que **existe**, mas cuja cardinalidade não tem teto declarado por
+nós; é o provedor que decide quantos veículos manda. Fica de fora nesta fase,
+com gatilho: **quando a decisão em pauta for trocar a NewsData por outro
+agregador**, dividir vira pré-requisito, porque comparar um balde com outro
+balde não decide nada.
+
+### Onde a etapa entra
+
+Na **etapa 1**, junto da coleta — é lá que `fetchAll` já tem o resultado por
+fonte. Uma escrita `createMany` com `skipDuplicates`, **uma por run**, não uma
+por fonte: treze `upsert` sequenciais numa instância de 0.1 vCPU é a forma de
+problema que este projeto já conhece.
+
+### Guarda
+
+`apps/api/tests/services/source-health.test.ts`:
+
+- as quatro `FetchWarningKind` mapeiam para os quatro `SourceOutcome`, **e a
+  tabela é exaustiva nos dois sentidos** — uma classe nova em
+  `FetchWarningKind` sem desfecho correspondente reprova, que é o idioma do
+  `analytics-catalog.test.ts`;
+- **uma fonte que não aparece nos avisos e trouxe zero item é `EMPTY`, não
+  `FAILED`** — é a distinção de 03/09, e perdê-la aqui a desfaria;
+- **fonte fora de `rss-sources.ts` vira `NOT_ATTEMPTED`, e não some** da série;
+- `kept` nunca é maior que `fetched` — invariante de aritmética que pega erro de
+  atribuição de coluna;
+- estática: a escrita é **uma** chamada ao Prisma, não um laço.
+
+**Gatilho numérico:** fonte com **3 dias seguidos** de `FAILED`, ou `kept` médio
+de 7 dias abaixo de **30%** do de 30 dias. O primeiro é a Superinteressante de
+03/09; o segundo é a fonte que definha, que hoje ninguém veria.
+
+---
+
+## §16 Dívidas com gatilho numérico
 
 Não-objetivos declarados como número, nunca como item de lista.
 
@@ -1026,10 +1248,13 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL não ancorada, que é evento único e merece olhar no mesmo dia |
 | Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão |
 | Advisory sem dono | linha na lista de exceções do `audit` com mais de **90 dias** sem revisão |
+| Fonte quebrada | **3 dias seguidos** de `FAILED` para a mesma fonte |
+| Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
+| Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
 
 ---
 
-## §16 Armadilhas
+## §17 Armadilhas
 
 1. **`transport`/`pino-pretty` em produção** — segundo processo em 0.1 vCPU.
 2. **Aguardar a escrita do `ErrorEvent` no caminho que falhou** — escrita no
@@ -1082,10 +1307,24 @@ Não-objetivos declarados como número, nunca como item de lista.
 21. **`pnpm audit` sem lista de exceção com motivo e data** — vira ruído,
     alguém desliga o passo, e aí ele deixa de existir de fato enquanto continua
     existindo no arquivo.
+22. **Cair para o provider de reserva depois de um bloqueio de segurança** — é
+    repetir o ataque com um segundo oráculo, e basta um dos dois escapar. Só
+    falha de **qualidade** faz fallback.
+23. **Lista de palavra proibida que bloqueia** — o
+    `prompt-injection.test.ts:125` já registra por que não: uma matéria *sobre*
+    o assunto é o primeiro falso positivo. Avisa, nunca bloqueia.
+24. **Portão que opina sem linha de base** — mediana móvel sem histórico dá
+    `NaN`, e `NaN` compara `false` em toda direção. Menos de 3 dias de amostra,
+    o portão se cala e diz que se calou.
+25. **`fetched` no lugar de `kept` ao decidir trocar provedor** — uma fonte que
+    republica o que outra já deu tem volume alto e contribuição nula. A
+    deduplicação é quem separa as duas.
+26. **Remover uma fonte e ela virar "quebrada" para sempre no gráfico** — é o
+    que `NOT_ATTEMPTED` existe para impedir.
 
 ---
 
-## §17 O que cada fase custa em guarda
+## §18 O que cada fase custa em guarda
 
 | Mudança | Guardas que reprovam se esquecer |
 |---|---|
@@ -1099,7 +1338,89 @@ Não-objetivos declarados como número, nunca como item de lista.
 
 ---
 
-## §18 Onde acrescentar
+## §19 Como começar
+
+### O ritual de cada fase
+
+Uma fase, um PR. **Nunca duas fases no mesmo PR** — a que quebrar arrasta a
+outra no revert.
+
+1. **Abrir da `main` atualizada.** Worktree própria, e `pnpm install` +
+   `pnpm db:generate` nela: worktree nova não tem `node_modules` nem Prisma
+   Client, e sem o segundo **45 suítes falham na coleta** com
+   `Cannot find module '.prisma/client/default'` — o que parece a suíte
+   quebrada e é só ambiente.
+2. **Escrever a guarda antes do código, e vê-la reprovar.** É a regra da §2, e
+   nesta sessão ela já pagou duas vezes: a guarda de contagem passava verde
+   sobre um `treze` real, e passou a reprovar só depois de a varredura ler prosa
+   corrida em vez de linha a linha.
+3. **Implementar até a guarda ficar verde.**
+4. **`pnpm test && pnpm lint && pnpm turbo typecheck`** — os três, localmente,
+   antes do push.
+5. **PR com o número da fase no título.** O corpo diz o que fecha, qual guarda
+   trava, e qual gatilho numérico nasce.
+6. **Depois do merge, o ritual do `CLAUDE.md`:** Lighthouse, baseline visual e
+   smoke E2E. As fases 5, 9 e 11 mexem em tela ou em produto e **precisam** dos
+   três; as de substrato (1, 3, 4) precisam só do smoke.
+
+### A ordem, com o motivo de cada passo
+
+**Bloco 1 — o alicerce, e nenhum toca schema.** Podem ir em paralelo.
+
+| PR | Fase | Por que primeiro |
+|---|---|---|
+| 1 | **§14 — Fase 10, CI** | Não depende de nada e é o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fecha um risco de supply chain antes de o resto encostar no código |
+| 2 | **§5 — Fase 1, logger** | **Fecha o vazamento da DSN, que está aberto agora.** Tudo depois dele loga direito de nascença |
+| 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
+| 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |
+
+**Bloco 2 — a espinha. Estritamente em ordem.**
+
+| PR | Fase | Trava |
+|---|---|---|
+| 5 | **§7 — Fase 3, taxonomia** | O `code` que a Fase 4 usa como fingerprint. Sem ele a tabela nasce com cardinalidade sem teto |
+| 6a | **§8 — Fase 4, a migration** | PR só de schema. `ErrorEvent` + os dois índices do `PipelineLog` |
+| 6b | **§8 — Fase 4, o código** | `recordError`, o buffer, a retenção na etapa 8 |
+| 7 | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |
+
+**Bloco 3 — depois da espinha, em qualquer ordem.**
+
+- **§12 — Fase 8 (log de sucesso).** A mais barata das quatro: função pura, sem
+  migration, e resolve "o dia deu certo?".
+- **§15 — Fase 11 (saúde por fonte).** Migration + etapa 1 + painel. É a que
+  responde à pergunta de trocar provedor, então adiante-a se essa decisão
+  estiver perto.
+- **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
+- **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.**
+
+### Por que a Fase 9 vai por último
+
+É a única que pode **deixar o site sem conteúdo**. Antes dela, três coisas
+precisam estar no ar:
+
+1. **A Fase 4**, senão a decisão de cada portão não tem onde ser registrada.
+2. **A Fase 5**, senão o bloqueio acontece e ninguém vê.
+3. **A Fase 8**, senão um dia bloqueado é indistinguível de um dia que não
+   rodou — e as duas causas pedem ações opostas.
+
+E, mesmo com as três, o roteiro dela tem um passo a mais: **rodar os portões em
+modo observador contra os briefings retidos antes de ligar o bloqueio.** Se
+algum dos ~88 briefings reprovaria, o portão está errado — não o acervo. É a
+lição da higiene de texto da Fase 12, em que a primeira versão da correção
+descartaria 5.635 corpos e passava em todo teste de unidade.
+
+### O que fazer antes do primeiro PR
+
+- [ ] Ler o §17 inteiro. São 26 armadilhas e a maioria custou um incidente.
+- [ ] Decidir a questão do IP (§3.2) — ela muda o que a Fase 5 consegue mostrar
+      e não dá para adiar até a tela existir.
+- [ ] Decidir o `aiTokensUsed` (§9): popular ou remover por migration.
+- [ ] Confirmar que a Fase 10 pode ir sozinha — ela é a única que não bloqueia
+      nada e a única que reduz risco antes de qualquer código novo.
+
+---
+
+## §20 Onde acrescentar
 
 Esta é a base. Os pontos abaixo estão **identificados e fora do escopo atual** —
 é aqui que os seus acréscimos entram:
@@ -1118,7 +1439,7 @@ Esta é a base. Os pontos abaixo estão **identificados e fora do escopo atual**
 
 ---
 
-## §19 Fontes da pesquisa
+## §21 Fontes da pesquisa
 
 - [OWASP Top 10:2025 — A09 Security Logging and Alerting Failures](https://owasp.org/Top10/2025/A09_2025-Security_Logging_and_Alerting_Failures/)
 - [OWASP Cheat Sheet — Logging Vocabulary](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Vocabulary_Cheat_Sheet.html)
