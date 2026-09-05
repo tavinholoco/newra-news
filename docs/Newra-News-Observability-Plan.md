@@ -109,6 +109,11 @@ independentes**, que não se bloqueiam:
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
 não depende de nada neste plano.
 
+> **A 10 e a 1 já foram entregues (05/09/2026).** O estado de cada fase vive na
+> tabela da ordem, no §19, e no cabeçalho da seção de cada uma — esta tabela
+> aqui descreve a **forma** do plano, não o progresso. **A próxima é a Fase 2**
+> (§6).
+
 Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
 **Duas fases pedem cautela extra, por razões diferentes:**
