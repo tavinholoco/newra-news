@@ -4921,12 +4921,15 @@ de bases vem do `branches:` do `ci.yml` — a fonte —, e a prosa do
 deixa os documentos mentindo; escrever uma base que os portões não guardam dá no
 mesmo. Provado quebrando os dois lados.
 
-**O que não deu para verificar daqui:** de qual branch o Render publica. O
-`render.yaml` **não declara `branch:`**, então vale o que está no painel — e o
-token do CLI está expirado. O padrão do Render é a branch padrão do repositório,
-que é a `main`, e é o que o comportamento até hoje indica. **Confira no painel
-antes da primeira promoção:** se estiver em `dev`, a política está invertida
-para a API e todo merge de fase publicaria.
+**O item que a auditoria não conseguiu medir, e a resposta veio pelo painel:** de
+qual branch o Render publica. O `render.yaml` **não declara `branch:`** e o token
+do CLI estava expirado, então nenhum arquivo deste repositório respondia.
+**Conferido no painel em 05/09/2026: `main`** — as duas plataformas publicam da
+mesma branch, e a política de promoção está de pé.
+
+Fica a nota de onde a resposta mora: **no painel, não no blueprint.** Se a API um
+dia passar a publicar de outra branch, todo merge de fase publicaria a API sem
+publicar o site, e nada neste repositório acusaria.
 
 #### O que fica pendente daqui
 

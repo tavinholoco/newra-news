@@ -61,13 +61,15 @@ uma janela controlada, mas é uma janela: promova com isso em mente.
 `main`, então Smoke E2E e Migrate rodam sem ninguém lembrar; o Lighthouse e a
 baseline continuam manuais, e estão logo abaixo.
 
-> **O que ainda não foi conferido: de qual branch o Render publica.** O
-> `render.yaml` **não declara `branch:`**, então vale o que está no painel. O
-> padrão do Render é a branch padrão do repositório — `main` — e é o que o
-> comportamento indica, mas **confira no painel antes da primeira promoção**: se
-> estiver apontado para `dev`, a política está invertida para a API e todo merge
-> de fase publicaria. A Vercel já está certa: produção pela `main`, e a `dev`
-> ganha deploy de preview, que é onde dá para olhar o lote antes de promover.
+**As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
+padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
+porque o `render.yaml` **não declara `branch:`**: a configuração vive no painel,
+então nenhum arquivo deste repositório prova onde ela está. Se a API um dia
+passar a publicar de outra branch, é lá que a resposta está — e a política de
+promoção estaria invertida sem nada aqui acusar.
+
+A `dev` ganha deploy de preview na Vercel, que é onde dá para olhar o lote antes
+de promover.
 
 ## Fechar uma fase (o ritual, contra produção)
 
