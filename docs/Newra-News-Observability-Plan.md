@@ -225,10 +225,12 @@ primeira é de código:
    construção.
 3. **Retenção própria**, mais curta que a do `ErrorEvent`.
 
-### A recomendação: não encaminhar, não guardar — e o motivo é uma medição
+### A decisão: não encaminhar, não guardar
 
-> **Recomendação, não decisão tomada.** O §19 mantém isto no checklist. O que
-> segue é o argumento, para a decisão ser sobre fatos e não sobre gosto.
+> **Decidido em 05/09/2026.** Não há campo de IP neste plano, e o
+> `api-proxy.ts` não muda. O argumento abaixo é o registro do porquê — se
+> alguém propuser acrescentar IP mais tarde, é aqui que estão os três fatos que
+> precisam ter deixado de valer.
 
 Três leituras do código, e elas fecham a questão:
 
@@ -669,7 +671,7 @@ devolvendo erro agora?".
 - **As três colunas órfãs** — `newsApiCount`, `rssCount`, `cleanupCount` entram
   no `dashboardMetricsSchema` e viram cartão.
 
-### `aiTokensUsed`: a recomendação é remover, e o argumento a favor foi medido
+### `aiTokensUsed`: removido — decidido em 05/09/2026
 
 Verificado: só o `schema.prisma:205` e o `seed.ts:161` a mencionam — **nenhum
 provider captura uso de token**. É coluna morta, e renderizá-la mostraria número
@@ -686,9 +688,9 @@ milhares de tokens por dia, contra tetos de plano gratuito que estão duas ou
 três ordens de grandeza acima. Instrumentar uma saturação a ~1% do teto é
 construir um termômetro para uma febre que não existe.
 
-**Então: remover por migration, e o lugar é a Fase 5** — é lá que a extensão do
-`response-schema-contract.test.ts` ao `DailyMetric` **força** a decisão, em vez
-de deixá-la parada mais um mês. Sai com o motivo escrito no `progress.md`.
+**Decidido: remover por migration, e o lugar é a Fase 5** — é lá que a extensão
+do `response-schema-contract.test.ts` ao `DailyMetric` **força** a decisão, em
+vez de deixá-la parada mais um mês. Sai com o motivo escrito no `progress.md`.
 
 **Gatilho para voltar atrás**, e é barato: mais de um briefing por dia, ou a
 primeira troca para um modelo pago. Aí a coluna volta com uma migration de uma
@@ -1542,16 +1544,18 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
 
 ### O que fazer antes do primeiro PR
 
+- [x] **O IP (§3.2) — decidido em 05/09/2026: não encaminhar, não guardar.**
+      Eventos agrupam por `userId` no autenticado e por `request.ip` no público;
+      a tentativa anônima contra rota autenticada fica a cargo do
+      `logServerError` da Fase 7a. **Nada muda no `api-proxy.ts`.**
+- [x] **`aiTokensUsed` (§9) — decidido em 05/09/2026: remover por migration**,
+      na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
+      decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
+      primeiro modelo pago.
 - [ ] Ler o §17 inteiro. São 26 armadilhas e a maioria custou um incidente.
-- [ ] **Bater o martelo no IP (§3.2).** A recomendação está escrita e
-      argumentada — *não encaminhar, não guardar*, agrupando por `userId` no
-      autenticado e por `request.ip` no público, com a tentativa anônima ficando
-      a cargo do `logServerError` da Fase 7a. Falta só o seu aceite, ou a
-      objeção.
-- [ ] **Bater o martelo no `aiTokensUsed` (§9).** Recomendação: remover por
-      migration, junto da Fase 5, onde a guarda força a decisão.
-- [ ] Confirmar que a Fase 10 pode ir sozinha — ela é a única que não bloqueia
-      nada e a única que reduz risco antes de qualquer código novo.
+
+**Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
+não depende de nada neste plano, o que a torna a partida natural.
 
 ---
 
