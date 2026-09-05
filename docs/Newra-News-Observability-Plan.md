@@ -190,14 +190,46 @@ reset de senha (o login é só OAuth — não há senha nossa a atacar), upload 
 arquivo (não existe), *impossible travel* e geolocalização (exigiria reter IP
 por usuário), e honeytokens (desproporcional).
 
-**A tensão de privacidade, que é decisão sua e não pode passar despercebida.**
-O OWASP quer `source_ip` e `useragent` em todo evento de segurança. O produto
-declara analytics **anônimo por construção** — `sessionId` aleatório, sem IP.
-Guardar IP em evento de segurança é uma escolha **diferente e deliberada**, com
-retenção própria e justificativa própria. A recomendação deste plano é o meio
-termo: guardar um **hash truncado do IP com sal que roda por dia**, que permite
-contar "quantas falhas vieram da mesma origem hoje" sem guardar a origem. Se
-você preferir IP em claro ou nada, é ponto para acrescentar no §20.
+### O IP: a pergunta é mais estreita do que parece, e a resposta foi medida
+
+O OWASP quer `source_ip` em todo evento de segurança. Antes de decidir se
+guardamos, é preciso saber **se ele chega** — e neste projeto, na maior parte
+dos casos, **não chega.**
+
+O caminho do tráfego autenticado é `navegador → função da Vercel (BFF) → API no
+Render`, e o `api-proxy.ts` monta os cabeçalhos de saída à mão: encaminha
+`Authorization`, `x-request-id` e `Content-Type`, e **não** encaminha
+`x-forwarded-for`. Então:
+
+| Caminho | Rotas | O que `request.ip` vale na API |
+|---|---|---|
+| Direto do navegador | `/api/news`, `/api/news/facets`, `/api/articles` | **o IP do leitor** — o `trustProxy: 1` da Fase 9 lê o `X-Forwarded-For` do proxy do Render |
+| Pelo BFF | `/api/account`, `/api/admin/*`, `/api/favorites`, `/api/events` | **o IP da função da Vercel** |
+
+**O IP é real exatamente onde menos importa e ausente exatamente onde mais
+importa.** Um `authz_fail` numa rota de admin — o evento de maior valor da
+§3.2 — registraria o IP da Vercel para todo mundo, atacante incluído. É a mesma
+raiz do teto de ingestão compartilhado que o `CLAUDE.md` já documenta, medido em
+45 requisições pelo BFF consumindo um balde só.
+
+Isso reordena a decisão. Não é "guardar IP ou não"; são **três** decisões, e a
+primeira é de código:
+
+1. **O BFF passa a encaminhar o IP de origem?** É uma linha em `api-proxy.ts`.
+   Sem ela, IP em evento de rota autenticada é ruído com aparência de dado — o
+   pior tipo de campo, porque parece que a pergunta foi respondida.
+2. **Se passar, guarda-se o quê?** A recomendação deste plano é **hash truncado
+   com sal que roda por dia**: permite contar "quantas falhas vieram da mesma
+   origem hoje" e perde a capacidade de ligar duas origens entre dias — que é
+   exatamente o que o produto promete ao chamar seu analytics de anônimo por
+   construção.
+3. **Retenção própria**, mais curta que a do `ErrorEvent`.
+
+**O caminho de menor risco, se você quiser adiar tudo isso:** não guardar IP
+nenhum e usar `sessionId` e `userId` como eixo de agrupamento nos eventos de
+segurança. Perde-se detectar um atacante anônimo; mantém-se detectar uma **conta
+comprometida**, que num produto com login social e sem senha nossa é o vetor
+mais provável. Fica registrado como decisão consciente, não como esquecimento.
 
 ### §3.3 Qualidade de dado — o eixo das inconsistências
 
@@ -1340,6 +1372,42 @@ Não-objetivos declarados como número, nunca como item de lista.
 
 ## §19 Como começar
 
+### Abrir uma sessão de contexto zerado
+
+O desenvolvimento acontece numa **worktree**, e a única coisa que faz uma sessão
+saber disso é **de onde ela foi aberta**. Não há configuração a ajustar: o
+diretório de trabalho decide o `git`, o `pnpm` e quais `CLAUDE.md` são
+carregados.
+
+```bash
+cd ".claude/worktrees/observability-plan" && claude
+```
+
+A partir daí, `git status`, `git commit` e `gh pr create` já apontam para a
+branch da worktree, e o `CLAUDE.md` da raiz do repositório é lido normalmente —
+ele está versionado, então existe dentro da worktree também.
+
+**O prompt de abertura, que é o que substitui o contexto perdido.** Duas frases
+bastam, porque tudo o mais está neste documento:
+
+> Vamos implementar a **Fase N** do `docs/Newra-News-Observability-Plan.md`.
+> Leia o §19 (o ritual e a ordem), depois a seção da fase, e o §17 (armadilhas).
+> Estamos na worktree `observability-plan` e é aqui que fica o trabalho.
+
+**O que uma sessão fria erra se ninguém avisar:**
+
+- **Worktree nova não tem `node_modules` nem Prisma Client.** Sem
+  `pnpm install` e `pnpm db:generate`, **45 suítes falham na coleta** com
+  `Cannot find module '.prisma/client/default'` — o que parece a suíte quebrada
+  e é só ambiente. A worktree atual já tem os dois; uma worktree nova, não.
+- **O stash é compartilhado entre worktrees.** `git stash pop` pode trazer o
+  trabalho de outra sessão. Commit temporário resolve melhor.
+- **Não voltar para o repositório principal para rodar nada.** Comando rodado
+  lá mede outra árvore.
+- **Este documento é a fonte, não a memória da sessão anterior.** Se algo aqui
+  contradisser o que a sessão "lembra", o documento vence — e se o documento
+  estiver errado, corrija o documento no mesmo PR.
+
 ### O ritual de cada fase
 
 Uma fase, um PR. **Nunca duas fases no mesmo PR** — a que quebrar arrasta a
@@ -1412,8 +1480,10 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
 ### O que fazer antes do primeiro PR
 
 - [ ] Ler o §17 inteiro. São 26 armadilhas e a maioria custou um incidente.
-- [ ] Decidir a questão do IP (§3.2) — ela muda o que a Fase 5 consegue mostrar
-      e não dá para adiar até a tela existir.
+- [ ] Decidir a questão do IP (§3.2). São **três** decisões, e a primeira é de
+      código: o BFF encaminha o IP de origem, ou não? Sem essa, IP em evento de
+      rota autenticada é o IP da Vercel. O caminho de menor risco — agrupar por
+      `sessionId`/`userId` e não guardar IP nenhum — está descrito lá.
 - [ ] Decidir o `aiTokensUsed` (§9): popular ou remover por migration.
 - [ ] Confirmar que a Fase 10 pode ir sozinha — ela é a única que não bloqueia
       nada e a única que reduz risco antes de qualquer código novo.
