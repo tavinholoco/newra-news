@@ -30,6 +30,7 @@ import { eventsRoutes } from './routes/events';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
 import { accountRoutes } from './routes/account';
+import { adminPipelineRoutes } from './routes/admin/pipeline';
 import { devLogsRoutes } from './routes/dev/logs';
 import { devDashboardRoutes } from './routes/dev/dashboard';
 import { AppError } from './utils/errors';
@@ -196,6 +197,16 @@ export async function buildApp() {
 
   await app.register(favoritesRoutes, { prefix: '/api/favorites' });
   await app.register(accountRoutes, { prefix: '/api/account' });
+
+  /**
+   * **Tudo sob `/api/admin` é ADMIN**, e a garantia é do grupo, não da rota.
+   *
+   * O `authPlugin` e o `requireAdmin` registram uma vez dentro de
+   * `adminPipelineRoutes`; o `authorization-matrix.test.ts` enumera o roteador,
+   * filtra este prefixo e cobra `access: 'admin'` de cada linha. É o gêmeo, do
+   * lado da API, do que o `admin/layout.tsx` faz do lado do web.
+   */
+  await app.register(adminPipelineRoutes, { prefix: '/api/admin/pipeline' });
 
   // Observabilidade (dev-only) — protegida por JOB_SECRET, sem exposição pública
   await app.register(devLogsRoutes, { prefix: '/api/dev' });

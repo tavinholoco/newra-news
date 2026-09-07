@@ -26,6 +26,13 @@ falta de sinal — é que o sinal não tem para onde ir.**
 
 ### O que a inspeção de 01/09/2026 mediu
 
+> **Os números de linha desta seção são de 01/09 e a Fase 1 já os moveu** — o
+> `app.ts` ganhou 27 linhas, o `observability.ts` 24, o `pipeline-event.service`
+> 4. A medição continua valendo como registro do que existia; para **seguir**
+> uma citação, procure pelo nome (a função, a chamada), nunca pela linha.
+> Citação por linha em documento sem guarda apodrece a cada PR que passa perto,
+> e é a mesma família do `13` dos feeds.
+
 - **O log não existe como sistema.** `apps/api/src/app.ts:40` passa
   `logger: env.NODE_ENV !== 'test'` — um **booleano**. Sem `level`, sem
   `redact`, sem `serializers`, sem `disableRequestLogging`. São **6** chamadas
@@ -109,10 +116,10 @@ independentes**, que não se bloqueiam:
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
 não depende de nada neste plano.
 
-> **A 10 e a 1 já foram entregues (05/09/2026).** O estado de cada fase vive na
-> tabela da ordem, no §19, e no cabeçalho da seção de cada uma — esta tabela
-> aqui descreve a **forma** do plano, não o progresso. **A próxima é a Fase 2**
-> (§6).
+> **A 10 e a 1 foram entregues em 05/09/2026; a 2, em 07/09.** O estado de cada
+> fase vive na tabela da ordem, no §19, e no cabeçalho da seção de cada uma —
+> esta tabela aqui descreve a **forma** do plano, não o progresso. **A próxima é
+> a Fase 7a** (§11.1), a última do bloco 1.
 
 Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
@@ -483,9 +490,9 @@ Por isso o conserto é o **serializer de `err`**, e ele faz quatro coisas:
 4. Preservar `name`, `code`, `statusCode` — o diagnóstico tem de sobreviver, o
    mesmo argumento que o `redact.ts` já faz sobre o 422 do Resend.
 
-**`apps/api/src/config/env.ts:51` continua `console.error`**, com o motivo
-escrito ao lado da exceção do ESLint: roda na carga do módulo, antes de o
-logger existir, e é seguido de `process.exit(1)`.
+**O `console.error` do `apps/api/src/config/env.ts` continua sendo `console`**,
+com o motivo escrito ao lado da exceção do ESLint: roda na carga do módulo,
+antes de o logger existir, e é seguido de `process.exit(1)`.
 
 ### Guarda
 
@@ -524,14 +531,14 @@ ponto.**
 
 ---
 
-## §6 Fase 2 — O pipeline, visível para uma sessão ADMIN
+## §6 Fase 2 — O pipeline, visível para uma sessão ADMIN ✅ 2026-09-07
 
 **Fecha:** o dono do produto não consegue ver, de nenhuma superfície em que
 consiga entrar, que o run de ontem falhou na etapa 6, o que o erro dizia, ou
 que ele falha há três dias.
 
-Entrega **zero tabela nova e zero consulta nova** — `getDevLogs()`
-(`pipeline-event.service.ts:171-208`) e `getDevLogDetail()` (`:211-235`) são
+Entrega **zero tabela nova e zero consulta nova** — `getDevLogs()` e
+`getDevLogDetail()`, os dois em `services/pipeline-event.service.ts`, são
 reusados verbatim. O que muda é a porta.
 
 ### §6.1 API
@@ -549,7 +556,7 @@ caminho do BFF e o da API finalmente terem o mesmo nome.
 caminho que funciona quando não há sessão, e isso importa mais justamente
 quando o que quebrou é o provedor de sessão.
 
-**A exceção que precisa cair.** O `shared-type-contract.test.ts:55-56` isenta
+**A exceção que precisa cair.** O `shared-type-contract.test.ts` isenta
 `devLogsResponseSchema` e `devLogDetailResponseSchema` com o motivo
 `'painel dev, fora do produto'`. **No instante em que uma tela do produto lê
 aquele shape, o motivo deixa de ser verdade.** Os tipos entram em
@@ -1644,7 +1651,7 @@ aplica as duas migrations juntas na promoção.**
 |---|---|---|
 | ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
 | ~~2~~ ✅ | **§5 — Fase 1, logger** — **entregue em 05/09/2026** | Fechou o vazamento da DSN. Tudo depois dele loga direito de nascença. Item **48** do `docs/progress.md` |
-| 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
+| ~~3~~ ✅ | **§6 — Fase 2, pipeline no admin** — **entregue em 07/09/2026** | O dado já existia e ninguém via. Saiu sem rota nova, sem schema e sem consulta nova: `getDevLogs` reusado, prefixo `/api/admin` com guarda, painéis dentro da `/admin`. Item **49** do `docs/progress.md` |
 | 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |
 
 **Bloco 2 — a espinha. Estritamente em ordem.**

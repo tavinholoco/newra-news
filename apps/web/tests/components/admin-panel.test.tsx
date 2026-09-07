@@ -7,11 +7,22 @@ import { renderWithIntl } from '@/tests/utils';
 const useRunPipelineMock = vi.fn();
 const useDeleteNewsMock = vi.fn();
 const useNewsListMock = vi.fn();
+const usePipelineRunsMock = vi.fn();
+const usePipelineRunDetailMock = vi.fn();
 
+/**
+ * **Mock parcial de `@/lib/queries` mente por omissão**, e esta suíte pagou por
+ * isso: o painel ganhou o `<PipelineRuns />` da Fase 2 e o mock não declarava
+ * `usePipelineRuns`, então o componente chamava `undefined()` e as nove
+ * asserções caíam por um motivo que nada tinha a ver com o que elas medem.
+ * Hook novo consumido pelo painel entra aqui junto.
+ */
 vi.mock('@/lib/queries', () => ({
   useRunPipeline: () => useRunPipelineMock(),
   useDeleteNews: () => useDeleteNewsMock(),
   useNewsList: () => useNewsListMock(),
+  usePipelineRuns: () => usePipelineRunsMock(),
+  usePipelineRunDetail: () => usePipelineRunDetailMock(),
 }));
 
 const mockNews = {
@@ -58,6 +69,10 @@ function mockQueries(overrides: {
     isError: false,
     ...overrides.news,
   });
+  // O painel do pipeline tem suíte própria (`pipeline-runs.test.tsx`); aqui ele
+  // só precisa não explodir.
+  usePipelineRunsMock.mockReturnValue({ data: undefined, isError: false });
+  usePipelineRunDetailMock.mockReturnValue({ data: undefined, isError: false });
 }
 
 beforeEach(() => {

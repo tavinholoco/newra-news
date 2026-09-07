@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { POST } from '@/app/api/admin/run-pipeline/route';
 import { DELETE } from '@/app/api/admin/news/[id]/route';
+import { GET as pipelineRunsGet } from '@/app/api/admin/pipeline/runs/route';
+import { GET as pipelineRunGet } from '@/app/api/admin/pipeline/runs/[pipelineId]/route';
 import { GET as cronGet } from '@/app/api/cron/daily-news/route';
 import { NextResponse } from 'next/server';
 
@@ -21,6 +23,7 @@ vi.mock('@/app/api/cron/daily-news/route', () => ({
 }));
 
 const NEWS_ID = 'cccccccc-0000-0000-0000-000000000001';
+const PIPELINE_ID = 'aaaaaaaa-0000-0000-0000-000000000002';
 
 function mockFetchOk(payload: unknown, status = 200) {
   vi.stubGlobal(
@@ -186,5 +189,102 @@ describe('DELETE /api/admin/news/:id', () => {
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'News not found' });
+  });
+});
+describe('GET /api/admin/pipeline/runs', () => {
+  /**
+   * **Fase 2 — a porta do BFF para o pipeline.**
+   *
+   * A recusa aqui não é a que decide (a API recusa por conta própria, e há
+   * matriz de autorização provando isso); ela evita a chamada quando não há
+   * sessão. O que estes testes guardam é que a rota nova passou pelo
+   * `proxyToApi` com `requireRole`, em vez de trazer a própria cópia da leitura
+   * de sessão — que foi o que a revisão da Fase 11 desfez em três rotas.
+   */
+  it('answers 401 without a session', async () => {
+    getServerSessionMock.mockResolvedValue(null);
+    vi.stubGlobal('fetch', vi.fn());
+
+    const res = await pipelineRunsGet(
+      new Request('http://localhost:3000/api/admin/pipeline/runs'),
+    );
+
+    expect(res.status).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('answers 403 for a non-admin user, without calling the API', async () => {
+    getServerSessionMock.mockResolvedValue(userSession);
+    vi.stubGlobal('fetch', vi.fn());
+
+    const res = await pipelineRunsGet(
+      new Request('http://localhost:3000/api/admin/pipeline/runs'),
+    );
+
+    expect(res.status).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('forwards the query string untouched — the API is the one validator', async () => {
+    getServerSessionMock.mockResolvedValue(adminSession);
+    mockFetchOk({ data: { runs: [], recentErrors: [] }, meta: { total: 0 } });
+
+    const res = await pipelineRunsGet(
+      new Request(
+        'http://localhost:3000/api/admin/pipeline/runs?status=FAILED&limit=10',
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/admin/pipeline/runs?status=FAILED&limit=10');
+    expect(init.method).toBe('GET');
+    expect(signAuthJwtMock).toHaveBeenCalledWith({
+      sub: 'admin-1',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
+  });
+});
+
+describe('GET /api/admin/pipeline/runs/:pipelineId', () => {
+  it('answers 403 for a non-admin user', async () => {
+    getServerSessionMock.mockResolvedValue(userSession);
+    vi.stubGlobal('fetch', vi.fn());
+
+    const res = await pipelineRunGet(
+      new Request('http://localhost:3000/api/admin/pipeline/runs/x'),
+      { params: { pipelineId: PIPELINE_ID } },
+    );
+
+    expect(res.status).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('puts the id in the upstream path', async () => {
+    getServerSessionMock.mockResolvedValue(adminSession);
+    mockFetchOk({ data: { log: {}, events: [] } });
+
+    await pipelineRunGet(
+      new Request('http://localhost:3000/api/admin/pipeline/runs/x'),
+      { params: { pipelineId: PIPELINE_ID } },
+    );
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain(`/admin/pipeline/runs/${PIPELINE_ID}`);
+  });
+
+  it('propagates a 400 from the API — an id outside the UUID format', async () => {
+    // A validação do formato mora na API, e só lá. O 400 dela chega aqui como
+    // 400, e o `ApiError` do cliente o trata como "não existe", igual ao 404.
+    getServerSessionMock.mockResolvedValue(adminSession);
+    mockFetchOk({ error: 'params/pipelineId must be a valid UUID' }, 400);
+
+    const res = await pipelineRunGet(
+      new Request('http://localhost:3000/api/admin/pipeline/runs/x'),
+      { params: { pipelineId: 'not-a-uuid' } },
+    );
+
+    expect(res.status).toBe(400);
   });
 });
