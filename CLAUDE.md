@@ -264,7 +264,7 @@ a suíte de unidade, que roda sem rede.
   falha há três dias. Entrou **sem tabela nova, sem consulta nova e sem rota
   nova no web**: `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` reusam
   `getDevLogs`/`getDevLogDetail` verbatim, e os três painéis moram na `/admin`.
-  **892 → 920 testes na API, 618 → 650 no web.** Item **49** do
+  **892 → 920 testes na API, 618 → 651 no web.** Item **49** do
   `docs/progress.md`.
 
   > **O prefixo `/api/admin` é o que a fase realmente comprou.** `authPlugin` e
@@ -458,7 +458,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.570 em 136 suites (**920 API em 66** + **650 web em 70** — todos
+- **Testes:** 1.571 em 136 suites (**920 API em 66** + **651 web em 70** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

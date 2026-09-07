@@ -5226,7 +5226,7 @@ Saiu.
 
 #### A revisão do próprio diff, e o que ela achou
 
-O passo do ritual que a Fase 1 provou valer. **Quatro achados, todos na tela — e
+O passo do ritual que a Fase 1 provou valer. **Cinco achados, todos na tela — e
 nenhum tinha sintoma de código:** build, lint, `tsc` e as 12 asserções do
 componente passavam por cima dos quatro.
 
@@ -5253,16 +5253,24 @@ componente passavam por cima dos quatro.
    `pipelineKeys` fica "fora de `adminKeys`", quando `['admin', 'pipeline']` é
    subárvore de `['admin']` e seria varrida por uma invalidação daquele prefixo.
 
-**A lição de fluxo é a 1 e a 3 juntas: teste de componente escrito pelo autor
-tende a montar o cenário que ele tinha em mente.** O caso "último run falhou" é
+5. **"0 evento", achado abrindo a tela pela primeira vez.** A regra de plural do
+   pt-BR no CLDR faz `0` cair na categoria **`one`** (`i = 0..1`), então
+   `{count, plural, one {# evento} other {# eventos}}` renderiza **"0 evento"** —
+   correto pela regra e errado para quem lê. O run de 16/08 01:39 morreu antes de
+   emitir evento nenhum, e a suíte só tinha fixture com 19. Hoje há o caso
+   explícito `=0` ("sem eventos"), nos dois idiomas, com teste.
+
+**A lição de fluxo é a 1, a 3 e a 5 juntas: teste de componente escrito pelo
+autor tende a montar o cenário que ele tinha em mente.** O caso "último run falhou" é
 o estado em que alguém realmente abre esta tela, e era o único que nenhuma
-asserção cobria. Ao escrever suíte de tela, pergunte **em que estado ela vai ser
+asserção cobria; o `eventCount: 0` é o outro, e só apareceu com o painel na
+frente dos olhos. Ao escrever suíte de tela, pergunte **em que estado ela vai ser
 aberta de verdade** antes de escolher o fixture.
 
 #### Números
 
-**920 testes na API (66 suítes)** — eram 892 em 65 — e **650 no web (70
-suítes)**, que eram 618 em 67. Total **1.570 em 136 suítes**.
+**920 testes na API (66 suítes)** — eram 892 em 65 — e **651 no web (70
+suítes)**, que eram 618 em 67. Total **1.571 em 136 suítes**.
 
 #### O que fica pendente daqui
 

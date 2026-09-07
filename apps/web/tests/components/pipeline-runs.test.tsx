@@ -223,6 +223,25 @@ describe('PipelineRuns — a lista e o detalhe', () => {
     expect(screen.getByText('31 execuções no total')).toBeInTheDocument();
   });
 
+  it('says "sem eventos" for a run that recorded none — 0 is not "1 evento"', () => {
+    /**
+     * **A regra de plural do pt-BR faz `0` cair na categoria `one`.** No CLDR,
+     * `one` em português cobre `i = 0..1`, então `{count, plural, one {# evento}
+     * other {# eventos}}` renderiza **"0 evento"** — tecnicamente correto pela
+     * regra, e errado para quem lê. Só apareceu ao abrir a tela: o run de
+     * 16/08 01:39 morreu antes de emitir evento nenhum, e a suíte só tinha
+     * fixture com 19.
+     *
+     * A saída é o caso explícito `=0`, que vence a categoria — e o inglês ganha
+     * o mesmo por simetria, ainda que lá o `0` já caísse em `other`.
+     */
+    mockRuns([{ ...successRun, eventCount: 0 }]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByRole('button', { name: /sem eventos/ })).toBeInTheDocument();
+    expect(screen.queryByText(/0 evento/)).not.toBeInTheDocument();
+  });
+
   it('does not ask for any run detail until a row is expanded', () => {
     // A lista mostra 20 linhas; carregar o diário das 20 seriam 20 requisições
     // para ler uma.
