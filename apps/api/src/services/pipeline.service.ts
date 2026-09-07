@@ -8,6 +8,7 @@ import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
 import type { PipelineTrigger } from '@newranews/types';
+import { baseLogger, pipelineContext } from '../utils/logger';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -184,7 +185,7 @@ export async function triggerPipeline(): Promise<PipelineTrigger> {
   });
 
   void runPipeline(log.id).catch((err: unknown) => {
-    console.error(`[pipeline] unhandled error for log ${log.id}:`, err);
+    baseLogger.error({ err, pipelineLogId: log.id }, '[pipeline] unhandled error');
   });
 
   return {
@@ -196,7 +197,22 @@ export async function triggerPipeline(): Promise<PipelineTrigger> {
 
 // ── Core pipeline ───────────────────────────────────────────────────────────
 
+/**
+ * **Toda linha de log do run carrega o id do run, e nenhuma assinatura mudou.**
+ *
+ * As etapas chamam services que chamam providers; os cinco avisos do
+ * `news-fetcher`, os dois do `rss.provider`, os dois do `newsdata.provider` e o
+ * retry do `ai-utils` são escritos três camadas abaixo daqui. Passar um logger
+ * por essas camadas seria correlação por intenção — basta uma camada esquecer o
+ * parâmetro para o rastro sumir sem nada acusar. O `AsyncLocalStorage` fica
+ * ligado a este `run`, e o `mixin` do pino o lê de dentro de qualquer
+ * profundidade. Ver `utils/logger.ts`.
+ */
 async function runPipeline(pipelineLogId: string): Promise<void> {
+  return pipelineContext.run({ pipelineLogId }, () => runPipelineStages(pipelineLogId));
+}
+
+async function runPipelineStages(pipelineLogId: string): Promise<void> {
   const startedAt = Date.now();
   const today = startOfDay(new Date());
 

@@ -59,3 +59,8 @@ services:
       # acesso ao painel — e nada acusa, porque o default e string vazia.
       - key: ADMIN_EMAILS
         sync: false
+      # Nivel do log estruturado (fatal|error|warn|info|debug|trace|silent).
+      # Declarado com valor para poder ser baixado a `debug` pelo painel durante
+      # uma investigacao, sem deploy — e devolvido a `info` depois.
+      - key: LOG_LEVEL
+        value: info

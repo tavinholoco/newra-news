@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
 import { fetchFromNewsData } from '../../src/providers/news/newsdata.provider';
+import { baseLogger } from '../../src/utils/logger';
 
 vi.mock('../../src/config/env', () => ({
   env: { NEWSDATA_API_KEY: 'test-key' },
@@ -204,7 +205,7 @@ describe('fetchFromNewsData', () => {
   it('names the category that failed and the one that came back empty', async () => {
     // Oito respostas viram um numero so; sem o aviso por categoria, a que
     // sumiu nao deixa rastro nenhum. E o mesmo aviso que o RSS emite por feed.
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) =>
@@ -221,8 +222,14 @@ describe('fetchFromNewsData', () => {
 
     await fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS]);
 
-    expect(warn).toHaveBeenCalledWith('[newsdata] TECHNOLOGY: falhou —', expect.any(Error));
-    expect(warn).toHaveBeenCalledWith('[newsdata] SPORTS: zero itens');
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'TECHNOLOGY', err: expect.any(Error) }),
+      expect.stringContaining('falhou'),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'SPORTS' }),
+      expect.stringContaining('zero itens'),
+    );
     warn.mockRestore();
   });
 

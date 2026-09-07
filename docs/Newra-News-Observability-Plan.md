@@ -109,6 +109,11 @@ independentes**, que não se bloqueiam:
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
 não depende de nada neste plano.
 
+> **A 10 e a 1 já foram entregues (05/09/2026).** O estado de cada fase vive na
+> tabela da ordem, no §19, e no cabeçalho da seção de cada uma — esta tabela
+> aqui descreve a **forma** do plano, não o progresso. **A próxima é a Fase 2**
+> (§6).
+
 Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
 **Duas fases pedem cautela extra, por razões diferentes:**
@@ -406,7 +411,7 @@ gráfico e não entra nenhuma: a CSP e o orçamento de bundle não pagam. Rosqui
 
 ---
 
-## §5 Fase 1 — Um logger, um redator, e o fim dos `console.*`
+## §5 Fase 1 — Um logger, um redator, e o fim dos `console.*` ✅ 2026-09-05
 
 **Fecha:** a DSN com senha no log do Render, e o ruído que torna a linha certa
 inencontrável.
@@ -431,8 +436,11 @@ inencontrável.
 `baseLogger`; o `buildApp` passa **a instância** para o Fastify (que aceita
 instância, não só opções), e os services importam `baseLogger` direto.
 
-**Correlação sem alterar assinatura.** Um `AsyncLocalStorage<{ pipelineLogId?,
-reqId? }>` lido pelo `mixin` do pino. O `runPipeline` embrulha o corpo em
+**Correlação sem alterar assinatura.** Um `AsyncLocalStorage<{ pipelineLogId }>`
+lido pelo `mixin` do pino. **O `reqId` não entrou no store, e é decisão da
+implementação:** quem tem requisição já escreve por `request.log`, cujo child
+logger carrega o `reqId` que o `genReqId` do `buildApp` gerou — um segundo lugar
+guardando o mesmo fato é um segundo lugar para ele divergir. O `runPipeline` embrulha o corpo em
 `pipelineContext.run({ pipelineLogId }, ...)` e, a partir daí, os cinco avisos
 do `news-fetcher.service.ts`, os dois do `rss.provider.ts`, os dois do
 `newsdata.provider.ts` e o retry do `ai-utils.ts` passam a carregar o
@@ -491,6 +499,24 @@ logger existir, e é seguido de `process.exit(1)`.
 - metade estática: nenhum `console.` em `apps/api/src` fora de um mapa de
   exceções com motivo escrito;
 - uma asserção de caminho feliz, para o harness não poder estar vazio.
+
+> **Duas coisas mudaram na entrega, e as duas saíram da revisão da fase.**
+>
+> **A metade estática usa `ts.createSourceFile`, não varredura de texto.** A
+> primeira versão era um scanner de caracteres — escrito para não repetir o erro
+> conhecido de apagar a linha a partir do `//` de um `'https://…'` — e ela
+> **passava verde sobre um `console.warn` real**: a aspa de um literal de regex
+> (`.replace(/"/g, '&quot;')`, em `routes/dev/dashboard.ts:23` e
+> `services/newsletter.service.ts:27`) abria uma string que nunca fechava e
+> tornava **481 linhas do `src/` invisíveis**. Distinguir regex de divisão exige
+> o token anterior, que é gramática. Onde há parser, use o parser.
+>
+> **E há uma terceira metade, que faltava: a fiação.** As asserções sobre o
+> serializer continuam verdes se alguém devolver `logger: baseLogger` a um
+> booleano — o serializer segue correto e ninguém o chama. A guarda mora no
+> `server-hardening.test.ts` e compara
+> `app.log[pino.symbols.serializersSym].err`, porque `app.log` **não é** a
+> instância passada ao Fastify: é um `child({ reqId })` dela.
 
 O `LOG_LEVEL` no `render.yaml` cai de graça no `env-parity.test.ts` que já
 existe — **se você esquecer a linha do blueprint, o CI reprova, e é esse o
@@ -1427,6 +1453,16 @@ Não-objetivos declarados como número, nunca como item de lista.
     deduplicação é quem separa as duas.
 26. **Remover uma fonte e ela virar "quebrada" para sempre no gráfico** — é o
     que `NOT_ATTEMPTED` existe para impedir.
+27. **Guarda estática que pergunta sobre a estrutura do código, escrita como
+    varredura de texto.** Sexta ocorrência da família e a primeira em que ler
+    melhor o texto não resolvia: a aspa dentro de um literal de regex fez a
+    varredura de `console.*` da Fase 1 ignorar 481 linhas do `src/`. Onde a
+    pergunta é sobre gramática, use `ts.createSourceFile`; regex continua certo
+    para prosa e para YAML.
+28. **Guarda sobre a função, sem guarda sobre a fiação.** O serializer que
+    redige não vale nada se o `buildApp` deixar de usá-lo, e a suíte inteira
+    fica verde nesse cenário. Todo achado fechado com guarda sobre uma peça pede
+    a segunda asserção sobre quem a liga.
 
 ---
 
@@ -1441,6 +1477,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia |
 | **Workflow novo ou alterado** | `workflow-hardening.test.ts` (Fase 10) — `permissions:` declarado e `uses:` fixado em SHA |
+| **Chamada a `console.*` na API** | `secrets-in-logs.test.ts` (Fase 1) — e o `no-console: 'error'` do ESLint, que reprova antes |
 
 ---
 
@@ -1606,7 +1643,7 @@ aplica as duas migrations juntas na promoção.**
 | PR | Fase | Por que primeiro |
 |---|---|---|
 | ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
-| 2 | **§5 — Fase 1, logger** | **Fecha o vazamento da DSN, que está aberto agora.** Tudo depois dele loga direito de nascença |
+| ~~2~~ ✅ | **§5 — Fase 1, logger** — **entregue em 05/09/2026** | Fechou o vazamento da DSN. Tudo depois dele loga direito de nascença. Item **48** do `docs/progress.md` |
 | 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
 | 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |
 
@@ -1655,7 +1692,7 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
       na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
       decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
       primeiro modelo pago.
-- [ ] Ler o §17 inteiro. São 26 armadilhas e a maioria custou um incidente.
+- [ ] Ler o §17 inteiro. São 28 armadilhas e a maioria custou um incidente.
 
 **Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
 não depende de nada neste plano, o que a torna a partida natural.

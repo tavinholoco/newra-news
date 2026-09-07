@@ -90,6 +90,7 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `NEWSLETTER_FROM` | ❌ | Remetente com domínio verificado no Resend (default `Newra News <news@newranews.com>`) |
 | `AUTH_JWT_SECRET` | ⚠️ | Secret compartilhado com o web (a API valida os JWTs que o frontend assina). **Deve ser idêntico ao `AUTH_JWT_SECRET` do web** |
 | `ADMIN_EMAILS` | ❌ | E-mails com `role: ADMIN` no login (separados por vírgula). Vale no **próximo sign-in** |
+| `LOG_LEVEL` | ❌ | Nível do log estruturado (`fatal`\|`error`\|`warn`\|`info`\|`debug`\|`trace`\|`silent`). Sem ela, `info` — e `silent` na suíte de testes. Baixar para `debug` no painel do Render é o caminho de investigação sem deploy |
 
 ### 3.3 Frontend (`apps/web/.env.local`)
 

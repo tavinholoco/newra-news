@@ -4,7 +4,6 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
-import { env } from './config/env';
 import { corsPlugin } from './plugins/cors';
 import { observabilityPlugin } from './plugins/observability';
 import { helmetPlugin } from './plugins/helmet';
@@ -34,10 +33,34 @@ import { accountRoutes } from './routes/account';
 import { devLogsRoutes } from './routes/dev/logs';
 import { devDashboardRoutes } from './routes/dev/dashboard';
 import { AppError } from './utils/errors';
+import { baseLogger } from './utils/logger';
 
 export async function buildApp() {
   const app = Fastify({
-    logger: env.NODE_ENV !== 'test',
+    /**
+     * **A instancia, e nao um booleano.**
+     *
+     * `logger: env.NODE_ENV !== 'test'` dava um pino default: sem `level`, sem
+     * `redact`, sem `serializers`. Era esse default que mandava a DSN com senha
+     * para o stdout do Render pelo `request.log.error({ err })` do handler
+     * abaixo — o vazamento que a §1 do plano de observabilidade mediu. O
+     * `utils/logger.ts` e quem configura as tres coisas, e passar a instancia e
+     * o que faz o `request.log` de toda rota herdar a mesma redacao.
+     *
+     * Em teste ele resolve para `level: 'silent'` — o logger continua no lugar,
+     * calado, em vez de virar o logger abstrato do Fastify.
+     */
+    logger: baseLogger,
+    /**
+     * **Duas linhas por requisicao viram uma.**
+     *
+     * O log padrao do Fastify escreve `incoming request` e `request completed`
+     * em **toda** requisicao, inclusive em cada sonda do `/api/health` — ruido
+     * que torna a linha que importa inencontravel. O `plugins/observability.ts`
+     * ja tem o hook `onResponse` e ja calcula rota, status e `elapsedTime`;
+     * agora ele escreve a linha, uma so, com o nivel casado ao status.
+     */
+    disableRequestLogging: true,
     /**
      * **Um hop de proxy, e exatamente um.**
      *
