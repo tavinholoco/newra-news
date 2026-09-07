@@ -101,8 +101,9 @@ sequência do pipeline e fluxo de dados.
   não precisa de banco nem de rede.
 - **Cobertura:** API 98,77% stmts · 92,96% branch · 99,49% funcs; web 72,79% ·
   89,59% · 72,43%. Piso de 70% nos dois apps, com o CI reprovando abaixo.
-- **E2E:** 29 specs em 5 arquivos, rodando **contra produção** a cada push na
-  `main`, não contra build local.
+- **E2E:** um arquivo de spec por fluxo — visitante, acervo, conta, newsletter
+  e autorização —, rodando **contra produção** a cada push na `main`, não contra
+  build local.
 
 **Medidos em 24/08/2026, medianas de três execuções do Lighthouse CI:**
 

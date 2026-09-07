@@ -5132,8 +5132,217 @@ errSerializer] to be [Function redactingErrSerializer]`.
 
 - **A DSN some do log a partir do próximo deploy, não retroativamente.** O que
   já está no stdout do Render continua lá até a retenção do plano expirar.
-- **A próxima é a Fase 2 (pipeline visível ao ADMIN)**, e depois a 7a (os
-  `catch` vazios do BFF). As duas são do bloco 1 e não tocam schema.
+- ~~**A próxima é a Fase 2 (pipeline visível ao ADMIN)**~~ — **entregue em
+  07/09/2026**, no item 49 logo abaixo. A seguinte é a **7a** (os `catch` vazios
+  do BFF), última do bloco 1.
+
+---
+
+### 49. O pipeline falhava e o dono do produto não tinha onde ver ✅ 2026-09-07
+
+> **Fase 2 do `docs/Newra-News-Observability-Plan.md` (§6) — PR 3 da ordem do
+> §19.** A última do bloco 1 que não é de cliente, e a primeira que entrega
+> tela.
+
+#### O inventário, reconferido antes de abrir (a regra do §19)
+
+| Achado escrito no plano | Estado em 07/09/2026 |
+|---|---|
+| O dado do pipeline existe e só o `JOB_SECRET` o alcança | confirmado — `PipelineLog` + `PipelineEvent` desde a Fase 9, servidos por `GET /api/dev/logs` e pelo `/dev/dashboard`, os dois atrás do segredo |
+| Nenhuma superfície com sessão mostra run nenhum | confirmado — a `/admin` tinha o botão de disparo e a lista de notícias; a `/admin/metrics` mostra agregados do dia, nunca uma execução |
+| `getDevLogs`/`getDevLogDetail` servem verbatim | confirmado — nenhuma linha dos dois serviços mudou neste PR |
+| O `shared-type-contract.test.ts` isenta os dois schemas | confirmado — duas linhas, com o motivo `'painel dev, fora do produto'`. **Saíram**, e é a guarda dizendo o que fazer |
+
+#### O que entrou
+
+**1. `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` — zero tabela nova,
+zero consulta nova.** `routes/admin/pipeline.ts` chama os mesmos
+`getDevLogs`/`getDevLogDetail`, reusa `devLogsQuerySchema` e serve os mesmos
+dois schemas de resposta. **O que muda é a porta:** sessão com `role: ADMIN` em
+vez de segredo.
+
+**2. O prefixo `/api/admin` é uma garantia estrutural, não um hábito por rota.**
+O `authPlugin` e um `preHandler` com `requireAdmin` registram **uma vez no
+grupo** — rota nova ali nasce protegida sem ninguém lembrar de nada. É o gêmeo,
+do lado da API, do que o `admin/layout.tsx` faz do lado do web. Efeito colateral
+bom: o caminho do BFF e o da API passaram a ter o mesmo nome.
+
+**3. O `/api/dev/*` e o `/dev/dashboard` ficam intactos, e é decisão.** Acesso
+por segredo é o caminho que funciona **quando não há sessão** — e isso importa
+mais justamente quando o que quebrou é o provedor de sessão.
+
+**4. Os três painéis entram na `/admin`, sem rota nova.** O último run em
+cartões (status, etapa da falha, duração, notícias coletadas, mais a mensagem do
+erro); as últimas 20 execuções em lista com pílula de status; e o detalhe como
+**linha expansível**, com os ~19 `PipelineEvent` agrupados por etapa, coloridos
+por nível e o `context` atrás de um `<details>`. Rota `/admin/pipeline` custaria
+linha na matriz de estados, chave nos dois arquivos de mensagem e
+`alternatesFor` — e contradiria as três abas do §4.1 do plano. O
+`toHaveLength(15)` de `state-matrix.test.ts` fica em 15.
+
+**5. Os tipos entraram em `packages/types/src/pipeline.ts` e as duas exceções
+saíram.** `PipelineRunSummary`, `PipelineRunEvent`, `PipelineRuns`,
+`PipelineRunsResponse` e `PipelineRunDetail`, com `assertContract` ao lado dos
+schemas.
+
+#### As guardas
+
+| Guarda | O que trava |
+|---|---|
+| `authorization-matrix.test.ts` — `Fase 2 — o prefixo /api/admin` | enumera o `printRoutes()`, filtra o prefixo e exige `access: 'admin'` de cada rota; uma segunda asserção exige que o filtro **encontre alguma coisa** |
+| `admin-pipeline.test.ts` — `as duas portas devolvem exatamente a mesma coisa` | injeta nas duas rotas e compara os corpos. "Zero consulta nova" deixa de ser comentário |
+| `shared-type-contract.test.ts` | sem as duas exceções, as respostas exigem contrato com `packages/types` |
+| `api-docs-drift.test.ts` | as duas rotas em `docs/api.md` |
+| `pipeline-runs.test.tsx` — `reads durationSeconds as seconds` | a armadilha 8 do §17, como asserção |
+
+**As duas primeiras foram vistas reprovar antes de existir código**, e nas duas
+direções: com o prefixo vazio, a asserção de não-vazio caiu; com a linha da
+matriz dizendo `'session'`, a de admin-only caiu; e removendo o `preHandler` do
+grupo, quatro asserções caíram nas duas suítes.
+
+#### Os dois achados da implementação
+
+**O primeiro é sobre a unidade, e é a armadilha 8 do §17 encontrada na hora de
+escrever a tela:** `DevLogSummary.durationSeconds` é **segundo** e
+`formatPipelineDuration` recebe **milissegundo**, porque o campo homônimo do
+dashboard (`pipelineDuration`) é `Date.now() - startedAt`. Passar um pelo outro
+renderiza **"45 ms" para um run de 45 s** — sem erro de tipo, sem aviso, e
+plausível o bastante para ninguém desconfiar. A saída foi `formatRunDuration`,
+um nome que diz a unidade que recebe, e uma asserção que reprova a troca.
+
+**O segundo é a família do "mock parcial mente por omissão", agora do lado do
+web.** O `admin-panel.test.tsx` mocka `@/lib/queries` declarando só os três
+hooks que conhecia; com o `<PipelineRuns />` dentro do painel, o componente
+chamou `undefined()` e **nove asserções caíram por um motivo que nada tinha a
+ver com o que elas medem**. É o mesmo defeito que o `vi.mock` de `env` produziu
+na Fase 1, na outra ponta do monorepo: mock parcial não erra, ele mente sobre o
+que não declara.
+
+**E uma decisão pequena que a suíte forçou:** `usePipelineRunDetail` nasceu com
+`enabled: pipelineId !== null`, e o teste mostrou que o hook **nunca é chamado**
+antes do clique — a linha expandida só monta o componente que o dispara. O
+`enabled` era um controle sem consequência, protegendo um caso que não existe.
+Saiu.
+
+#### A revisão do próprio diff, e o que ela achou
+
+O passo do ritual que a Fase 1 provou valer. **Seis achados, todos na tela — e
+nenhum tinha sintoma de código:** build, lint, `tsc` e as 12 asserções do
+componente passavam por cima dos quatro.
+
+1. **Duas caixas vermelhas sobre o mesmo run.** `recentErrors` inclui o último
+   run quando ele falhou, então a tela empilhava a mensagem do erro e, logo
+   abaixo, um aviso com a mesma hora dizendo que "1 execução falhou". O teste
+   que existia usava um último run **bem-sucedido**, e por isso nunca exercitou
+   o caso — que é o caso normal quando algo está quebrado. Hoje o aviso conta só
+   as falhas que os cartões **não** mostram, e há teste para as duas direções.
+2. **`errorDetail` atravessava a rede para ser jogado fora.** `provider` e
+   `statusCode` chegavam e a tela mostrava só a mensagem — a mesma classe do
+   defeito que o `response-schema-contract` existe para pegar, um degrau adiante
+   (o schema declarava, o consumidor ignorava). Hoje sai "Origem: Gemini · HTTP
+   503", com estreitamento campo a campo, porque coluna `Json` não tem tipo.
+3. **`role='alert'` sobre conteúdo.** A mensagem de erro de um run é conteúdo
+   presente na primeira renderização, não estado que mudou: marcada como
+   `alert`, o leitor de tela **interrompe a leitura** ao abrir a página. Saiu.
+   Os dois que ficaram são falha de carregamento, que é o uso certo — e é o que
+   o resto do projeto faz.
+4. **Um comentário que descrevia comportamento inexistente** (achado ainda antes
+   do primeiro push): dizia que o disparo do pipeline invalida a lista de runs, e
+   ninguém invalidava nada. Corrigido com a invalidação de verdade e teste.
+   Junto dele, um segundo comentário **errado sobre o próprio dado**: dizia que
+   `pipelineKeys` fica "fora de `adminKeys`", quando `['admin', 'pipeline']` é
+   subárvore de `['admin']` e seria varrida por uma invalidação daquele prefixo.
+
+5. **"0 evento", achado abrindo a tela pela primeira vez.** A regra de plural do
+   pt-BR no CLDR faz `0` cair na categoria **`one`** (`i = 0..1`), então
+   `{count, plural, one {# evento} other {# eventos}}` renderiza **"0 evento"** —
+   correto pela regra e errado para quem lê. O run de 16/08 01:39 morreu antes de
+   emitir evento nenhum, e a suíte só tinha fixture com 19. Hoje há o caso
+   explícito `=0` ("sem eventos"), nos dois idiomas, com teste.
+
+6. **A hora de cada evento era a mesma string, cinco vezes.**
+   `formatDateTime` para no minuto, e um run acontece em **segundos**: as cinco
+   etapas do run de 16/08 caíram entre 11:00:06,607 e 11:00:07,314 — 706 ms —,
+   então a coluna imprimia "16 de ago. de 2026, 08:00" em toda linha, debaixo de
+   um cabeçalho que já dizia a mesma data e a mesma hora. Informação zero,
+   ocupando espaço. Hoje é `formatEventTime`: **segundos, e sem a data**. Com
+   ela, a coluna volta a responder o que existe para responder — onde o run
+   gastou o tempo, e aqui que ele fez tudo em menos de um segundo e morreu.
+
+**A lição de fluxo é a 1, a 3, a 5 e a 6 juntas: teste de componente escrito
+pelo autor tende a montar o cenário que ele tinha em mente.** O caso "último run falhou" é
+o estado em que alguém realmente abre esta tela, e era o único que nenhuma
+asserção cobria; o `eventCount: 0` e a hora repetida são os outros dois, e os
+três só apareceram com o painel na frente dos olhos. **Três dos seis achados
+desta revisão vieram de olhar a tela, e nenhum deles tinha teste possível antes
+de alguém saber que existiam.** Ao escrever suíte de tela, pergunte **em que estado ela vai ser
+aberta de verdade** antes de escolher o fixture.
+
+#### Números
+
+**920 testes na API (66 suítes)** — eram 892 em 65 — e **652 no web (70
+suítes)**, que eram 618 em 67. Total **1.572 em 136 suítes**.
+
+#### O que fica pendente daqui
+
+- **Sem `refetchInterval` na área de admin, e é decisão medida.** Aba deixada
+  aberta com polling é tráfego constante contra um plano que cobra tempo ligado
+  — o free do Render dá 750 h/mês, e a API já foi suspensa uma vez por isso, em
+  29/08/2026. O pipeline roda uma vez por dia. **Gatilho para reabrir:** o dia em
+  que houver mais de um run diário.
+- ~~**A leitura da tela**~~ — **fechada em 07/09**, e foi ela que produziu três
+  dos seis achados. O painel foi lido com sessão de admin contra o banco local
+  (quatro runs `FAILED`, 15 eventos) em **375 e 1440, claro e escuro, nos dois
+  idiomas**, pela ferramenta de captura que nasceu deste PR
+  (`apps/web/scripts/capture-admin.mjs`, PR #158). No 375 os cartões caem em
+  duas colunas, os eventos por etapa saem com hora ao segundo, e o `<pre>` do
+  contexto **corta dentro da própria caixa** sem esticar a página.
+- **O que continua aberto é a leitura contra o acervo de produção**, como a tela
+  de métricas da Fase 11: dado local é de agosto e todo run falhou no mesmo
+  ponto, então estados como `RUNNING` e um run bem-sucedido de 19 eventos ainda
+  não foram vistos. Isso é passo do ritual pós-promoção, não pendência de
+  código.
+- **O smoke passou a medir as duas portas novas**, e é a única parte do ritual
+  que alcança esta área **sem depender dos quatro segredos**:
+  `/api/admin/pipeline/runs` e `/runs/:pipelineId` entraram na lista de rotas de
+  BFF que respondem 401 anônimo (`e2e/authorization.spec.ts`). Os fluxos **com**
+  sessão continuam pulados. **29 → 31 specs.**
+
+  > **E aí apareceu a família do `13` feeds, intacta** — resolvida no mesmo PR,
+  > e a correção **não foi guardar o número: foi parar de escrevê-lo.**
+  > Contagem de *testes* é volátil (muda a cada asserção acrescentada) e não
+  > informa quem lê; o que informa é **quais fluxos** o smoke cobre, e isso é
+  > derivável, porque há **um arquivo de spec por fluxo**. Os cinco arquivos
+  > vivos passaram a nomear os fluxos — visitante, acervo, conta, newsletter e
+  > autorização — em vez de contar specs, e
+  > `apps/web/tests/lib/e2e-flows.test.ts` exige uma entrada por
+  > `e2e/*.spec.ts` e que cada documento vivo nomeie cada fluxo. Vista reprovar
+  > nas duas direções: spec novo sem linha declarada, e `README` que deixou de
+  > nomear um fluxo.
+  >
+  > **Não há varredura proibindo um número novo em prosa, e é decisão:** o
+  > `CLAUDE.md` guarda o registro datado da Fase 11, que cita a contagem da
+  > estreia — um regex numérico reprovaria sobre ele, que é a quinta ocorrência
+  > da família em que a guarda vê caractere e não intenção. O `feed-count-drift`
+  > já pagou essa conta uma vez.
+
+- ~~**`PipelineLog` fora do `response-schema-contract`**~~ — **fechado no mesmo
+  PR.** A guarda enumerava as colunas de `Article`, `News` e `BriefingSource` e
+  exigia campo no schema de resposta ou motivo escrito; as duas tabelas do
+  pipeline estavam fora dela, então **coluna nova em `PipelineLog` não era
+  cobrada por nada** — e esta fase é justamente a que pôs uma tela de produto em
+  cima daquela tabela. `PipelineLog` não omite nada (as nove colunas estão no
+  `devLogSummarySchema`, que ainda acrescenta `durationSeconds` e `eventCount`);
+  `PipelineEvent` omite `pipelineLogId`, o caso idêntico ao
+  `BriefingSource.articleId`, com o mesmo motivo escrito.
+
+  > **A suspeita inicial estava errada, e conferir custou um `grep`.** A primeira
+  > leitura foi "isto colide com a Fase 5, que remove `aiTokensUsed` por
+  > migration" — só que `aiTokensUsed` e `aiProvider` vivem em **`DailyMetric`**,
+  > não em `PipelineLog`. Não havia colisão, e a dívida era de quinze linhas.
+  > Adiar por colisão suposta é como dívida barata vira dívida velha.
+- **A próxima é a Fase 7a (§11.1, os `catch` vazios do BFF)**, a última do bloco
+  1. Depois começa a espinha: 3 → 4 → 5.
 
 ---
 

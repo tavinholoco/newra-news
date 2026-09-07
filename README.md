@@ -228,7 +228,7 @@ pnpm test
 
 **1,409 unit and integration tests across 127 suites** — 804 for the API in 61 suites, 605 for the web app in 66. The suite needs no database and no network: the backend uses `fastify.inject()`, the frontend uses Testing Library on jsdom. Coverage is enforced at a 70% floor for lines, statements, functions, and branches in both apps, and CI fails below it.
 
-End-to-end coverage is separate: **29 Playwright specs across 5 files**, covering the visitor, archive, account, newsletter, and authorization flows. They run against production through the `Smoke E2E` workflow on every push to `main`, and are deliberately not part of `pnpm test`.
+End-to-end coverage is separate: **one Playwright spec file per flow** — visitor, archive, account, newsletter and authorization. They run against production through the `Smoke E2E` workflow on every push to `main`, and are deliberately not part of `pnpm test`.
 
 ```bash
 pnpm --filter @newranews/web test:e2e
