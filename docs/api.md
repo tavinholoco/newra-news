@@ -1175,7 +1175,10 @@ dias e briefing aos 90 — não há job manual a disparar.
 
 `recentErrors` **não** é um recorte de `runs`: é o mesmo filtro com
 `status: 'FAILED'`, então uma falha de três dias atrás aparece ali mesmo quando
-os últimos 20 runs foram todos verdes.
+os últimos 20 runs foram todos verdes. **Ele tem teto próprio** —
+`Math.min(limit, 20)` —, então o tamanho da lista é "falhas recentes", nunca o
+total de falhas; o único total que a resposta traz é `meta.total`, que conta o
+recorte inteiro sem filtrar por status.
 
 ⚠️ **`durationSeconds` é segundo**, não milissegundo — o campo homônimo do
 `/api/metrics/dashboard` (`pipelineDuration`) é que está em milissegundos.

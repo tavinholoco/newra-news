@@ -102,7 +102,7 @@
       "statusRunning": "Rodando",
       "statusSuccess": "Sucesso",
       "statusFailed": "Falhou",
-      "recentFailures": "{count, plural, one {# execução falhou} other {# execuções falharam}} na janela — a mais recente em {date}.",
+      "recentFailures": "{count, plural, one {Outra execução recente falhou} other {Outras # execuções recentes falharam}} — a mais recente em {date}.",
       "historyTitle": "Últimas execuções",
       "rowSummary": "{news} notícias · {duration}",
       "events": "{count, plural, one {# evento} other {# eventos}}",
@@ -110,7 +110,8 @@
       "stageLabel": "Etapa {stage}",
       "contextLabel": "Contexto",
       "eventsEmpty": "Esta execução não registrou nenhum evento.",
-      "eventsError": "Não foi possível carregar os eventos desta execução."
+      "eventsError": "Não foi possível carregar os eventos desta execução.",
+      "errorOrigin": "Origem: {origin}"
     }
   },
   "article": {

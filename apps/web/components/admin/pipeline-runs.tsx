@@ -9,7 +9,12 @@ import type {
   PipelineRunSummary,
 } from '@newranews/types';
 import { usePipelineRunDetail, usePipelineRuns } from '@/lib/queries';
-import { formatCount, formatDateTime, formatRunDuration } from '@/lib/format';
+import {
+  formatCount,
+  formatDateTime,
+  formatProviderName,
+  formatRunDuration,
+} from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -161,12 +166,35 @@ function RunEvents({ pipelineId }: { pipelineId: string }) {
   );
 }
 
+/**
+ * De onde veio a falha, quando o erro estruturado sabe dizer.
+ *
+ * `errorDetail` é coluna `Json`, então **é `Record<string, unknown>` e não um
+ * tipo**: estreitar campo a campo é o preço honesto de ler JSON de banco. O que
+ * ele acrescenta à mensagem é o que responde a pergunta seguinte de quem lê
+ * "Gemini API error 503" — qual provider, e que status HTTP.
+ */
+function errorOrigin(detail: Record<string, unknown> | null): string | null {
+  if (!detail) return null;
+
+  const provider = typeof detail.provider === 'string' ? detail.provider : null;
+  const statusCode =
+    typeof detail.statusCode === 'number' ? detail.statusCode : null;
+
+  const parts = [
+    provider ? formatProviderName(provider) : null,
+    statusCode === null ? null : `HTTP ${statusCode}`,
+  ].filter((part): part is string => part !== null);
+
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 /** O último run, em cartões: status, etapa da falha, duração e a mensagem. */
 function LastRun({ run }: { run: PipelineRunSummary }) {
   const t = useTranslations('admin');
   const locale = useLocale();
   const dateLocale = toDateFormatLocale(locale);
-  const message = run.error ?? null;
+  const origin = errorOrigin(run.errorDetail);
 
   return (
     <div>
@@ -195,13 +223,23 @@ function LastRun({ run }: { run: PipelineRunSummary }) {
         />
       </div>
 
-      {message && (
-        <p
-          role='alert'
-          className='mt-4 rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'
-        >
-          {message}
-        </p>
+      {/**
+        * **Sem `role='alert'`, e a diferença não é estilística.** `alert` é
+        * região viva: o leitor de tela interrompe o que estiver lendo para
+        * anunciá-la. Isto aqui não é um estado que acabou de mudar — é o
+        * conteúdo do run, presente já na primeira renderização. Os dois
+        * `role='alert'` que sobraram neste arquivo são os certos: falha de
+        * carregamento, que é mudança de estado.
+        */}
+      {run.error && (
+        <div className='mt-4 rounded-md border border-danger/30 px-4 py-3'>
+          <p className='text-body-sm text-danger'>{run.error}</p>
+          {origin && (
+            <p className='mt-1 text-xs text-ink-secondary'>
+              {t('pipeline.errorOrigin', { origin })}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -245,6 +283,22 @@ export function PipelineRuns() {
   const { runs, recentErrors } = data.data;
   const lastRun = runs[0];
 
+  /**
+   * **A falha que os cartões já mostram não conta de novo aqui.**
+   *
+   * `recentErrors` inclui o último run quando ele falhou — e sem tirá-lo a tela
+   * empilhava **duas caixas vermelhas sobre o mesmo run**: a mensagem do erro,
+   * e logo abaixo um aviso dizendo que "1 execução recente falhou", com a mesma
+   * hora. Ruído que parece informação nova.
+   *
+   * O que sobra depois do filtro é exatamente a pergunta que os cartões não
+   * respondem: **além desta, o que mais falhou recentemente?**
+   */
+  const otherFailures = recentErrors.filter(
+    (failure) => failure.id !== lastRun?.id,
+  );
+  const [latestOtherFailure] = otherFailures;
+
   return (
     <section>
       <h2 className='font-display mb-1 text-lg font-semibold text-foreground'>
@@ -266,15 +320,16 @@ export function PipelineRuns() {
            * `recentErrors` não é um recorte de `runs`: é o mesmo filtro com
            * `status: FAILED`, então a falha de anteontem aparece aqui mesmo
            * quando os últimos runs foram todos verdes.
+           *
+           * A contagem é a das falhas que a resposta trouxe, e ela tem teto
+           * (`Math.min(limit, 20)` no serviço) — daí "recentes" e nunca "no
+           * total", que é um número que esta tela não tem.
            */}
-          {recentErrors.length > 0 && (
+          {latestOtherFailure && (
             <p className='mt-4 rounded-md border border-danger/30 px-4 py-3 text-body-sm text-danger'>
               {t('pipeline.recentFailures', {
-                count: recentErrors.length,
-                date: formatDateTime(
-                  recentErrors[0]?.startedAt ?? lastRun.startedAt,
-                  dateLocale,
-                ),
+                count: otherFailures.length,
+                date: formatDateTime(latestOtherFailure.startedAt, dateLocale),
               })}
             </p>
           )}
@@ -304,7 +359,10 @@ export function PipelineRuns() {
                       type='button'
                       onClick={() => setOpenRunId(isOpen ? null : run.id)}
                       aria-expanded={isOpen}
-                      aria-controls={`pipeline-run-${run.id}`}
+                      // Só quando aberto: `aria-controls` apontando para um id
+                      // que não existe no DOM é referência quebrada, e a região
+                      // só é montada depois do clique.
+                      aria-controls={isOpen ? `pipeline-run-${run.id}` : undefined}
                       className='ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-link transition-colors duration-base hover:text-link-hover'
                     >
                       {t('pipeline.events', { count: run.eventCount })}

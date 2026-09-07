@@ -95,9 +95,13 @@ export const adminKeys = {
 };
 
 /**
- * Os runs do pipeline. Ficam **fora** de `adminKeys` de propósito: quem os
- * invalida é o disparo do pipeline, e invalidar `adminKeys.all` ali
- * recarregaria também a lista de notícias, que o disparo não muda.
+ * Os runs do pipeline — **uma subárvore própria dentro de `['admin']`**, ao lado
+ * de `adminKeys.newsList()`.
+ *
+ * A distinção importa porque o TanStack Query invalida **por prefixo**:
+ * `['admin']` alcança as duas, `['admin', 'pipeline']` alcança só esta. Por isso
+ * o disparo do pipeline invalida a chave estreita — recarregar a lista de
+ * notícias junto seria uma consulta jogada fora, já que o disparo não a muda.
  */
 export const pipelineKeys = {
   all: ['admin', 'pipeline'] as const,

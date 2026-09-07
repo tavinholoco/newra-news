@@ -11,8 +11,10 @@ import {
   devLogDetailResponseSchema,
   devLogsQuerySchema,
   devLogsResponseSchema,
-  errorResponseSchema,
 } from '../dev/schemas';
+// Do arquivo em que ele mora, e não pela reexportação do `dev/schemas`: o que
+// esta rota compartilha com o painel dev são os schemas do pipeline, e mais nada.
+import { errorResponseSchema } from '../../utils/schemas';
 
 /**
  * O pipeline diário, para quem consegue entrar. (§6 do plano de observabilidade)

@@ -47,7 +47,14 @@ const failedRun: PipelineRunSummary = {
   status: 'FAILED',
   error: 'Gemini API error 503: UNAVAILABLE',
   errorStage: 6,
-  errorDetail: { message: 'Gemini API error 503: UNAVAILABLE' },
+  // A forma real que o `extractErrorDetail` grava: mensagem, provider e
+  // status. O fixture anterior tinha só a mensagem, e foi por isso que a
+  // primeira versão da asserção de origem não achou nada.
+  errorDetail: {
+    message: 'Gemini API error 503: UNAVAILABLE',
+    provider: 'gemini',
+    statusCode: 503,
+  },
   completedAt: null,
   durationSeconds: null,
 };
@@ -110,6 +117,39 @@ describe('PipelineRuns — o último run', () => {
     expect(screen.getByText('6')).toBeInTheDocument();
   });
 
+  it('shows where the failure came from, out of errorDetail', () => {
+    // `errorDetail` atravessava a rede e a tela o jogava fora — e é ele que
+    // responde a pergunta seguinte de quem lê "Gemini API error 503": qual
+    // provider, e que status HTTP. Campo carregado e não exibido é a versão
+    // desta tela do defeito que o `response-schema-contract` existe para pegar.
+    mockRuns([failedRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Origem: Gemini · HTTP 503')).toBeInTheDocument();
+  });
+
+  it('says nothing about origin when errorDetail carries neither field', () => {
+    // `errorDetail` é coluna `Json`: o que vem dentro não tem tipo, e uma linha
+    // "Origem: " vazia seria pior que nenhuma.
+    mockRuns([{ ...failedRun, errorDetail: { message: 'boom' } }]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.queryByText(/Origem:/)).not.toBeInTheDocument();
+  });
+
+  it('does not mark the recorded error as a live alert', () => {
+    /**
+     * `role='alert'` interrompe o leitor de tela para anunciar a região. A
+     * mensagem de um run é **conteúdo**, presente na primeira renderização —
+     * não um estado que acabou de mudar. Os `alert` legítimos deste componente
+     * são os de falha de carregamento, e nenhum deles aparece aqui.
+     */
+    mockRuns([failedRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('renders the empty state when no run was ever recorded', () => {
     mockRuns([], [], 0);
     renderWithIntl(<PipelineRuns />);
@@ -138,16 +178,37 @@ describe('PipelineRuns — "ele falha há três dias?"', () => {
     mockRuns([successRun], [failedRun], 2);
     renderWithIntl(<PipelineRuns />);
 
-    expect(
-      screen.getByText(/1 execução falhou na janela/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Outra execução recente falhou/)).toBeInTheDocument();
   });
 
-  it('says nothing when there is no failure in the window', () => {
+  it('does not repeat, as a warning, the failure the cards already show', () => {
+    // `recentErrors` inclui o último run quando ele falhou. Sem filtrar, a tela
+    // empilhava **duas caixas vermelhas sobre o mesmo run** — a mensagem do
+    // erro e, logo abaixo, um aviso com a mesma hora dizendo que uma execução
+    // falhou. Só aparece olhando a tela com dado de verdade, que é a classe de
+    // defeito que a Fase 12 inteira foi caçar.
+    mockRuns([failedRun], [failedRun], 1);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(
+      screen.getByText('Gemini API error 503: UNAVAILABLE'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/recente falhou|recentes falharam/)).not.toBeInTheDocument();
+  });
+
+  it('counts only the failures the cards are not already showing', () => {
+    const older = { ...failedRun, id: 'dddddddd-0000-0000-0000-000000000009' };
+    mockRuns([failedRun], [failedRun, older], 2);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText(/Outra execução recente falhou/)).toBeInTheDocument();
+  });
+
+  it('says nothing when no recent run failed', () => {
     mockRuns([successRun], [], 1);
     renderWithIntl(<PipelineRuns />);
 
-    expect(screen.queryByText(/falhou na janela/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/recente falhou|recentes falharam/)).not.toBeInTheDocument();
   });
 });
 

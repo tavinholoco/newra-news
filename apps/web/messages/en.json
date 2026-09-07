@@ -102,7 +102,7 @@
       "statusRunning": "Running",
       "statusSuccess": "Success",
       "statusFailed": "Failed",
-      "recentFailures": "{count, plural, one {# run failed} other {# runs failed}} in this window — the latest on {date}.",
+      "recentFailures": "{count, plural, one {Another recent run failed} other {# other recent runs failed}} — the latest on {date}.",
       "historyTitle": "Latest runs",
       "rowSummary": "{news} news · {duration}",
       "events": "{count, plural, one {# event} other {# events}}",
@@ -110,7 +110,8 @@
       "stageLabel": "Stage {stage}",
       "contextLabel": "Context",
       "eventsEmpty": "This run recorded no events.",
-      "eventsError": "Could not load the events for this run."
+      "eventsError": "Could not load the events for this run.",
+      "errorOrigin": "Source: {origin}"
     }
   },
   "article": {

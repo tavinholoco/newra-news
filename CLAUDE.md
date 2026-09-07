@@ -264,7 +264,7 @@ a suíte de unidade, que roda sem rede.
   falha há três dias. Entrou **sem tabela nova, sem consulta nova e sem rota
   nova no web**: `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` reusam
   `getDevLogs`/`getDevLogDetail` verbatim, e os três painéis moram na `/admin`.
-  **892 → 918 testes na API, 618 → 639 no web.** Item **49** do
+  **892 → 918 testes na API, 618 → 644 no web.** Item **49** do
   `docs/progress.md`.
 
   > **O prefixo `/api/admin` é o que a fase realmente comprou.** `authPlugin` e
@@ -278,13 +278,25 @@ a suíte de unidade, que roda sem rede.
   > os corpos das duas portas, para que "duas portas, um contrato" seja algo que
   > reprova.
   >
-  > **Os dois achados foram da implementação.** A armadilha 8 do §17 apareceu na
-  > hora de escrever a tela: `durationSeconds` é **segundo** e
-  > `formatPipelineDuration` recebe **milissegundo**, então o caminho óbvio
-  > renderiza **"45 ms" para um run de 45 s** — sem erro de tipo e sem aviso.
-  > E o `admin-panel.test.tsx` caiu inteiro porque seu `vi.mock('@/lib/queries')`
-  > declarava só os três hooks que conhecia: **mock parcial mente por omissão**,
-  > a mesma família do `vi.mock` de `env` da Fase 1, agora do lado do web.
+  > **Os achados foram todos da implementação e da revisão, nenhum do plano.** A
+  > armadilha 8 do §17 apareceu na hora de escrever a tela: `durationSeconds` é
+  > **segundo** e `formatPipelineDuration` recebe **milissegundo**, então o
+  > caminho óbvio renderiza **"45 ms" para um run de 45 s** — sem erro de tipo e
+  > sem aviso. E o `admin-panel.test.tsx` caiu inteiro porque seu
+  > `vi.mock('@/lib/queries')` declarava só os três hooks que conhecia: **mock
+  > parcial mente por omissão**, a mesma família do `vi.mock` de `env` da Fase 1,
+  > agora do lado do web.
+  >
+  > **A revisão do próprio diff achou mais quatro, todos na tela e nenhum com
+  > sintoma de código** — build, lint, `tsc` e as asserções do componente
+  > passavam por cima dos quatro. O de maior alcance: `recentErrors` inclui o
+  > último run quando ele falhou, então a tela empilhava **duas caixas vermelhas
+  > sobre o mesmo run**, e o teste que existia usava um último run
+  > **bem-sucedido** — nunca exercitando o estado em que alguém de fato abre
+  > esta tela. Junto: `errorDetail` atravessando a rede para ser descartado pelo
+  > consumidor, `role='alert'` sobre conteúdo (o leitor de tela interrompe a
+  > leitura ao abrir a página), e dois comentários afirmando coisa que o código
+  > não fazia. Detalhe no item 49.
 
 - **Fora da linha das fases (2026-09-05): o log virou sistema, e a DSN com senha
   parou de sair no stdout.** A **Fase 1** do plano de observabilidade, PR 2 da
@@ -446,7 +458,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.557 em 135 suites (**918 API em 66** + **639 web em 69** — todos
+- **Testes:** 1.562 em 135 suites (**918 API em 66** + **644 web em 69** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web

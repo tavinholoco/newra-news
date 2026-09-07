@@ -5224,10 +5224,45 @@ antes do clique — a linha expandida só monta o componente que o dispara. O
 `enabled` era um controle sem consequência, protegendo um caso que não existe.
 Saiu.
 
+#### A revisão do próprio diff, e o que ela achou
+
+O passo do ritual que a Fase 1 provou valer. **Quatro achados, todos na tela — e
+nenhum tinha sintoma de código:** build, lint, `tsc` e as 12 asserções do
+componente passavam por cima dos quatro.
+
+1. **Duas caixas vermelhas sobre o mesmo run.** `recentErrors` inclui o último
+   run quando ele falhou, então a tela empilhava a mensagem do erro e, logo
+   abaixo, um aviso com a mesma hora dizendo que "1 execução falhou". O teste
+   que existia usava um último run **bem-sucedido**, e por isso nunca exercitou
+   o caso — que é o caso normal quando algo está quebrado. Hoje o aviso conta só
+   as falhas que os cartões **não** mostram, e há teste para as duas direções.
+2. **`errorDetail` atravessava a rede para ser jogado fora.** `provider` e
+   `statusCode` chegavam e a tela mostrava só a mensagem — a mesma classe do
+   defeito que o `response-schema-contract` existe para pegar, um degrau adiante
+   (o schema declarava, o consumidor ignorava). Hoje sai "Origem: Gemini · HTTP
+   503", com estreitamento campo a campo, porque coluna `Json` não tem tipo.
+3. **`role='alert'` sobre conteúdo.** A mensagem de erro de um run é conteúdo
+   presente na primeira renderização, não estado que mudou: marcada como
+   `alert`, o leitor de tela **interrompe a leitura** ao abrir a página. Saiu.
+   Os dois que ficaram são falha de carregamento, que é o uso certo — e é o que
+   o resto do projeto faz.
+4. **Um comentário que descrevia comportamento inexistente** (achado ainda antes
+   do primeiro push): dizia que o disparo do pipeline invalida a lista de runs, e
+   ninguém invalidava nada. Corrigido com a invalidação de verdade e teste.
+   Junto dele, um segundo comentário **errado sobre o próprio dado**: dizia que
+   `pipelineKeys` fica "fora de `adminKeys`", quando `['admin', 'pipeline']` é
+   subárvore de `['admin']` e seria varrida por uma invalidação daquele prefixo.
+
+**A lição de fluxo é a 1 e a 3 juntas: teste de componente escrito pelo autor
+tende a montar o cenário que ele tinha em mente.** O caso "último run falhou" é
+o estado em que alguém realmente abre esta tela, e era o único que nenhuma
+asserção cobria. Ao escrever suíte de tela, pergunte **em que estado ela vai ser
+aberta de verdade** antes de escolher o fixture.
+
 #### Números
 
-**918 testes na API (66 suítes)** — eram 892 em 65 — e **639 no web (69
-suítes)**, que eram 618 em 67. Total **1.557 em 135 suítes**.
+**918 testes na API (66 suítes)** — eram 892 em 65 — e **644 no web (69
+suítes)**, que eram 618 em 67. Total **1.562 em 135 suítes**.
 
 #### O que fica pendente daqui
 
