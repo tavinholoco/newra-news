@@ -5290,11 +5290,18 @@ suítes)**, que eram 618 em 67. Total **1.572 em 136 suítes**.
   — o free do Render dá 750 h/mês, e a API já foi suspensa uma vez por isso, em
   29/08/2026. O pipeline roda uma vez por dia. **Gatilho para reabrir:** o dia em
   que houver mais de um run diário.
-- **A leitura contra produção depende de credencial de admin**, como a tela de
-  métricas da Fase 11 — o painel foi exercitado com dado semeado nas suítes, não
-  com o acervo real. **É a única lacuna de verificação da fase**, e não é
-  pequena: dos quatro achados da revisão, três eram visíveis e nenhum tinha
-  sintoma de código.
+- ~~**A leitura da tela**~~ — **fechada em 07/09**, e foi ela que produziu três
+  dos seis achados. O painel foi lido com sessão de admin contra o banco local
+  (quatro runs `FAILED`, 15 eventos) em **375 e 1440, claro e escuro, nos dois
+  idiomas**, pela ferramenta de captura que nasceu deste PR
+  (`apps/web/scripts/capture-admin.mjs`, PR #158). No 375 os cartões caem em
+  duas colunas, os eventos por etapa saem com hora ao segundo, e o `<pre>` do
+  contexto **corta dentro da própria caixa** sem esticar a página.
+- **O que continua aberto é a leitura contra o acervo de produção**, como a tela
+  de métricas da Fase 11: dado local é de agosto e todo run falhou no mesmo
+  ponto, então estados como `RUNNING` e um run bem-sucedido de 19 eventos ainda
+  não foram vistos. Isso é passo do ritual pós-promoção, não pendência de
+  código.
 - **O smoke passou a medir as duas portas novas**, e é a única parte do ritual
   que alcança esta área **sem depender dos quatro segredos**:
   `/api/admin/pipeline/runs` e `/runs/:pipelineId` entraram na lista de rotas de
