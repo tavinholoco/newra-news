@@ -5138,6 +5138,68 @@ errSerializer] to be [Function redactingErrSerializer]`.
 
 ---
 
+### 50. As telas de admin nunca estiveram em captura nenhuma ✅ 2026-09-07
+
+> **Ferramenta, não fase.** Nasceu da revisão da Fase 2 e mora em
+> `apps/web/scripts/capture-admin.mjs`.
+
+O `capture-visual-baseline.mjs` cobre as rotas públicas e **exclui `/admin`**,
+com o comentário que diz o porquê: *"exige sessão + role ADMIN (§30)"*. Essa
+exclusão valia desde que a baseline existe — e **cinco das oito fases restantes
+do plano de observabilidade trabalham ali**: a 5 cria a `/admin/security`, a 6 e
+a 8 mexem na tela de detalhe que a Fase 2 acabou de entregar, a 9 põe uma
+rosquinha na aba de segurança e a 11 um painel de fontes.
+
+**O argumento é um número:** três dos seis achados da revisão da Fase 2 eram
+defeitos **visíveis e sem sintoma de código**, e apareceram só porque um humano
+mandou print — a caixa de aviso repetindo a falha que os cartões já mostravam, o
+`"0 evento"` da regra de plural do pt-BR, e cinco horas idênticas num run de
+706 ms.
+
+#### As quatro decisões de segurança
+
+1. **Nada mora no app.** Sem auto-login de desenvolvimento, sem rota de bypass,
+   sem conta fixa: apagar o arquivo deixa o produto **bit a bit igual**. Atalho
+   de autenticação dentro do app é a categoria **M10 (Extraneous
+   Functionality)** da OWASP e o **CWE-489 (Active Debug Code)** — a classe que
+   vaza porque depende de um `NODE_ENV` que um dia vem errado.
+2. **Só localhost**, conferido antes de ler segredo nenhum (sai com código 2).
+3. **O `NEXTAUTH_SECRET` local tem de diferir do de produção** — com o mesmo
+   valor dos dois lados, o token forjado aqui **vale lá**. A checagem de host
+   protege o script, não o token. Trocado em 07/09, junto do `AUTH_JWT_SECRET`.
+4. **Saída gitignored, cookie de cinco minutos** — não os trinta dias que o
+   helper do E2E usa por padrão.
+
+#### A primeira execução de verdade achou quatro defeitos, todos na ferramenta
+
+E os quatro só apareceram **olhando a imagem que ela produziu**, que é o
+argumento dela feito contra ela mesma:
+
+1. `[aria-expanded]` casava o **botão do menu mobile** (`md:hidden`), que a 1440
+   nunca fica visível: o clique esperava 30 s e derrubava a execução. Passou a
+   achar o expansor pelo **nome acessível**, o mesmo seletor do teste do
+   componente.
+2. Esperava **400 ms fixos** e fotografava — e a foto saiu com as quatro barras
+   cinza do esqueleto, porque a consulta dos eventos vai navegador → BFF → API.
+   Passou a esperar a lista dentro da região que o botão aberto nomeia em
+   `aria-controls`.
+3. **`fullPage` numa página de ~4.500 px é montada por rolagem**, e todo
+   `sticky`/`fixed` é pintado na emenda: o masthead reaparecia no meio da tela e
+   a bolha do devtools do TanStack Query flutuava sobre uma linha da lista.
+4. A correção do 3 alcançava `.fixed` — e `.fixed` é **o skip link**, que se
+   esconde por `-top-24`. Sem a fixação, ele caiu no fluxo e "Pular para o
+   conteúdo" foi capturado como se fosse conteúdo da página.
+
+#### O que ela fechou
+
+**13/13 capturas** contra o painel da Fase 2, em 375 e 1440, claro e escuro, nos
+dois idiomas — incluindo a `/admin/metrics`, que entrou em captura pela primeira
+vez. E fechou o **375 px**, último item de verificação da Fase 2: cartões em duas
+colunas, eventos por etapa com hora ao segundo, e o `<pre>` do contexto cortando
+**dentro da própria caixa** sem esticar a página.
+
+---
+
 ### 49. O pipeline falhava e o dono do produto não tinha onde ver ✅ 2026-09-07
 
 > **Fase 2 do `docs/Newra-News-Observability-Plan.md` (§6) — PR 3 da ordem do
