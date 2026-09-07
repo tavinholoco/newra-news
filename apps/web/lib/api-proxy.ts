@@ -62,18 +62,39 @@ export async function proxyToApi(
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  const jwt = await signAuthJwt({
-    sub: session.user.id,
-    email: session.user.email ?? '',
-    // O `role` só é assinado quando a rota o exige. Um token de leitor comum
-    // não carrega papel nenhum, e é isso que faz a porta da API decidir por
-    // conta própria em vez de acreditar no que o BFF escreveu.
-    ...(options.requireRole ? { role: options.requireRole } : {}),
-  });
-
   const query = new URL(request.url).search;
   const hasBody = method === 'POST' || method === 'PUT';
   const requestId = request.headers.get('x-request-id');
+
+  let jwt: string;
+  try {
+    jwt = await signAuthJwt({
+      sub: session.user.id,
+      email: session.user.email ?? '',
+      // O `role` só é assinado quando a rota o exige. Um token de leitor comum
+      // não carrega papel nenhum, e é isso que faz a porta da API decidir por
+      // conta própria em vez de acreditar no que o BFF escreveu.
+      ...(options.requireRole ? { role: options.requireRole } : {}),
+    });
+  } catch (error) {
+    /**
+     * **Loga e relança — o status não muda, e isso é o ponto.**
+     *
+     * `signAuthJwt` lança quando `AUTH_JWT_SECRET` não está configurado, e essa
+     * é exatamente a história que o §17 (armadilha 6) manda não repetir:
+     * variável ausente falhando **em silêncio na produção**. Aqui ela derruba
+     * *toda* rota de conta e de admin de uma vez, e a Fase 7a tinha deixado esta
+     * chamada **fora do `try`** — ou seja, o modo de falha mais caro do arquivo
+     * era o único sem linha de log.
+     *
+     * O `throw` continua: quem decide o que o navegador vê nesse caso é o Next,
+     * como antes. Trocar por um 502 seria mentir (a API está de pé), e por um
+     * 500 próprio seria mudar comportamento numa fase de observabilidade — o
+     * princípio 1 do §2 diz que ela nunca altera o caminho que observa.
+     */
+    logServerError('bff.proxy.sign', error, { requestId, path, method });
+    throw error;
+  }
 
   let backendResponse: Response;
   try {

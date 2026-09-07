@@ -5403,10 +5403,9 @@ suítes)**, que eram 618 em 67. Total **1.572 em 136 suítes**.
   > migration" — só que `aiTokensUsed` e `aiProvider` vivem em **`DailyMetric`**,
   > não em `PipelineLog`. Não havia colisão, e a dívida era de quinze linhas.
   > Adiar por colisão suposta é como dívida barata vira dívida velha.
-- **A próxima é a Fase 7a (§11.1, os `catch` vazios do BFF)**, a última do bloco
-  1. Depois começa a espinha: 3 → 4 → 5. — **fechada em 07/09/2026**, item 51.
-
----
+- **A próxima era a Fase 7a** (§11.1, os `catch` vazios do BFF), a última do
+  bloco 1 — **fechada em 07/09/2026**, item **51**. Com ela o bloco 1 acabou, e
+  começa a espinha: 3 → 4 → 5.
 
 ---
 
@@ -5517,6 +5516,87 @@ dívida, e ele reprova no dia em que ela for paga.
 **652 → 680 testes no web** (70 → 71 suítes); a API fica em 920. Cobertura do web
 subiu de 72,79% para **74,01% stmts · 90,22% branch · 73,15% funcs**, com o
 módulo novo em 98,97%.
+
+---
+
+### 52. A verificação pós-merge da Fase 7a: a guarda não alcançava uma rota, e o gate de segredo não varre merge ✅ 2026-09-07
+
+> Auditoria do merge do PR #160 na `dev`. **O item 39 fez o mesmo depois da Fase
+> 12 e achou um defeito próprio; este fez o mesmo e achou três.** O padrão já é
+> regra: ler o que foi entregue **depois** de mergeado acha o que a revisão do
+> diff não acha, porque muda a pergunta de *"o código está certo?"* para *"o que
+> ficou de fora?"*.
+
+#### O que estava certo
+
+A árvore mergeada é **bit a bit igual** à versão revisada (o `git diff` entre o
+commit de merge e o squash local sai vazio), e a suíte roda verde contra ela:
+**920 na API, 680 no web**. Nada do que a fase prometeu ficou pelo caminho.
+
+#### Achado 1 — a guarda varria um diretório, e a pergunta não era essa
+
+`BFF_PATHS` listava `app/api` + `api-proxy.ts`. Só que **a
+`app/news-sitemap.xml/route.ts` é a única rota deste app que não mora sob
+`api/`** — e ela chama a API, engolia as duas falhas em silêncio, e é justamente
+a que o Google Notícias lê logo depois de a matéria sair.
+
+**O defeito não era o `catch`; era o alcance da guarda.** Lista de diretório
+responde *"o que eu lembrei de olhar"*, e a pergunta certa é *"o que é uma
+rota"*. Hoje a varredura é `app/` inteiro filtrado por `route.tsx?`, e foi vista
+reprovando sobre um `catch` novo naquele arquivo.
+
+> A degradação **não** mudou, e é bom dizer por quê: devolver documento vazio em
+> vez de 500 continua certo — sitemap que responde erro sai do rodízio de leitura
+> do buscador. O que faltava era distinguir *"nada novo em 48 h"* de *"a API não
+> respondeu"*, que até aqui eram bit a bit iguais para quem olhasse a resposta.
+
+#### Achado 2 — o modo de falha mais caro do proxy era o único fora do `try`
+
+`signAuthJwt` lança quando `AUTH_JWT_SECRET` não está configurado, e a Fase 7a
+deixou essa chamada **acima** do `try`. Ou seja: a falha que derruba **toda**
+rota de conta e de admin de uma vez era a única sem linha de log, num PR cujo
+objetivo era exatamente acabar com isso. É a armadilha 6 do §17 — variável
+ausente falhando em silêncio na produção, a história do próprio
+`AUTH_JWT_SECRET`.
+
+A correção **loga e relança**: o status não muda, porque trocar a exceção por um
+502 mentiria (a API está de pé) e por um 500 próprio seria a fase de
+observabilidade alterando o caminho que observa — o princípio 1 do §2. A
+asserção é dupla, sobre o log **e** sobre o relance.
+
+#### Achado 3 — o Gitleaks não varre o que entra por merge, e isso foi medido
+
+O PR #160 foi reprovado **duas vezes** pelo Gitleaks sobre um valor de fixture, e
+o push do merge na `dev` passou **verde em 14 s**. Não foi correção: o scan de
+`push` da action roda com `--no-merges --first-parent`, e o intervalo
+`c6394b1^..0ddf5aa` por primeiro-pai contém **só o commit de merge**, que o
+`--no-merges` descarta. **Zero commits varridos**, e o log diz `no leaks found`.
+
+Conferido com `git log --no-merges --first-parent c6394b1^..0ddf5aa` (vazio)
+contra `git log --no-merges c6394b1^..0ddf5aa` (os dois commits).
+
+**A consequência é geral e não tem nada de específico deste PR:** todo conteúdo
+que entra na `dev` ou na `main` por merge escapa da varredura de `push`. Enquanto
+o gate de PR estiver verde isso não custa nada — ele já viu o mesmo diff. **O
+buraco abre no primeiro merge feito com o Gitleaks vermelho**, que é exatamente o
+que aconteceu aqui. Ficou como dívida com gatilho no §16 do plano, porque mexer
+no `gitleaks.yml` é política de esteira (Fase 10) e não item de fase de produto.
+
+> **O valor em questão nunca foi segredo** — era `'segredo-do-cron-1234'`, uma
+> fixture de teste, e a árvore atual não a contém. Não há nada a rotacionar. O
+> que fica é o buraco no gate, não um vazamento.
+
+#### O que mais foi conferido, e está em ordem
+
+- **contagens**: 920 + 680 = 1.600 em 137 suítes, batendo com o que o `CLAUDE.md`
+  afirma;
+- **as duas listas de segredo** seguem disjuntas nas duas direções;
+- **nenhuma referência obsoleta** a "a próxima é a Fase 7a" sobrou nos documentos
+  — e a que existia no item 49 foi reescrita, junto com um separador `---`
+  duplicado que a inserção do item 51 deixou para trás;
+- **a cobertura do `CLAUDE.md`** estava datada de 31/08 e foi remedida.
+
+**680 → 682 testes no web.**
 
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13

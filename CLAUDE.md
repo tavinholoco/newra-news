@@ -326,6 +326,20 @@ a suíte de unidade, que roda sem rede.
   > logo abaixo estava a cópia. Mesma família do achado da Fase 2: prosa que
   > descreve comportamento é asserção sem teste.
 
+  > **A verificação pós-merge achou mais três (item 52), e o padrão do item 39 se
+  > repetiu:** ler o depois de mergeado muda a pergunta de "o código está certo?"
+  > para "o que ficou de fora?". **A guarda varria `app/api` e a
+  > `app/news-sitemap.xml/route.ts` é a única rota fora dali** — justamente a que
+  > o Google Notícias lê, engolindo duas falhas em silêncio; o defeito era o
+  > alcance, não o `catch`, e hoje a varredura é por *"o que é uma rota"*. O
+  > **`signAuthJwt` estava fora do `try`**, então a falha que derruba toda rota de
+  > conta e de admin de uma vez era a única sem log, num PR feito para acabar com
+  > isso (loga e **relança** — o status não muda). E **o Gitleaks não varre o que
+  > entra por merge**: o scan de `push` usa `--no-merges --first-parent`, e no
+  > merge do #160 isso deu **zero commits varridos** sobre um conteúdo que
+  > reprovou o PR duas vezes. O valor era fixture de teste, não segredo — o que
+  > fica é o buraco no gate, hoje dívida com gatilho no §16.
+
 - **Ferramenta (2026-09-07): as telas de admin entraram em captura pela primeira
   vez.** `pnpm --filter @newranews/web admin:capture` — a baseline visual exclui
   `/admin` porque exige sessão, e esse comentário valia desde que a baseline
@@ -550,12 +564,13 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.600 em 137 suites (**920 API em 66** + **680 web em 71** — todos
+- **Testes:** 1.602 em 137 suites (**920 API em 66** + **682 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
-  medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
-  **72,79% stmts · 89,59% branch · 72,43% funcs** — com piso de 70% no CI desde
+  da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
+  web remedida em 07/09: **74,16% stmts · 90,25% branch · 73,48% funcs** — com
+  piso de 70% no CI desde
   a Fase 10, que antes media só a API.
 
 ### Por onde começar a Fase 13 (Ajustes finos e release final)
