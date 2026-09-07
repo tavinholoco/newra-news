@@ -5273,7 +5273,24 @@ suítes)**, que eram 618 em 67. Total **1.562 em 135 suítes**.
   que houver mais de um run diário.
 - **A leitura contra produção depende de credencial de admin**, como a tela de
   métricas da Fase 11 — o painel foi exercitado com dado semeado nas suítes, não
-  com o acervo real.
+  com o acervo real. **É a única lacuna de verificação da fase**, e não é
+  pequena: dos quatro achados da revisão, três eram visíveis e nenhum tinha
+  sintoma de código.
+- **O smoke passou a medir as duas portas novas**, e é a única parte do ritual
+  que alcança esta área **sem depender dos quatro segredos**:
+  `/api/admin/pipeline/runs` e `/runs/:pipelineId` entraram na lista de rotas de
+  BFF que respondem 401 anônimo (`e2e/authorization.spec.ts`). Os fluxos **com**
+  sessão continuam pulados. **29 → 31 specs.**
+
+  > **E aí apareceu a família do `13` feeds, intacta:** o número de specs está
+  > escrito em prosa em **cinco arquivos vivos** — os dois `README`, a
+  > `presentation.md` e três lugares do `CLAUDE.md` — e **não há guarda
+  > nenhuma** derivando-o de `playwright test --list`. Os cinco foram
+  > atualizados à mão neste PR, que é exatamente o procedimento que falhou com o
+  > `13`. **Candidata a guarda**, no molde do
+  > `apps/api/tests/docs/feed-count-drift.test.ts`; o que falta decidir é onde
+  > ela roda, já que `turbo test` é a suíte de unidade e o Playwright não faz
+  > parte dela.
 - **A próxima é a Fase 7a (§11.1, os `catch` vazios do BFF)**, a última do bloco
   1. Depois começa a espinha: 3 → 4 → 5.
 

@@ -193,7 +193,7 @@ do dia mudou, ou há algo errado.
 gh workflow run "Smoke E2E" --ref main
 ```
 
-29 specs contra produção: os fluxos da §25 mais os casos negativos de
+31 specs contra produção: os fluxos da §25 mais os casos negativos de
 autorização. É o passo que pega a classe de defeito que os outros dois não
 pegam — o desencontro entre os dois deploys. Localmente,
 `pnpm --filter @newranews/web test:e2e` mede o mesmo alvo; `SMOKE_BASE_URL`
@@ -459,7 +459,7 @@ a suíte de unidade, que roda sem rede.
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
 - **Testes:** 1.562 em 135 suites (**918 API em 66** + **644 web em 69** — todos
-  passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
+  passando), mais **31 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
   **72,79% stmts · 89,59% branch · 72,43% funcs** — com piso de 70% no CI desde
@@ -534,7 +534,7 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
   compartilhado medido, e o gatilho de subcontagem **observável sem
   instrumentação nova**: 429 em `POST /api/events` dentro de
   `GET /api/metrics/http`.
-- **Os fluxos autenticados do smoke** (6 dos 29 specs) ficam pulados até os
+- **Os fluxos autenticados do smoke** (6 dos 31 specs) ficam pulados até os
   quatro segredos serem configurados — e o pulo é impresso pelo workflow. Ligá-los
   põe o `NEXTAUTH_SECRET` de produção no runner do CI; a decisão é de quem é dono
   do segredo. `apps/web/e2e/support/session.ts` documenta.
@@ -959,7 +959,7 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser
   gravada ali.
-- **Os fluxos autenticados do smoke E2E** (6 dos 29 specs) ficam pulados até
+- **Os fluxos autenticados do smoke E2E** (6 dos 31 specs) ficam pulados até
   `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL` e `E2E_ADMIN_USER_ID`
   existirem como segredos do repositório — e o pulo é impresso pelo workflow.
   Ligá-los põe o `NEXTAUTH_SECRET` de produção no runner do CI, e a decisão é de
