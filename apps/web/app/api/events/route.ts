@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logServerError } from '@/lib/log-server-error';
 import { API_TIMEOUT_MS } from '@/lib/timeouts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -38,7 +39,24 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const payload = await backendResponse.json().catch(() => null);
     return NextResponse.json(payload, { status: backendResponse.status });
-  } catch {
+  } catch (error) {
+    /**
+     * **Esta é a rota onde "o status existe para o log" era literalmente falso.**
+     *
+     * O comentário abaixo sempre esteve certo sobre o cliente — `sendBeacon` não
+     * tem canal de retorno, ninguém lê este 502 —, e é justamente isso que fazia
+     * deste o único dos três `catch` **sem sintoma nenhum**. O do proxy devolve
+     * um erro que alguém vê na tela; o do cron deixa a Home sem briefing. Aqui a
+     * ingestão podia estar quebrada por dias, e o que apareceria seria a tela de
+     * métricas ficando plana — o sinal mais lento que este produto sabe emitir, e
+     * o mais fácil de confundir com "ninguém acessou".
+     *
+     * **Sem nada do corpo na linha.** O lote é anônimo por desenho (§4 dos
+     * slots) e a rota inteira existe para não acrescentar identidade; despejar o
+     * corpo no log seria reabrir por trás o que a rota fecha na frente.
+     */
+    logServerError('bff.events', error);
+
     // **502 e não 500**: quem falhou foi o repasse, não esta rota. E o cliente
     // não faz nada com o código de qualquer forma — `sendBeacon` não tem
     // retorno. O status existe para o log, não para o navegador.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { signAuthJwt } from '@/lib/jwt';
+import { logServerError } from '@/lib/log-server-error';
 import { API_TIMEOUT_MS } from '@/lib/timeouts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -94,7 +95,29 @@ export async function proxyToApi(
       },
       body: hasBody ? await request.text() : undefined,
     });
-  } catch {
+  } catch (error) {
+    /**
+     * **A falha do repasse deixa de ser invisível.** Até aqui ela não tinha
+     * rastro em lugar nenhum: o corpo de erro vai para o navegador, e navegador
+     * não guarda log.
+     *
+     * **Sobre o `requestId`, e vale ser exato:** o §11.1 diz que logar aqui é o
+     * que faz o `x-request-id` pagar no caminho da falha, e isso é verdade
+     * quando existe um id — mas **hoje ele é `null` em toda requisição real**.
+     * Quem chama este BFF é o navegador, que não manda o cabeçalho, e a decisão
+     * de não inventar um está guardada em `bff-seam.test.ts`, com o argumento
+     * certo para o caminho do sucesso: quem gera, quando não vem, é a API, e ela
+     * o devolve. Só que na falha não há resposta da API, então não há id nenhum
+     * a devolver. **O campo fica porque é onde o id entra quando passar a
+     * existir** — é a §11.2 que dá ao cliente algo para reportar. Enquanto isso,
+     * `requestId: null` é a afirmação honesta: ninguém correlacionou nada.
+     *
+     * **A query string não entra de propósito.** O `path` é o endereço da API,
+     * escrito por este código; o `search` carrega o que o leitor digitou na
+     * busca. Log não é lugar de dado de quem está lendo.
+     */
+    logServerError('bff.proxy', error, { requestId, path, method });
+
     /**
      * **502, e com o mesmo corpo `{ error }` de todas as outras respostas.**
      *
