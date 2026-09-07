@@ -193,8 +193,8 @@ do dia mudou, ou há algo errado.
 gh workflow run "Smoke E2E" --ref main
 ```
 
-31 specs contra produção: os fluxos da §25 mais os casos negativos de
-autorização. É o passo que pega a classe de defeito que os outros dois não
+Os fluxos da §25 — **visitante, acervo, conta e newsletter** — mais os casos
+negativos de **autorização**, medidos contra produção. É o passo que pega a classe de defeito que os outros dois não
 pegam — o desencontro entre os dois deploys. Localmente,
 `pnpm --filter @newranews/web test:e2e` mede o mesmo alvo; `SMOKE_BASE_URL`
 troca para um build local. **Ele não faz parte do `pnpm test`**: `turbo test` é
@@ -264,7 +264,7 @@ a suíte de unidade, que roda sem rede.
   falha há três dias. Entrou **sem tabela nova, sem consulta nova e sem rota
   nova no web**: `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` reusam
   `getDevLogs`/`getDevLogDetail` verbatim, e os três painéis moram na `/admin`.
-  **892 → 918 testes na API, 618 → 644 no web.** Item **49** do
+  **892 → 920 testes na API, 618 → 650 no web.** Item **49** do
   `docs/progress.md`.
 
   > **O prefixo `/api/admin` é o que a fase realmente comprou.** `authPlugin` e
@@ -458,9 +458,10 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.562 em 135 suites (**918 API em 66** + **644 web em 69** — todos
-  passando), mais **31 specs de E2E em 5 arquivos**, que rodam contra produção
-  pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
+- **Testes:** 1.570 em 136 suites (**920 API em 66** + **650 web em 70** — todos
+  passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+  acervo, conta, newsletter, autorização) —, que roda contra produção pelo
+  workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
   **72,79% stmts · 89,59% branch · 72,43% funcs** — com piso de 70% no CI desde
   a Fase 10, que antes media só a API.
@@ -534,7 +535,7 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
   compartilhado medido, e o gatilho de subcontagem **observável sem
   instrumentação nova**: 429 em `POST /api/events` dentro de
   `GET /api/metrics/http`.
-- **Os fluxos autenticados do smoke** (6 dos 31 specs) ficam pulados até os
+- **Os fluxos autenticados do smoke** (conta e admin) ficam pulados até os
   quatro segredos serem configurados — e o pulo é impresso pelo workflow. Ligá-los
   põe o `NEXTAUTH_SECRET` de produção no runner do CI; a decisão é de quem é dono
   do segredo. `apps/web/e2e/support/session.ts` documenta.
@@ -959,7 +960,7 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser
   gravada ali.
-- **Os fluxos autenticados do smoke E2E** (6 dos 31 specs) ficam pulados até
+- **Os fluxos autenticados do smoke E2E** (conta e admin) ficam pulados até
   `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL` e `E2E_ADMIN_USER_ID`
   existirem como segredos do repositório — e o pulo é impresso pelo workflow.
   Ligá-los põe o `NEXTAUTH_SECRET` de produção no runner do CI, e a decisão é de

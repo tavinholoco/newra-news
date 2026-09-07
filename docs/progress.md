@@ -5261,8 +5261,8 @@ aberta de verdade** antes de escolher o fixture.
 
 #### Números
 
-**918 testes na API (66 suítes)** — eram 892 em 65 — e **644 no web (69
-suítes)**, que eram 618 em 67. Total **1.562 em 135 suítes**.
+**920 testes na API (66 suítes)** — eram 892 em 65 — e **650 no web (70
+suítes)**, que eram 618 em 67. Total **1.570 em 136 suítes**.
 
 #### O que fica pendente daqui
 
@@ -5282,15 +5282,39 @@ suítes)**, que eram 618 em 67. Total **1.562 em 135 suítes**.
   BFF que respondem 401 anônimo (`e2e/authorization.spec.ts`). Os fluxos **com**
   sessão continuam pulados. **29 → 31 specs.**
 
-  > **E aí apareceu a família do `13` feeds, intacta:** o número de specs está
-  > escrito em prosa em **cinco arquivos vivos** — os dois `README`, a
-  > `presentation.md` e três lugares do `CLAUDE.md` — e **não há guarda
-  > nenhuma** derivando-o de `playwright test --list`. Os cinco foram
-  > atualizados à mão neste PR, que é exatamente o procedimento que falhou com o
-  > `13`. **Candidata a guarda**, no molde do
-  > `apps/api/tests/docs/feed-count-drift.test.ts`; o que falta decidir é onde
-  > ela roda, já que `turbo test` é a suíte de unidade e o Playwright não faz
-  > parte dela.
+  > **E aí apareceu a família do `13` feeds, intacta** — resolvida no mesmo PR,
+  > e a correção **não foi guardar o número: foi parar de escrevê-lo.**
+  > Contagem de *testes* é volátil (muda a cada asserção acrescentada) e não
+  > informa quem lê; o que informa é **quais fluxos** o smoke cobre, e isso é
+  > derivável, porque há **um arquivo de spec por fluxo**. Os cinco arquivos
+  > vivos passaram a nomear os fluxos — visitante, acervo, conta, newsletter e
+  > autorização — em vez de contar specs, e
+  > `apps/web/tests/lib/e2e-flows.test.ts` exige uma entrada por
+  > `e2e/*.spec.ts` e que cada documento vivo nomeie cada fluxo. Vista reprovar
+  > nas duas direções: spec novo sem linha declarada, e `README` que deixou de
+  > nomear um fluxo.
+  >
+  > **Não há varredura proibindo um número novo em prosa, e é decisão:** o
+  > `CLAUDE.md` guarda o registro datado da Fase 11, que cita a contagem da
+  > estreia — um regex numérico reprovaria sobre ele, que é a quinta ocorrência
+  > da família em que a guarda vê caractere e não intenção. O `feed-count-drift`
+  > já pagou essa conta uma vez.
+
+- ~~**`PipelineLog` fora do `response-schema-contract`**~~ — **fechado no mesmo
+  PR.** A guarda enumerava as colunas de `Article`, `News` e `BriefingSource` e
+  exigia campo no schema de resposta ou motivo escrito; as duas tabelas do
+  pipeline estavam fora dela, então **coluna nova em `PipelineLog` não era
+  cobrada por nada** — e esta fase é justamente a que pôs uma tela de produto em
+  cima daquela tabela. `PipelineLog` não omite nada (as nove colunas estão no
+  `devLogSummarySchema`, que ainda acrescenta `durationSeconds` e `eventCount`);
+  `PipelineEvent` omite `pipelineLogId`, o caso idêntico ao
+  `BriefingSource.articleId`, com o mesmo motivo escrito.
+
+  > **A suspeita inicial estava errada, e conferir custou um `grep`.** A primeira
+  > leitura foi "isto colide com a Fase 5, que remove `aiTokensUsed` por
+  > migration" — só que `aiTokensUsed` e `aiProvider` vivem em **`DailyMetric`**,
+  > não em `PipelineLog`. Não havia colisão, e a dívida era de quinze linhas.
+  > Adiar por colisão suposta é como dívida barata vira dívida velha.
 - **A próxima é a Fase 7a (§11.1, os `catch` vazios do BFF)**, a última do bloco
   1. Depois começa a espinha: 3 → 4 → 5.
 
