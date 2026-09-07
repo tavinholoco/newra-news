@@ -12,6 +12,7 @@ import { usePipelineRunDetail, usePipelineRuns } from '@/lib/queries';
 import {
   formatCount,
   formatDateTime,
+  formatEventTime,
   formatProviderName,
   formatRunDuration,
 } from '@/lib/format';
@@ -145,8 +146,12 @@ function RunEvents({ pipelineId }: { pipelineId: string }) {
                 {event.level}
               </span>
               <span className='text-body-sm text-ink'>{event.message}</span>
+              {/**
+                * Hora com segundos e sem data: a linha do run já declara as
+                * duas, e sem os segundos as ~19 etapas imprimem o mesmo minuto.
+                */}
               <span className='text-xs text-ink-muted'>
-                {formatDateTime(event.createdAt, dateLocale)}
+                {formatEventTime(event.createdAt, dateLocale)}
               </span>
             </div>
             {event.context && (

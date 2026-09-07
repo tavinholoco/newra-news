@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PipelineRunSummary } from '@newranews/types';
 import { PipelineRuns } from '@/components/admin/pipeline-runs';
@@ -262,7 +262,7 @@ describe('PipelineRuns — a lista e o detalhe', () => {
         level: 'INFO',
         message: 'fetched 377 items from 45 sources',
         context: null,
-        createdAt: '2026-09-06T11:00:05.000Z',
+        createdAt: '2026-09-06T11:00:06.607Z',
       },
       {
         id: 'e2',
@@ -270,7 +270,9 @@ describe('PipelineRuns — a lista e o detalhe', () => {
         level: 'ERROR',
         message: 'Gemini API error 503: UNAVAILABLE',
         context: { provider: 'gemini' },
-        createdAt: '2026-09-06T11:00:40.000Z',
+        // 707 ms depois do anterior: é a distância real entre as etapas de um
+        // run que falha rápido, e é ela que o formato precisa conseguir mostrar.
+        createdAt: '2026-09-06T11:00:07.314Z',
       },
     ]);
     renderWithIntl(<PipelineRuns />);
@@ -290,6 +292,50 @@ describe('PipelineRuns — a lista e o detalhe', () => {
     // O `context` fica atrás de um `<details>`: é diagnóstico, e aberto por
     // padrão empurraria a mensagem — que é o que se lê — para fora da tela.
     expect(screen.getByText('Contexto')).toBeInTheDocument();
+  });
+
+  it('times each event to the second, and drops the repeated date', async () => {
+    /**
+     * **`formatDateTime` para no minuto, e um run acontece em segundos.** As
+     * cinco etapas do run local de 16/08 caíram dentro de 706 ms, então a
+     * coluna imprimia cinco vezes "16 de ago. de 2026, 08:00" — strings
+     * idênticas, ocupando espaço em toda linha, debaixo de um cabeçalho que já
+     * dizia a mesma data e a mesma hora. Só apareceu abrindo a tela.
+     */
+    mockRuns([failedRun]);
+    mockDetail([
+      {
+        id: 'e1',
+        stage: 1,
+        level: 'INFO',
+        message: 'primeiro',
+        context: null,
+        createdAt: '2026-09-06T11:00:06.607Z',
+      },
+      {
+        id: 'e2',
+        stage: 6,
+        level: 'ERROR',
+        message: 'último',
+        context: null,
+        createdAt: '2026-09-06T11:00:07.314Z',
+      },
+    ]);
+    const { container } = renderWithIntl(<PipelineRuns />);
+
+    await userEvent.click(screen.getByRole('button', { name: /19 eventos/ }));
+
+    const region = container.querySelector(`#pipeline-run-${FAILED_ID}`);
+    expect(region).not.toBeNull();
+    const detail = within(region as HTMLElement);
+
+    // Os dois segundos distintos aparecem; sem eles, as duas linhas seriam a
+    // mesma string e a coluna não diria nada.
+    expect(detail.getByText(/:06$/)).toBeInTheDocument();
+    expect(detail.getByText(/:07$/)).toBeInTheDocument();
+    // E **dentro do detalhe** a data não se repete linha a linha — ela já está
+    // no cabeçalho da linha, logo acima, e nos cartões do topo.
+    expect(detail.queryAllByText(/de set\. de 2026/)).toHaveLength(0);
   });
 
   it('closes the row that was open, and stops asking for its detail', async () => {

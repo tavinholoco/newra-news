@@ -114,6 +114,31 @@ export function formatRunDuration(seconds: number | null | undefined): string {
   return formatPipelineDuration(seconds * 1000);
 }
 
+/**
+ * A hora de um evento de pipeline, **com segundos e sem a data**.
+ *
+ * **Existe porque `formatDateTime` colapsa um run inteiro num valor só.** Ele
+ * para no minuto, e um run acontece em segundos: as cinco etapas do run de
+ * 16/08 caíram entre 11:00:06,607 e 11:00:07,314 — 706 ms —, então a coluna
+ * inteira imprimia "16 de ago. de 2026, 08:00" cinco vezes. Cinco strings
+ * idênticas, ocupando espaço em toda linha e **sem informação nenhuma**, sob um
+ * cabeçalho de linha que já dizia a mesma data e a mesma hora.
+ *
+ * Com segundos, ela volta a responder o que a coluna existe para responder:
+ * **onde o run gastou o tempo** — e, neste caso, que ele fez tudo em menos de um
+ * segundo e morreu.
+ *
+ * A data sai junto: quem lê está dentro de uma linha que já a declara, e
+ * repeti-la ~19 vezes é a mesma redundância por outro caminho.
+ */
+export function formatEventTime(dateString: string, locale = 'pt-BR'): string {
+  return new Date(dateString).toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 /** Número com separador do locale (ex.: 3484 → "3.484" em pt-BR, "3,484" em en-US). */
 export function formatCount(value: number, locale = 'pt-BR'): string {
   return value.toLocaleString(locale);

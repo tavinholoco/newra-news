@@ -5226,7 +5226,7 @@ Saiu.
 
 #### A revisão do próprio diff, e o que ela achou
 
-O passo do ritual que a Fase 1 provou valer. **Cinco achados, todos na tela — e
+O passo do ritual que a Fase 1 provou valer. **Seis achados, todos na tela — e
 nenhum tinha sintoma de código:** build, lint, `tsc` e as 12 asserções do
 componente passavam por cima dos quatro.
 
@@ -5260,17 +5260,28 @@ componente passavam por cima dos quatro.
    emitir evento nenhum, e a suíte só tinha fixture com 19. Hoje há o caso
    explícito `=0` ("sem eventos"), nos dois idiomas, com teste.
 
-**A lição de fluxo é a 1, a 3 e a 5 juntas: teste de componente escrito pelo
-autor tende a montar o cenário que ele tinha em mente.** O caso "último run falhou" é
+6. **A hora de cada evento era a mesma string, cinco vezes.**
+   `formatDateTime` para no minuto, e um run acontece em **segundos**: as cinco
+   etapas do run de 16/08 caíram entre 11:00:06,607 e 11:00:07,314 — 706 ms —,
+   então a coluna imprimia "16 de ago. de 2026, 08:00" em toda linha, debaixo de
+   um cabeçalho que já dizia a mesma data e a mesma hora. Informação zero,
+   ocupando espaço. Hoje é `formatEventTime`: **segundos, e sem a data**. Com
+   ela, a coluna volta a responder o que existe para responder — onde o run
+   gastou o tempo, e aqui que ele fez tudo em menos de um segundo e morreu.
+
+**A lição de fluxo é a 1, a 3, a 5 e a 6 juntas: teste de componente escrito
+pelo autor tende a montar o cenário que ele tinha em mente.** O caso "último run falhou" é
 o estado em que alguém realmente abre esta tela, e era o único que nenhuma
-asserção cobria; o `eventCount: 0` é o outro, e só apareceu com o painel na
-frente dos olhos. Ao escrever suíte de tela, pergunte **em que estado ela vai ser
+asserção cobria; o `eventCount: 0` e a hora repetida são os outros dois, e os
+três só apareceram com o painel na frente dos olhos. **Três dos seis achados
+desta revisão vieram de olhar a tela, e nenhum deles tinha teste possível antes
+de alguém saber que existiam.** Ao escrever suíte de tela, pergunte **em que estado ela vai ser
 aberta de verdade** antes de escolher o fixture.
 
 #### Números
 
-**920 testes na API (66 suítes)** — eram 892 em 65 — e **651 no web (70
-suítes)**, que eram 618 em 67. Total **1.571 em 136 suítes**.
+**920 testes na API (66 suítes)** — eram 892 em 65 — e **652 no web (70
+suítes)**, que eram 618 em 67. Total **1.572 em 136 suítes**.
 
 #### O que fica pendente daqui
 
