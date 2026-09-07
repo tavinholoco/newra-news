@@ -116,10 +116,10 @@ independentes**, que não se bloqueiam:
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
 não depende de nada neste plano.
 
-> **A 10 e a 1 foram entregues em 05/09/2026; a 2, em 07/09.** O estado de cada
-> fase vive na tabela da ordem, no §19, e no cabeçalho da seção de cada uma —
-> esta tabela aqui descreve a **forma** do plano, não o progresso. **A próxima é
-> a Fase 7a** (§11.1), a última do bloco 1.
+> **A 10 e a 1 foram entregues em 05/09/2026; a 2 e a 7a, em 07/09.** O estado
+> de cada fase vive na tabela da ordem, no §19, e no cabeçalho da seção de cada
+> uma — esta tabela aqui descreve a **forma** do plano, não o progresso. **O
+> bloco 1 fechou; a próxima é a Fase 3** (§7, a taxonomia), que abre a espinha.
 
 Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
@@ -823,7 +823,7 @@ localizaria o stack do servidor, e não é contado em lugar nenhum. Um crash no
 layout raiz mostra o padrão do Next sem estilo, porque não existe
 `global-error.tsx`.
 
-### §11.1 — Os `catch` vazios do BFF (mergear esta primeiro)
+### §11.1 — Os `catch` vazios do BFF ✅ 2026-09-07
 
 `logServerError(scope, error, { requestId })` escreve uma linha JSON em stderr —
 o log de função da Vercel **é** o log aqui. Mascara `AUTH_JWT_SECRET`,
@@ -1665,7 +1665,7 @@ aplica as duas migrations juntas na promoção.**
 | ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
 | ~~2~~ ✅ | **§5 — Fase 1, logger** — **entregue em 05/09/2026** | Fechou o vazamento da DSN. Tudo depois dele loga direito de nascença. Item **48** do `docs/progress.md` |
 | ~~3~~ ✅ | **§6 — Fase 2, pipeline no admin** — **entregue em 07/09/2026** | O dado já existia e ninguém via. Saiu sem rota nova, sem schema e sem consulta nova: `getDevLogs` reusado, prefixo `/api/admin` com guarda, painéis dentro da `/admin`. Item **49** do `docs/progress.md` |
-| 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |
+| ~~4~~ ✅ | **§11.1 — Fase 7a, BFF** — **entregue em 07/09/2026** | Três `catch` vazios ganharam log, e o BFF ganhou o redator que a Vercel exigia. **Fecha o bloco 1.** Item **51** do `docs/progress.md` |
 
 **Bloco 2 — a espinha. Estritamente em ordem.**
 

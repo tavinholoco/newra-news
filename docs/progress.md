@@ -5404,9 +5404,119 @@ suítes)**, que eram 618 em 67. Total **1.572 em 136 suítes**.
   > não em `PipelineLog`. Não havia colisão, e a dívida era de quinze linhas.
   > Adiar por colisão suposta é como dívida barata vira dívida velha.
 - **A próxima é a Fase 7a (§11.1, os `catch` vazios do BFF)**, a última do bloco
-  1. Depois começa a espinha: 3 → 4 → 5.
+  1. Depois começa a espinha: 3 → 4 → 5. — **fechada em 07/09/2026**, item 51.
 
 ---
+
+---
+
+### 51. Todo `catch` do BFF era vazio, e a Vercel não tinha onde contar isso ✅ 2026-09-07
+
+> **Fase 7a do `docs/Newra-News-Observability-Plan.md` (§11.1) — PR 4 da ordem
+> do §19, e a que fecha o bloco 1.** Depois dela começa a espinha: 3 → 4 → 5.
+
+#### O inventário, reconferido antes de abrir (a regra do §19)
+
+| Achado escrito no plano | Estado em 07/09/2026 |
+|---|---|
+| "Todo `catch` do BFF é vazio" | confirmado, e o parser deu o número: **quatro** cláusulas `catch` em `app/api/**` + `api-proxy.ts`, **zero** registrando qualquer coisa |
+| O `api-proxy.ts` já tem o `requestId` em escopo no `catch` | confirmado — e ver a ressalva abaixo, que é achado próprio |
+| `ApiError.cause` documentado "para o log do servidor", e ninguém o lê | confirmado — nenhum leitor no repositório inteiro |
+| O log de função da Vercel é o log daqui | confirmado — não há pino, não há Render, não há processo de longa duração deste lado |
+
+#### O que entrou
+
+`apps/web/lib/log-server-error.ts` — uma linha JSON em stderr, **na forma que o
+pino já escreve do lado da API** (`level` numérico, `time` em ms, o erro sob
+`err`). Não é cosmética: com as duas metades da costura no mesmo formato, uma
+consulta só lê as duas.
+
+Os três `catch` que viram status agora escrevem: `bff.proxy` (com `requestId`,
+`path` e `method`), `bff.events` e `cron.daily-news` (com `warmed`). O quarto —
+o do `warmApi` — fica de fora **com a exceção escrita**: ali falhar é o caminho
+normal, e logar cada tentativa é como se ensina alguém a ignorar o log.
+
+#### Os três achados, e nenhum estava no plano
+
+- **O `requestId` é `null` em toda requisição real, e o plano dizia o
+  contrário.** O §11.1 afirma que logar aqui é o que faz o `x-request-id` pagar
+  no caminho da falha. Ele paga **quando existe um id** — e quem chama o BFF é o
+  navegador, que não manda o cabeçalho; a decisão de não inventar um está
+  guardada em `bff-seam.test.ts`, com o argumento certo para o caminho do
+  sucesso (quem gera é a API, e ela devolve). **Só que na falha não há resposta
+  da API**, então não há id nenhum a devolver. O campo ficou, porque é onde o id
+  entra quando a §11.2 der ao cliente algo para reportar — e o comentário no
+  código diz isso em vez de repetir a promessa do plano.
+- **O `cause` é o que salva o caso mais comum, e o plano só citava metade do
+  motivo.** Ele nomeia o `ApiError.cause`; o que pesa mais é o undici, que lança
+  `TypeError: fetch failed` — três palavras que não dizem nada. `ECONNREFUSED`,
+  `ENOTFOUND`, `UND_ERR_CONNECT_TIMEOUT` estão **só** no `cause`. Sem seguir a
+  cadeia, este log registraria uma frase inútil justamente para o caso que ele
+  existe para explicar.
+- **A lista de segredos do plano estava incompleta.** O §11.1 manda mascarar
+  três (`AUTH_JWT_SECRET`, `CRON_SECRET`, `NEXTAUTH_SECRET`); o `.env.example`
+  declara **seis** — faltavam `BACKEND_JOB_SECRET`, `GOOGLE_CLIENT_SECRET` e
+  `GITHUB_CLIENT_SECRET`. O primeiro é o que viaja no `Authorization: Bearer` da
+  rota do cron, que é **um dos três `catch` desta fase**. A lista deixou de ser
+  digitada e passou a ser derivada: a guarda lê o `.env.example` e reprova
+  segredo novo sem linha na redação.
+
+#### O que a revisão do próprio diff achou
+
+- **Um comentário meu afirmando o que o código não fazia** — a mesma família do
+  achado da Fase 2. Ele dizia que a guarda exercita o coletor pelo *mesmo
+  caminho de código* ("uma cópia simplificada provaria que a cópia funciona"), e
+  logo abaixo havia **a cópia**. Virou uma função só, usada pelos dois.
+- **O contexto podia sequestrar campo reservado.** Espalhado depois de `scope`,
+  uma chave `scope` no contexto trocaria o nome do caminho que falhou, e a linha
+  mentiria sobre a própria origem sem nada acusar. Os reservados passaram para o
+  fim do literal, com asserção.
+
+#### A guarda achou um defeito de fronteira que já existia
+
+O `trust-boundary.test.ts` reprovou o arquivo novo — corretamente, porque ele
+cita `AUTH_JWT_SECRET`. Só que a lista chamava-se "os únicos módulos autorizados
+a **assinar** com o segredo", e o redator faz o oposto: lê o valor **para tirá-lo
+do log**. Pôr o nome dele na mesma lista teria feito ela significar "arquivos que
+mencionam o segredo", e a pergunta que ela existe para responder — *quem pode
+assinar?* — perderia resposta. A lista virou duas (`SECRET_SIGNERS` e
+`SECRET_REDACTORS`), a varredura continua sendo uma só, e **nasceu a asserção que
+faltava**: só os três signatários chamam `signAuthJwt`. Antes, entrar na lista
+dava as duas permissões de uma vez.
+
+#### Guardas
+
+`apps/web/tests/lib/bff-error-log.test.ts`, e as quatro perguntas que ela faz:
+
+1. **nenhum `catch` do BFF sem log** — pelo `ts.createSourceFile`, nunca por
+   regex (armadilha 27 do §17). A chave da exceção é `<arquivo>#<função>`, não a
+   linha, que apodrece a cada edição que passa perto. `.catch(() => null)` não
+   entra na conta de propósito: não é `CatchClause`, e o desfecho daqueles três
+   é o corpo da resposta, que o `bff-seam.test.ts` já cobra;
+2. **a redação cobre o `.env.example` inteiro**, e as duas listas de segredo
+   (esta e a da API) **não podem ficar iguais** — é a prosa do §11.1 ("irmão, não
+   duplicata") escrita como asserção, em vez de um pedido para não deduplicar;
+3. **a fiação** (armadilha 28): os três `catch` chamam o logger de verdade, com
+   os campos certos, e o caminho feliz não escreve nada;
+4. **nunca derruba o caminho que observa** (princípio 1 do §2), e o logger
+   **não alcança o navegador** — `lib/api.ts` viaja para o cliente pelo
+   `subscribe-form.tsx`, então um import de lá poria `process.stderr` no bundle.
+
+**As quatro direções foram vistas reprovando**, uma a uma: `catch` sem log,
+segredo novo fora da lista, as duas listas fundidas, e o logger importado de um
+componente de cliente. Mais a quinta, depois do refactor da revisão.
+
+#### O que ficou de fora, e está escrito
+
+O `getRelatedNews` do `lib/api.ts` continua devolvendo `[]` em qualquer falha,
+sem registrar nada — o bloco "leia também" some sem sintoma. Ele **não** entra
+aqui porque `lib/api.ts` é compartilhado com o navegador; fechá-lo pede um logger
+que saiba onde está rodando, que é trabalho da §11.2/§11.3. Há teste marcando a
+dívida, e ele reprova no dia em que ela for paga.
+
+**652 → 680 testes no web** (70 → 71 suítes); a API fica em 920. Cobertura do web
+subiu de 72,79% para **74,01% stmts · 90,22% branch · 73,15% funcs**, com o
+módulo novo em 98,97%.
 
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13

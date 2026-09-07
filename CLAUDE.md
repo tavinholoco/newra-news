@@ -261,8 +261,10 @@ a suíte de unidade, que roda sem rede.
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
   `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
-  CI/CD) e 1 (o logger) fecharam em 05/09 e a 2 (pipeline no admin) em 07/09; as
-  outras oito continuam abertas.** O **§19** é
+  CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
+  `catch` do BFF) em 07/09 — e com a 7a o bloco 1 fechou.** Continuam abertas
+  **sete fases inteiras** (3, 4, 5, 6, 8, 9 e 11) mais as subfases **7b e 7c**.
+  A próxima é a **3**, que abre a espinha. O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -290,6 +292,40 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-07): o BFF parou de engolir a falha, e com
+  isso o bloco 1 do plano de observabilidade fechou.** A **Fase 7a** (§11.1), PR
+  4 da ordem do §19. O parser deu o número que a inspeção de 01/09 tinha dito em
+  prosa: **quatro cláusulas `catch` no BFF, zero registrando qualquer coisa** —
+  e aqui não há pino nem Render, o **log de função da Vercel é o log**, então o
+  que não vai para o stderr não existe depois que a invocação termina. Entrou
+  `apps/web/lib/log-server-error.ts`, uma linha JSON **na forma que o pino já
+  escreve na API**, e os três `catch` que viram status passaram a escrevê-la.
+  **652 → 680 testes no web.** Item **51** do `docs/progress.md`.
+
+  > **Três achados, e nenhum estava no plano.** O `requestId` que o §11.1 diz
+  > fazer o `x-request-id` pagar é **`null` em toda requisição real** — o
+  > navegador não manda o cabeçalho, e na falha não há resposta da API para
+  > devolver o dela; o campo fica porque é onde o id entra quando a §11.2
+  > existir. O `cause` importa mais do que o plano diz: o undici lança
+  > `TypeError: fetch failed`, e `ECONNREFUSED` está **só** ali dentro. E a
+  > lista de segredos do plano tinha **três** contra os **seis** do
+  > `.env.example` — faltava justamente o `BACKEND_JOB_SECRET`, que viaja no
+  > `Bearer` de um dos três `catch`. A lista virou derivada do `.env.example`.
+  >
+  > **A guarda existente achou um defeito de fronteira que já estava lá.** O
+  > `trust-boundary.test.ts` reprovou o arquivo novo, com razão — ele cita
+  > `AUTH_JWT_SECRET` —, mas a lista significava "autorizados a **assinar**", e
+  > o redator faz o oposto: lê o valor para **tirá-lo do log**. Fundir os dois
+  > teria transformado a lista em "arquivos que mencionam o segredo". Virou
+  > `SECRET_SIGNERS` + `SECRET_REDACTORS`, e **nasceu a asserção que faltava**:
+  > só os três signatários chamam `signAuthJwt`. Antes, entrar na lista dava as
+  > duas permissões de uma vez.
+  >
+  > **E a revisão do próprio diff pagou de novo, com um comentário meu.** Ele
+  > afirmava que a guarda exercita o coletor pelo mesmo caminho de código — e
+  > logo abaixo estava a cópia. Mesma família do achado da Fase 2: prosa que
+  > descreve comportamento é asserção sem teste.
+
 - **Ferramenta (2026-09-07): as telas de admin entraram em captura pela primeira
   vez.** `pnpm --filter @newranews/web admin:capture` — a baseline visual exclui
   `/admin` porque exige sessão, e esse comentário valia desde que a baseline
@@ -514,7 +550,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.572 em 136 suites (**920 API em 66** + **652 web em 70** — todos
+- **Testes:** 1.600 em 137 suites (**920 API em 66** + **680 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
