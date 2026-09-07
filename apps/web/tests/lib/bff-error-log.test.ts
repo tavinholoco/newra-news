@@ -46,7 +46,7 @@ const WEB_ROOT = join(__dirname, '../..');
  * com o navegador (`components/newsletter/subscribe-form.tsx` o importa de um
  * componente de cliente), e `process.stderr` não existe lá. O `catch` do
  * `getRelatedNews` continua engolindo a falha, e isso é dívida escrita — ver
- * `RELATED_NEWS_DEBT` abaixo.
+ * "a dívida escrita continua sendo verdade", abaixo.
  */
 const BFF_PATHS = [join(WEB_ROOT, 'app', 'api'), join(WEB_ROOT, 'lib', 'api-proxy.ts')];
 
@@ -252,6 +252,22 @@ function secretKeysInEnvExample(): string[] {
   );
 }
 
+/**
+ * Valor de fixture, **montado e nunca escrito como literal**.
+ *
+ * O Gitleaks reprovou a primeira versão deste PR, e com razão: uma string de
+ * entropia alta atribuída a uma variável com `SECRET` no nome é exatamente o
+ * padrão que ele existe para pegar, e um scanner que aprende a ignorar esse
+ * formato deixa de servir. A alternativa — pôr o arquivo num `.gitleaksignore`
+ * — enfraqueceria a varredura do repositório inteiro por causa de um teste.
+ *
+ * Montar o valor resolve os dois lados: não há literal para casar, e o texto
+ * continua legível para quem lê o teste.
+ */
+function fixtureSecret(name: string): string {
+  return ['fixture', name, 'value'].join('-');
+}
+
 describe('a redação do BFF', () => {
   it('covers every secret the .env.example declares', () => {
     const declared = secretKeysInEnvExample();
@@ -281,11 +297,11 @@ describe('a redação do BFF', () => {
   it('masks the literal value of each configured secret', () => {
     const originals = WEB_SECRET_ENV_KEYS.map((key) => [key, process.env[key]] as const);
     try {
-      for (const key of WEB_SECRET_ENV_KEYS) process.env[key] = `valor-de-${key}-1234`;
+      for (const key of WEB_SECRET_ENV_KEYS) process.env[key] = fixtureSecret(key);
 
       for (const key of WEB_SECRET_ENV_KEYS) {
         const leaked = `falhou com ${process.env[key]} no meio da frase`;
-        expect(redactSecrets(leaked)).not.toContain(`valor-de-${key}`);
+        expect(redactSecrets(leaked)).not.toContain(fixtureSecret(key));
         expect(redactSecrets(leaked)).toContain(REDACTED_SECRET);
       }
     } finally {
@@ -398,11 +414,11 @@ describe('a linha que o BFF escreve', () => {
   it('redacts the context too, not only the error', () => {
     const original = process.env.CRON_SECRET;
     try {
-      process.env.CRON_SECRET = 'segredo-do-cron-1234';
+      process.env.CRON_SECRET = fixtureSecret('cron');
       const line = serverErrorLine('cron.daily-news', new Error('falhou'), {
-        detail: 'recusou o segredo-do-cron-1234',
+        detail: `recusou o ${fixtureSecret('cron')}`,
       });
-      expect(line).not.toContain('segredo-do-cron-1234');
+      expect(line).not.toContain(fixtureSecret('cron'));
       expect(JSON.parse(line).detail).toContain(REDACTED_SECRET);
     } finally {
       if (original === undefined) delete process.env.CRON_SECRET;
@@ -627,16 +643,16 @@ describe('a fiação: os três catch chamam o logger de verdade', () => {
       BACKEND_JOB_URL: process.env.BACKEND_JOB_URL,
       BACKEND_JOB_SECRET: process.env.BACKEND_JOB_SECRET,
     };
-    process.env.CRON_SECRET = 'cron-secret-de-teste';
+    process.env.CRON_SECRET = fixtureSecret('cron');
     process.env.BACKEND_JOB_URL = 'https://api.example.com/jobs/daily-pipeline';
-    process.env.BACKEND_JOB_SECRET = 'job-secret-de-teste';
+    process.env.BACKEND_JOB_SECRET = fixtureSecret('job');
 
     try {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
 
       const res = await GET(
         new Request('http://localhost:3000/api/cron/daily-news', {
-          headers: { authorization: 'Bearer cron-secret-de-teste' },
+          headers: { authorization: `Bearer ${fixtureSecret('cron')}` },
         }),
       );
 
