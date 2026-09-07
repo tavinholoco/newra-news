@@ -87,7 +87,20 @@ const ROUTES = process.env.ROUTES
   ? ALL_ROUTES.filter((r) => process.env.ROUTES.split(',').map((s) => s.trim()).includes(r.slug))
   : ALL_ROUTES;
 
-/** O mesmo congelamento da baseline: sem cursor, sem animação, sem transição. */
+/**
+ * O congelamento da baseline, **mais duas regras que só a captura de página
+ * inteira precisa**.
+ *
+ * `fullPage` numa página alta (a `/admin` dá ~3.800 px no 375) é montada por
+ * rolagem, e aí **todo elemento `sticky` ou `fixed` é pintado no ponto de
+ * emenda**: o cabeçalho de três linhas reaparecia no meio da tela, por cima do
+ * conteúdo, e o indicador do Next flutuava sobre uma linha da lista. Nenhum dos
+ * dois é defeito do painel, mas os dois estragam a leitura da imagem — que é a
+ * única coisa que esta ferramenta produz.
+ *
+ * Neutralizar a fixação é o que torna a foto legível. O comportamento do
+ * cabeçalho não é o que se está inspecionando aqui.
+ */
 const FREEZE_CSS = `
   *, *::before, *::after {
     animation-duration: 0s !important;
@@ -95,6 +108,27 @@ const FREEZE_CSS = `
     transition-duration: 0s !important;
     transition-delay: 0s !important;
     caret-color: transparent !important;
+  }
+  /* Só o cabeçalho: ele é o sticky que a emenda duplica. A primeira versão
+     desta regra alcançava .fixed também — e .fixed é o SKIP LINK, que se
+     esconde por -top-24. Tirada a fixação, ele caía no fluxo e "Pular para o
+     conteúdo" aparecia na foto como se fosse conteúdo da página.
+     (Sem crase aqui dentro: isto é um template literal, e a crase o encerra.) */
+  header {
+    position: static !important;
+  }
+  /* O devtools do TanStack Query, que só existe em desenvolvimento: é o círculo
+     colorido que flutuava por cima de uma linha da lista. */
+  .tsqd-parent-container {
+    display: none !important;
+  }
+  /* O skip link. Ele é position: fixed com top negativo, e a emenda do fullPage
+     o pinta visível no meio da página — "Pular para o conteúdo" aparecia por
+     cima dos cartões como se fosse conteúdo. Esconder é o certo: o que se está
+     inspecionando aqui é o painel, e o comportamento dele no foco tem guarda
+     própria em tests/components/a11y-guards.test.tsx. */
+  body > a[href^="#"] {
+    display: none !important;
   }
 `;
 
@@ -209,13 +243,52 @@ async function capture(browser, cookie, route, viewport, theme) {
     }
 
     if (route.expand) {
-      const toggle = page.locator('[aria-expanded]').first();
-      if (await toggle.count()) {
-        await toggle.click();
-        await page.waitForTimeout(400);
+      /**
+       * **Pelo nome acessível, e não por `[aria-expanded]`.**
+       *
+       * A primeira versão usava o atributo, e ele casava o **botão do menu
+       * mobile** (`aria-label="Open menu"`, `md:hidden`) — que a 1440 está
+       * escondido, então o clique esperava 30 s por um elemento que nunca ia
+       * ficar visível e derrubava a captura. `aria-controls` também não serve
+       * para achá-lo fechado: ele só existe quando a região está aberta.
+       *
+       * O nome do expansor é a contagem de eventos ("5 eventos", "sem eventos",
+       * "5 events", "no events"), que é o mesmo seletor que
+       * `tests/components/pipeline-runs.test.tsx` usa.
+       */
+      const toggle = page
+        .getByRole('button', { name: /(eventos?|events?)$/ })
+        .first();
+
+      try {
+        await toggle.click({ timeout: 5_000 });
+
+        /**
+         * **Esperar o detalhe chegar, e não um prazo fixo.**
+         *
+         * A primeira versão dormia 400 ms e fotografava — e o que saiu na foto
+         * foram as quatro barras cinza do esqueleto: a consulta dos eventos vai
+         * navegador → BFF → API, e isso não cabe em 400 ms num servidor de
+         * desenvolvimento. Captura de estado de carregamento é exatamente o que
+         * esta ferramenta **não** existe para produzir.
+         *
+         * Com a linha aberta, o botão passa a declarar `aria-controls` — é por
+         * ele que se acha a região, e é a lista de eventos dentro dela que diz
+         * que o dado chegou.
+         */
+        const regionId = await toggle.getAttribute('aria-controls');
+        if (regionId) {
+          await page.locator(`#${regionId} ol`).first().waitFor({ timeout: 15_000 });
+        }
+
         // O `<details>` do contexto é o que apertaria no 375, então ele abre.
-        const details = page.locator('details').first();
-        if (await details.count()) await details.evaluate((el) => el.setAttribute('open', ''));
+        for (const handle of await page.locator('details').all()) {
+          await handle.evaluate((el) => el.setAttribute('open', ''));
+        }
+      } catch {
+        // Expandir é enfeite da captura, não a captura. Um run sem linha na
+        // lista não pode derrubar as outras doze fotos.
+        console.warn('    ! não achei a linha de execução para expandir');
       }
     }
 
