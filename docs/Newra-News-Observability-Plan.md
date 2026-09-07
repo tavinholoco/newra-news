@@ -26,6 +26,13 @@ falta de sinal — é que o sinal não tem para onde ir.**
 
 ### O que a inspeção de 01/09/2026 mediu
 
+> **Os números de linha desta seção são de 01/09 e a Fase 1 já os moveu** — o
+> `app.ts` ganhou 27 linhas, o `observability.ts` 24, o `pipeline-event.service`
+> 4. A medição continua valendo como registro do que existia; para **seguir**
+> uma citação, procure pelo nome (a função, a chamada), nunca pela linha.
+> Citação por linha em documento sem guarda apodrece a cada PR que passa perto,
+> e é a mesma família do `13` dos feeds.
+
 - **O log não existe como sistema.** `apps/api/src/app.ts:40` passa
   `logger: env.NODE_ENV !== 'test'` — um **booleano**. Sem `level`, sem
   `redact`, sem `serializers`, sem `disableRequestLogging`. São **6** chamadas
@@ -483,9 +490,9 @@ Por isso o conserto é o **serializer de `err`**, e ele faz quatro coisas:
 4. Preservar `name`, `code`, `statusCode` — o diagnóstico tem de sobreviver, o
    mesmo argumento que o `redact.ts` já faz sobre o 422 do Resend.
 
-**`apps/api/src/config/env.ts:51` continua `console.error`**, com o motivo
-escrito ao lado da exceção do ESLint: roda na carga do módulo, antes de o
-logger existir, e é seguido de `process.exit(1)`.
+**O `console.error` do `apps/api/src/config/env.ts` continua sendo `console`**,
+com o motivo escrito ao lado da exceção do ESLint: roda na carga do módulo,
+antes de o logger existir, e é seguido de `process.exit(1)`.
 
 ### Guarda
 
@@ -530,8 +537,8 @@ ponto.**
 consiga entrar, que o run de ontem falhou na etapa 6, o que o erro dizia, ou
 que ele falha há três dias.
 
-Entrega **zero tabela nova e zero consulta nova** — `getDevLogs()`
-(`pipeline-event.service.ts:171-208`) e `getDevLogDetail()` (`:211-235`) são
+Entrega **zero tabela nova e zero consulta nova** — `getDevLogs()` e
+`getDevLogDetail()`, os dois em `services/pipeline-event.service.ts`, são
 reusados verbatim. O que muda é a porta.
 
 ### §6.1 API
@@ -549,7 +556,7 @@ caminho do BFF e o da API finalmente terem o mesmo nome.
 caminho que funciona quando não há sessão, e isso importa mais justamente
 quando o que quebrou é o provedor de sessão.
 
-**A exceção que precisa cair.** O `shared-type-contract.test.ts:55-56` isenta
+**A exceção que precisa cair.** O `shared-type-contract.test.ts` isenta
 `devLogsResponseSchema` e `devLogDetailResponseSchema` com o motivo
 `'painel dev, fora do produto'`. **No instante em que uma tela do produto lê
 aquele shape, o motivo deixa de ser verdade.** Os tipos entram em
