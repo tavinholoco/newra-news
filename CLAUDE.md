@@ -226,7 +226,8 @@ a suíte de unidade, que roda sem rede.
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
   `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
-  CI/CD) e 1 (o logger) fecharam em 05/09; as outras nove continuam abertas.** O **§19** é
+  CI/CD) e 1 (o logger) fecharam em 05/09 e a 2 (pipeline no admin) em 07/09; as
+  outras oito continuam abertas.** O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -254,6 +255,37 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-07): o pipeline ficou visível para quem
+  consegue entrar.** A **Fase 2** do plano de observabilidade, PR 3 da ordem do
+  §19. O dado existia desde a Fase 9 — `PipelineLog` e `PipelineEvent` — e a
+  única superfície que o mostrava era o `/dev/dashboard`, atrás do `JOB_SECRET`:
+  o dono do produto não conseguia ver, de nenhuma tela em que conseguisse
+  entrar, que o run de ontem falhou na etapa 6, o que o erro dizia, ou que ele
+  falha há três dias. Entrou **sem tabela nova, sem consulta nova e sem rota
+  nova no web**: `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` reusam
+  `getDevLogs`/`getDevLogDetail` verbatim, e os três painéis moram na `/admin`.
+  **892 → 918 testes na API, 618 → 639 no web.** Item **49** do
+  `docs/progress.md`.
+
+  > **O prefixo `/api/admin` é o que a fase realmente comprou.** `authPlugin` e
+  > `requireAdmin` registram **uma vez no grupo**, o que faz de "tudo sob
+  > `/api/admin` é ADMIN" uma garantia estrutural em vez de hábito por rota — e
+  > há guarda enumerando o `printRoutes()` e cobrando `access: 'admin'` de cada
+  > linha, com uma segunda asserção exigindo que o filtro **encontre alguma
+  > coisa**. O `/api/dev/*` fica intacto de propósito: acesso por segredo é o
+  > caminho que funciona quando **não há sessão**, e isso importa mais
+  > justamente quando o que quebrou é o provedor de sessão. Há teste comparando
+  > os corpos das duas portas, para que "duas portas, um contrato" seja algo que
+  > reprova.
+  >
+  > **Os dois achados foram da implementação.** A armadilha 8 do §17 apareceu na
+  > hora de escrever a tela: `durationSeconds` é **segundo** e
+  > `formatPipelineDuration` recebe **milissegundo**, então o caminho óbvio
+  > renderiza **"45 ms" para um run de 45 s** — sem erro de tipo e sem aviso.
+  > E o `admin-panel.test.tsx` caiu inteiro porque seu `vi.mock('@/lib/queries')`
+  > declarava só os três hooks que conhecia: **mock parcial mente por omissão**,
+  > a mesma família do `vi.mock` de `env` da Fase 1, agora do lado do web.
+
 - **Fora da linha das fases (2026-09-05): o log virou sistema, e a DSN com senha
   parou de sair no stdout.** A **Fase 1** do plano de observabilidade, PR 2 da
   ordem do §19. A API tinha **6** chamadas ao logger do Fastify contra **14
@@ -414,7 +446,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.510 em 132 suites (**892 API em 65** + **618 web em 67** — todos
+- **Testes:** 1.557 em 135 suites (**918 API em 66** + **639 web em 69** — todos
   passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
   pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
   medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web

@@ -89,7 +89,29 @@
     "loadError": "Não foi possível carregar as notícias.",
     "empty": "Nenhuma notícia no momento.",
     "totalNews": "{count, plural, one {# notícia} other {# notícias}} no total",
-    "panelDescription": "Disparar o pipeline do dia e revisar o que ele coletou."
+    "panelDescription": "Disparar o pipeline do dia e revisar o que ele coletou.",
+    "pipeline": {
+      "title": "Pipeline do dia",
+      "description": "Como foi cada execução: em que etapa parou, quanto demorou e o que o erro dizia.",
+      "empty": "Nenhuma execução registrada ainda.",
+      "loadError": "Não foi possível carregar as execuções do pipeline.",
+      "status": "Status",
+      "stage": "Etapa da falha",
+      "duration": "Duração",
+      "newsCollected": "Notícias coletadas",
+      "statusRunning": "Rodando",
+      "statusSuccess": "Sucesso",
+      "statusFailed": "Falhou",
+      "recentFailures": "{count, plural, one {# execução falhou} other {# execuções falharam}} na janela — a mais recente em {date}.",
+      "historyTitle": "Últimas execuções",
+      "rowSummary": "{news} notícias · {duration}",
+      "events": "{count, plural, one {# evento} other {# eventos}}",
+      "totalRuns": "{count, plural, one {# execução} other {# execuções}} no total",
+      "stageLabel": "Etapa {stage}",
+      "contextLabel": "Contexto",
+      "eventsEmpty": "Esta execução não registrou nenhum evento.",
+      "eventsError": "Não foi possível carregar os eventos desta execução."
+    }
   },
   "article": {
     "aiDisclosureBody": "Este texto foi escrito por inteligência artificial a partir de {count, plural, one {# notícia publicada} other {# notícias publicadas}} por veículos jornalísticos, listadas abaixo. Nenhum trecho foi apurado pelo Newra News.",

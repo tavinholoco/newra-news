@@ -116,10 +116,10 @@ independentes**, que não se bloqueiam:
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
 não depende de nada neste plano.
 
-> **A 10 e a 1 já foram entregues (05/09/2026).** O estado de cada fase vive na
-> tabela da ordem, no §19, e no cabeçalho da seção de cada uma — esta tabela
-> aqui descreve a **forma** do plano, não o progresso. **A próxima é a Fase 2**
-> (§6).
+> **A 10 e a 1 foram entregues em 05/09/2026; a 2, em 07/09.** O estado de cada
+> fase vive na tabela da ordem, no §19, e no cabeçalho da seção de cada uma —
+> esta tabela aqui descreve a **forma** do plano, não o progresso. **A próxima é
+> a Fase 7a** (§11.1), a última do bloco 1.
 
 Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
@@ -531,7 +531,7 @@ ponto.**
 
 ---
 
-## §6 Fase 2 — O pipeline, visível para uma sessão ADMIN
+## §6 Fase 2 — O pipeline, visível para uma sessão ADMIN ✅ 2026-09-07
 
 **Fecha:** o dono do produto não consegue ver, de nenhuma superfície em que
 consiga entrar, que o run de ontem falhou na etapa 6, o que o erro dizia, ou
@@ -1651,7 +1651,7 @@ aplica as duas migrations juntas na promoção.**
 |---|---|---|
 | ~~1~~ ✅ | **§14 — Fase 10, CI** — **entregue em 05/09/2026** | Não dependia de nada e era o mais barato. Cinco linhas de `permissions:`, seis SHAs, um `audit`. Fechou um risco de supply chain antes de o resto encostar no código. Item **47** do `docs/progress.md` |
 | ~~2~~ ✅ | **§5 — Fase 1, logger** — **entregue em 05/09/2026** | Fechou o vazamento da DSN. Tudo depois dele loga direito de nascença. Item **48** do `docs/progress.md` |
-| 3 | **§6 — Fase 2, pipeline no admin** | O dado já existe e ninguém vê. Sem rota nova, sem schema, sem migration |
+| ~~3~~ ✅ | **§6 — Fase 2, pipeline no admin** — **entregue em 07/09/2026** | O dado já existia e ninguém via. Saiu sem rota nova, sem schema e sem consulta nova: `getDevLogs` reusado, prefixo `/api/admin` com guarda, painéis dentro da `/admin`. Item **49** do `docs/progress.md` |
 | 4 | **§11.1 — Fase 7a, BFF** | Três `catch` vazios ganham log. É o que faz o `x-request-id` pagar no caminho da falha |
 
 **Bloco 2 — a espinha. Estritamente em ordem.**

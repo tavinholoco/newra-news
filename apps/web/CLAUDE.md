@@ -245,7 +245,9 @@ Regras que não são óbvias no código:
 - /[locale]/favorites → Salvos: notícias e briefings numa lista só
   - o guard de sessão vive em `app/[locale]/account/layout.tsx` e vale para
     todo o segmento; `/favorites` é a exceção fora dele, com o guard próprio
-- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN)
+- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) —
+  disparo do pipeline, **os três painéis de execução** (`admin/pipeline-runs`) e
+  a lista de notícias
 - /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
@@ -256,6 +258,24 @@ Regras que não são óbvias no código:
     largura da página mudava ao trocar de tela
   - **a faixa só é renderizada depois do guard**: oferecer as abas a quem não é
     ADMIN seria anunciar o que a pessoa não pode abrir
+  - **o histórico do pipeline é painel dentro da `/admin`, não rota nova**
+    (Fase 2 do plano de observabilidade). O §4.1 daquele plano declara três abas
+    e não lista uma quarta; a `/admin` já é a aba "está tudo de pé agora?", e
+    "o run de ontem falhou?" é exatamente essa pergunta. Rota nova custaria
+    linha na matriz de estados, chave nos **dois** arquivos de mensagem e
+    `alternatesFor` — o `toHaveLength(15)` de `state-matrix.test.ts` fica em 15
+  - **o detalhe de um run é linha expansível, pelo mesmo motivo**: uma `/[id]`
+    pediria `loading.tsx`, `error.tsx` e `not-found.tsx`, e a matriz cobraria os
+    três. A consulta de eventos só existe para o run que alguém abriu — a linha
+    fechada não monta o componente que a dispara
+  - **`durationSeconds` é segundo; `formatPipelineDuration` recebe
+    milissegundo.** Passar um pelo outro renderiza "45 ms" para um run de 45 s,
+    sem erro de tipo e sem aviso. Quem formata o run é `formatRunDuration`, e há
+    asserção sobre isso em `tests/components/pipeline-runs.test.tsx`
+  - **sem `refetchInterval` nesta área.** Aba de admin com polling é tráfego
+    constante contra um plano que cobra tempo ligado — o free do Render dá
+    750 h/mês, e a API já foi suspensa uma vez por isso. O pipeline roda uma vez
+    por dia; recarregar a página é o gesto certo
 
 ## SEO (Fase 7)
 

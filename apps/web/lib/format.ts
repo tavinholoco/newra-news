@@ -95,6 +95,25 @@ export function formatPipelineDuration(ms: number | null | undefined): string {
   return `${minutes}m ${rest}s`;
 }
 
+/**
+ * Duração de um run do pipeline em **segundos** → "45s" ou "1m 05s".
+ *
+ * **Existe porque as duas unidades convivem no produto e nada as distingue na
+ * chamada.** O `pipelineDuration` do `/api/metrics/dashboard` está em
+ * milissegundos; o `durationSeconds` de `/api/admin/pipeline/runs` está em
+ * segundos, porque é o `PipelineLog` que o serviço já dividia por 1000. Passar
+ * o segundo direto ao `formatPipelineDuration` renderiza **"45 ms"** para um
+ * run de 45 s — sem erro de tipo, sem aviso, e plausível o bastante para
+ * ninguém desconfiar.
+ *
+ * Converter aqui, num nome que diz a unidade que recebe, é o que torna a
+ * confusão impossível de escrever por engano.
+ */
+export function formatRunDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return '—';
+  return formatPipelineDuration(seconds * 1000);
+}
+
 /** Número com separador do locale (ex.: 3484 → "3.484" em pt-BR, "3,484" em en-US). */
 export function formatCount(value: number, locale = 'pt-BR'): string {
   return value.toLocaleString(locale);

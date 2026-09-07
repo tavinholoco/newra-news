@@ -5132,8 +5132,115 @@ errSerializer] to be [Function redactingErrSerializer]`.
 
 - **A DSN some do log a partir do próximo deploy, não retroativamente.** O que
   já está no stdout do Render continua lá até a retenção do plano expirar.
-- **A próxima é a Fase 2 (pipeline visível ao ADMIN)**, e depois a 7a (os
-  `catch` vazios do BFF). As duas são do bloco 1 e não tocam schema.
+- ~~**A próxima é a Fase 2 (pipeline visível ao ADMIN)**~~ — **entregue em
+  07/09/2026**, no item 49 logo abaixo. A seguinte é a **7a** (os `catch` vazios
+  do BFF), última do bloco 1.
+
+---
+
+### 49. O pipeline falhava e o dono do produto não tinha onde ver ✅ 2026-09-07
+
+> **Fase 2 do `docs/Newra-News-Observability-Plan.md` (§6) — PR 3 da ordem do
+> §19.** A última do bloco 1 que não é de cliente, e a primeira que entrega
+> tela.
+
+#### O inventário, reconferido antes de abrir (a regra do §19)
+
+| Achado escrito no plano | Estado em 07/09/2026 |
+|---|---|
+| O dado do pipeline existe e só o `JOB_SECRET` o alcança | confirmado — `PipelineLog` + `PipelineEvent` desde a Fase 9, servidos por `GET /api/dev/logs` e pelo `/dev/dashboard`, os dois atrás do segredo |
+| Nenhuma superfície com sessão mostra run nenhum | confirmado — a `/admin` tinha o botão de disparo e a lista de notícias; a `/admin/metrics` mostra agregados do dia, nunca uma execução |
+| `getDevLogs`/`getDevLogDetail` servem verbatim | confirmado — nenhuma linha dos dois serviços mudou neste PR |
+| O `shared-type-contract.test.ts` isenta os dois schemas | confirmado — duas linhas, com o motivo `'painel dev, fora do produto'`. **Saíram**, e é a guarda dizendo o que fazer |
+
+#### O que entrou
+
+**1. `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` — zero tabela nova,
+zero consulta nova.** `routes/admin/pipeline.ts` chama os mesmos
+`getDevLogs`/`getDevLogDetail`, reusa `devLogsQuerySchema` e serve os mesmos
+dois schemas de resposta. **O que muda é a porta:** sessão com `role: ADMIN` em
+vez de segredo.
+
+**2. O prefixo `/api/admin` é uma garantia estrutural, não um hábito por rota.**
+O `authPlugin` e um `preHandler` com `requireAdmin` registram **uma vez no
+grupo** — rota nova ali nasce protegida sem ninguém lembrar de nada. É o gêmeo,
+do lado da API, do que o `admin/layout.tsx` faz do lado do web. Efeito colateral
+bom: o caminho do BFF e o da API passaram a ter o mesmo nome.
+
+**3. O `/api/dev/*` e o `/dev/dashboard` ficam intactos, e é decisão.** Acesso
+por segredo é o caminho que funciona **quando não há sessão** — e isso importa
+mais justamente quando o que quebrou é o provedor de sessão.
+
+**4. Os três painéis entram na `/admin`, sem rota nova.** O último run em
+cartões (status, etapa da falha, duração, notícias coletadas, mais a mensagem do
+erro); as últimas 20 execuções em lista com pílula de status; e o detalhe como
+**linha expansível**, com os ~19 `PipelineEvent` agrupados por etapa, coloridos
+por nível e o `context` atrás de um `<details>`. Rota `/admin/pipeline` custaria
+linha na matriz de estados, chave nos dois arquivos de mensagem e
+`alternatesFor` — e contradiria as três abas do §4.1 do plano. O
+`toHaveLength(15)` de `state-matrix.test.ts` fica em 15.
+
+**5. Os tipos entraram em `packages/types/src/pipeline.ts` e as duas exceções
+saíram.** `PipelineRunSummary`, `PipelineRunEvent`, `PipelineRuns`,
+`PipelineRunsResponse` e `PipelineRunDetail`, com `assertContract` ao lado dos
+schemas.
+
+#### As guardas
+
+| Guarda | O que trava |
+|---|---|
+| `authorization-matrix.test.ts` — `Fase 2 — o prefixo /api/admin` | enumera o `printRoutes()`, filtra o prefixo e exige `access: 'admin'` de cada rota; uma segunda asserção exige que o filtro **encontre alguma coisa** |
+| `admin-pipeline.test.ts` — `as duas portas devolvem exatamente a mesma coisa` | injeta nas duas rotas e compara os corpos. "Zero consulta nova" deixa de ser comentário |
+| `shared-type-contract.test.ts` | sem as duas exceções, as respostas exigem contrato com `packages/types` |
+| `api-docs-drift.test.ts` | as duas rotas em `docs/api.md` |
+| `pipeline-runs.test.tsx` — `reads durationSeconds as seconds` | a armadilha 8 do §17, como asserção |
+
+**As duas primeiras foram vistas reprovar antes de existir código**, e nas duas
+direções: com o prefixo vazio, a asserção de não-vazio caiu; com a linha da
+matriz dizendo `'session'`, a de admin-only caiu; e removendo o `preHandler` do
+grupo, quatro asserções caíram nas duas suítes.
+
+#### Os dois achados da implementação
+
+**O primeiro é sobre a unidade, e é a armadilha 8 do §17 encontrada na hora de
+escrever a tela:** `DevLogSummary.durationSeconds` é **segundo** e
+`formatPipelineDuration` recebe **milissegundo**, porque o campo homônimo do
+dashboard (`pipelineDuration`) é `Date.now() - startedAt`. Passar um pelo outro
+renderiza **"45 ms" para um run de 45 s** — sem erro de tipo, sem aviso, e
+plausível o bastante para ninguém desconfiar. A saída foi `formatRunDuration`,
+um nome que diz a unidade que recebe, e uma asserção que reprova a troca.
+
+**O segundo é a família do "mock parcial mente por omissão", agora do lado do
+web.** O `admin-panel.test.tsx` mocka `@/lib/queries` declarando só os três
+hooks que conhecia; com o `<PipelineRuns />` dentro do painel, o componente
+chamou `undefined()` e **nove asserções caíram por um motivo que nada tinha a
+ver com o que elas medem**. É o mesmo defeito que o `vi.mock` de `env` produziu
+na Fase 1, na outra ponta do monorepo: mock parcial não erra, ele mente sobre o
+que não declara.
+
+**E uma decisão pequena que a suíte forçou:** `usePipelineRunDetail` nasceu com
+`enabled: pipelineId !== null`, e o teste mostrou que o hook **nunca é chamado**
+antes do clique — a linha expandida só monta o componente que o dispara. O
+`enabled` era um controle sem consequência, protegendo um caso que não existe.
+Saiu.
+
+#### Números
+
+**918 testes na API (66 suítes)** — eram 892 em 65 — e **639 no web (69
+suítes)**, que eram 618 em 67. Total **1.557 em 135 suítes**.
+
+#### O que fica pendente daqui
+
+- **Sem `refetchInterval` na área de admin, e é decisão medida.** Aba deixada
+  aberta com polling é tráfego constante contra um plano que cobra tempo ligado
+  — o free do Render dá 750 h/mês, e a API já foi suspensa uma vez por isso, em
+  29/08/2026. O pipeline roda uma vez por dia. **Gatilho para reabrir:** o dia em
+  que houver mais de um run diário.
+- **A leitura contra produção depende de credencial de admin**, como a tela de
+  métricas da Fase 11 — o painel foi exercitado com dado semeado nas suítes, não
+  com o acervo real.
+- **A próxima é a Fase 7a (§11.1, os `catch` vazios do BFF)**, a última do bloco
+  1. Depois começa a espinha: 3 → 4 → 5.
 
 ---
 

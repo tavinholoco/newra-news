@@ -1114,6 +1114,108 @@ dias e briefing aos 90 — não há job manual a disparar.
 
 ---
 
+## Pipeline (admin)
+
+> **A mesma consulta do `/api/dev/logs`, por outra porta.** As rotas abaixo
+> exigem sessão com `role: ADMIN` (JWT assinado pelo BFF do Next), e é o que o
+> painel `/admin` lê. Entregam **zero tabela nova e zero consulta nova**: o que
+> a Fase 2 do plano de observabilidade acrescentou foi o acesso — até ela, o
+> dono do produto não conseguia ver de nenhuma superfície em que conseguisse
+> entrar que o run de ontem falhou na etapa 6.
+>
+> **Tudo sob `/api/admin` é admin-only por construção**: o `authPlugin` e o
+> `requireAdmin` registram uma vez no grupo, e há guarda enumerando o roteador
+> (`authorization-matrix.test.ts`).
+>
+> O `/api/dev/*` continua existindo e continua atrás do `JOB_SECRET` — acesso
+> por segredo é o caminho que funciona quando **não há sessão**, e isso importa
+> mais justamente quando o que quebrou é o provedor de sessão.
+
+### GET /api/admin/pipeline/runs
+
+Últimos runs do pipeline + os que falharam, com filtros opcionais.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query Params:**
+
+| Param | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `status` | `RUNNING \| SUCCESS \| FAILED` | — | Filtro por status |
+| `since` | number (dias) | — | Apenas runs iniciados nos últimos N dias (1–90) |
+| `limit` | number | 30 | Máx. de runs retornados (1–100) |
+
+**Resposta 200:** idêntica à de `GET /api/dev/logs` — mesmo schema
+(`devLogsResponseSchema`), tipado em `packages/types` como
+`PipelineRunsResponse`.
+
+```json
+{
+  "data": {
+    "runs": [
+      {
+        "id": "uuid",
+        "status": "SUCCESS",
+        "newsCount": 42,
+        "articleId": "uuid | null",
+        "error": "string | null",
+        "errorStage": 6,
+        "errorDetail": { "message": "Gemini API error 500: boom", "provider": "gemini", "statusCode": 500 },
+        "startedAt": "ISO string",
+        "completedAt": "ISO string | null",
+        "durationSeconds": 90,
+        "eventCount": 5
+      }
+    ],
+    "recentErrors": [ "...runs com status FAILED" ]
+  },
+  "meta": { "total": 31 }
+}
+```
+
+`recentErrors` **não** é um recorte de `runs`: é o mesmo filtro com
+`status: 'FAILED'`, então uma falha de três dias atrás aparece ali mesmo quando
+os últimos 20 runs foram todos verdes.
+
+⚠️ **`durationSeconds` é segundo**, não milissegundo — o campo homônimo do
+`/api/metrics/dashboard` (`pipelineDuration`) é que está em milissegundos.
+
+**Erros:** `401` sem sessão · `403` com sessão sem `role: ADMIN`
+
+### GET /api/admin/pipeline/runs/:pipelineId
+
+Detalhe de um run: o resumo mais os **eventos por etapa** (Stage 1–9, nível
+INFO/WARN/ERROR, mensagem e contexto JSON).
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+
+**Resposta 200:** idêntica à de `GET /api/dev/logs/:pipelineId` — mesmo schema
+(`devLogDetailResponseSchema`), tipado como `ApiResponse<PipelineRunDetail>`.
+
+```json
+{
+  "data": {
+    "log": { "...": "resumo igual ao de /api/admin/pipeline/runs" },
+    "events": [
+      {
+        "id": "uuid",
+        "stage": 6,
+        "level": "ERROR",
+        "message": "Gemini API error 500: boom",
+        "context": { "provider": "gemini", "statusCode": 500 },
+        "createdAt": "ISO string"
+      }
+    ]
+  }
+}
+```
+
+**Erros:** `401` sem sessão · `403` sem `role: ADMIN` · `404` id inexistente ·
+`400` id fora do formato UUID
+
+---
+
 ## Observabilidade (dev-only)
 
 > Painel de logs e erros do pipeline, **apenas para o dev** — todas as rotas

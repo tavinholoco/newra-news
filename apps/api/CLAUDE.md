@@ -50,6 +50,13 @@
   `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
   lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
+- GET /api/admin/pipeline/runs — **admin (JWT + role ADMIN)**: os últimos runs
+  do pipeline + os que falharam, com os mesmos filtros do `/api/dev/logs`
+  (`status`, `since`, `limit`). **Mesma consulta e mesmo schema** — o que muda é
+  a porta: sessão em vez de segredo. Fase 2 do plano de observabilidade
+- GET /api/admin/pipeline/runs/:pipelineId — **admin**: o run com os eventos por
+  etapa. **Tudo sob `/api/admin` é admin-only por construção** — `authPlugin` e
+  `requireAdmin` registram uma vez no grupo, e há guarda enumerando o roteador
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only: runs, erros e status dos providers.
@@ -57,6 +64,34 @@
   histórico e `Referer`. Entra por `Authorization: Bearer` (curl) ou por
   `POST /dev/dashboard/session` (o formulário da página), que devolve um cookie
   `HttpOnly` com uma **assinatura de prazo**, nunca o segredo
+
+## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
+
+**A garantia é do grupo, não da rota.** `routes/admin/pipeline.ts` registra o
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez; toda rota do grupo
+nasce protegida sem ninguém lembrar de repetir a linha. É o gêmeo, do lado da
+API, do que o `admin/layout.tsx` faz do lado do web — e tem guarda:
+`authorization-matrix.test.ts` enumera o `printRoutes()`, filtra o prefixo e
+cobra `access: 'admin'` de cada linha, com uma asserção separada exigindo que o
+filtro encontre alguma coisa.
+
+- **`authPlugin` não encapsula**, e é isso que faz o hook alcançar as rotas do
+  arquivo: o `fp()` do export default marca a própria função com
+  `skip-override`, então `await app.register(authPlugin)` acrescenta o
+  `preHandler` ao contexto de quem chamou. Mesmo desenho do
+  `routes/metrics/admin.ts`, onde `/weekly` e `/monthly` seguem públicas porque
+  moram em outro `register`.
+- **O `/api/dev/*` continua atrás do `JOB_SECRET`, de propósito.** Acesso por
+  segredo é o caminho que funciona **quando não há sessão** — e isso importa
+  mais justamente quando o que quebrou é o provedor de sessão. As duas portas
+  dão na mesma consulta (`getDevLogs`) e devolvem o mesmo schema; há teste
+  comparando os dois corpos, para que "duas portas, um contrato" seja algo que
+  reprova e não um comentário.
+- **`devLogsResponseSchema` deixou de ser exceção no `shared-type-contract`.**
+  Enquanto só o painel dev o lia, o motivo escrito era `'painel dev, fora do
+  produto'`; no instante em que uma tela do produto passou a ler aquele shape, o
+  motivo deixou de ser verdade. Os tipos estão em `packages/types/src/pipeline.ts`
+  e o `assertContract` mora ao lado dos schemas.
 
 ## Editorial (V2)
 - Serviços em `services/{home,trending,related}.service.ts`, mapper compartilhado

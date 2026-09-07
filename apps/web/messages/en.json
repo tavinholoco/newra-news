@@ -89,7 +89,29 @@
     "loadError": "Couldn't load the news.",
     "empty": "No news at the moment.",
     "totalNews": "{count, plural, one {# news item} other {# news items}} in total",
-    "panelDescription": "Trigger today's pipeline and review what it collected."
+    "panelDescription": "Trigger today's pipeline and review what it collected.",
+    "pipeline": {
+      "title": "Daily pipeline",
+      "description": "How each run went: where it stopped, how long it took, and what the error said.",
+      "empty": "No runs recorded yet.",
+      "loadError": "Could not load the pipeline runs.",
+      "status": "Status",
+      "stage": "Failing stage",
+      "duration": "Duration",
+      "newsCollected": "News collected",
+      "statusRunning": "Running",
+      "statusSuccess": "Success",
+      "statusFailed": "Failed",
+      "recentFailures": "{count, plural, one {# run failed} other {# runs failed}} in this window — the latest on {date}.",
+      "historyTitle": "Latest runs",
+      "rowSummary": "{news} news · {duration}",
+      "events": "{count, plural, one {# event} other {# events}}",
+      "totalRuns": "{count, plural, one {# run} other {# runs}} in total",
+      "stageLabel": "Stage {stage}",
+      "contextLabel": "Context",
+      "eventsEmpty": "This run recorded no events.",
+      "eventsError": "Could not load the events for this run."
+    }
   },
   "article": {
     "aiDisclosureBody": "This text was written by artificial intelligence from {count, plural, one {# story published} other {# stories published}} by news outlets, listed below. None of it was reported by Newra News.",

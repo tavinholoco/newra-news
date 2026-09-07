@@ -32,6 +32,8 @@ import {
   removeFavorite,
   runDailyPipeline,
   deleteNewsAdmin,
+  getPipelineRuns,
+  getPipelineRunDetail,
 } from '@/lib/api';
 
 // ── Query Key Factories ──────────────────────────────────────────────
@@ -90,6 +92,18 @@ export const accountKeys = {
 export const adminKeys = {
   all: ['admin'] as const,
   newsList: () => [...adminKeys.all, 'news-list'] as const,
+};
+
+/**
+ * Os runs do pipeline. Ficam **fora** de `adminKeys` de propósito: quem os
+ * invalida é o disparo do pipeline, e invalidar `adminKeys.all` ali
+ * recarregaria também a lista de notícias, que o disparo não muda.
+ */
+export const pipelineKeys = {
+  all: ['admin', 'pipeline'] as const,
+  runs: (limit: number) => [...pipelineKeys.all, 'runs', limit] as const,
+  detail: (pipelineId: string) =>
+    [...pipelineKeys.all, 'detail', pipelineId] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -277,10 +291,26 @@ export function useToggleFavorite(
 
 // ── Admin Hooks ───────────────────────────────────────────────────────────
 
-/** Dispara o pipeline manualmente (admin). */
+/**
+ * Dispara o pipeline manualmente (admin) e **recarrega a lista de runs**.
+ *
+ * A invalidação não é enfeite: o painel põe o histórico logo abaixo do botão,
+ * e sem ela o clique confirmava o disparo com a lista ainda mostrando o run de
+ * ontem — a tela dizendo uma coisa na primeira seção e outra na segunda, que é
+ * a família do defeito de 25/08 ("Pipeline disparado com sucesso" sem ter
+ * disparado nada) em outra forma.
+ *
+ * Invalida `pipelineKeys.all` e não `adminKeys.all`: o disparo não muda a lista
+ * de notícias, e recarregá-la seria uma consulta jogada fora.
+ */
 export function useRunPipeline() {
+  const queryClient = useQueryClient();
+
   return useMutation<RunPipelineResult, Error>({
     mutationFn: () => runDailyPipeline(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: pipelineKeys.all });
+    },
   });
 }
 
@@ -294,6 +324,43 @@ export function useDeleteNews() {
       queryClient.invalidateQueries({ queryKey: adminKeys.newsList() });
       queryClient.invalidateQueries({ queryKey: newsKeys.lists() });
     },
+  });
+}
+
+/** Quantos runs a lista da `/admin` mostra. §6.2 do plano de observabilidade. */
+export const PIPELINE_RUNS_LIMIT = 20;
+
+/**
+ * Os últimos runs do pipeline, mais os que falharam.
+ *
+ * **Sem `refetchInterval`, e é decisão medida.** Aba de admin deixada aberta
+ * com polling é tráfego constante contra um plano que cobra tempo ligado: o
+ * free do Render dá 750 h/mês, e esta API já foi suspensa uma vez por isso em
+ * 29/08/2026, com três briefings perdidos. O pipeline roda **uma vez por dia**
+ * — o dado desta tela muda uma vez a cada 24 h, e recarregar a página é o gesto
+ * certo para vê-lo. Se um dia houver polling aqui, ele pede
+ * `refetchIntervalInBackground: false`.
+ */
+export function usePipelineRuns(limit = PIPELINE_RUNS_LIMIT) {
+  return useQuery({
+    queryKey: pipelineKeys.runs(limit),
+    queryFn: () => getPipelineRuns({ limit }),
+  });
+}
+
+/**
+ * O detalhe de um run — os ~19 eventos daquele dia, agrupados por etapa.
+ *
+ * **Não tem `enabled`, e é o componente quem decide.** Quem chama só monta a
+ * linha expandida do run que alguém abriu — a lista mostra 20, e carregar o
+ * diário das 20 seriam 20 requisições para ler uma. Um `enabled` aqui, sobre um
+ * id que já chega definido, seria um controle sem consequência: um segundo lugar
+ * a manter, protegendo um caso que não existe.
+ */
+export function usePipelineRunDetail(pipelineId: string) {
+  return useQuery({
+    queryKey: pipelineKeys.detail(pipelineId),
+    queryFn: () => getPipelineRunDetail(pipelineId),
   });
 }
 
