@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "visual:baseline": "node scripts/capture-visual-baseline.mjs",
+    "admin:capture": "node scripts/capture-admin.mjs",
     "lighthouse:audit": "lighthouse https://newra-news-web.vercel.app/ --only-categories=performance,accessibility,best-practices,seo --output=json --output-path=lh-report.json --quiet",
     "contrast:check": "node scripts/check-contrast.mjs",
     "test:e2e": "playwright test"

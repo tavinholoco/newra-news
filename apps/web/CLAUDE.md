@@ -256,6 +256,16 @@ Regras que não são óbvias no código:
     largura da página mudava ao trocar de tela
   - **a faixa só é renderizada depois do guard**: oferecer as abas a quem não é
     ADMIN seria anunciar o que a pessoa não pode abrir
+  - **as telas de admin se fotografam com `pnpm --filter @newranews/web
+    admin:capture`** (`scripts/capture-admin.mjs`). A baseline visual da §30
+    exclui `/admin` porque exige sessão, então **esta área nunca esteve em
+    captura nenhuma** — e é onde as fases 5, 6, 8, 9 e 11 do plano de
+    observabilidade vão trabalhar. O script forja o cookie com a mesma mecânica
+    do `e2e/support/session.ts`, **só aceita localhost**, e exige um
+    `NEXTAUTH_SECRET` local **diferente do de produção**: com o mesmo valor dos
+    dois lados, o token forjado aqui vale lá. Nada disso mora no app — apagar o
+    arquivo deixa o produto bit a bit igual, e é isso que separa a ferramenta de
+    um atalho de autenticação (OWASP M10 / CWE-489)
 
 ## SEO (Fase 7)
 
