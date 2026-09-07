@@ -17,6 +17,13 @@
 - `pnpm lint` — ESLint em todo o monorepo
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
 - `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`. **O conjunto versionado é capturado de produção**, não do local — ver "Fechar uma fase" abaixo
+- `pnpm --filter @newranews/web admin:capture` — fotografa as telas de **admin**
+  (`/admin`, com um run expandido, e `/admin/metrics`) em 375 e 1440, claro e
+  escuro, com uma sessão forjada localmente. A baseline visual exclui essa área
+  porque exige sessão, então até 07/09 ela **nunca esteve em captura nenhuma** —
+  e é onde as fases 5, 6, 8, 9 e 11 do plano de observabilidade trabalham. Só
+  aceita localhost, e exige `NEXTAUTH_SECRET` local diferente do de produção.
+  Detalhe em `apps/web/CLAUDE.md`
 - `pnpm --filter @newranews/api archive:hygiene` — **mede a higiene de texto do
   acervo contra produção** (§12.D). Varre `/api/news` e conta as seis classes de
   defeito que a Fase 12 zerou; sai 1 se alguma tiver linha, 2 se a API não
@@ -70,6 +77,34 @@ promoção estaria invertida sem nada aqui acusar.
 
 A `dev` ganha deploy de preview na Vercel, que é onde dá para olhar o lote antes
 de promover.
+
+### A promoção espera o plano de observabilidade terminar — 07/09/2026
+
+**Decidido depois da Fase 2.** As onze fases do plano integram na `dev` e a
+`main` recebe **uma promoção só, no fim**. O argumento é o mesmo que criou a
+política: a `main` é o que está no ar, e o plano é trabalho de instrumentação
+que não precisa ir a produção fase a fase.
+
+**O que isso custa, e é preciso ter na mão:**
+
+- **Nenhuma fase é medida contra produção até a promoção.** O ritual é do lote,
+  e o lote passou a ser o plano inteiro. O que sobra medindo no caminho é o CI
+  de PR (lint, testes, build, `pnpm audit`, CodeQL, Gitleaks), o preview da
+  Vercel na `dev` — e, desde 07/09, a **captura de admin local**, que alcança
+  justamente a área onde cinco das fases restantes trabalham.
+- **As migrations das fases 4 e 11 aplicam juntas**, porque o `migrate.yml`
+  dispara no push da `main`. Já era "janela controlada"; agora a janela é o
+  plano inteiro.
+- **O Smoke E2E não roda em nenhum PR de fase** — ele é da `main`.
+
+> ⚠️ **O gatilho para promover antes do fim é a Fase 9.** Ela é a única que pode
+> **deixar o site sem briefing** (§13: portão de saída que bloqueia e não cai
+> para o provider de reserva), e o próprio plano manda rodá-la em modo
+> observador contra os briefings retidos antes de ligar o bloqueio. Levá-la a
+> produção dentro de um lote de nove fases é o oposto disso. **Promova antes de
+> mergear a 9**, ou aceite que a primeira medição real dela será junto com tudo
+> o mais.
+
 
 ## Fechar uma fase (o ritual, contra produção)
 
@@ -255,6 +290,27 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Ferramenta (2026-09-07): as telas de admin entraram em captura pela primeira
+  vez.** `pnpm --filter @newranews/web admin:capture` — a baseline visual exclui
+  `/admin` porque exige sessão, e esse comentário valia desde que a baseline
+  existe. **Três dos seis achados da revisão da Fase 2 eram defeitos visíveis sem
+  sintoma de código**, e apareceram só porque um humano mandou print; este script
+  é o mecanismo que acha essa classe sozinho. Item **50** do `docs/progress.md`.
+
+  > **A sessão é forjada com a mecânica que o smoke E2E já usa** — assinar o
+  > cookie do next-auth é o que o próprio next-auth faz depois do OAuth. Quatro
+  > decisões sustentam isso: **nada mora no app** (apagar o arquivo deixa o
+  > produto bit a bit igual — atalho de autenticação dentro do app é OWASP M10 /
+  > CWE-489), **só localhost**, o **`NEXTAUTH_SECRET` local tem de diferir do de
+  > produção** (a checagem de host protege o script, não o token), e a saída é
+  > gitignored com cookie de cinco minutos.
+  >
+  > **A primeira execução de verdade achou quatro defeitos na própria
+  > ferramenta** — seletor que casava o menu mobile, espera fixa que fotografava
+  > o esqueleto, `fullPage` duplicando o cabeçalho `sticky` na emenda, e a
+  > correção disso apagando o esconderijo do skip link. Nenhum tinha sintoma; os
+  > quatro apareceram olhando a imagem que ela produziu.
+
 - **Fora da linha das fases (2026-09-07): o pipeline ficou visível para quem
   consegue entrar.** A **Fase 2** do plano de observabilidade, PR 3 da ordem do
   §19. O dado existia desde a Fase 9 — `PipelineLog` e `PipelineEvent` — e a

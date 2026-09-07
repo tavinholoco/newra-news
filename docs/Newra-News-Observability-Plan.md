@@ -1637,6 +1637,19 @@ aplica as duas migrations juntas na promoção.**
    em produto e **precisam** dos três; as de substrato (1, 3, 4) precisam só do
    smoke.
 
+   > **Desde 07/09/2026 a promoção espera o plano terminar**, e isto vira um
+   > passo só, no fim, para o lote inteiro. As consequências — migrations das
+   > fases 4 e 11 aplicando juntas, nenhuma medição contra produção no caminho,
+   > e o gatilho para promover antes (a Fase 9) — estão no `CLAUDE.md`, em "A
+   > promoção espera o plano de observabilidade terminar".
+   >
+   > **A Fase 2 não se encaixava em nenhum dos dois grupos acima, e a medição
+   > respondeu por que:** a `/admin` não está nas sete rotas do
+   > `.lighthouserc.json`, a baseline visual a exclui por exigir sessão, e os
+   > fluxos de admin do smoke são justamente os que ficam pulados sem os quatro
+   > segredos. **Fase que mexe só em tela de admin não é alcançada por nenhum
+   > dos três** — quem a mede é o `admin:capture` local.
+
    > **O ritual é do lote promovido, não da fase.** Rodá-lo depois de um merge
    > na `dev` mede a produção **anterior** e devolve verde sobre mudança que não
    > está lá — o defeito mais caro que este projeto sabe produzir, e ele já
