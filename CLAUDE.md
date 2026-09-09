@@ -283,18 +283,32 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- 🔴 **Aberto em produção (2026-09-09): a cota de otimização de imagem da Vercel
-  estourou, e o site está no ar sem foto nenhuma.** Todo `/_next/image` responde
-  **402 `OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED`** — medido em três larguras e
-  duas origens. A home responde 200 e as imagens de origem servem normalmente; o
-  que morreu é só o otimizador. Como o `SafeImage` **degrada sem gritar**, o
-  placeholder de marca aparece no lugar das fotos **sem erro em lugar nenhum**.
-  É o gatilho que o `next.config.js` já previa por escrito, e ele disparou sem
-  ninguém saber — mesma família do keep-alive e da suspensão de 29/08: **plano
-  gratuito que cobra uso avisa pelo produto quebrado, não por alerta.**
-  Achado de raspão, medindo uma advisory (item **53**). **Precisa do dashboard da
-  Vercel**, e a saída documentada — servir a imagem por proxy próprio — tem
-  consequência de segurança: ver o item 53 e `docs/security-advisories.md`.
+- 🟡 **A cota de otimização de imagem da Vercel estourou em 09/09/2026, e o
+  corte que a faz caber já entrou — falta o mês virar.** Confirmado no painel:
+  **5.119 transformações** contra as **5.000/mês** do plano Hobby, e todo
+  `/_next/image` respondendo **402**, com o site no ar exibindo o placeholder de
+  marca no lugar das fotos. Como o `SafeImage` **degrada sem gritar**, não houve
+  erro em lugar nenhum — foi achado de raspão, medindo uma advisory (item
+  **53**).
+
+  **O multiplicador não era tráfego, era a escada de larguras:** 29 imagens de
+  origem na home gerando **279 alvos distintos** (~9,6 larguras cada). O item
+  **54** cortou `deviceSizes` de 6 para 4 e `imageSizes` de 6 para 5, conferindo
+  degrau a degrau contra os `sizes` que existem — só o mobile 2x mudou, e em 10%
+  de bytes. **Decisão: continuar no Hobby**, que é legítimo (o plano só proíbe
+  uso comercial, e isto é portfólio).
+
+  > **O que ainda depende de você:** a cota só zera na virada do período de
+  > faturamento — até lá o site segue sem foto, e não há o que mergear que mude
+  > isso. E vale conferir em **Settings → Notifications** que o aviso de cota vai
+  > para um endereço que você lê: **é a terceira vez** que este projeto descobre
+  > um teto de plano gratuito pelo produto quebrado (keep-alive, suspensão de
+  > 29/08, agora a imagem).
+  >
+  > **Se estourar de novo depois do corte, a resposta honesta é o Pro** — espremer
+  > mais começa a estragar a imagem. A outra saída, o proxy próprio, ficou mais
+  > cara desde 09/09: traz `sharp`/`libheif` para a árvore e **reabre a
+  > GHSA-2xp9-vwfh-vxw4**.
 
 - **Onde estamos:** V2.0 com as **Fases 0 a 12 concluídas**. A **Fase 13
   (ajustes finos e release final)** é a próxima e pode abrir — ela dependia da
@@ -577,7 +591,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.603 em 137 suites (**921 API em 66** + **682 web em 71** — todos
+- **Testes:** 1.604 em 137 suites (**921 API em 66** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

@@ -67,18 +67,62 @@ const nextConfig = {
      * mostra, e cada variante distinta é mais um MISS possível.
      *
      * **Com o host aberto, este teto é a mitigação principal**, não um ajuste
-     * fino: ele limita a **6** as transformações que uma URL qualquer pode
-     * provocar, em vez de 8 larguras × 8 tamanhos internos.
+     * fino: ele limita as transformações que uma URL qualquer pode provocar, em
+     * vez de 8 larguras × 8 tamanhos internos.
+     *
+     * ## De 6 para 4, e o número saiu de uma cota estourada — 09/09/2026
+     *
+     * **O gatilho previsto aqui embaixo disparou**, e o custo foi o site no ar
+     * sem foto nenhuma: todo `/_next/image` respondendo **402** por ter passado
+     * das **5.000 transformações/mês** do plano Hobby (medido: **5.119** em 30
+     * dias). Transformação é cobrada a cada **cache MISS**, e imagem de notícia
+     * troca todo dia — MISS aqui é o caso normal, não a exceção.
+     *
+     * **O multiplicador era esta lista.** Medido no HTML da home no mesmo dia:
+     * **29 imagens de origem distintas** gerando **279 alvos distintos**
+     * (imagem × largura) nos `srcset` — **~9,6 larguras por imagem**. Não era
+     * tráfego demais; era cada imagem sendo oferecida em dez tamanhos.
+     *
+     * **As quatro que ficaram cobrem os `sizes` que existem**, e a conferência é
+     * degrau a degrau, não chute:
+     *
+     * | Pedido real | Antes | Agora |
+     * |---|---|---|
+     * | 375 × 2 = 750 (mobile 2x) | 750 | 828 (+10% de bytes) |
+     * | 414 × 2 = 828 | 828 | 828 |
+     * | 390 × 3 = 1170 (Android 3x) | 1200 | 1200 |
+     * | 768 × 2 = 1536 (tablet 2x) | 1920 | 1920 |
+     * | 800 px do `hero-story` acima de 1280 | 828 | 828 |
+     *
+     * Só o primeiro degrau mudou, e em 10% de bytes. **Cortar para três
+     * (tirando o 1200) jogaria o Android 3x direto no 1920** — aí sim seria
+     * pagar LCP para economizar cota, que é a troca errada.
+     *
+     * **Gatilho para revisitar:** o aviso de cota da Vercel de novo. Se voltar a
+     * estourar depois deste corte, a resposta honesta é o plano Pro — espremer
+     * mais começa a estragar a imagem. E a saída de "proxy próprio" citada acima
+     * tem um preço novo desde 09/09: ela traz `sharp`/`libheif` para a árvore e
+     * **reabre a GHSA-2xp9-vwfh-vxw4** (ver `docs/security-advisories.md`).
      */
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    deviceSizes: [640, 828, 1200, 1920],
     // 64 = avatar do perfil · 96 = miniatura do `story-card-horizontal`; o
-    // resto são os múltiplos de DPR dessas duas.
-    imageSizes: [64, 96, 128, 192, 256, 384],
+    // resto são os múltiplos de DPR dessas duas. O `256` saiu no mesmo corte de
+    // 09/09: quem o pedia (as relacionadas, em 288 px) cai no `384`, que já
+    // existia — um degrau a menos por imagem pequena, sem tela nenhuma mudando.
+    imageSizes: [64, 96, 128, 192, 384],
 
-    // O default do Next é **60 segundos**. Fonte que não mande `Cache-Control`
-    // cairia nele, e o otimizador voltaria à origem a cada minuto. Os feeds
-    // medidos mandam 30 dias; este piso é o que cobre os que não mandarem.
-    minimumCacheTTL: 60 * 60 * 24 * 30,
+    /**
+     * O default do Next é **60 segundos**. Fonte que não mande `Cache-Control`
+     * cairia nele, e o otimizador voltaria à origem a cada minuto. Os feeds
+     * medidos mandam 30 dias; este piso é o que cobre os que não mandarem.
+     *
+     * **31 dias e não 30, desde 09/09/2026.** A retenção de `News` é de 30 dias
+     * exatos: com o TTL igual à retenção, a imagem podia expirar **no último dia
+     * de vida da matéria** e ser transformada de novo para nada. É também o
+     * número que a documentação da Vercel recomenda para reduzir transformação e
+     * cache write.
+     */
+    minimumCacheTTL: 60 * 60 * 24 * 31,
   },
   eslint: {
     // ESLint runs as a separate Turbo task in CI — skip during next build
