@@ -50,7 +50,23 @@ describe('o teto de transformações do otimizador', () => {
 
     expect(deviceSizes.length).toBeGreaterThan(0);
     expect(Math.max(...deviceSizes)).toBeLessThanOrEqual(1920);
-    expect(deviceSizes.length).toBeLessThanOrEqual(6);
+
+    /**
+     * **O teto caiu de 6 para 4 em 09/09/2026, e o número foi cobrado por uma
+     * cota estourada, não escolhido.**
+     *
+     * A lista era o multiplicador: **29 imagens de origem na home gerando 279
+     * alvos distintos** (~9,6 larguras cada), contra as **5.000
+     * transformações/mês** do plano Hobby — medidas em **5.119**, com o site no
+     * ar sem foto nenhuma enquanto durou.
+     *
+     * Devolver um degrau aqui é gratuito na tela e caro na cota, que é
+     * exatamente a forma de mudança que volta sem ninguém notar — o motivo de
+     * este arquivo existir. Se um degrau precisar voltar, o lugar de justificar
+     * é o comentário do `next.config.js`, junto com a conferência degrau a
+     * degrau que está lá.
+     */
+    expect(deviceSizes.length).toBeLessThanOrEqual(4);
   });
 
   it('há um formato só', () => {
@@ -71,6 +87,27 @@ describe('o teto de transformações do otimizador', () => {
 
     // eslint-disable-next-line no-eval -- expressão aritmética do próprio config
     expect(eval(ttl)).toBeGreaterThanOrEqual(60 * 60 * 24);
+  });
+
+  it('o cache do otimizador sobrevive à matéria que ele serve', () => {
+    /**
+     * **O TTL tem de passar da retenção de `News`, não empatar com ela.**
+     *
+     * O cleanup do pipeline apaga notícia com mais de **30 dias**. Com o TTL em
+     * 30 exatos — como esteve até 09/09/2026 — a variante podia expirar no
+     * último dia de vida da matéria e ser transformada de novo para servir uma
+     * página que sai do ar em seguida: transformação paga por nada, na cota que
+     * já tinha estourado.
+     *
+     * O número da retenção vem do `CLAUDE.md` da API ("News >30 dias") e é o
+     * mesmo que o `cleanup` aplica; se ele mudar, esta asserção é o lugar que
+     * cobra o TTL junto.
+     */
+    const RETENCAO_NEWS_DIAS = 30;
+    const ttl = CONFIG_SEM_COMENTARIO.match(/minimumCacheTTL:\s*([^,\n]+)/)?.[1] ?? '';
+
+    // eslint-disable-next-line no-eval -- expressão aritmética do próprio config
+    expect(eval(ttl)).toBeGreaterThan(60 * 60 * 24 * RETENCAO_NEWS_DIAS);
   });
 
   it('o aceite de risco continua escrito ao lado do curinga', () => {

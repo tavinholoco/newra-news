@@ -5684,6 +5684,87 @@ GHSA sem linha no documento.
 
 **920 → 921 testes na API.**
 
+---
+
+### 54. A cota de imagem estourou porque cada foto era oferecida em dez tamanhos ✅ 2026-09-09
+
+> Continuação direta do item 53: o 402 apareceu **medindo uma advisory**, e este
+> item é o conserto. **Decisão do dono: continuar no plano Hobby** — o que é
+> legítimo, porque a restrição do Hobby é a **uso comercial**, e isto é
+> portfólio.
+
+#### O número, confirmado no painel
+
+**5.119 transformações em 30 dias** contra as **5.000/mês** incluídas — estouro
+de 2,4%. A conta é por **cache MISS**, e imagem de notícia troca todo dia: aqui
+o MISS é o caso normal, não a exceção.
+
+> **E o gráfico desmente a explicação preguiçosa.** O reflexo seria "o site
+> ficou popular"; os picos de 600–960 num dia caem em **28–30/08, dias sem um
+> único commit**, e o `git log` do período mostra isso. Não dá para atribuir a
+> origem daqui — o painel de Observability da Vercel é quem quebra por
+> referrer — então isto fica **sem conclusão de propósito**, em vez de virar uma
+> teoria bonita sobre tooling ou sobre crawler.
+
+#### O multiplicador não era tráfego, era a escada
+
+Medido no HTML da home no mesmo dia: **29 imagens de origem distintas** gerando
+**279 alvos distintos** (imagem × largura) nos `srcset` — **~9,6 larguras por
+imagem**. Cada foto nova era oferecida em dez tamanhos, e bastava um visitante de
+cada resolução para pagar dez transformações pela mesma imagem.
+
+#### O corte, conferido degrau a degrau
+
+`deviceSizes` de **6 para 4** e `imageSizes` de **6 para 5**, e a escolha saiu dos
+`sizes` que existem no código, não de arredondar:
+
+| Pedido real | Antes | Agora |
+|---|---|---|
+| 375 × 2 = 750 (mobile 2x) | 750 | 828 (+10% de bytes) |
+| 414 × 2 = 828 | 828 | 828 |
+| 390 × 3 = 1170 (Android 3x) | 1200 | 1200 |
+| 768 × 2 = 1536 (tablet 2x) | 1920 | 1920 |
+| 800 px do `hero-story` acima de 1280 | 828 | 828 |
+
+**Só o primeiro degrau mudou, e em 10% de bytes.** Cortar para três — tirando o
+1200 — jogaria o Android 3x direto no 1920, que é **pagar LCP para economizar
+cota**, a troca errada num projeto que tem gate de Lighthouse ≥ 90.
+
+O `minimumCacheTTL` foi de 30 para **31 dias**: com o TTL empatando com a
+retenção de `News`, a variante podia expirar **no último dia de vida da matéria**
+e ser transformada de novo para servir uma página que sai do ar em seguida. É
+também o número que a documentação da Vercel recomenda.
+
+#### O que **não** foi feito, e por quê
+
+- **`unoptimized: true`** resolveria em uma linha e de graça — e a medição da
+  própria Fase 10 diz por que não: **a origem de uma imagem pesa 2,8 MB**.
+  Serviria isso cru para o mobile e arriscaria o gate de Lighthouse.
+- **Proxy próprio de imagem** é a saída que o `next.config.js` já documentava
+  para este gatilho, e ela **ficou mais cara em 09/09**: traz `sharp`/`libheif`
+  para a árvore e **reabre a GHSA-2xp9-vwfh-vxw4** (item 53).
+- **`images.qualities`**, que a documentação da Vercel lista como alavanca, **só
+  existe do Next 15 em diante**. Não dá aqui.
+
+#### Guardas
+
+O `image-optimizer.test.ts` já travava o teto em `<= 6`; passou a travar em
+**`<= 4`**, porque devolver um degrau é **gratuito na tela e caro na cota** — a
+forma exata de mudança que volta sem ninguém notar, que é o motivo de aquele
+arquivo existir. Entrou também uma asserção nova: **o TTL tem de passar da
+retenção de `News`**, derivada dos 30 dias que o cleanup aplica, para os dois não
+voltarem a empatar. **As duas foram vistas reprovando.**
+
+#### O que continua aberto
+
+A cota **só zera na virada do período de faturamento** — até lá o site segue sem
+foto, e não há o que mergear que mude isso. E o aviso de cota da Vercel precisa
+chegar a alguém: **é a terceira vez** que este projeto descobre um teto de plano
+gratuito pelo produto quebrado (keep-alive, suspensão de 29/08, agora a imagem).
+Se estourar de novo depois do corte, a resposta honesta é o **Pro**.
+
+**682 → 683 testes no web.**
+
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
