@@ -96,6 +96,18 @@ que não precisa ir a produção fase a fase.
   dispara no push da `main`. Já era "janela controlada"; agora a janela é o
   plano inteiro.
 - **O Smoke E2E não roda em nenhum PR de fase** — ele é da `main`.
+- **A `main` roda com um `.gitignore` mais velho que o da `dev`, e isso já
+  mordeu.** Regra de ignore criada durante o plano só chega à `main` na
+  promoção — então **toda branch cortada da `main` fica sem ela**. Em 08/09 o
+  commit `b94ec6c`, que mudava duas linhas de README, levou junto **13 PNGs
+  (3,5 MB)** de `apps/web/.admin-captures/`, um caminho que a `dev` ignora desde
+  o PR #158 e que o `capture-admin.mjs` declara não versionar. Item **55**.
+
+> ⚠️ **Ao promover, `.gitignore` não desversiona o que já está versionado.** Os
+> 13 arquivos acima **continuam rastreados** depois do merge; a promoção precisa
+> de um `git rm --cached -r apps/web/.admin-captures` explícito. Confira também
+> se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho:
+> `git ls-tree -r --name-only origin/main | git check-ignore --stdin`.
 
 > ⚠️ **O gatilho para promover antes do fim é a Fase 9.** Ela é a única que pode
 > **deixar o site sem briefing** (§13: portão de saída que bloqueia e não cai
