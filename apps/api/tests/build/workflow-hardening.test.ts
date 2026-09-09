@@ -423,6 +423,35 @@ describe('CI: a auditoria de dependência e a lista de exceções', () => {
     expect(ghsasIgnoradas().length).toBeGreaterThan(0);
     expect(linhasDoDocumento().length).toBe(ghsasIgnoradas().length);
   });
+
+  /**
+   * **A contagem escrita em prosa, derivada da lista.**
+   *
+   * É o `13` dos feeds (item 41) nesta tabela: o documento afirma duas vezes
+   * quantas advisories estão silenciadas, e as duas frases estão em parágrafos
+   * que **ninguém abre ao acrescentar uma linha** — quem acrescenta mexe na
+   * tabela, quinze linhas abaixo. Em 09/09/2026 as duas diziam 18 enquanto a
+   * lista ia para 20.
+   *
+   * O par de regex é explícito de propósito: casar "qualquer número em negrito"
+   * pegaria o `35` da árvore inteira e o `10 do next` do agrupamento, que são
+   * outras contagens e não devem seguir esta.
+   */
+  it('as contagens em prosa acompanham a lista', () => {
+    const documento = ler(DOCUMENTO);
+    const esperado = ghsasIgnoradas().length;
+
+    const frases: [string, RegExp][] = [
+      ['Com `--prod` são **N**', /Com `--prod` são \*\*(\d+)\*\*/],
+      ['**N** advisories, quatro grupos', /\*\*(\d+)\*\* advisories, quatro grupos/],
+    ];
+
+    for (const [nome, padrao] of frases) {
+      const encontrado = documento.match(padrao);
+      expect(encontrado, `a frase "${nome}" sumiu do documento`).not.toBeNull();
+      expect(Number(encontrado?.[1]), `a contagem em "${nome}"`).toBe(esperado);
+    }
+  });
 });
 
 describe('a contagem de workflows escrita em prosa', () => {

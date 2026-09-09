@@ -283,6 +283,19 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🔴 **Aberto em produção (2026-09-09): a cota de otimização de imagem da Vercel
+  estourou, e o site está no ar sem foto nenhuma.** Todo `/_next/image` responde
+  **402 `OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED`** — medido em três larguras e
+  duas origens. A home responde 200 e as imagens de origem servem normalmente; o
+  que morreu é só o otimizador. Como o `SafeImage` **degrada sem gritar**, o
+  placeholder de marca aparece no lugar das fotos **sem erro em lugar nenhum**.
+  É o gatilho que o `next.config.js` já previa por escrito, e ele disparou sem
+  ninguém saber — mesma família do keep-alive e da suspensão de 29/08: **plano
+  gratuito que cobra uso avisa pelo produto quebrado, não por alerta.**
+  Achado de raspão, medindo uma advisory (item **53**). **Precisa do dashboard da
+  Vercel**, e a saída documentada — servir a imagem por proxy próprio — tem
+  consequência de segurança: ver o item 53 e `docs/security-advisories.md`.
+
 - **Onde estamos:** V2.0 com as **Fases 0 a 12 concluídas**. A **Fase 13
   (ajustes finos e release final)** é a próxima e pode abrir — ela dependia da
   12, que fechou. §28 do plano.
@@ -564,7 +577,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.602 em 137 suites (**920 API em 66** + **682 web em 71** — todos
+- **Testes:** 1.603 em 137 suites (**921 API em 66** + **682 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
@@ -655,12 +668,23 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
   `/article/[date]` em **2,42 s** — e as outras seis medem de 2,61 s a 2,90 s. O
   critério deixou de reprovar em bloco e virou pergunta de escopo.
 
-**Três dívidas compartilham o mesmo gatilho, e é o Next 15:** as 8 advisories
-*high* do `next` (nenhuma alcança esta configuração hoje — a tabela está no item
-35), o **soft 404** (`notFound()` em rota com `revalidate` e `not-found.tsx`
-aninhado responde **200**; quem segura o estrago é o `noindex` no caminho de
-falta, e essa linha tem guarda) e o **meta refresh do `redirect()`** — que é da
-mesma família e a 11 cobriu no caso comum, pelo middleware.
+**Três dívidas compartilham o mesmo gatilho, e é o Next 15:** as advisories do
+`next` — **8 *high* mais 2 *critical* desde 09/09/2026** (nenhuma alcança esta
+configuração hoje; a tabela está no item 35 e o aceite em
+`docs/security-advisories.md`), o **soft 404** (`notFound()` em rota com
+`revalidate` e `not-found.tsx` aninhado responde **200**; quem segura o estrago é
+o `noindex` no caminho de falta, e essa linha tem guarda) e o **meta refresh do
+`redirect()`** — que é da mesma família e a 11 cobriu no caso comum, pelo
+middleware.
+
+> **As duas *critical* mudaram o peso desse gatilho, e uma delas tem um fio
+> solto.** A do AVIF (`libheif` no `sharp`) não alcança porque **o `/_next/image`
+> é servido pela plataforma da Vercel, não pela app** — medido em 09/09, com
+> `sharp` fora do lockfile e a requisição nem chegando à região da função. Mas a
+> saída documentada para o **estouro de cota do otimizador** (que a mesma medição
+> encontrou: todo `/_next/image` em **402**) é *servir a imagem por um proxy
+> próprio* — e isso traz `sharp` para dentro e **reabre a advisory**. Resolver a
+> cota por esse caminho faz o Next 15 deixar de ser dívida e virar pré-requisito.
 
 **O que a 11 deixou pronto e a 13 pode aproveitar:** o smoke E2E, que passa a ser
 parte do ritual de fechar fase; e seis guardas exaustivas novas — resposta de
