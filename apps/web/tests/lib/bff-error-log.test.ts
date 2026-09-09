@@ -48,7 +48,23 @@ const WEB_ROOT = join(__dirname, '../..');
  * `getRelatedNews` continua engolindo a falha, e isso é dívida escrita — ver
  * "a dívida escrita continua sendo verdade", abaixo.
  */
-const BFF_PATHS = [join(WEB_ROOT, 'app', 'api'), join(WEB_ROOT, 'lib', 'api-proxy.ts')];
+const BFF_PATHS = [join(WEB_ROOT, 'app'), join(WEB_ROOT, 'lib', 'api-proxy.ts')];
+
+/**
+ * O que, dentro de `app/`, conta como BFF: **todo `route.ts`**.
+ *
+ * A primeira versão varria `app/api` e mais nada — e por isso deixou passar a
+ * `app/news-sitemap.xml/route.ts`, a única rota deste app que **não** mora sob
+ * `api/`. Ela chama a API, engolia as duas falhas em silêncio, e o Google
+ * Notícias lê justamente ela. O defeito não era o `catch`, era o **alcance da
+ * guarda**: uma lista de diretórios responde "o que eu lembrei de olhar", e a
+ * pergunta certa é "o que é uma rota".
+ *
+ * Página (`page.tsx`) e layout ficam de fora de propósito: eles renderizam, não
+ * repassam, e o que fazem com falha é assunto do `api-failure.test.ts`.
+ */
+const isRouteHandler = (file: string): boolean =>
+  /(^|\/)route\.tsx?$/.test(relativePath(file));
 
 /**
  * `catch` sem log, e o motivo de cada um. A chave é `<arquivo>#<função>` — e não
@@ -149,7 +165,9 @@ function catchSites(file: string): CatchSite[] {
 }
 
 function allCatchSites(): CatchSite[] {
-  return BFF_PATHS.flatMap(collectFiles).flatMap(catchSites);
+  return BFF_PATHS.flatMap(collectFiles)
+    .filter((file) => isRouteHandler(file) || file.endsWith('api-proxy.ts'))
+    .flatMap(catchSites);
 }
 
 describe('BFF — nenhum `catch` engole a falha em silêncio', () => {
@@ -666,5 +684,47 @@ describe('a fiação: os três catch chamam o logger de verdade', () => {
         else process.env[key] = value;
       }
     }
+  });
+
+  it('logs a signing failure and still rethrows — the status does not change', async () => {
+    /**
+     * O modo de falha mais caro do `api-proxy.ts` era o único sem linha: com
+     * `AUTH_JWT_SECRET` ausente, `signAuthJwt` lança e **toda** rota de conta e
+     * de admin cai de uma vez. A Fase 7a deixou essa chamada fora do `try`.
+     *
+     * A asserção é dupla de propósito: **loga** e **relança**. Trocar a exceção
+     * por um status próprio seria a fase de observabilidade mudando o caminho
+     * que observa — o princípio 1 do §2.
+     */
+    signAuthJwtMock.mockRejectedValue(new Error('AUTH_JWT_SECRET is not configured'));
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      proxyToApi(new Request('http://localhost:3000/api/account'), '/account'),
+    ).rejects.toThrow('AUTH_JWT_SECRET is not configured');
+
+    expect(lines()[0]?.scope).toBe('bff.proxy.sign');
+    // A API nunca chegou a ser chamada: não há 502 a confundir com isto.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('logs each half of the news sitemap that failed to load', async () => {
+    /**
+     * O documento vazio continua sendo a resposta certa — sitemap que responde
+     * erro sai do rodízio do buscador. O que faltava era distinguir "nada novo
+     * em 48 h" de "a API não respondeu", que até aqui eram bit a bit iguais.
+     */
+    const { GET } = await import('@/app/news-sitemap.xml/route');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const scopes = lines().filter((entry) => entry.scope === 'bff.news-sitemap');
+    expect(scopes.map((entry) => entry.collection).sort()).toEqual([
+      'briefings',
+      'news',
+    ]);
   });
 });

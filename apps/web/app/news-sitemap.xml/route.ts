@@ -1,4 +1,5 @@
 import { getNews, getArticles } from '@/lib/api';
+import { logServerError } from '@/lib/log-server-error';
 import { plainTitle } from '@/lib/markdown-text';
 import { toDateSlug } from '@/lib/format';
 import { SITE_NAME, absoluteUrl, type LocalelessPath } from '@/lib/seo';
@@ -126,9 +127,29 @@ async function collectBriefings(since: Date): Promise<NewsEntry[]> {
 export async function GET(): Promise<Response> {
   const since = new Date(Date.now() - WINDOW_MS);
 
+  /**
+   * **A degradação continua a mesma; o silêncio é que acabou.**
+   *
+   * Devolver documento vazio em vez de 500 é a decisão certa e está explicada
+   * acima. O que faltava era alguém **saber** que foi isso que aconteceu: um
+   * sitemap vazio e um sitemap que não conseguiu perguntar são bit a bit iguais
+   * para quem olha a resposta, e o Google Notícias lê esta rota logo depois de a
+   * matéria sair. Sem a linha, "o acervo não rendeu nada nas últimas 48 h" e "a
+   * API não respondeu" ficam indistinguíveis — a mesma classe de defeito que a
+   * Fase 7a fechou nas outras três rotas.
+   *
+   * Esta rota escapou da Fase 7a por um detalhe de caminho: ela é a única
+   * `route.ts` **fora de `app/api`**, e a guarda só varria aquele diretório.
+   */
   const [news, briefings] = await Promise.all([
-    collectNews(since).catch(() => [] as NewsEntry[]),
-    collectBriefings(since).catch(() => [] as NewsEntry[]),
+    collectNews(since).catch((error: unknown) => {
+      logServerError('bff.news-sitemap', error, { collection: 'news' });
+      return [] as NewsEntry[];
+    }),
+    collectBriefings(since).catch((error: unknown) => {
+      logServerError('bff.news-sitemap', error, { collection: 'briefings' });
+      return [] as NewsEntry[];
+    }),
   ]);
 
   const entries = [...briefings, ...news]
