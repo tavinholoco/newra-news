@@ -484,6 +484,22 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
   então a linha de acesso o punha em `info` junto do tráfego normal. **O palpite
   não entra no log.** Abrir a página sem credencial nenhuma **não** loga: é o
   caminho normal, e uma linha por visita ensina a ignorar o log.
+- **Defesa que dispara calada é defesa que ninguém sabe que disparou.** A
+  recusa de `Content-Type` com caractere de controle (mitigação da GHSA da
+  `fastify@4`) escreve `CONTENT_TYPE_REJECTED` em `warn`, e a categoria é
+  `authorization` **porque o nível é o que importa**: `validation` sairia em
+  `debug`, e produção roda em `LOG_LEVEL=info`. **O cabeçalho forjado não entra
+  no log.**
+- **`verifyAuthJwt` guarda a razão do jose no `cause`.** `JWTExpired`,
+  `JWSSignatureVerificationFailed` e `JWSInvalid` pedem ações opostas — relógio,
+  segredo divergente, cliente quebrado —, e a mensagem na resposta continua uma
+  só, porque dizer qual foi ajuda quem está adivinhando.
+- **`/api/health/providers`: o status responde "não deu", o log responde "por
+  quê".** `invalid` colapsa chave recusada, provedor fora do ar e timeout; o
+  `ProviderStatus` **não muda** (é contrato declarado, serializado por schema) e
+  a razão vai para o log, com o nome do provider. **A URL da sonda nunca entra na
+  linha** — ela carrega a chave, e depender do redator seria depender de ele
+  conhecer aquele valor.
 - **`ErrorContext` é `Record<string, escalar>` de propósito.** O `context` vai
   para o log e, na Fase 4, para uma coluna; objeto aninhado é como um segundo
   erro inteiro entra sem passar por redação nenhuma.

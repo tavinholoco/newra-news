@@ -381,6 +381,34 @@ a suíte de unidade, que roda sem rede.
   > como uso**: a primeira versão acusou `INTERNAL` de ser código sem quem o
   > lance, e ele é o que todo `new AppError('...')` carrega.
 
+- **Verificação pós-merge da Fase 3 (2026-09-09): três defesas disparavam
+  caladas.** Item **57**. A pergunta é a do item 39 e a do 52 — *o que ficou de
+  fora?* —, e quem respondeu foram duas varreduras sobre a árvore mergeada: todo
+  `catch` que descarta o erro, e **toda resposta de erro que não passa pelo
+  handler global** (a armadilha 29, escrita na própria fase, usada como
+  ferramenta). Sete saídas laterais; quatro já cobertas, **três mudas**.
+  **954 → 964 testes na API.**
+
+  > **A mitigação de uma GHSA *high* não escrevia nada** — a recusa de
+  > `Content-Type` com caractere de controle, que é o bypass de validação da
+  > `fastify@4`. Ninguém manda TAB ali por acidente: é sonda contra CVE
+  > conhecida. Virou `CONTENT_TYPE_REJECTED`, com `category: 'authorization'`
+  > **porque o nível é o que importa** — `validation` sairia em `debug`, e
+  > produção roda em `LOG_LEVEL=info`, então a linha não existiria e a correção
+  > não compraria nada.
+  >
+  > **O `verifyAuthJwt` descartava a razão do jose** — expirado, assinatura
+  > errada e malformado pedem ações opostas e viravam a mesma frase —, e a Fase
+  > 3 tinha acabado de criar o `cause` para guardá-la. E o `invalid` do
+  > `/api/health/providers` colapsava "chave recusada", "provedor fora do ar" e
+  > "timeout": o status na resposta **não mudou** (é contrato declarado), a razão
+  > passou a existir no log. **A URL da sonda não entra na linha** — ela carrega
+  > a chave —, e há asserção sobre isso.
+  >
+  > **O Gitleaks varreu `0 commits` no push do merge, com ✅ verde.** Terceira
+  > medição do mesmo buraco (`--no-merges --first-parent`). O conteúdo foi
+  > varrido no PR; o gate do merge é que é decorativo.
+
 - **Fora da linha das fases (2026-09-07): o BFF parou de engolir a falha, e com
   isso o bloco 1 do plano de observabilidade fechou.** A **Fase 7a** (§11.1), PR
   4 da ordem do §19. O parser deu o número que a inspeção de 01/09 tinha dito em
@@ -653,7 +681,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.637 em 139 suites (**954 API em 68** + **683 web em 71** — todos
+- **Testes:** 1.647 em 139 suites (**964 API em 68** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

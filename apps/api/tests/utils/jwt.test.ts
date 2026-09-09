@@ -80,3 +80,48 @@ describe('verifyAuthJwt', () => {
     env.AUTH_JWT_SECRET = original;
   });
 });
+
+describe('a razao da recusa sobrevive no `cause`', () => {
+  /**
+   * **O `catch` descartava o motivo, e os tres casos viram a mesma frase.**
+   *
+   * Expirado, assinatura errada e token malformado sao diagnosticos diferentes
+   * com acoes diferentes — relogio fora de sincronia, segredo divergente entre
+   * BFF e API, cliente quebrado — e todos chegavam ao log como "Invalid or
+   * expired token". A Fase 3 acrescentou `cause` ao `AppError` exatamente para
+   * isto e nao o usou aqui; a auditoria pos-merge pegou.
+   *
+   * **A resposta para quem chamou nao muda**: continua a mesma frase, porque
+   * dizer *por que* o token foi recusado ajuda quem esta tentando adivinhar.
+   */
+  it('keeps the jose reason for an expired token', async () => {
+    const token = await sign({ sub: 'user-1' }, { expired: true });
+
+    await expect(verifyAuthJwt(token)).rejects.toMatchObject({
+      message: 'Invalid or expired token',
+      code: 'AUTH_TOKEN_INVALID',
+    });
+
+    const error = await verifyAuthJwt(token).catch((e: unknown) => e as Error);
+    expect((error.cause as Error).name).toBe('JWTExpired');
+  });
+
+  it('tells a bad signature apart from an expired token', async () => {
+    const token = await sign({ sub: 'user-1' }, {
+      secret: new TextEncoder().encode('outro-segredo-completamente'),
+    });
+
+    const error = await verifyAuthJwt(token).catch((e: unknown) => e as Error);
+
+    // O nome do erro do jose e o que separa "relogio" de "segredo divergente".
+    expect((error.cause as Error).name).not.toBe('JWTExpired');
+    expect((error.cause as Error).name).toContain('JWS');
+  });
+
+  it('says nothing about the reason on the wire', async () => {
+    const token = await sign({ sub: 'user-1' }, { expired: true });
+    const error = await verifyAuthJwt(token).catch((e: unknown) => e as Error);
+
+    expect(error.message).toBe('Invalid or expired token');
+  });
+});

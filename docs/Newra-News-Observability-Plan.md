@@ -706,6 +706,22 @@ diferente. Passou a chamar `assertJobSecret`, que é o único lugar que compara
 este segredo, compara em tempo constante, e agora carrega o
 `JOB_SECRET_INVALID`.
 
+### A verificação pós-merge achou mais três, e as três eram defesas mudas
+
+Item **57** do `docs/progress.md`, no formato do item 52. Duas varreduras sobre
+a árvore mergeada — todo `catch` que descarta, e **toda resposta de erro fora do
+handler global** (a armadilha 29 usada como ferramenta) — deram sete saídas
+laterais, quatro já cobertas e **três caladas**:
+
+- a **mitigação da GHSA da `fastify@4`** (recusa de `Content-Type` com caractere
+  de controle) respondia 415 sem escrever nada → `CONTENT_TYPE_REJECTED`, com
+  `category: 'authorization'` **porque o nível é o que importa**: `validation`
+  sairia em `debug` e produção roda em `LOG_LEVEL=info`;
+- `verifyAuthJwt` **descartava a razão do jose**, num PR que acabara de criar o
+  `cause` para guardá-la;
+- o `invalid` do `/api/health/providers` colapsava chave recusada, provedor fora
+  do ar e timeout — o status não mudou, a razão foi para o log.
+
 ### A guarda
 
 Duas, e as duas foram vistas reprovando antes de o código existir:
