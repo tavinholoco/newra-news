@@ -52,8 +52,6 @@ const WITHOUT_SHARED_TYPE: Record<string, string> = {
   jobTriggerResponseSchema: 'disparo de job, sem consumidor no web',
   renormalizeResponseSchema: 'disparo de job, sem consumidor no web',
   pipelineStatusResponseSchema: 'status de job, lido por operador',
-  devLogsResponseSchema: 'painel dev, fora do produto',
-  devLogDetailResponseSchema: 'painel dev, fora do produto',
   healthResponseSchema: 'sonda de plataforma (Render), sem consumidor no web',
   providersHealthResponseSchema: 'sonda de operador, sem consumidor no web',
   httpMetricsResponseSchema: 'observabilidade lida por operador, sem tela',

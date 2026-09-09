@@ -7,4 +7,5 @@ export * from './newsletter';
 export * from './favorites';
 export * from './account';
 export * from './admin';
+export * from './pipeline';
 export * from './analytics';

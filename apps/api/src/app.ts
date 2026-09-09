@@ -4,7 +4,6 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
-import { env } from './config/env';
 import { corsPlugin } from './plugins/cors';
 import { observabilityPlugin } from './plugins/observability';
 import { helmetPlugin } from './plugins/helmet';
@@ -31,13 +30,38 @@ import { eventsRoutes } from './routes/events';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
 import { accountRoutes } from './routes/account';
+import { adminPipelineRoutes } from './routes/admin/pipeline';
 import { devLogsRoutes } from './routes/dev/logs';
 import { devDashboardRoutes } from './routes/dev/dashboard';
-import { AppError } from './utils/errors';
+import { AppError, logAppError } from './utils/errors';
+import { baseLogger } from './utils/logger';
 
 export async function buildApp() {
   const app = Fastify({
-    logger: env.NODE_ENV !== 'test',
+    /**
+     * **A instancia, e nao um booleano.**
+     *
+     * `logger: env.NODE_ENV !== 'test'` dava um pino default: sem `level`, sem
+     * `redact`, sem `serializers`. Era esse default que mandava a DSN com senha
+     * para o stdout do Render pelo `request.log.error({ err })` do handler
+     * abaixo — o vazamento que a §1 do plano de observabilidade mediu. O
+     * `utils/logger.ts` e quem configura as tres coisas, e passar a instancia e
+     * o que faz o `request.log` de toda rota herdar a mesma redacao.
+     *
+     * Em teste ele resolve para `level: 'silent'` — o logger continua no lugar,
+     * calado, em vez de virar o logger abstrato do Fastify.
+     */
+    logger: baseLogger,
+    /**
+     * **Duas linhas por requisicao viram uma.**
+     *
+     * O log padrao do Fastify escreve `incoming request` e `request completed`
+     * em **toda** requisicao, inclusive em cada sonda do `/api/health` — ruido
+     * que torna a linha que importa inencontravel. O `plugins/observability.ts`
+     * ja tem o hook `onResponse` e ja calcula rota, status e `elapsedTime`;
+     * agora ele escreve a linha, uma so, com o nivel casado ao status.
+     */
+    disableRequestLogging: true,
     /**
      * **Um hop de proxy, e exatamente um.**
      *
@@ -102,6 +126,25 @@ export async function buildApp() {
     const contentType = request.headers['content-type'];
     // eslint-disable-next-line no-control-regex
     if (typeof contentType === 'string' && /[\u0000-\u001f]/.test(contentType)) {
+      /**
+       * **A defesa disparava calada**, e isso saiu da auditoria pos-merge da
+       * Fase 3. Este hook responde aqui mesmo, entao o handler global nunca o
+       * ve — a armadilha 29, na terceira forma. E ninguem manda caractere de
+       * controle no `Content-Type` por acidente: e sonda contra CVE conhecida,
+       * que e o evento que a §3.2 do plano quer ver.
+       *
+       * **O cabecalho forjado nao entra no log.** Registrar a recusa nao e
+       * copiar entrada hostil para dentro de uma linha que outras ferramentas
+       * leem; o que se guarda e que aconteceu, e em que rota.
+       */
+      logAppError(
+        request.log,
+        new AppError('Unsupported Media Type', 415, {
+          code: 'CONTENT_TYPE_REJECTED',
+          category: 'authorization',
+        }),
+        { route: request.routeOptions?.url ?? 'unmatched' },
+      );
       return reply.status(415).send({ error: 'Unsupported Media Type' });
     }
   });
@@ -120,9 +163,36 @@ export async function buildApp() {
    * tambem fala, porque a mensagem dele descreve a requisicao de quem chamou, e
    * nao o interior do servidor. Para o 5xx sobra uma frase fixa e o
    * `x-request-id`, que e como o relato de fora encontra a linha do log.
+   *
+   * ## O que a Fase 3 mudou: o primeiro ramo deixou de ser mudo
+   *
+   * O `AppError` respondia e **nao escrevia nada** — a forma como um service diz
+   * "nao consegui" saia pelo fio sem deixar registro, e um 500 escolhido pelo
+   * servidor era a unica falha da API sobre a qual nao havia o que ler depois.
+   * O nivel sai de `logLevelFor` (`utils/errors.ts`), que le a categoria: 404 e
+   * resultado normal e vai a `debug`, recusa de autorizacao vale linha e vai a
+   * `warn`, 5xx e falha `internal` vao a `error`.
+   *
+   * **O contrato do fio nao muda, de proposito.** `errorResponseSchema` continua
+   * `{ error }`; por o `code` no corpo seria por um campo em `ApiError` que
+   * nenhuma tela le. Gatilho para reverter: a primeira tela que precise
+   * ramificar por qual falha foi.
    */
   app.setErrorHandler((error, request, reply) => {
+    /**
+     * O **padrao** da rota (`/api/news/:id`), que e o campo que o `ErrorEvent`
+     * da Fase 4 vai usar — ali cardinalidade e tamanho de tabela, e a URL crua
+     * daria uma linha por id.
+     *
+     * O `url` crua continua na linha do ramo de baixo, **de proposito**: linha
+     * de log nao e tabela, e a query string e o que diz *qual* busca derrubou a
+     * rota. Os dois campos respondem perguntas diferentes e nenhum substitui o
+     * outro.
+     */
+    const route = request.routeOptions?.url ?? 'unmatched';
+
     if (error instanceof AppError) {
+      logAppError(request.log, error, { route });
       return reply.status(error.statusCode).send({ error: error.message });
     }
 
@@ -132,12 +202,33 @@ export async function buildApp() {
     }
 
     request.log.error(
-      { err: error, reqId: request.id, url: request.url },
+      { err: error, reqId: request.id, route, url: request.url },
       'unhandled error',
     );
     return reply
       .status(500)
       .send({ error: 'Internal server error', requestId: request.id });
+  });
+
+  /**
+   * O caminho que nao casa com rota nenhuma.
+   *
+   * O padrao do Fastify devolvia tres campos —
+   * `{"message":"Route GET:/api/x not found","error":"Not Found","statusCode":404}`
+   * — onde a `docs/api.md` promete **um**, e ecoava o caminho pedido de volta no
+   * corpo. Era a unica resposta de erro da API fora do contrato, e ninguem
+   * podia ter notado: nenhuma rota declara schema de 404 para o que nao e rota.
+   *
+   * `debug` e nao `warn`: endereco errado de robo e o trafego normal de
+   * qualquer API publica, e a linha de acesso do `observability.ts` ja registra
+   * o 404 com a rota `unmatched`.
+   */
+  app.setNotFoundHandler((request, reply) => {
+    request.log.debug(
+      { route: 'unmatched', method: request.method, url: request.url },
+      'route not found',
+    );
+    return reply.status(404).send({ error: 'Not Found' });
   });
 
   await app.register(healthRoutes, { prefix: '/api/health' });
@@ -173,6 +264,16 @@ export async function buildApp() {
 
   await app.register(favoritesRoutes, { prefix: '/api/favorites' });
   await app.register(accountRoutes, { prefix: '/api/account' });
+
+  /**
+   * **Tudo sob `/api/admin` é ADMIN**, e a garantia é do grupo, não da rota.
+   *
+   * O `authPlugin` e o `requireAdmin` registram uma vez dentro de
+   * `adminPipelineRoutes`; o `authorization-matrix.test.ts` enumera o roteador,
+   * filtra este prefixo e cobra `access: 'admin'` de cada linha. É o gêmeo, do
+   * lado da API, do que o `admin/layout.tsx` faz do lado do web.
+   */
+  await app.register(adminPipelineRoutes, { prefix: '/api/admin/pipeline' });
 
   // Observabilidade (dev-only) — protegida por JOB_SECRET, sem exposição pública
   await app.register(devLogsRoutes, { prefix: '/api/dev' });

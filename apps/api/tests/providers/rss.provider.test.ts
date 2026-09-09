@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
 import { fetchFromRss } from '../../src/providers/news/rss.provider';
 import type { RssSource } from '../../src/config/rss-sources';
+import { baseLogger } from '../../src/utils/logger';
 
 const { mockParseString } = vi.hoisted(() => ({ mockParseString: vi.fn() }));
 
@@ -299,7 +300,9 @@ describe('fetchFeedXml encoding', () => {
    * de DNS fadada a falhar sem ninguém ver.
    */
   it('warns when a source fails, instead of swallowing it', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    // O aviso saía por `console.warn` até a Fase 1 do plano de observabilidade;
+    // o que mudou foi o destino, não o fato de a fonte morta avisar.
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
     mockFetch.mockRejectedValue(new Error('getaddrinfo ENOTFOUND'));
 
     const result = await fetchFromRss([sourceWithCategory]);
@@ -307,20 +310,23 @@ describe('fetchFeedXml encoding', () => {
     // A coleta continua: uma fonte morta não derruba as outras doze.
     expect(result).toEqual([]);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('TechCrunch'),
-      expect.anything(),
+      expect.objectContaining({ feed: 'TechCrunch', err: expect.any(Error) }),
+      expect.stringContaining('falhou'),
     );
     warn.mockRestore();
   });
 
   it('warns when a source answers with nothing', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
     mockFetchResponse();
     mockParseString.mockResolvedValue({ items: [] });
 
     await fetchFromRss([sourceWithoutCategory]);
 
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('zero itens'));
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ feed: expect.any(String) }),
+      expect.stringContaining('zero itens'),
+    );
     warn.mockRestore();
   });
 

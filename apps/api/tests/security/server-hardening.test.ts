@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { SignJWT } from 'jose';
 import { buildTestApp } from '../helpers/test-server';
 import { CORS_METHODS } from '../../src/plugins/cors';
+import pino from 'pino';
+import { redactingErrSerializer } from '../../src/utils/logger';
 
 /**
  * As guardas do eixo 9.S.
@@ -302,6 +304,36 @@ describe('9.S — o 500 não conta o interior do servidor', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json<{ error: string }>().error).not.toBe('Internal server error');
+  });
+});
+
+describe('Fase 1 — o app usa o logger configurado, não o default do Fastify', () => {
+  /**
+   * **A fiação não tinha guarda, e é ela que faz o resto valer.** O
+   * `secrets-in-logs.test.ts` prova que o serializer redige; nada provava que o
+   * app o **usa**. Trocar `logger: baseLogger` de volta por um booleano deixaria
+   * as 17 asserções daquele arquivo verdes e reabriria o vazamento inteiro — o
+   * serializer continuaria correto, apenas não seria chamado por ninguém.
+   */
+  it('logs through the redacting serializer, not the pino default', () => {
+    /**
+     * **Identidade não serve aqui**: o Fastify não guarda a instância, guarda um
+     * `child({ reqId })` dela — foi o que a primeira versão desta asserção
+     * descobriu. O que atravessa o `child` são os serializers, e é neles que a
+     * diferença mora: com `logger: true` o `err` seria o `errSerializer` padrão
+     * do pino, que não redige nada.
+     */
+    const serializers = (app.log as unknown as Record<symbol, { err?: unknown }>)[
+      pino.symbols.serializersSym
+    ];
+
+    expect(serializers?.err).toBe(redactingErrSerializer);
+  });
+
+  it('keeps the default request logging off — the single line comes from the hook', () => {
+    // Sem isto voltam as duas linhas por requisição, inclusive em cada sonda do
+    // `/api/health`, e a linha do `onResponse` vira a terceira em vez da única.
+    expect(app.initialConfig.disableRequestLogging).toBe(true);
   });
 });
 

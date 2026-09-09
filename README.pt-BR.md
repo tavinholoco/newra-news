@@ -163,6 +163,7 @@ Backend — `apps/api/.env`:
 | `SITE_URL` | URL pública do frontend, usada nos links do e-mail | Não |
 | `NEWSLETTER_FROM` | Remetente, em domínio verificado no Resend | Não |
 | `ADMIN_EMAILS` | E-mails que nascem com o papel ADMIN, separados por vírgula | Não |
+| `LOG_LEVEL` | Nível do log estruturado: `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`. Default `info` (`silent` nos testes) | Não |
 
 Frontend — `apps/web/.env.local`:
 
@@ -227,7 +228,7 @@ pnpm test
 
 **1.409 testes de unidade e integração em 127 suítes** — 804 da API em 61 suítes e 605 do web em 66. A suíte não precisa de banco nem de rede: o backend usa `fastify.inject()` e o frontend usa Testing Library sobre jsdom. A cobertura tem piso de 70% em linhas, statements, funções e branches nos dois apps, e o CI reprova abaixo disso.
 
-A cobertura end-to-end é separada: **29 specs de Playwright em 5 arquivos**, cobrindo os fluxos de visitante, acervo, conta, newsletter e autorização. Elas rodam contra produção pelo workflow `Smoke E2E` a cada push na `main`, e propositalmente não fazem parte do `pnpm test`.
+A cobertura end-to-end é separada: **um arquivo de spec de Playwright por fluxo** — visitante, acervo, conta, newsletter e autorização. Elas rodam contra produção pelo workflow `Smoke E2E` a cada push na `main`, e propositalmente não fazem parte do `pnpm test`.
 
 ```bash
 pnpm --filter @newranews/web test:e2e
@@ -241,7 +242,7 @@ pnpm --filter @newranews/web test:e2e
 | API | Render | Blueprint `render.yaml`, plano free, health check em `/api/health` |
 | Banco | Neon | PostgreSQL gerenciado. Migrations aplicadas pelo workflow `Migrate`, nunca de máquina local |
 
-Cinco workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build), `Gitleaks` (varredura de segredos), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria) e `Migrate`.
+Seis workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build e um `pnpm audit` que reprova qualquer advisory *high* em dependência de produção), `Gitleaks` (varredura de segredos), `CodeQL` (análise estática dos dois apps), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria) e `Migrate`. Todo workflow declara o mínimo de permissão para o `GITHUB_TOKEN`, e toda action de terceiro está fixada em SHA completo — as advisories aceitas, cada uma com motivo, data e gatilho de revisão, estão em [`docs/security-advisories.md`](docs/security-advisories.md).
 
 A UI interativa do Swagger é servida apenas em desenvolvimento, em `/api/docs`. Em produção o documento OpenAPI continua sendo gerado, mas a UI não é registrada — o contrato é a [`docs/api.md`](docs/api.md), guardada contra deriva por um teste.
 

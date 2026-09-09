@@ -1,0 +1,70 @@
+version: 2
+
+# **O outro lado do `pnpm audit` do CI.**
+#
+# Os dois olham para o mesmo conjunto e fazem coisas opostas de propósito: o
+# `audit` **reprova o merge** quando aparece advisory *high* em dependência de
+# produção, e o Dependabot **propõe a atualização** — de tudo, produção e
+# desenvolvimento. É essa divisão que deixa o `audit` rodar com `--prod` sem que
+# `eslint@8` e `vitest@2` fiquem sem ninguém olhando.
+#
+# **Agrupado, e não é preferência de estilo.** Sem agrupar, uma semana ruim abre
+# quinze PRs, cada um disparando o CI inteiro — e a resposta humana a quinze PRs
+# de bump é fechar todos. Agrupado por ecossistema, é um PR para ler.
+
+updates:
+  # As actions. É a metade que o `pnpm audit` não alcança de jeito nenhum, e a
+  # que mais importa depois desta fase: com tudo fixado em SHA, **o Dependabot
+  # passa a ser o único mecanismo que move os SHAs** — e ele atualiza o
+  # comentário da versão junto, que é o que a armadilha 20 do §17 pede.
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'chore(ci)'
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+  # O `npm` cobre o monorepo inteiro a partir da raiz: o Dependabot lê o
+  # `pnpm-workspace.yaml` e alcança `apps/*` e `packages/*` sem uma entrada por
+  # pacote.
+  #
+  # **`next` e `fastify` ficam de fora, e é a dívida escrita.** As duas majors
+  # arrastam trabalho de fase inteira — `next@15` leva `next-intl` 3 → 4 e
+  # `params` assíncrono em 15 páginas; `fastify@5` é dívida da Fase 13. Um PR
+  # semanal propondo as duas seria um PR semanal fechado sem ler, e é assim que
+  # se ensina a ignorar o robô. As advisories delas estão aceitas por escrito em
+  # `docs/security-advisories.md`, com gatilho.
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(deps)'
+    ignore:
+      - dependency-name: next
+        update-types: ['version-update:semver-major']
+      - dependency-name: fastify
+        update-types: ['version-update:semver-major']
+    groups:
+      producao:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      desenvolvimento:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch

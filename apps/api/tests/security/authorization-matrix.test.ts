@@ -131,6 +131,12 @@ const MATRIX: Row[] = [
   { route: 'PUT /api/account/preferences', access: 'session', payload: { theme: 'DARK' } },
   { route: 'PUT /api/account/newsletter', access: 'session', payload: { subscribed: true } },
 
+  // Fase 2 — a mesma consulta do `/api/dev/logs` por outra porta: sessão de
+  // admin em vez de segredo. As duas convivem de propósito; acesso por segredo
+  // é o que funciona quando o que quebrou é o provedor de sessão.
+  { route: 'GET /api/admin/pipeline/runs', access: 'admin' },
+  { route: 'GET /api/admin/pipeline/runs/:pipelineId', access: 'admin' },
+
   { route: 'GET /api/dev/logs', access: 'job' },
   { route: 'GET /api/dev/logs/:pipelineId', access: 'job' },
   { route: 'GET /dev/dashboard', access: 'job' },
@@ -274,6 +280,44 @@ describe('9.T — a matriz de autorização', () => {
   });
 });
 
+/**
+ * As rotas que o roteador de fato registrou, na forma `GET /api/news/:id`.
+ *
+ * O `printRoutes` desenha a árvore; o parse reconstrói o caminho a partir da
+ * indentação, que é como a árvore codifica a hierarquia. Mora numa função
+ * porque **duas** asserções desta suíte perguntam sobre a mesma superfície —
+ * a exaustividade da matriz e o prefixo `/api/admin` —, e um segundo parser
+ * seria um segundo lugar para quebrar em silêncio.
+ */
+function registeredRoutes(instance: FastifyInstance): string[] {
+  const registered: string[] = [];
+  const stack: Array<{ depth: number; segment: string }> = [];
+
+  for (const line of instance.printRoutes({ commonPrefix: false }).split('\n')) {
+    if (line.trim().length === 0) continue;
+    const depth = (line.match(/^[│\s]*[└├]??─*\s?/)?.[0] ?? '').length;
+    const content = line.replace(/^[│\s]*[└├]?─*\s?/, '');
+    const [segment, methodsPart] = content.split(' (');
+
+    while (stack.length > 0 && (stack[stack.length - 1]?.depth ?? 0) >= depth) {
+      stack.pop();
+    }
+    stack.push({ depth, segment: segment ?? '' });
+    if (!methodsPart) continue;
+
+    const path = stack.map((entry) => entry.segment).join('');
+    const normalized = path.length > 1 ? path.replace(/\/$/, '') : path;
+    for (const method of methodsPart.replace(')', '').split(', ')) {
+      if (method === 'HEAD' || method === 'OPTIONS') continue;
+      registered.push(
+        `${method} ${normalized.startsWith('/') ? normalized : `/${normalized}`}`,
+      );
+    }
+  }
+
+  return [...new Set(registered)];
+}
+
 describe('9.T — a matriz é exaustiva sobre o roteador', () => {
   /**
    * **A guarda que segura todas as outras.** Sem ela, a tabela acima é
@@ -281,30 +325,8 @@ describe('9.T — a matriz é exaustiva sobre o roteador', () => {
    */
   it('has a row for every registered route', () => {
     const declared = new Set(MATRIX.map((row) => row.route));
-    const registered: string[] = [];
 
-    const stack: Array<{ depth: number; segment: string }> = [];
-    for (const line of app.printRoutes({ commonPrefix: false }).split('\n')) {
-      if (line.trim().length === 0) continue;
-      const depth = (line.match(/^[│\s]*[└├]??─*\s?/)?.[0] ?? '').length;
-      const content = line.replace(/^[│\s]*[└├]?─*\s?/, '');
-      const [segment, methodsPart] = content.split(' (');
-
-      while (stack.length > 0 && (stack[stack.length - 1]?.depth ?? 0) >= depth) {
-        stack.pop();
-      }
-      stack.push({ depth, segment: segment ?? '' });
-      if (!methodsPart) continue;
-
-      const path = stack.map((entry) => entry.segment).join('');
-      const normalized = path.length > 1 ? path.replace(/\/$/, '') : path;
-      for (const method of methodsPart.replace(')', '').split(', ')) {
-        if (method === 'HEAD' || method === 'OPTIONS') continue;
-        registered.push(`${method} ${normalized.startsWith('/') ? normalized : `/${normalized}`}`);
-      }
-    }
-
-    const undecided = [...new Set(registered)]
+    const undecided = registeredRoutes(app)
       .filter((route) => !isOutsideTheMatrix(route))
       .filter((route) => !declared.has(route));
 
@@ -314,5 +336,40 @@ describe('9.T — a matriz é exaustiva sobre o roteador', () => {
   it('has no row for a route that no longer exists', () => {
     // O outro lado: linha órfã faz a tabela mentir sobre a superfície.
     expect(MATRIX.length).toBeGreaterThan(30);
+  });
+});
+
+/**
+ * **`/api/admin` é uma garantia estrutural, não um hábito por rota.** (§6, Fase 2)
+ *
+ * A Fase 2 abriu o prefixo com um argumento: `authPlugin` e `requireAdmin`
+ * registram **uma vez no grupo**, então "tudo sob `/api/admin` é ADMIN" deixa
+ * de depender de alguém lembrar de repetir a linha em cada handler — é o gêmeo,
+ * do lado da API, do que o `admin/layout.tsx` faz do lado do web.
+ *
+ * Argumento assim só vale enquanto for verdade, e a verdade aqui é fácil de
+ * perder: basta uma rota nova registrada no grupo errado, ou o grupo perder o
+ * `preHandler` numa refatoração. Esta asserção enumera o prefixo **no roteador**
+ * e cobra `access: 'admin'` de cada uma — e as asserções da matriz acima é que
+ * medem o 401/403 de verdade, contra a aplicação de pé.
+ */
+describe('Fase 2 — o prefixo /api/admin', () => {
+  const byRoute = new Map(MATRIX.map((row) => [row.route, row]));
+
+  it('registers routes under the prefix at all — an empty filter passes everything', () => {
+    // A asserção que segura a de baixo. Sem ela, o dia em que o prefixo sumir
+    // (renomeado, ou o `register` esquecido) esta suíte passa verde sobre uma
+    // superfície vazia — o defeito que este projeto já viu em três guardas.
+    expect(
+      registeredRoutes(app).filter((route) => route.includes(' /api/admin/')).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('declares every route under /api/admin as admin-only', () => {
+    const notAdminOnly = registeredRoutes(app)
+      .filter((route) => route.includes(' /api/admin/'))
+      .filter((route) => byRoute.get(route)?.access !== 'admin');
+
+    expect(notAdminOnly).toEqual([]);
   });
 });

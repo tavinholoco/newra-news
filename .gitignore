@@ -58,3 +58,9 @@ docs/PRD-NewraNews_V1.1.md
 
 # Arquivo de processo interno, nao versionado
 README-GENERATOR.md
+
+# Capturas das telas de admin (scripts/capture-admin.mjs).
+# São telas de uma sessão administrativa forjada localmente: ficam fora do
+# versionamento pelo mesmo motivo que arquivo de estado de autenticação do
+# Playwright fica — o conteúdo é de sessão, não de produto.
+apps/web/.admin-captures/

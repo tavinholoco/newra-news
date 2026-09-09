@@ -11,8 +11,8 @@
 - Cada rota em seu próprio arquivo com schema Zod adjacente
 - Services são classes ou funções puras (sem dependência de Fastify)
 - Providers organizados em `providers/news/` (NewsData.io, RSS) e `providers/ai/` (Gemini, Groq, ai-utils)
-- Erros customizados em src/utils/errors.ts
-- Logger via Fastify built-in (pino)
+- Erros customizados em `src/utils/errors.ts` — ver "A taxonomia de erro" abaixo. **`code` é literal do tuple e nunca é interpolado**
+- Logger em `src/utils/logger.ts` (pino) — ver "O log" abaixo. **`console.*` é erro de lint na API**
 - Plugins registrados em src/plugins/
 
 ## Rotas
@@ -50,6 +50,13 @@
   `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
   lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
+- GET /api/admin/pipeline/runs — **admin (JWT + role ADMIN)**: os últimos runs
+  do pipeline + os que falharam, com os mesmos filtros do `/api/dev/logs`
+  (`status`, `since`, `limit`). **Mesma consulta e mesmo schema** — o que muda é
+  a porta: sessão em vez de segredo. Fase 2 do plano de observabilidade
+- GET /api/admin/pipeline/runs/:pipelineId — **admin**: o run com os eventos por
+  etapa. **Tudo sob `/api/admin` é admin-only por construção** — `authPlugin` e
+  `requireAdmin` registram uma vez no grupo, e há guarda enumerando o roteador
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only: runs, erros e status dos providers.
@@ -57,6 +64,34 @@
   histórico e `Referer`. Entra por `Authorization: Bearer` (curl) ou por
   `POST /dev/dashboard/session` (o formulário da página), que devolve um cookie
   `HttpOnly` com uma **assinatura de prazo**, nunca o segredo
+
+## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
+
+**A garantia é do grupo, não da rota.** `routes/admin/pipeline.ts` registra o
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez; toda rota do grupo
+nasce protegida sem ninguém lembrar de repetir a linha. É o gêmeo, do lado da
+API, do que o `admin/layout.tsx` faz do lado do web — e tem guarda:
+`authorization-matrix.test.ts` enumera o `printRoutes()`, filtra o prefixo e
+cobra `access: 'admin'` de cada linha, com uma asserção separada exigindo que o
+filtro encontre alguma coisa.
+
+- **`authPlugin` não encapsula**, e é isso que faz o hook alcançar as rotas do
+  arquivo: o `fp()` do export default marca a própria função com
+  `skip-override`, então `await app.register(authPlugin)` acrescenta o
+  `preHandler` ao contexto de quem chamou. Mesmo desenho do
+  `routes/metrics/admin.ts`, onde `/weekly` e `/monthly` seguem públicas porque
+  moram em outro `register`.
+- **O `/api/dev/*` continua atrás do `JOB_SECRET`, de propósito.** Acesso por
+  segredo é o caminho que funciona **quando não há sessão** — e isso importa
+  mais justamente quando o que quebrou é o provedor de sessão. As duas portas
+  dão na mesma consulta (`getDevLogs`) e devolvem o mesmo schema; há teste
+  comparando os dois corpos, para que "duas portas, um contrato" seja algo que
+  reprova e não um comentário.
+- **`devLogsResponseSchema` deixou de ser exceção no `shared-type-contract`.**
+  Enquanto só o painel dev o lia, o motivo escrito era `'painel dev, fora do
+  produto'`; no instante em que uma tela do produto passou a ler aquele shape, o
+  motivo deixou de ser verdade. Os tipos estão em `packages/types/src/pipeline.ts`
+  e o `assertContract` mora ao lado dos schemas.
 
 ## Editorial (V2)
 - Serviços em `services/{home,trending,related}.service.ts`, mapper compartilhado
@@ -357,6 +392,117 @@ segue até o fim do texto — a condição exata que a fronteira existe para imp
 **O sufixo entra no hash de `ARTICLE_PROMPT_VERSION`.** Mexer na fronteira é
 mudança de segurança, e dois briefings gerados sob regras diferentes precisam
 ser distinguíveis pelo campo de auditoria que a §18.4 grava.
+
+## O log (Fase 1 do plano de observabilidade)
+
+`src/utils/logger.ts` — uma instância de pino, e todo o resto passa por ela.
+
+- **`console.*` é erro de lint**, com **uma** exceção escrita: `config/env.ts`,
+  que roda antes de o logger existir e termina em `process.exit(1)`. Guarda em
+  `tests/security/secrets-in-logs.test.ts`, que também varre `src/` e recusa
+  exceção sem motivo. **A varredura usa `ts.createSourceFile`, e não regex nem
+  scanner de caracteres:** a primeira versão tratava aspas como delimitador de
+  string e a aspa de um literal de regex (`.replace(/"/g, …)`) apagava 481
+  linhas do `src/` — com um `console.warn` real passando verde dentro delas.
+- **A fiação tem guarda própria**, em `server-hardening.test.ts`: o serializer
+  correto não vale nada se o `buildApp` não o usar. Ela compara
+  `app.log[pino.symbols.serializersSym].err` — porque `app.log` **não é** a
+  instância passada, é um `child({ reqId })` dela.
+- **O serializer de `err` é quem fecha o vazamento de segredo, não o `redact` do
+  pino.** O `redact` trabalha por *caminho* (`req.headers.authorization`); a DSN
+  do Prisma chega dentro de `err.message`, que é texto livre. Os dois são
+  necessários e nenhum substitui o outro.
+- **`redactSecrets` conhece o valor de cada segredo do ambiente**, e não só o
+  formato — é isso que o tira da corrida armamentista de regex. O que sobrevive
+  é diagnóstico de propósito: `name`, `code`, `statusCode`, o host da DSN e a
+  palavra `Bearer`.
+- **O serializer é lista de permissão.** Propriedade acrescentada a um erro não
+  é serializada — o `primaryError` que o `ai.service` pendura na exceção do
+  fallback seria um segundo erro sem passar por redação nenhuma.
+- **Uma linha por requisição**, escrita pelo `onResponse` do
+  `plugins/observability.ts`; o par padrão do Fastify está desligado
+  (`disableRequestLogging: true`). O nível casa com o status, o que faz
+  `LOG_LEVEL=warn` deixar no log só o que deu errado.
+- **`pipelineLogId` em toda linha escrita durante um run**, por
+  `AsyncLocalStorage` aberto em `runPipeline` e lido pelo `mixin` do pino —
+  nenhuma função ganhou parâmetro. **Não há `reqId` no store**: quem tem
+  requisição já escreve por `request.log`, cujo child logger o carrega.
+- **O tipo do export é `FastifyBaseLogger`, e trocá-lo por `pino.Logger` quebra
+  o build.** O tipo concreto fixa o parâmetro de logger do `FastifyInstance`, e
+  toda função que recebe o app default (`registerDailyPipelineJob`, helpers de
+  teste) deixa de casar. A suíte não vê; só o `tsc`.
+- **O vocabulário de níveis mora em `config/env.ts`**, não aqui: é o schema quem
+  valida, e o logger já importa aquele arquivo (o contrário seria ciclo). O
+  `LogLevel` é derivado da tupla, nunca digitado de novo.
+- **`LOG_LEVEL` não tem default no schema.** `utils/logger.ts` resolve a
+  ausência para `info` **só** em `development` e `production`; qualquer outra
+  coisa é `silent`. Escrito como `!== 'test'`, toda suíte que faz
+  `vi.mock('../../src/config/env')` pela metade acordaria o logger em `info` e
+  despejaria JSON no stdout do CI — medido, em duas suítes.
+
+## A taxonomia de erro (Fase 3 do plano de observabilidade)
+
+`src/utils/errors.ts` — `AppError` com `code`, `category`, `cause?` e
+`context?`, e a decisão de nível de log num lugar só.
+
+- **`code` é literal do tuple e nunca é interpolado.** Não é estilo: a Fase 4
+  grava uma linha de `ErrorEvent` por `(fingerprint, hora)`, e enquanto o
+  conjunto de códigos for finito a tabela tem teto qualquer que seja o tráfego.
+  Um código montado com o id da notícia trocaria "uma linha por falha distinta"
+  por "uma linha por notícia". **O corolário vale igual: código que ninguém
+  lança não entra no tuple.** As duas metades têm guarda em
+  `tests/utils/error-taxonomy.test.ts`, escrita com `ts.createSourceFile` —
+  literal contra template é gramática, não texto.
+- **O nível sai de `logLevelFor`, e a categoria vence o status.** 5xx é `error`;
+  `authorization` é `warn` (o `authz_fail` do vocabulário do OWASP); o resto
+  abaixo de 500 é `debug`, porque um 404 em `/news/:id` é resultado normal e
+  afogaria o sinal. **A exceção é `internal`, que é `error` mesmo em 4xx** —
+  `AUTH_NOT_CONFIGURED` é um 401 que recusa *todo* token e é configuração
+  quebrada, não recusa; esta variável já falhou em silêncio em produção.
+- **O `authPlugin` responde sem deixar o erro subir**, então o handler global
+  nunca o vê. Ele chama `logAppError` antes de responder, e a resposta continua
+  **uniforme** (`Invalid or missing token` para as três causas): quem chamou não
+  precisa saber qual porta bateu; quem separa é o `code`, do lado de dentro.
+  Corolário para quem for mexer no handler central: procure antes as saídas
+  laterais — `preHandler`, `onRequest`, `setNotFoundHandler`, o hook de
+  `content-type`.
+- **O contrato do fio não muda.** `errorResponseSchema` continua `{ error }`;
+  `code` no corpo seria campo em `ApiError` que nenhuma tela lê. Gatilho para
+  reverter: a primeira tela que ramifique por qual falha foi.
+- **`setNotFoundHandler` existe pela `docs/api.md`, não pela métrica.** A rota
+  continua sendo `unmatched` no mapa do `observability.ts` (é o balde certo —
+  senão o mapa ganha uma linha por endereço de robô). O que ele conserta é o
+  corpo: o padrão do Fastify devolvia três campos e ecoava o caminho pedido, e
+  era a única resposta de erro da API fora do contrato documentado.
+- **O serializer de `err` é quem carrega a taxonomia para o log**, e desde esta
+  fase ele também serializa o **`cause`, um nível e sem `stack`** — o undici
+  lança `TypeError: fetch failed` e o `ECONNREFUSED` está só ali dentro (achado
+  da Fase 7a). Um nível é o que mantém a lista de permissão de pé.
+- **O `/dev/dashboard` é o único formulário de senha do produto, e agora deixa
+  rastro.** Senha errada no `POST /dev/dashboard/session` escreve
+  `DASHBOARD_SECRET_INVALID` em `warn` — antes era um **303 mudo**, e 303 < 400,
+  então a linha de acesso o punha em `info` junto do tráfego normal. **O palpite
+  não entra no log.** Abrir a página sem credencial nenhuma **não** loga: é o
+  caminho normal, e uma linha por visita ensina a ignorar o log.
+- **Defesa que dispara calada é defesa que ninguém sabe que disparou.** A
+  recusa de `Content-Type` com caractere de controle (mitigação da GHSA da
+  `fastify@4`) escreve `CONTENT_TYPE_REJECTED` em `warn`, e a categoria é
+  `authorization` **porque o nível é o que importa**: `validation` sairia em
+  `debug`, e produção roda em `LOG_LEVEL=info`. **O cabeçalho forjado não entra
+  no log.**
+- **`verifyAuthJwt` guarda a razão do jose no `cause`.** `JWTExpired`,
+  `JWSSignatureVerificationFailed` e `JWSInvalid` pedem ações opostas — relógio,
+  segredo divergente, cliente quebrado —, e a mensagem na resposta continua uma
+  só, porque dizer qual foi ajuda quem está adivinhando.
+- **`/api/health/providers`: o status responde "não deu", o log responde "por
+  quê".** `invalid` colapsa chave recusada, provedor fora do ar e timeout; o
+  `ProviderStatus` **não muda** (é contrato declarado, serializado por schema) e
+  a razão vai para o log, com o nome do provider. **A URL da sonda nunca entra na
+  linha** — ela carrega a chave, e depender do redator seria depender de ele
+  conhecer aquele valor.
+- **`ErrorContext` é `Record<string, escalar>` de propósito.** O `context` vai
+  para o log e, na Fase 4, para uma coluna; objeto aninhado é como um segundo
+  erro inteiro entra sem passar por redação nenhuma.
 
 ## Observabilidade da API
 

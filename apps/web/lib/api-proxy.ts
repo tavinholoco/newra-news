@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { signAuthJwt } from '@/lib/jwt';
+import { logServerError } from '@/lib/log-server-error';
 import { API_TIMEOUT_MS } from '@/lib/timeouts';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -61,18 +62,39 @@ export async function proxyToApi(
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  const jwt = await signAuthJwt({
-    sub: session.user.id,
-    email: session.user.email ?? '',
-    // O `role` só é assinado quando a rota o exige. Um token de leitor comum
-    // não carrega papel nenhum, e é isso que faz a porta da API decidir por
-    // conta própria em vez de acreditar no que o BFF escreveu.
-    ...(options.requireRole ? { role: options.requireRole } : {}),
-  });
-
   const query = new URL(request.url).search;
   const hasBody = method === 'POST' || method === 'PUT';
   const requestId = request.headers.get('x-request-id');
+
+  let jwt: string;
+  try {
+    jwt = await signAuthJwt({
+      sub: session.user.id,
+      email: session.user.email ?? '',
+      // O `role` só é assinado quando a rota o exige. Um token de leitor comum
+      // não carrega papel nenhum, e é isso que faz a porta da API decidir por
+      // conta própria em vez de acreditar no que o BFF escreveu.
+      ...(options.requireRole ? { role: options.requireRole } : {}),
+    });
+  } catch (error) {
+    /**
+     * **Loga e relança — o status não muda, e isso é o ponto.**
+     *
+     * `signAuthJwt` lança quando `AUTH_JWT_SECRET` não está configurado, e essa
+     * é exatamente a história que o §17 (armadilha 6) manda não repetir:
+     * variável ausente falhando **em silêncio na produção**. Aqui ela derruba
+     * *toda* rota de conta e de admin de uma vez, e a Fase 7a tinha deixado esta
+     * chamada **fora do `try`** — ou seja, o modo de falha mais caro do arquivo
+     * era o único sem linha de log.
+     *
+     * O `throw` continua: quem decide o que o navegador vê nesse caso é o Next,
+     * como antes. Trocar por um 502 seria mentir (a API está de pé), e por um
+     * 500 próprio seria mudar comportamento numa fase de observabilidade — o
+     * princípio 1 do §2 diz que ela nunca altera o caminho que observa.
+     */
+    logServerError('bff.proxy.sign', error, { requestId, path, method });
+    throw error;
+  }
 
   let backendResponse: Response;
   try {
@@ -94,7 +116,29 @@ export async function proxyToApi(
       },
       body: hasBody ? await request.text() : undefined,
     });
-  } catch {
+  } catch (error) {
+    /**
+     * **A falha do repasse deixa de ser invisível.** Até aqui ela não tinha
+     * rastro em lugar nenhum: o corpo de erro vai para o navegador, e navegador
+     * não guarda log.
+     *
+     * **Sobre o `requestId`, e vale ser exato:** o §11.1 diz que logar aqui é o
+     * que faz o `x-request-id` pagar no caminho da falha, e isso é verdade
+     * quando existe um id — mas **hoje ele é `null` em toda requisição real**.
+     * Quem chama este BFF é o navegador, que não manda o cabeçalho, e a decisão
+     * de não inventar um está guardada em `bff-seam.test.ts`, com o argumento
+     * certo para o caminho do sucesso: quem gera, quando não vem, é a API, e ela
+     * o devolve. Só que na falha não há resposta da API, então não há id nenhum
+     * a devolver. **O campo fica porque é onde o id entra quando passar a
+     * existir** — é a §11.2 que dá ao cliente algo para reportar. Enquanto isso,
+     * `requestId: null` é a afirmação honesta: ninguém correlacionou nada.
+     *
+     * **A query string não entra de propósito.** O `path` é o endereço da API,
+     * escrito por este código; o `search` carrega o que o leitor digitou na
+     * busca. Log não é lugar de dado de quem está lendo.
+     */
+    logServerError('bff.proxy', error, { requestId, path, method });
+
     /**
      * **502, e com o mesmo corpo `{ error }` de todas as outras respostas.**
      *

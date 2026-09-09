@@ -17,6 +17,13 @@
 - `pnpm lint` — ESLint em todo o monorepo
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
 - `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`. **O conjunto versionado é capturado de produção**, não do local — ver "Fechar uma fase" abaixo
+- `pnpm --filter @newranews/web admin:capture` — fotografa as telas de **admin**
+  (`/admin`, com um run expandido, e `/admin/metrics`) em 375 e 1440, claro e
+  escuro, com uma sessão forjada localmente. A baseline visual exclui essa área
+  porque exige sessão, então até 07/09 ela **nunca esteve em captura nenhuma** —
+  e é onde as fases 5, 6, 8, 9 e 11 do plano de observabilidade trabalham. Só
+  aceita localhost, e exige `NEXTAUTH_SECRET` local diferente do de produção.
+  Detalhe em `apps/web/CLAUDE.md`
 - `pnpm --filter @newranews/api archive:hygiene` — **mede a higiene de texto do
   acervo contra produção** (§12.D). Varre `/api/news` e conta as seis classes de
   defeito que a Fase 12 zerou; sai 1 se alguma tiver linha, 2 se a API não
@@ -27,10 +34,101 @@
 - `pnpm db:generate` — gerar Prisma Client
 - `pnpm db:studio` — abrir Prisma Studio
 
+## Onde o trabalho integra: `dev`, e a `main` só por promoção
+
+**Decidido em 05/09/2026.** O trabalho entra por PR na **`dev`**; a `main` recebe
+`dev → main` quando **você decide**, e é esse merge que publica. O motivo é
+direto: a `main` é o que está no ar, e mergear fase a fase nela é convidar
+janela de site quebrado por mudança que ainda não precisava estar em produção.
+
+A `dev` foi alinhada à `main` em 05/09 (era 217 commits atrás, zero à frente —
+fast-forward limpo). **Se ela voltar a ficar para trás, alinhe antes de abrir
+qualquer PR**, senão a fase é desenvolvida contra código velho:
+
+```bash
+git fetch origin && git push origin origin/main:refs/heads/dev
+```
+
+**O que roda em cada base — confira antes de assumir:**
+
+| Workflow | Base `dev` | Base `main` |
+|---|---|---|
+| CI (Lint, Test, Build, `pnpm audit`) | ✅ | ✅ |
+| CodeQL | ✅ | ✅ |
+| Gitleaks | ✅ | ✅ |
+| Smoke E2E | ❌ | ✅ (push) |
+| Migrate (Prisma) | ❌ | ✅ (push) |
+
+As duas últimas ficam **só na `main` de propósito**: o smoke mede o site no ar, e
+migration se aplica a produção uma vez. A consequência prática é que **um lote
+de fases com schema aplica todas as migrations juntas na promoção** — o que é
+uma janela controlada, mas é uma janela: promova com isso em mente.
+
+**A promoção dispara sozinha o que precisa disparar.** `dev → main` é um push na
+`main`, então Smoke E2E e Migrate rodam sem ninguém lembrar; o Lighthouse e a
+baseline continuam manuais, e estão logo abaixo.
+
+**As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
+padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
+porque o `render.yaml` **não declara `branch:`**: a configuração vive no painel,
+então nenhum arquivo deste repositório prova onde ela está. Se a API um dia
+passar a publicar de outra branch, é lá que a resposta está — e a política de
+promoção estaria invertida sem nada aqui acusar.
+
+A `dev` ganha deploy de preview na Vercel, que é onde dá para olhar o lote antes
+de promover.
+
+### A promoção espera o plano de observabilidade terminar — 07/09/2026
+
+**Decidido depois da Fase 2.** As onze fases do plano integram na `dev` e a
+`main` recebe **uma promoção só, no fim**. O argumento é o mesmo que criou a
+política: a `main` é o que está no ar, e o plano é trabalho de instrumentação
+que não precisa ir a produção fase a fase.
+
+**O que isso custa, e é preciso ter na mão:**
+
+- **Nenhuma fase é medida contra produção até a promoção.** O ritual é do lote,
+  e o lote passou a ser o plano inteiro. O que sobra medindo no caminho é o CI
+  de PR (lint, testes, build, `pnpm audit`, CodeQL, Gitleaks), o preview da
+  Vercel na `dev` — e, desde 07/09, a **captura de admin local**, que alcança
+  justamente a área onde cinco das fases restantes trabalham.
+- **As migrations das fases 4 e 11 aplicam juntas**, porque o `migrate.yml`
+  dispara no push da `main`. Já era "janela controlada"; agora a janela é o
+  plano inteiro.
+- **O Smoke E2E não roda em nenhum PR de fase** — ele é da `main`.
+- **A `main` roda com um `.gitignore` mais velho que o da `dev`, e isso já
+  mordeu.** Regra de ignore criada durante o plano só chega à `main` na
+  promoção — então **toda branch cortada da `main` fica sem ela**. Em 08/09 o
+  commit `b94ec6c`, que mudava duas linhas de README, levou junto **13 PNGs
+  (3,5 MB)** de `apps/web/.admin-captures/`, um caminho que a `dev` ignora desde
+  o PR #158 e que o `capture-admin.mjs` declara não versionar. Item **55**.
+
+> ⚠️ **Ao promover, `.gitignore` não desversiona o que já está versionado.** Os
+> 13 arquivos acima **continuam rastreados** depois do merge; a promoção precisa
+> de um `git rm --cached -r apps/web/.admin-captures` explícito. Confira também
+> se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho:
+> `git ls-tree -r --name-only origin/main | git check-ignore --stdin`.
+
+> ⚠️ **O gatilho para promover antes do fim é a Fase 9.** Ela é a única que pode
+> **deixar o site sem briefing** (§13: portão de saída que bloqueia e não cai
+> para o provider de reserva), e o próprio plano manda rodá-la em modo
+> observador contra os briefings retidos antes de ligar o bloqueio. Levá-la a
+> produção dentro de um lote de nove fases é o oposto disso. **Promova antes de
+> mergear a 9**, ou aceite que a primeira medição real dela será junto com tudo
+> o mais.
+
+
 ## Fechar uma fase (o ritual, contra produção)
 
-Roda **depois** do merge e do deploy — as duas medições são contra o site no ar,
-e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as duas acharam defeito.
+Roda **depois da promoção `dev → main` e do deploy** — as duas medições são
+contra o site no ar, e cada uma pega o que a outra não pega. Nas Fases 4 e 5 as
+duas acharam defeito.
+
+> **O merge na `dev` não fecha fase nenhuma.** Ele passa o CI e para aí; nada do
+> que está abaixo mede uma branch que não foi publicada. Rodar o ritual depois
+> de um merge na `dev` mede a produção **anterior** e devolve verde sobre
+> mudança que não está lá — que é o defeito mais caro que este projeto sabe
+> produzir. O ritual é do lote promovido, não da fase.
 
 **1. Lighthouse por rota.** Não espere a execução de segunda:
 
@@ -142,8 +240,8 @@ do dia mudou, ou há algo errado.
 gh workflow run "Smoke E2E" --ref main
 ```
 
-29 specs contra produção: os fluxos da §25 mais os casos negativos de
-autorização. É o passo que pega a classe de defeito que os outros dois não
+Os fluxos da §25 — **visitante, acervo, conta e newsletter** — mais os casos
+negativos de **autorização**, medidos contra produção. É o passo que pega a classe de defeito que os outros dois não
 pegam — o desencontro entre os dois deploys. Localmente,
 `pnpm --filter @newranews/web test:e2e` mede o mesmo alvo; `SMOKE_BASE_URL`
 troca para um build local. **Ele não faz parte do `pnpm test`**: `turbo test` é
@@ -174,10 +272,21 @@ a suíte de unidade, que roda sem rede.
 - Plano V2.0 (redesign editorial): docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - **Plano de observabilidade e painel do admin (à parte da linha das fases):**
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
-  `ErrorEvent`, invariantes e as três abas do admin. Base aberta, nenhuma fase
-  implementada. Traz a pesquisa de quais métricas e eventos de segurança um
+  `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
+  CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
+  `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
+  09/09, abrindo a espinha.** Continuam abertas **seis fases inteiras** (4, 5, 6,
+  8, 9 e 11) mais as subfases **7b e 7c**. A próxima é a **4**, em dois PRs
+  (migration e código). O **§19** é
+  o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
+  fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
   SRE, dimensões de qualidade de dado)
+- **Advisories aceitas, com motivo, data e gatilho:**
+  `docs/security-advisories.md` — o que `pnpm audit --audit-level=high --prod`
+  não reprova, e por quê. A lista silenciada mora em
+  `pnpm.auditConfig.ignoreGhsas` no `package.json` da raiz, e os dois não podem
+  divergir
 - Discovery da V2 (Fase 0 — tokens, sitemap, contratos, baseline visual): docs/v2/
 - **Regras de uso dos tokens da V2 no código: `apps/web/CLAUDE.md`** — tabela papel → classe, o que a suíte proíbe e por quê
 - Diagramas: `docs/diagrams/` — **seis**, reescritos em 01/09 contra o código:
@@ -186,6 +295,33 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟡 **A cota de otimização de imagem da Vercel estourou em 09/09/2026, e o
+  corte que a faz caber já entrou — falta o mês virar.** Confirmado no painel:
+  **5.119 transformações** contra as **5.000/mês** do plano Hobby, e todo
+  `/_next/image` respondendo **402**, com o site no ar exibindo o placeholder de
+  marca no lugar das fotos. Como o `SafeImage` **degrada sem gritar**, não houve
+  erro em lugar nenhum — foi achado de raspão, medindo uma advisory (item
+  **53**).
+
+  **O multiplicador não era tráfego, era a escada de larguras:** 29 imagens de
+  origem na home gerando **279 alvos distintos** (~9,6 larguras cada). O item
+  **54** cortou `deviceSizes` de 6 para 4 e `imageSizes` de 6 para 5, conferindo
+  degrau a degrau contra os `sizes` que existem — só o mobile 2x mudou, e em 10%
+  de bytes. **Decisão: continuar no Hobby**, que é legítimo (o plano só proíbe
+  uso comercial, e isto é portfólio).
+
+  > **O que ainda depende de você:** a cota só zera na virada do período de
+  > faturamento — até lá o site segue sem foto, e não há o que mergear que mude
+  > isso. E vale conferir em **Settings → Notifications** que o aviso de cota vai
+  > para um endereço que você lê: **é a terceira vez** que este projeto descobre
+  > um teto de plano gratuito pelo produto quebrado (keep-alive, suspensão de
+  > 29/08, agora a imagem).
+  >
+  > **Se estourar de novo depois do corte, a resposta honesta é o Pro** — espremer
+  > mais começa a estragar a imagem. A outra saída, o proxy próprio, ficou mais
+  > cara desde 09/09: traz `sharp`/`libheif` para a árvore e **reabre a
+  > GHSA-2xp9-vwfh-vxw4**.
 
 - **Onde estamos:** V2.0 com as **Fases 0 a 12 concluídas**. A **Fase 13
   (ajustes finos e release final)** é a próxima e pode abrir — ela dependia da
@@ -196,6 +332,247 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-09): o erro que o servidor escolhe devolver
+  parou de sumir, e a espinha do plano abriu.** A **Fase 3** (§7), PR 5 da ordem
+  do §19. `AppError` ganhou `code`, `category`, `cause` e `context`; o primeiro
+  ramo do handler global — que respondia e **não escrevia nada** — passou a
+  logar, com o nível saindo da categoria; e entrou o `setNotFoundHandler`.
+  **921 → 954 testes na API.** Item **56** do `docs/progress.md`.
+
+  > **O achado grande não estava no inventário do plano: o `catch` do
+  > `authPlugin` engolia toda recusa de sessão.** Ele responde 401 dali mesmo,
+  > então o handler que a fase acabara de instrumentar **nunca era chamado** —
+  > alcance de toda rota de conta e de admin. E o pior caso é o que torna isso
+  > caro: sem `AUTH_JWT_SECRET`, `verifyAuthJwt` recusa **todo** token com a
+  > mesma frase de um token expirado, e **essa variável já falhou em silêncio em
+  > produção uma vez**. Hoje a recusa passa por `logAppError` e a resposta segue
+  > idêntica — uniforme de propósito; quem separa as três causas é o `code`.
+  >
+  > **A regra de nível do plano estava errada num caso, e o plano foi corrigido
+  > no mesmo PR.** `< 500 ⇒ debug` é certo para 404 e para token expirado, e
+  > errado para o 401 acima: é configuração quebrada com cara de recusa. Quando
+  > categoria e status discordam sobre a gravidade, **ganha a categoria** — o
+  > status diz o que o cliente recebe, a categoria diz de quem é a culpa.
+  >
+  > **Mais três, todos medidos ao escrever a guarda.** O caminho não registrado
+  > era **a única resposta de erro fora do contrato** (`{message, error,
+  > statusCode}` do Fastify, com o caminho pedido ecoado de volta) e nenhuma
+  > guarda podia alcançá-lo, porque nenhuma rota declara schema de 404 para o
+  > que não é rota. `ValidationError` era classe exportada que **nenhum arquivo
+  > lançava**. E `routes/health/index.ts` tinha a **quarta** cópia da conferência
+  > do `JOB_SECRET`, com `!==` — a revisão da Fase 9 achou três e escreveu que
+  > `assertJobSecret` era o único lugar.
+  >
+  > **A auditoria de completude, feita depois do CI verde, achou mais três — e a
+  > pior é que o `POST /dev/dashboard/session` não escrevia nada.** É o **único
+  > formulário de senha do produto**, e como ele responde **303** nem a linha de
+  > acesso ajudava (303 < 400, sai em `info`): quem insistisse em adivinhar o
+  > `JOB_SECRET` não produzia sinal nenhum. `authn_fail` é justamente o evento
+  > que o §3.2 do plano cita. Junto: o `POST /api/auth/upsert` — **a única rota
+  > que cria usuário** — conflava "token de uma pessoa usado para criar a conta
+  > de outra" com todo token expirado; e uma sessão **que nós assinamos** sem
+  > `sub`/`email` deixava o leitor logado com toda rota de conta em 401, em
+  > silêncio. Três códigos novos, com guarda.
+  >
+  > **A guarda do `code` é derivada do parser, e falhou duas vezes antes de
+  > servir.** A família do `AppError` é lida do próprio arquivo (lista digitada
+  > responde "o que eu lembrei de olhar" — foi assim que a varredura da Fase 7a
+  > perdeu a única rota fora de `app/api`), e os **defaults do construtor contam
+  > como uso**: a primeira versão acusou `INTERNAL` de ser código sem quem o
+  > lance, e ele é o que todo `new AppError('...')` carrega.
+
+- **Verificação pós-merge da Fase 3 (2026-09-09): três defesas disparavam
+  caladas.** Item **57**. A pergunta é a do item 39 e a do 52 — *o que ficou de
+  fora?* —, e quem respondeu foram duas varreduras sobre a árvore mergeada: todo
+  `catch` que descarta o erro, e **toda resposta de erro que não passa pelo
+  handler global** (a armadilha 29, escrita na própria fase, usada como
+  ferramenta). Sete saídas laterais; quatro já cobertas, **três mudas**.
+  **954 → 964 testes na API.**
+
+  > **A mitigação de uma GHSA *high* não escrevia nada** — a recusa de
+  > `Content-Type` com caractere de controle, que é o bypass de validação da
+  > `fastify@4`. Ninguém manda TAB ali por acidente: é sonda contra CVE
+  > conhecida. Virou `CONTENT_TYPE_REJECTED`, com `category: 'authorization'`
+  > **porque o nível é o que importa** — `validation` sairia em `debug`, e
+  > produção roda em `LOG_LEVEL=info`, então a linha não existiria e a correção
+  > não compraria nada.
+  >
+  > **O `verifyAuthJwt` descartava a razão do jose** — expirado, assinatura
+  > errada e malformado pedem ações opostas e viravam a mesma frase —, e a Fase
+  > 3 tinha acabado de criar o `cause` para guardá-la. E o `invalid` do
+  > `/api/health/providers` colapsava "chave recusada", "provedor fora do ar" e
+  > "timeout": o status na resposta **não mudou** (é contrato declarado), a razão
+  > passou a existir no log. **A URL da sonda não entra na linha** — ela carrega
+  > a chave —, e há asserção sobre isso.
+  >
+  > **O Gitleaks varreu `0 commits` no push do merge, com ✅ verde.** Terceira
+  > medição do mesmo buraco (`--no-merges --first-parent`). O conteúdo foi
+  > varrido no PR; o gate do merge é que é decorativo.
+
+- **Fora da linha das fases (2026-09-07): o BFF parou de engolir a falha, e com
+  isso o bloco 1 do plano de observabilidade fechou.** A **Fase 7a** (§11.1), PR
+  4 da ordem do §19. O parser deu o número que a inspeção de 01/09 tinha dito em
+  prosa: **quatro cláusulas `catch` no BFF, zero registrando qualquer coisa** —
+  e aqui não há pino nem Render, o **log de função da Vercel é o log**, então o
+  que não vai para o stderr não existe depois que a invocação termina. Entrou
+  `apps/web/lib/log-server-error.ts`, uma linha JSON **na forma que o pino já
+  escreve na API**, e os três `catch` que viram status passaram a escrevê-la.
+  **652 → 680 testes no web.** Item **51** do `docs/progress.md`.
+
+  > **Três achados, e nenhum estava no plano.** O `requestId` que o §11.1 diz
+  > fazer o `x-request-id` pagar é **`null` em toda requisição real** — o
+  > navegador não manda o cabeçalho, e na falha não há resposta da API para
+  > devolver o dela; o campo fica porque é onde o id entra quando a §11.2
+  > existir. O `cause` importa mais do que o plano diz: o undici lança
+  > `TypeError: fetch failed`, e `ECONNREFUSED` está **só** ali dentro. E a
+  > lista de segredos do plano tinha **três** contra os **seis** do
+  > `.env.example` — faltava justamente o `BACKEND_JOB_SECRET`, que viaja no
+  > `Bearer` de um dos três `catch`. A lista virou derivada do `.env.example`.
+  >
+  > **A guarda existente achou um defeito de fronteira que já estava lá.** O
+  > `trust-boundary.test.ts` reprovou o arquivo novo, com razão — ele cita
+  > `AUTH_JWT_SECRET` —, mas a lista significava "autorizados a **assinar**", e
+  > o redator faz o oposto: lê o valor para **tirá-lo do log**. Fundir os dois
+  > teria transformado a lista em "arquivos que mencionam o segredo". Virou
+  > `SECRET_SIGNERS` + `SECRET_REDACTORS`, e **nasceu a asserção que faltava**:
+  > só os três signatários chamam `signAuthJwt`. Antes, entrar na lista dava as
+  > duas permissões de uma vez.
+  >
+  > **E a revisão do próprio diff pagou de novo, com um comentário meu.** Ele
+  > afirmava que a guarda exercita o coletor pelo mesmo caminho de código — e
+  > logo abaixo estava a cópia. Mesma família do achado da Fase 2: prosa que
+  > descreve comportamento é asserção sem teste.
+
+  > **A verificação pós-merge achou mais três (item 52), e o padrão do item 39 se
+  > repetiu:** ler o depois de mergeado muda a pergunta de "o código está certo?"
+  > para "o que ficou de fora?". **A guarda varria `app/api` e a
+  > `app/news-sitemap.xml/route.ts` é a única rota fora dali** — justamente a que
+  > o Google Notícias lê, engolindo duas falhas em silêncio; o defeito era o
+  > alcance, não o `catch`, e hoje a varredura é por *"o que é uma rota"*. O
+  > **`signAuthJwt` estava fora do `try`**, então a falha que derruba toda rota de
+  > conta e de admin de uma vez era a única sem log, num PR feito para acabar com
+  > isso (loga e **relança** — o status não muda). E **o Gitleaks não varre o que
+  > entra por merge**: o scan de `push` usa `--no-merges --first-parent`, e no
+  > merge do #160 isso deu **zero commits varridos** sobre um conteúdo que
+  > reprovou o PR duas vezes. O valor era fixture de teste, não segredo — o que
+  > fica é o buraco no gate, hoje dívida com gatilho no §16.
+
+- **Ferramenta (2026-09-07): as telas de admin entraram em captura pela primeira
+  vez.** `pnpm --filter @newranews/web admin:capture` — a baseline visual exclui
+  `/admin` porque exige sessão, e esse comentário valia desde que a baseline
+  existe. **Três dos seis achados da revisão da Fase 2 eram defeitos visíveis sem
+  sintoma de código**, e apareceram só porque um humano mandou print; este script
+  é o mecanismo que acha essa classe sozinho. Item **50** do `docs/progress.md`.
+
+  > **A sessão é forjada com a mecânica que o smoke E2E já usa** — assinar o
+  > cookie do next-auth é o que o próprio next-auth faz depois do OAuth. Quatro
+  > decisões sustentam isso: **nada mora no app** (apagar o arquivo deixa o
+  > produto bit a bit igual — atalho de autenticação dentro do app é OWASP M10 /
+  > CWE-489), **só localhost**, o **`NEXTAUTH_SECRET` local tem de diferir do de
+  > produção** (a checagem de host protege o script, não o token), e a saída é
+  > gitignored com cookie de cinco minutos.
+  >
+  > **A primeira execução de verdade achou quatro defeitos na própria
+  > ferramenta** — seletor que casava o menu mobile, espera fixa que fotografava
+  > o esqueleto, `fullPage` duplicando o cabeçalho `sticky` na emenda, e a
+  > correção disso apagando o esconderijo do skip link. Nenhum tinha sintoma; os
+  > quatro apareceram olhando a imagem que ela produziu.
+
+- **Fora da linha das fases (2026-09-07): o pipeline ficou visível para quem
+  consegue entrar.** A **Fase 2** do plano de observabilidade, PR 3 da ordem do
+  §19. O dado existia desde a Fase 9 — `PipelineLog` e `PipelineEvent` — e a
+  única superfície que o mostrava era o `/dev/dashboard`, atrás do `JOB_SECRET`:
+  o dono do produto não conseguia ver, de nenhuma tela em que conseguisse
+  entrar, que o run de ontem falhou na etapa 6, o que o erro dizia, ou que ele
+  falha há três dias. Entrou **sem tabela nova, sem consulta nova e sem rota
+  nova no web**: `GET /api/admin/pipeline/runs` e `/runs/:pipelineId` reusam
+  `getDevLogs`/`getDevLogDetail` verbatim, e os três painéis moram na `/admin`.
+  **892 → 920 testes na API, 618 → 652 no web.** Item **49** do
+  `docs/progress.md`.
+
+  > **O prefixo `/api/admin` é o que a fase realmente comprou.** `authPlugin` e
+  > `requireAdmin` registram **uma vez no grupo**, o que faz de "tudo sob
+  > `/api/admin` é ADMIN" uma garantia estrutural em vez de hábito por rota — e
+  > há guarda enumerando o `printRoutes()` e cobrando `access: 'admin'` de cada
+  > linha, com uma segunda asserção exigindo que o filtro **encontre alguma
+  > coisa**. O `/api/dev/*` fica intacto de propósito: acesso por segredo é o
+  > caminho que funciona quando **não há sessão**, e isso importa mais
+  > justamente quando o que quebrou é o provedor de sessão. Há teste comparando
+  > os corpos das duas portas, para que "duas portas, um contrato" seja algo que
+  > reprova.
+  >
+  > **Os achados foram todos da implementação e da revisão, nenhum do plano.** A
+  > armadilha 8 do §17 apareceu na hora de escrever a tela: `durationSeconds` é
+  > **segundo** e `formatPipelineDuration` recebe **milissegundo**, então o
+  > caminho óbvio renderiza **"45 ms" para um run de 45 s** — sem erro de tipo e
+  > sem aviso. E o `admin-panel.test.tsx` caiu inteiro porque seu
+  > `vi.mock('@/lib/queries')` declarava só os três hooks que conhecia: **mock
+  > parcial mente por omissão**, a mesma família do `vi.mock` de `env` da Fase 1,
+  > agora do lado do web.
+  >
+  > **A revisão do próprio diff achou mais quatro, todos na tela e nenhum com
+  > sintoma de código** — build, lint, `tsc` e as asserções do componente
+  > passavam por cima dos quatro. O de maior alcance: `recentErrors` inclui o
+  > último run quando ele falhou, então a tela empilhava **duas caixas vermelhas
+  > sobre o mesmo run**, e o teste que existia usava um último run
+  > **bem-sucedido** — nunca exercitando o estado em que alguém de fato abre
+  > esta tela. Junto: `errorDetail` atravessando a rede para ser descartado pelo
+  > consumidor, `role='alert'` sobre conteúdo (o leitor de tela interrompe a
+  > leitura ao abrir a página), e dois comentários afirmando coisa que o código
+  > não fazia. Detalhe no item 49.
+
+- **Fora da linha das fases (2026-09-05): o log virou sistema, e a DSN com senha
+  parou de sair no stdout.** A **Fase 1** do plano de observabilidade, PR 2 da
+  ordem do §19. A API tinha **6** chamadas ao logger do Fastify contra **14
+  `console.*`** que o contornavam, e `logger:` era um **booleano** — sem `level`,
+  sem `redact`, sem `serializers`. Hoje há `apps/api/src/utils/logger.ts` (uma
+  instância de pino), `redactSecrets` ao lado do `redactEmails`, `LOG_LEVEL` no
+  blueprint, uma linha de log por requisição em vez de duas, `pipelineLogId` em
+  toda linha escrita durante um run (por `AsyncLocalStorage`, sem nenhuma
+  assinatura mudar) e `no-console: 'error'` no ESLint da API. **868 → 892 testes
+  na API.** Item **48** do `docs/progress.md`.
+
+  > **Os dois achados foram da implementação, e nenhum estava no plano.**
+  > Declarar `baseLogger` com o tipo que `pino()` devolve **fixa o parâmetro de
+  > logger do `FastifyInstance`**, e `registerDailyPipelineJob(app)` para de
+  > compilar a três arquivos de distância — a suíte inteira passava, só o `tsc`
+  > viu; a correção é declarar o export como `FastifyBaseLogger`. E resolver o
+  > nível por `NODE_ENV !== 'test'` faz **mock parcial de `env` acender o
+  > logger**: duas suítes de provider passaram a despejar JSON com stack trace no
+  > stdout do CI sem que teste nenhum falhasse. A condição virou lista de
+  > permissão. É o `env` lido na carga do módulo em mais uma forma — o mock
+  > parcial não erra, mente por omissão.
+  >
+  > **E a revisão da fase achou um terceiro, na guarda recém-escrita:** a
+  > varredura de `console.*` passava verde sobre um `console.warn` real, porque
+  > uma aspa **dentro de um literal de regex** (`.replace(/"/g, …)`) abria uma
+  > string que nunca fechava e apagava **481 linhas do `src/`**. Virou parser do
+  > TypeScript. Detalhe na armadilha, abaixo.
+
+- **Fora da linha das fases (2026-09-05): a esteira ganhou etapa de segurança —
+  a Fase 10 do plano de observabilidade, primeiro PR de código dele.** Os cinco
+  workflows tinham **1 `permissions:` declarado** e **zero actions fixadas**;
+  hoje são seis workflows, todos com o `GITHUB_TOKEN` no mínimo, e as **21
+  ocorrências de `uses:` fixadas em SHA de 40 hex** com o comentário da versão.
+  Entraram `pnpm audit --audit-level=high --prod` reprovando o merge, **CodeQL**
+  e **Dependabot**. **856 → 865 testes na API.** Item **47** do
+  `docs/progress.md`.
+
+  > **O `--prod` é a decisão que faz o gate durar, e foi medida:** sem ele são
+  > 35 advisories *high* em 17 pacotes, quase todas em ferramenta que nunca é
+  > publicada, e lista de exceção com 35 linhas vira ruído até alguém desligar o
+  > passo. Com ele são **18**, todas já analisadas nos itens 9.S e 10.S, com
+  > **três gatilhos**: `next@15`, `fastify@5`, e reabrir a UI do Swagger em
+  > produção. Elas ficam em `docs/security-advisories.md`, e a guarda impede que
+  > o documento e o `package.json` divirjam.
+  >
+  > **A guarda achou dois defeitos enquanto era escrita.** A contagem de
+  > workflows em prosa nos dois READMEs (o item 41 outra vez, no mesmo turno em
+  > que o arquivo novo entrou); e ela mesma passando verde sobre
+  > `permissions: write-all` — escrito na **coluna zero**, ele escapava do
+  > `^\s+` da asserção de escrita e passava na de declaração. Sexta vez nesta
+  > família: a guarda vê caractere, não intenção.
+
 - **Fora da linha das fases (2026-09-03): a etapa 8.5 parou de derrubar a
   instância, e o run morto parou de travar o dia.** Nasceu de um alerta do
   Render (*health check timed out after 5 seconds*). O pipeline do dia estava
@@ -304,11 +681,13 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.474 em 129 suites (**856 API em 62** + **618 web em 67** — todos
-  passando), mais **29 specs de E2E em 5 arquivos**, que rodam contra produção
-  pelo workflow `Smoke E2E` e **não** fazem parte do `pnpm test`. Cobertura
-  medida em 31/08: API **98,77% stmts · 92,96% branch · 99,49% funcs**; web
-  **72,79% stmts · 89,59% branch · 72,43% funcs** — com piso de 70% no CI desde
+- **Testes:** 1.647 em 139 suites (**964 API em 68** + **683 web em 71** — todos
+  passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+  acervo, conta, newsletter, autorização) —, que roda contra produção pelo
+  workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
+  da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
+  web remedida em 07/09: **74,16% stmts · 90,25% branch · 73,48% funcs** — com
+  piso de 70% no CI desde
   a Fase 10, que antes media só a API.
 
 ### Por onde começar a Fase 13 (Ajustes finos e release final)
@@ -380,7 +759,7 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
   compartilhado medido, e o gatilho de subcontagem **observável sem
   instrumentação nova**: 429 em `POST /api/events` dentro de
   `GET /api/metrics/http`.
-- **Os fluxos autenticados do smoke** (6 dos 29 specs) ficam pulados até os
+- **Os fluxos autenticados do smoke** (conta e admin) ficam pulados até os
   quatro segredos serem configurados — e o pulo é impresso pelo workflow. Ligá-los
   põe o `NEXTAUTH_SECRET` de produção no runner do CI; a decisão é de quem é dono
   do segredo. `apps/web/e2e/support/session.ts` documenta.
@@ -393,12 +772,23 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
   `/article/[date]` em **2,42 s** — e as outras seis medem de 2,61 s a 2,90 s. O
   critério deixou de reprovar em bloco e virou pergunta de escopo.
 
-**Três dívidas compartilham o mesmo gatilho, e é o Next 15:** as 8 advisories
-*high* do `next` (nenhuma alcança esta configuração hoje — a tabela está no item
-35), o **soft 404** (`notFound()` em rota com `revalidate` e `not-found.tsx`
-aninhado responde **200**; quem segura o estrago é o `noindex` no caminho de
-falta, e essa linha tem guarda) e o **meta refresh do `redirect()`** — que é da
-mesma família e a 11 cobriu no caso comum, pelo middleware.
+**Três dívidas compartilham o mesmo gatilho, e é o Next 15:** as advisories do
+`next` — **8 *high* mais 2 *critical* desde 09/09/2026** (nenhuma alcança esta
+configuração hoje; a tabela está no item 35 e o aceite em
+`docs/security-advisories.md`), o **soft 404** (`notFound()` em rota com
+`revalidate` e `not-found.tsx` aninhado responde **200**; quem segura o estrago é
+o `noindex` no caminho de falta, e essa linha tem guarda) e o **meta refresh do
+`redirect()`** — que é da mesma família e a 11 cobriu no caso comum, pelo
+middleware.
+
+> **As duas *critical* mudaram o peso desse gatilho, e uma delas tem um fio
+> solto.** A do AVIF (`libheif` no `sharp`) não alcança porque **o `/_next/image`
+> é servido pela plataforma da Vercel, não pela app** — medido em 09/09, com
+> `sharp` fora do lockfile e a requisição nem chegando à região da função. Mas a
+> saída documentada para o **estouro de cota do otimizador** (que a mesma medição
+> encontrou: todo `/_next/image` em **402**) é *servir a imagem por um proxy
+> próprio* — e isso traz `sharp` para dentro e **reabre a advisory**. Resolver a
+> cota por esse caminho faz o Next 15 deixar de ser dívida e virar pré-requisito.
 
 **O que a 11 deixou pronto e a 13 pode aproveitar:** o smoke E2E, que passa a ser
 parte do ritual de fechar fase; e seis guardas exaustivas novas — resposta de
@@ -582,6 +972,29 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   `middleware.ts`, e ele pergunta **só se existe cookie de sessão**, nunca se
   ele é válido: validar na borda exigiria o `NEXTAUTH_SECRET` ali, e o modo de
   falha (variável ausente → todo mundo deslogado) é muito pior.
+- **Guarda estática que varre fonte não deve varrer fonte com regex — use o
+  parser.** É a sexta vez desta família, e a primeira em que "ler melhor o
+  texto" não era a saída. A varredura de `console.*` da Fase 1 tratava aspas
+  como delimitador de string, para não repetir o erro conhecido de apagar a
+  linha a partir do `//` de um `'https://…'`. Só que **a aspa dentro de um
+  literal de regex** — `.replace(/"/g, '&quot;')`, que existe em
+  `routes/dev/dashboard.ts:23` e em `services/newsletter.service.ts:27` — abria
+  uma string que nunca fechava: **481 linhas do `src/` ficavam invisíveis**, e um
+  `console.warn` acrescentado ao fim do `dashboard.ts` passava sem uma falha.
+  **Distinguir literal de regex de uma divisão exige o token anterior**, que é
+  gramática, não caractere. `ts.createSourceFile` já vem com o `typescript` que
+  todo pacote daqui tem, e responde exatamente o que a guarda pergunta. Quando a
+  pergunta for sobre a **estrutura** do código, o parser é mais curto que o
+  regex e não tem esse tipo de buraco; regex continua certo para prosa e para
+  YAML.
+- **A guarda pode estar certa e não guardar nada, se ninguém liga o que ela
+  protege.** As 17 asserções do `secrets-in-logs.test.ts` provam que o
+  serializer redige; nenhuma provava que o `buildApp` o **usa**. Trocar
+  `logger: baseLogger` por `logger: true` deixava tudo verde e reabria o
+  vazamento inteiro. Ao fechar um achado com uma guarda sobre uma função, escreva
+  a segunda asserção sobre a **fiação** — e note que `app.log` **não é** a
+  instância passada ao Fastify, é um `child({ reqId })` dela: quem atravessa são
+  os serializers (`app.log[pino.symbols.serializersSym]`).
 - **Guarda estática que varre fonte precisa tirar comentário e declaração de
   tipo antes do regex.** Aconteceu **quatro vezes na Fase 11**, nas duas
   direções: um `201` dentro de prosa contado como declaração de rota; um
@@ -744,6 +1157,14 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   de escopo do `purpose` nesta fase. Em teste que envolve JWT, use
   `vi.mock('../../src/config/env', ...)` — como as suítes de rota já faziam — e
   inclua uma asserção de caminho feliz provando que o harness não é vazio.
+  **E o mock parcial tem o defeito espelhado, achado na Fase 1 do plano de
+  observabilidade:** a suíte declara só as chaves de que precisa, e o resto do
+  código lê `undefined` sem que nada falhe. `NODE_ENV` indefinido fez o logger
+  resolver o nível para `info` em duas suítes de provider, que passaram a
+  **despejar JSON com stack trace no stdout do CI** com todos os testes verdes.
+  Ao ler uma variável de ambiente fora de uma rota, decida o que
+  **indefinido** significa — aqui virou lista de permissão: `info` só nos dois
+  ambientes reais, `silent` no resto.
 - **Validação de schema responde antes da autorização.** A ordem de hooks do
   Fastify é `preValidation` → `validation` → `preHandler`, e o `authPlugin`
   está no `preHandler`: um POST anônimo com corpo inválido numa rota protegida
@@ -774,7 +1195,7 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser
   gravada ali.
-- **Os fluxos autenticados do smoke E2E** (6 dos 29 specs) ficam pulados até
+- **Os fluxos autenticados do smoke E2E** (conta e admin) ficam pulados até
   `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL` e `E2E_ADMIN_USER_ID`
   existirem como segredos do repositório — e o pulo é impresso pelo workflow.
   Ligá-los põe o `NEXTAUTH_SECRET` de produção no runner do CI, e a decisão é de

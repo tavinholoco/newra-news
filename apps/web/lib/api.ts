@@ -21,6 +21,9 @@ import type {
   TrendingWindow,
   NewsFilters,
   NewsFacets,
+  PipelineRunDetail,
+  PipelineRunStatus,
+  PipelineRunsResponse,
 } from '@newranews/types';
 import {
   API_TIMEOUT_MS,
@@ -465,6 +468,38 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 export async function getProductMetrics(days = 30): Promise<ProductMetrics> {
   const res = await fetchWebApi<ApiResponse<ProductMetrics>>(
     `/api/admin/product-metrics?days=${days}`,
+  );
+  return res.data;
+}
+
+/**
+ * Runs do pipeline (admin) — o que a `/admin` mostra em cartão e em lista.
+ *
+ * **Devolve o envelope inteiro, e não só `data`**, ao contrário das outras
+ * chamadas daqui: `meta.total` é o total do recorte, e `data.runs` é o que o
+ * `limit` cortou. Descartar o `meta` faria a tela dizer "20 runs" quando há 200
+ * — o defeito da pílula de contagem da Fase 4, em outra forma.
+ */
+export async function getPipelineRuns(
+  params: { status?: PipelineRunStatus; since?: number; limit?: number } = {},
+): Promise<PipelineRunsResponse> {
+  const search = new URLSearchParams();
+  if (params.status) search.set('status', params.status);
+  if (params.since !== undefined) search.set('since', String(params.since));
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+
+  const query = search.toString();
+  return fetchWebApi<PipelineRunsResponse>(
+    `/api/admin/pipeline/runs${query ? `?${query}` : ''}`,
+  );
+}
+
+/** Detalhe de um run (admin): o resumo mais os eventos por etapa. */
+export async function getPipelineRunDetail(
+  pipelineId: string,
+): Promise<PipelineRunDetail> {
+  const res = await fetchWebApi<ApiResponse<PipelineRunDetail>>(
+    `/api/admin/pipeline/runs/${pipelineId}`,
   );
   return res.data;
 }

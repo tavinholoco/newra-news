@@ -52,6 +52,11 @@ test.describe('BFF sem sessão', () => {
     '/api/favorites/ids',
     '/api/admin/metrics',
     '/api/admin/product-metrics',
+    // Fase 2 do plano de observabilidade. A lista é a única parte do ritual que
+    // mede esta área **sem depender dos quatro segredos** — os fluxos com sessão
+    // ficam pulados —, então rota de admin nova entra aqui no mesmo PR.
+    '/api/admin/pipeline/runs',
+    '/api/admin/pipeline/runs/aaaaaaaa-0000-0000-0000-000000000001',
   ]) {
     test(`${route} responde 401 com o corpo de erro do produto`, async ({ request }) => {
       const response = await request.get(route);

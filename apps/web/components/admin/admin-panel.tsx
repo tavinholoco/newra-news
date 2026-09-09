@@ -6,6 +6,7 @@ import { useDeleteNews, useNewsList, useRunPipeline } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toDateFormatLocale } from '@/lib/i18n';
+import { PipelineRuns } from './pipeline-runs';
 import type { RunPipelineResult } from '@newranews/types';
 
 /**
@@ -101,6 +102,18 @@ export function AdminPanel() {
           </p>
         )}
       </section>
+
+      {/**
+        * **O histórico do pipeline entra aqui, e não em rota própria.** A
+        * `/admin` já é a aba "está tudo de pé agora?"; o §4.1 do plano de
+        * observabilidade declara três abas e não lista uma quarta. Ver o
+        * cabeçalho de `pipeline-runs.tsx`.
+        *
+        * Vem logo depois do disparo de propósito: quem acabou de clicar em
+        * "executar agora" lê o resultado na linha seguinte, em vez de trocar de
+        * tela para descobrir se rodou.
+        */}
+      <PipelineRuns />
 
       <section>
         <h2 className='font-display mb-4 text-lg font-semibold text-foreground'>

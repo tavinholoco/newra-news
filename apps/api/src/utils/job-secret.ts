@@ -32,7 +32,11 @@ export function assertJobSecret(request: FastifyRequest): void {
   const auth = request.headers.authorization;
   const bearer = auth?.startsWith('Bearer ') ? auth.slice(7) : undefined;
   if (!bearer || !secretsMatch(bearer, env.JOB_SECRET)) {
-    throw new UnauthorizedError('Invalid or missing token');
+    // A mensagem é a mesma de um JWT recusado — de propósito, quem chamou não
+    // precisa saber qual porta bateu. O `code` é quem separa as duas no log.
+    throw new UnauthorizedError('Invalid or missing token', {
+      code: 'JOB_SECRET_INVALID',
+    });
   }
 }
 

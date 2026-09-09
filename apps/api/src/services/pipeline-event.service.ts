@@ -1,5 +1,6 @@
 import { Prisma, prisma } from '@newranews/database';
 import type { PipelineEventLevel } from '@newranews/database';
+import { baseLogger } from '../utils/logger';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ function toSummary(
 /**
  * Registra um evento da pipeline (Stage 1–9, nível, mensagem e contexto JSON).
  * Nunca lança: observabilidade não pode quebrar o pipeline — falha de
- * persistência é apenas logada no console.
+ * persistência vira uma linha de `warn` no log, e nada além disso.
  */
 export async function logPipelineEvent(
   pipelineLogId: string,
@@ -161,7 +162,10 @@ export async function logPipelineEvent(
       },
     });
   } catch (error) {
-    console.warn('[pipeline-event] failed to persist event:', error);
+    baseLogger.warn(
+      { err: error, pipelineLogId, stage },
+      '[pipeline-event] failed to persist event',
+    );
   }
 }
 

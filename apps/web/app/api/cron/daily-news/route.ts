@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
+import { logServerError } from '@/lib/log-server-error';
 import {
   PIPELINE_TRIGGER_TIMEOUT_MS,
   PIPELINE_WARM_ATTEMPTS,
@@ -44,6 +45,13 @@ async function warmApi(jobUrl: string): Promise<boolean> {
     } catch {
       // Timeout ou transporte: é o caso esperado com a API hibernando, e a
       // própria tentativa é o que a acorda. Segue para a seguinte.
+      //
+      // **É o único `catch` do BFF que fica sem `logServerError`, e a exceção
+      // está escrita** em `CATCH_ALLOWED` (`tests/lib/bff-error-log.test.ts`).
+      // Aqui falhar é o caminho normal — logar cada tentativa encheria o log de
+      // linhas de erro num dia que deu certo, que é como se ensina alguém a
+      // ignorar o log. O desfecho já é observável: `warmed` sai daqui e entra na
+      // linha que o `catch` do disparo escreve.
     }
   }
   return false;
@@ -122,7 +130,20 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ success: true, data, revalidated, warmed });
-  } catch {
+  } catch (error) {
+    /**
+     * **O 01/09/2026 é este `catch`.** A API tinha acabado de voltar de um mês
+     * suspensa, o disparo estourou o prazo, o `catch` devolveu 500 — e o dia
+     * ficou sem briefing, com *o briefing ausente na Home* como único sinal.
+     *
+     * O `warmed` já viajava na resposta desde então, e essa era a metade que
+     * faltava: **ninguém lê esta resposta.** Quem chama é o cron da Vercel, que
+     * a descarta. O campo que separava as duas causas — a API que não acordou e
+     * a que acordou e recusou — existia e não alcançava ninguém. Agora ele está
+     * na linha, junto com o `cause` que diz qual das duas foi.
+     */
+    logServerError('cron.daily-news', error, { warmed });
+
     // `warmed` viaja também na falha, e é o que separa duas causas que sem ele
     // ficam iguais no log: a API que não acordou, e a que acordou e recusou o
     // disparo. Foi a ausência dessa distinção que fez o briefing de 01/09 sumir

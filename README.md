@@ -163,6 +163,7 @@ Backend — `apps/api/.env`:
 | `SITE_URL` | Public frontend URL used in newsletter links | No |
 | `NEWSLETTER_FROM` | Sender address, on a domain verified in Resend | No |
 | `ADMIN_EMAILS` | Comma-separated emails that get the ADMIN role on sign-up | No |
+| `LOG_LEVEL` | Structured log level: `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`. Defaults to `info` (`silent` in tests) | No |
 
 Frontend — `apps/web/.env.local`:
 
@@ -227,7 +228,7 @@ pnpm test
 
 **1,409 unit and integration tests across 127 suites** — 804 for the API in 61 suites, 605 for the web app in 66. The suite needs no database and no network: the backend uses `fastify.inject()`, the frontend uses Testing Library on jsdom. Coverage is enforced at a 70% floor for lines, statements, functions, and branches in both apps, and CI fails below it.
 
-End-to-end coverage is separate: **29 Playwright specs across 5 files**, covering the visitor, archive, account, newsletter, and authorization flows. They run against production through the `Smoke E2E` workflow on every push to `main`, and are deliberately not part of `pnpm test`.
+End-to-end coverage is separate: **one Playwright spec file per flow** — visitor, archive, account, newsletter and authorization. They run against production through the `Smoke E2E` workflow on every push to `main`, and are deliberately not part of `pnpm test`.
 
 ```bash
 pnpm --filter @newranews/web test:e2e
@@ -241,7 +242,7 @@ pnpm --filter @newranews/web test:e2e
 | API | Render | `render.yaml` blueprint, free plan, health check at `/api/health` |
 | Database | Neon | Managed PostgreSQL. Migrations applied by the `Migrate` workflow, never from a local machine |
 
-Five GitHub Actions workflows back this up: `CI` (lint, tests with coverage, build), `Gitleaks` (secret scanning), `Smoke E2E` (production flows after each deploy), `Lighthouse CI` (weekly, failing below 90 in any category), and `Migrate`.
+Six GitHub Actions workflows back this up: `CI` (lint, tests with coverage, build, and a `pnpm audit` that fails on any high advisory in a production dependency), `Gitleaks` (secret scanning), `CodeQL` (static analysis of both apps), `Smoke E2E` (production flows after each deploy), `Lighthouse CI` (weekly, failing below 90 in any category), and `Migrate`. Every workflow declares a minimal `GITHUB_TOKEN` permission set, and every third-party action is pinned to a full commit SHA — the accepted advisories, each with a reason, a date and a review trigger, live in [`docs/security-advisories.md`](docs/security-advisories.md).
 
 The interactive Swagger UI is served in development only, at `/api/docs`. In production the OpenAPI document is still generated, but the UI is not registered — the contract lives in [`docs/api.md`](docs/api.md), guarded against drift by a test.
 

@@ -30,8 +30,26 @@ import { join } from 'node:path';
 const WEB_ROOT = join(__dirname, '../..');
 const API_CLIENT = join(WEB_ROOT, 'lib', 'api.ts');
 
-/** Os únicos módulos autorizados a assinar com o segredo compartilhado. */
-const SECRET_HOLDERS = ['lib/api-proxy.ts', 'lib/auth.ts', 'lib/jwt.ts'];
+/** Os únicos módulos autorizados a **assinar** com o segredo compartilhado. */
+const SECRET_SIGNERS = ['lib/api-proxy.ts', 'lib/auth.ts', 'lib/jwt.ts'];
+
+/**
+ * Módulo que **nomeia** o segredo sem assinar com ele.
+ *
+ * A Fase 7a trouxe o primeiro, e ele obrigou a separar duas coisas que a lista
+ * original juntava. O `log-server-error.ts` cita `AUTH_JWT_SECRET` porque
+ * precisa **do valor para tirá-lo do log** — é a relação oposta à de assinar, e
+ * a única forma de redação que não depende de adivinhar o formato de um segredo.
+ *
+ * Fundi-lo em `SECRET_SIGNERS` teria custado o sentido da lista: ela passaria a
+ * significar "arquivos que mencionam o segredo", e a pergunta que ela existe
+ * para responder — *quem pode assinar?* — deixaria de ter resposta. Daí a
+ * segunda asserção abaixo, que é a que de fato guarda a fronteira.
+ */
+const SECRET_REDACTORS = ['lib/log-server-error.ts'];
+
+/** A varredura continua sendo uma só: arquivo novo que cite o segredo reprova. */
+const SECRET_HOLDERS = [...SECRET_SIGNERS, ...SECRET_REDACTORS];
 
 /**
  * Métodos que o navegador pode usar **direto na API**.
@@ -103,6 +121,25 @@ describe('a fronteira de confiança entre o site e a API', () => {
       .sort();
 
     expect(holders).toEqual([...SECRET_HOLDERS].sort());
+  });
+
+  it('lets only the signers sign — naming the secret to redact it is not the same permission', () => {
+    /**
+     * A asserção que faltava quando a lista era uma só. Sem ela, acrescentar um
+     * arquivo à lista de quem *cita* o segredo daria, de graça, permissão de
+     * **assinar** com ele — e o único sinal seria o nome do arquivo numa lista
+     * cujo comentário já não descreveria o que ela guarda.
+     */
+    const signers = [join(WEB_ROOT, 'lib'), join(WEB_ROOT, 'app'), join(WEB_ROOT, 'components')]
+      .flatMap(collectFiles)
+      .filter((file) => /\bsignAuthJwt\b/.test(stripComments(readFileSync(file, 'utf8'))))
+      .map(relativePath)
+      .sort();
+
+    expect(signers).toEqual([...SECRET_SIGNERS].sort());
+    for (const redactor of SECRET_REDACTORS) {
+      expect(signers).not.toContain(redactor);
+    }
   });
 
   it('never lets the browser call the API directly with a mutating method', () => {

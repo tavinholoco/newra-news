@@ -7,6 +7,10 @@ import {
   briefingSourceSchema,
 } from '../../src/routes/articles/schemas';
 import { newsItemSchema } from '../../src/routes/news/schemas';
+import {
+  devLogSummarySchema,
+  pipelineEventSchema,
+} from '../../src/routes/dev/schemas';
 
 /**
  * **O que não está no schema não existe** — e agora há guarda.
@@ -57,6 +61,25 @@ const OMITTED: Record<string, Record<string, string>> = {
     // Timestamp de escrita da linha de auditoria, não do briefing.
     createdAt: 'instante de gravação da linha, sem leitor na interface',
   },
+  /**
+   * **As duas tabelas do pipeline entraram na Fase 2 do plano de
+   * observabilidade**, e o gatilho foi ela ter posto uma **tela de produto** em
+   * cima delas: até aqui só o painel dev lia `PipelineLog`, e coluna nova ali
+   * não era cobrada por guarda nenhuma. Uma coluna acrescentada hoje reprova
+   * aqui até alguém decidir se ela sai na resposta — que é exatamente a decisão
+   * que ninguém tomou em 21/08 e custou um dia de auditoria invisível.
+   *
+   * `PipelineLog` não omite nada: as nove colunas estão no
+   * `devLogSummarySchema`, que ainda acrescenta dois campos calculados
+   * (`durationSeconds` e `eventCount`).
+   */
+  PipelineLog: {},
+  PipelineEvent: {
+    // Mesmo caso do `BriefingSource.articleId`, e pela mesma razão: o evento
+    // chega dentro do run que o possui, e repetir o id do pai em cada uma das
+    // ~19 linhas é ruído.
+    pipelineLogId: 'o evento já vem dentro do run que o possui',
+  },
 };
 
 describe('9.1 — o schema de resposta declara o que o modelo tem', () => {
@@ -64,6 +87,8 @@ describe('9.1 — o schema de resposta declara o que o modelo tem', () => {
     ['Article', articleItemSchema],
     ['News', newsItemSchema],
     ['BriefingSource', briefingSourceSchema],
+    ['PipelineLog', devLogSummarySchema],
+    ['PipelineEvent', pipelineEventSchema],
   ])('%s', (modelName, schema) => {
     const declared = new Set(schemaKeys(schema as z.ZodObject<z.ZodRawShape>));
     const omitted = OMITTED[modelName] ?? {};
@@ -87,6 +112,10 @@ describe('9.1 — o schema de resposta declara o que o modelo tem', () => {
   it('finds columns at all — an empty model list would pass everything', () => {
     expect(scalarColumns('Article').length).toBeGreaterThan(5);
     expect(scalarColumns('Article')).toContain('promptVersion');
+    // O mesmo para as duas que entraram na Fase 2: um `scalarColumns` que
+    // devolvesse lista vazia faria as duas asserções novas passarem para sempre.
+    expect(scalarColumns('PipelineLog')).toContain('errorDetail');
+    expect(scalarColumns('PipelineEvent')).toContain('pipelineLogId');
   });
 
   it('carries the sources only on the detail schema', () => {

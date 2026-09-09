@@ -1,0 +1,76 @@
+name: CodeQL
+
+# Análise estática de segurança (SAST) sobre os dois apps.
+#
+# **Era o quarto achado da inspeção que abriu a Fase 10 do plano de
+# observabilidade**, e o único sem nenhuma cobertura: o repositório tinha
+# varredura de segredo (Gitleaks) e nenhuma varredura de código. As duas
+# procuram coisas diferentes — o Gitleaks acha a chave commitada, o CodeQL acha
+# o caminho de dados que leva uma entrada do usuário até um `eval`, uma query ou
+# um `fs.readFile`.
+#
+# `javascript-typescript` cobre `apps/web` e `apps/api` numa análise só; não há
+# outra linguagem no repositório. É gratuito em repositório público — o que este
+# é —, e por isso não entra na conta de minutos que já suspendeu a API uma vez.
+#
+# **Por que não roda no `pull_request` de toda branch**: a análise leva alguns
+# minutos e o valor dela está em não deixar defeito entrar nas duas branches
+# integradoras. Rodando no `push` delas e no `pull_request` que as tem como
+# base, o resultado chega antes do merge — que é quando ainda dá para agir.
+#
+# **A `dev` entrou em 05/09/2026, e não é simetria decorativa.** O trabalho
+# passou a integrar nela e a `main` só recebe promoção deliberada — então um PR
+# de fase tem a `dev` como base, e sem esta linha ele passaria **sem SAST**. É
+# a mesma lista que o `ci.yml` já usava; o CodeQL nasceu com uma só porque
+# nasceu antes da decisão.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # Segunda 06:00 UTC. O agendamento pega advisory nova sobre código que não
+    # mudou — o caso que o gatilho por `push` nunca alcança. É o mesmo motivo do
+    # Lighthouse semanal, e a hora é diferente de propósito: nada aqui depende
+    # da API, então não há por que disputar a janela dele.
+    - cron: '0 6 * * 1'
+
+# `security-events: write` é o que permite publicar o SARIF na aba Security —
+# sem ele a análise roda e o resultado morre com o runner. É a única escrita de
+# token declarada neste repositório fora do Gitleaks, e a guarda
+# `workflow-hardening.test.ts` nomeia as duas.
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analisar JavaScript e TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Inicializar o CodeQL
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: javascript-typescript
+          # `security-and-quality` sobre `security-extended`: o repositório é
+          # pequeno o bastante para o ruído extra ser lido, e as consultas de
+          # qualidade acham a família de defeito que este projeto já catalogou
+          # várias vezes — comparação que nunca é verdadeira, `catch` que engole,
+          # promessa não aguardada.
+          queries: security-and-quality
+
+      # **Sem passo de build, e é decisão.** O CodeQL analisa JavaScript e
+      # TypeScript pelo fonte; construir os dois apps aqui custaria o
+      # `prisma generate`, o `pnpm install` e alguns minutos para não mudar o
+      # resultado da análise.
+      - name: Analisar
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          category: '/language:javascript-typescript'
