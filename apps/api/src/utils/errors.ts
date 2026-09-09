@@ -27,7 +27,13 @@ export const ERROR_CATEGORIES = [
   'database',
   /** O que veio na requisição não serve — inclui pedir o que não existe. */
   'validation',
-  /** Quem chamou não pode: token ausente, expirado, de outro escopo, sem papel. */
+  /**
+   * A requisição foi **recusada por uma guarda**, antes de fazer qualquer
+   * coisa: token ausente, expirado, de outro escopo, sem papel — e também a
+   * requisição moldada para escapar de uma guarda, que é recusa pelo mesmo
+   * motivo. É a categoria que sai em `warn`, porque é o `authz_fail` do
+   * vocabulário de log do OWASP (§3.2).
+   */
   'authorization',
   /** O dado não casa com o que foi prometido — forma de resposta, invariante. */
   'contract',
@@ -94,6 +100,16 @@ export const ERROR_CODES = [
   'DASHBOARD_SECRET_INVALID',
   /** Sessão válida, papel errado. */
   'ADMIN_REQUIRED',
+  /**
+   * `Content-Type` com caractere de controle, recusado com 415 na porta.
+   *
+   * É a mitigação de uma GHSA *high* da `fastify@4` — o TAB no cabeçalho faz o
+   * corpo **escapar da validação de schema** — e ninguém manda isso por
+   * acidente: é sonda contra CVE conhecida. `authorization` e não `validation`
+   * porque o nível importa: produção roda em `LOG_LEVEL=info`, e em `debug` a
+   * linha simplesmente não existiria.
+   */
+  'CONTENT_TYPE_REJECTED',
   /** O default do `AppError` cru: falha nossa que não ganhou nome próprio. */
   'INTERNAL',
 ] as const;

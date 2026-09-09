@@ -31,7 +31,17 @@ export async function verifyAuthJwt(token: string): Promise<Record<string, unkno
   try {
     const { payload } = await jwtVerify(token, key);
     return payload as Record<string, unknown>;
-  } catch {
-    throw new UnauthorizedError('Invalid or expired token');
+  } catch (error) {
+    /**
+     * **A frase para quem chamou e uma so; a razao fica no `cause`.**
+     *
+     * O jose distingue expirado (`JWTExpired`), assinatura errada
+     * (`JWSSignatureVerificationFailed`) e token malformado (`JWSInvalid`) — e
+     * os tres pedem acoes diferentes: relogio fora de sincronia, segredo
+     * divergente entre BFF e API, cliente quebrado. Este `catch` descartava os
+     * tres. Dizer qual foi **na resposta** ajudaria quem esta adivinhando, por
+     * isso a mensagem nao muda.
+     */
+    throw new UnauthorizedError('Invalid or expired token', { cause: error });
   }
 }

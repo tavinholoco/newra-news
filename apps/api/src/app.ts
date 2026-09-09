@@ -126,6 +126,25 @@ export async function buildApp() {
     const contentType = request.headers['content-type'];
     // eslint-disable-next-line no-control-regex
     if (typeof contentType === 'string' && /[\u0000-\u001f]/.test(contentType)) {
+      /**
+       * **A defesa disparava calada**, e isso saiu da auditoria pos-merge da
+       * Fase 3. Este hook responde aqui mesmo, entao o handler global nunca o
+       * ve — a armadilha 29, na terceira forma. E ninguem manda caractere de
+       * controle no `Content-Type` por acidente: e sonda contra CVE conhecida,
+       * que e o evento que a §3.2 do plano quer ver.
+       *
+       * **O cabecalho forjado nao entra no log.** Registrar a recusa nao e
+       * copiar entrada hostil para dentro de uma linha que outras ferramentas
+       * leem; o que se guarda e que aconteceu, e em que rota.
+       */
+      logAppError(
+        request.log,
+        new AppError('Unsupported Media Type', 415, {
+          code: 'CONTENT_TYPE_REJECTED',
+          category: 'authorization',
+        }),
+        { route: request.routeOptions?.url ?? 'unmatched' },
+      );
       return reply.status(415).send({ error: 'Unsupported Media Type' });
     }
   });

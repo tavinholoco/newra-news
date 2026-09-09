@@ -6022,6 +6022,93 @@ para essa distinção. **Gatilho:** a Fase 4, que traz `origin: PIPELINE` e pass
 a agrupar por `(code, category)` — sem os providers convertidos, todo erro de
 terceiro cairia num fingerprint só.
 
+### 57. A verificação pós-merge da Fase 3: três defesas que disparavam caladas ✅ 2026-09-09
+
+> **Follow-up da Fase 3**, no mesmo formato do item 52 (que foi o da 7a). A
+> pergunta é outra: não *"o código está certo?"* — o CI já respondeu isso — e sim
+> ***"o que ficou de fora?"***. É a terceira vez que essa pergunta paga, e a
+> terceira vez que ela é feita depois do merge.
+
+#### O método, que é o que vale repetir
+
+Duas varreduras mecânicas sobre a árvore mergeada, nenhuma delas sobre o diff:
+
+1. **toda cláusula `catch` que descarta o erro** — com ou sem binding;
+2. **toda resposta de erro que não passa pelo handler global** — que é a
+   armadilha **29**, escrita na própria Fase 3, usada agora como ferramenta.
+
+A segunda achou **sete** saídas laterais. Quatro já estavam cobertas pela fase;
+**três disparavam caladas**, e as três são defesas.
+
+#### Os três achados
+
+- **A mitigação de uma GHSA *high* não escrevia nada.** O `onRequest` do
+  `buildApp` recusa `Content-Type` com caractere de controle — é o bypass da
+  validação de corpo da `fastify@4`, corrigido upstream só na `5.7.2` — e
+  recusava com um 415 mudo. **Ninguém manda TAB no `Content-Type` por
+  acidente**: é sonda contra CVE conhecida, exatamente o evento que a §3.2 do
+  plano quer ver. Nasceu `CONTENT_TYPE_REJECTED`.
+
+  > **`category: 'authorization'` e não `'validation'`, e o motivo é o nível.**
+  > `validation` sairia em `debug`, e **produção roda em `LOG_LEVEL=info`** — a
+  > linha simplesmente não existiria, e a correção não compraria nada. A
+  > categoria foi alargada no comentário para o que ela de fato significa:
+  > *requisição recusada por uma guarda*, o que inclui a requisição moldada para
+  > escapar de uma. É a segunda vez nesta linha de trabalho que o par
+  > categoria/nível força uma decisão em vez de aceitar o default.
+
+- **`verifyAuthJwt` descartava a razão do jose, e a Fase 3 tinha acabado de
+  criar o campo para guardá-la.** Expirado (`JWTExpired`), assinatura errada
+  (`JWSSignatureVerificationFailed`) e token malformado (`JWSInvalid`) pedem
+  ações opostas — relógio fora de sincronia, segredo divergente entre BFF e
+  API, cliente quebrado — e chegavam ao log como a mesma frase. Agora vão no
+  `cause`. **A resposta não muda**: dizer *por que* o token foi recusado ajuda
+  quem está adivinhando.
+
+- **`invalid` colapsava três situações no `/api/health/providers`.** "Chave
+  recusada" (rotacione a chave), "provedor fora do ar" (espere) e "timeout"
+  (pode ser a nossa rede) eram a mesma palavra na resposta e no painel dev. **O
+  `ProviderStatus` não mudou** — ele é contrato declarado, serializado por
+  schema, e um quarto valor mexeria em `docs/api.md`, no tipo compartilhado e na
+  tela. O que mudou é o outro lado: a razão passou a existir no log, com o nome
+  do provider e o `cause`.
+
+  > **A URL da sonda não entra na linha**, e há asserção sobre isso. Ela carrega
+  > a chave (`?apikey=`, `?key=`), e depender do redator para tirá-la seria
+  > depender de ele conhecer aquele valor — o que só é verdade porque o `env`
+  > está mockado no teste. O que identifica a sonda é o nome do provider.
+
+#### O que **não** virou correção
+
+- **O `authorized()` do painel dev continua calado quando não há credencial
+  nenhuma** — é o caminho normal, é assim que se chega ao formulário, e uma
+  linha por visita ensina alguém a ignorar o log. Ele registra quando uma
+  credencial é **apresentada e recusada**, que é outra coisa. Há asserção para
+  os dois lados.
+- **O `NOT_FOUND` compartilhado por nove sítios fica como está**: o fingerprint
+  da Fase 4 carrega `route`, e é a rota que os separa.
+
+#### O buraco do Gitleaks, medido pela terceira vez
+
+O push do merge da Fase 3 varreu **`0 commits`** e imprimiu `✅ No leaks
+detected`. O log dá o comando: `git log -p --no-merges --first-parent
+8c891bc^..d092987`. O conteúdo *foi* varrido no PR — nada escapou —, mas o gate
+do merge é decorativo, e agora há três medições dizendo isso. Continua dívida
+com gatilho no §16, sem ação nova neste PR.
+
+#### Guardas
+
+Nenhum arquivo de teste novo: os três achados entraram **nas guardas que já
+existiam para aquelas peças**, que é onde alguém vai procurar.
+
+| Guarda | Ganhou |
+|---|---|
+| `tests/utils/jwt.test.ts` | expirado e assinatura errada produzem `cause.name` **diferentes**, e a mensagem na resposta continua uma só |
+| `tests/plugins/error-handler.test.ts` | o 415 sai em `warn` com `CONTENT_TYPE_REJECTED`, **o cabeçalho forjado não entra no log**, e um `content-type` bom não gera linha |
+| `tests/services/health.service.test.ts` | o provider é nomeado, o `cause` sobrevive, **a URL com a chave não aparece**, chave recusada traz `statusCode` e provider saudável não gera linha |
+
+**954 → 964 testes na API.**
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

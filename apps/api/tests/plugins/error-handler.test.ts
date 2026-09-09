@@ -394,3 +394,62 @@ describe('§7 — o formulário de senha do painel dev deixa rastro', () => {
     expect(levelOf(line)).toBe('warn');
   });
 });
+
+describe('§7 (pós-merge) — a defesa que dispara em silêncio', () => {
+  /**
+   * **A mitigação de uma GHSA *high* não escrevia nada.**
+   *
+   * `Content-Type: application/json` com caractere de controle é o bypass de
+   * validação de corpo da `fastify@4` (corrigido só na `fastify@5.7.2`), e o
+   * `onRequest` do `buildApp` o recusa com 415 **na porta** — mas recusava
+   * calado. Ninguém manda TAB no `Content-Type` por acidente: é sonda, e sonda
+   * contra CVE conhecida é o evento que a §3.2 quer ver.
+   *
+   * `warn` e não `debug` porque **produção roda em `LOG_LEVEL=info`**: em
+   * `debug` a linha não seria escrita, e a correção não compraria nada.
+   */
+  it('logs the content-type rejection, and still answers 415', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/events',
+      headers: { 'content-type': 'application/json	' },
+      payload: '{}',
+    });
+    const [line] = appErrorLines();
+
+    expect(res.statusCode).toBe(415);
+    expect(res.json<{ error: string }>().error).toBe('Unsupported Media Type');
+    expect(levelOf(line)).toBe('warn');
+    expect((line?.err as { code?: string } | undefined)?.code).toBe(
+      'CONTENT_TYPE_REJECTED',
+    );
+  });
+
+  it('does not echo the crafted header back into the log', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/events',
+      headers: { 'content-type': 'application/json marcador-forjado' },
+      payload: '{}',
+    });
+
+    // Registrar a recusa não é copiar o que foi mandado para dentro do log:
+    // cabeçalho forjado é entrada hostil, e log é lido por outras ferramentas.
+    expect(JSON.stringify(appErrorLines())).not.toContain('marcador-forjado');
+  });
+
+  it('says nothing for a well-formed content-type', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/events',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ events: [] }),
+    });
+
+    expect(
+      appErrorLines().filter(
+        (l) => (l.err as { code?: string } | undefined)?.code === 'CONTENT_TYPE_REJECTED',
+      ),
+    ).toEqual([]);
+  });
+});

@@ -6,6 +6,7 @@ import {
   checkAllProviders,
 } from '../../src/services/health.service';
 import { env } from '../../src/config/env';
+import { baseLogger } from '../../src/utils/logger';
 
 vi.mock('../../src/config/env', () => ({
   env: {
@@ -174,5 +175,70 @@ describe('checkAllProviders', () => {
     const result = await checkAllProviders();
 
     expect(JSON.stringify(result)).not.toContain('test-');
+  });
+});
+
+describe('a sonda diz **por que** o provider nao respondeu', () => {
+  /**
+   * **`invalid` colapsava tres coisas com acoes opostas.**
+   *
+   * "chave recusada" (rotacione a chave), "provedor fora do ar" (espere) e
+   * "timeout" (pode ser rede nossa) sao a mesma palavra no
+   * `/api/health/providers` e no painel dev. O status na resposta **continua o
+   * mesmo** — ele e contrato declarado, lido por schema —; o que muda e que a
+   * razao passa a existir no log.
+   */
+  it('logs the network failure, naming the provider and keeping the cause', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(
+        new Error('getaddrinfo ENOTFOUND newsdata.io', {
+          cause: new Error('ENOTFOUND'),
+        }),
+      ),
+    );
+
+    expect(await checkNewsData()).toBe('invalid');
+
+    const [fields] = warn.mock.calls[0] as [Record<string, unknown>, string];
+    expect(fields.provider).toBe('newsdata');
+    expect((fields.err as Error).message).toContain('ENOTFOUND');
+  });
+
+  /**
+   * **A URL da sonda carrega a chave** (`?apikey=`, `?key=`), entao ela nao
+   * entra no log — e o teste mede isso em vez de confiar no redator, que so
+   * conhece o valor porque o `env` esta mockado aqui.
+   */
+  it('never puts the probe URL, and therefore the key, into the log', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('boom')));
+
+    await checkNewsData();
+
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('test-newsdata-key');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('newsdata.io/api');
+  });
+
+  it('tells a rejected key apart from an unreachable provider', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }));
+
+    expect(await checkGemini()).toBe('invalid');
+
+    const [fields] = warn.mock.calls[0] as [Record<string, unknown>, string];
+    expect(fields.provider).toBe('gemini');
+    // Chave recusada tem status; provider inalcancavel nao tem. E a distincao
+    // que decide entre rotacionar a chave e esperar.
+    expect(fields.statusCode).toBe(401);
+  });
+
+  it('says nothing when the provider answers fine', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => undefined);
+
+    expect(await checkNewsData()).toBe('ok');
+
+    expect(warn).not.toHaveBeenCalled();
   });
 });
