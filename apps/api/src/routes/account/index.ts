@@ -32,7 +32,14 @@ export async function accountRoutes(app: FastifyInstance) {
   await app.register(authPlugin);
 
   const sessionOf = (user?: { sub?: string; email?: string }) => {
-    if (!user?.sub || !user.email) throw new UnauthorizedError('Invalid or missing token');
+    // Sessao assinada por nos que nao identifica ninguem: `category: 'internal'`
+    // porque forjar exigiria o `AUTH_JWT_SECRET` — quem emitiu fomos nos.
+    if (!user?.sub || !user.email) {
+      throw new UnauthorizedError('Invalid or missing token', {
+        code: 'AUTH_SESSION_INCOMPLETE',
+        category: 'internal',
+      });
+    }
     return { userId: user.sub, email: user.email };
   };
 

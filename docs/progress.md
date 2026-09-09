@@ -5854,6 +5854,174 @@ cota zerada. O preço honesto é **1 transformação por execução** (~30/mês,
 cota) para testar a cota. Está proposto e ainda **não implementado**.
 
 
+### 56. O erro que o servidor escolheu devolver não deixava rastro nenhum ✅ 2026-09-09
+
+> **Fase 3 do `docs/Newra-News-Observability-Plan.md` (§7) — PR 5 da ordem do
+> §19, e o primeiro da espinha.** Ela existe para a Fase 4: o `code` desta
+> taxonomia é a peça do fingerprint que separa uma falha de outra, e é o que dá
+> teto à tabela `ErrorEvent`.
+
+#### O inventário, reconferido antes de abrir (a regra do §19)
+
+| Achado escrito no plano | Estado em 09/09/2026 |
+|---|---|
+| Um `AppError` responde e escreve zero linhas | confirmado — o primeiro ramo do `setErrorHandler` era `return reply.send(...)`, sem log |
+| `AppError` só tem `message` e `statusCode` | confirmado |
+| Caminho não registrado cai no padrão do Fastify | confirmado, e o corpo foi medido (abaixo) |
+| `errorResponseSchema` é `{ error }` e nenhuma tela ramifica por falha | confirmado — o web lê **status**, nunca o corpo do erro (`lib/api.ts`) |
+
+**Uma correção ao inventário do plano:** o §7 abre com *"um
+`throw new AppError('...', 500)`"*, e **não existe nenhum** no repositório — os
+únicos `AppError` lançados são as subclasses (404/401/403). O buraco é real e é
+prospectivo: o ramo estava mudo esperando o primeiro service que dissesse "não
+consegui". O que estava mudo **hoje**, com tráfego real, era outra coisa — e o
+inventário não a tinha.
+
+#### O que entrou
+
+`ERROR_CATEGORIES` (as seis do plano) e `ERROR_CODES` (**seis**, uma por falha
+que a API sabe distinguir hoje), `cause`/`context`, e a decisão de nível numa
+função só — `logLevelFor`. O handler global passou a escrever no primeiro ramo;
+entrou o `setNotFoundHandler`; e o serializer de `err` passou a carregar
+`category`, `context` e o **`cause`**.
+
+**A resposta pelo fio não mudou em nenhum caso, exceto o caminho não
+registrado** — `errorResponseSchema` continua `{ error }`, e pôr `code` no corpo
+seria contrato para um leitor que não existe. Gatilho para reverter: a primeira
+tela que ramifique por qual falha foi.
+
+**921 → 954 testes na API, 66 → 68 suítes.**
+
+#### O achado que não estava no plano, e é o maior
+
+**O `catch` do `authPlugin` engolia toda recusa de sessão, e o handler global
+nunca a via.** O `preHandler` recusava com `catch { return reply.status(401) }`:
+responde dali mesmo, então o `setErrorHandler` — o lugar que esta fase acabara
+de instrumentar — não é chamado. Alcance: **toda rota de conta e de admin**.
+
+O pior caso é o que torna isso caro. `verifyAuthJwt` lança
+`'Authentication is not configured'` quando `AUTH_JWT_SECRET` está ausente, e aí
+**todo** token é recusado — conta e admin caem juntos — com exatamente a mesma
+frase de um token expirado. **Esta variável já falhou em silêncio numa
+publicação deste projeto** (é a história que a armadilha do `env-parity`
+registra). Não havia como distinguir as duas causas de dentro nem de fora.
+
+Hoje o `refuse` chama `logAppError` — a mesma função do handler, para que os
+dois não divirjam — e **responde exatamente o mesmo**: a uniformidade da
+resposta é deliberada, quem chamou não precisa saber qual porta bateu. Quem
+separa as três causas é o `code`.
+
+#### A regra do plano que a implementação corrigiu
+
+**`category: 'internal'` é `error` mesmo abaixo de 500.** O §7 escreve
+`< 500 ⇒ debug`, exceto `authorization`. A regra é certa para 404 e para token
+expirado, e errada para o 401 acima: é configuração quebrada com cara de
+recusa, e pela regra escrita seria a única falha da API sem uma linha de log.
+Categoria dizendo "é defeito nosso" e nível dizendo "não olhe" é contradição, e
+ganha a categoria. O plano foi corrigido no mesmo PR (§19: *o documento é a
+fonte, e se estiver errado, corrija-o*), e virou a armadilha **30**.
+
+#### Os outros três, todos medidos ao escrever a guarda
+
+- **O caminho não registrado era a única resposta de erro fora do contrato.**
+  Medido: `{"message":"Route GET:/api/nao-existe not found","error":"Not
+  Found","statusCode":404}` — três campos onde a `docs/api.md` promete um, e o
+  caminho pedido **ecoado de volta no corpo**. Ninguém poderia ter notado:
+  nenhuma rota declara schema de 404 para o que não é rota, então o
+  `response-schema-contract` não alcança, e o `api-docs-drift` compara rotas
+  registradas, não respostas. O motivo escrito no plano para o
+  `setNotFoundHandler` (*"o `observability.ts` arquiva como rota `unmatched`"*)
+  **continua verdade depois da mudança** — `routeOptions.url` segue indefinido
+  ali, e `unmatched` é o balde certo, senão o mapa de métricas ganharia uma
+  linha por endereço de robô.
+- **`ValidationError` era uma classe exportada que nenhum arquivo lançava.**
+  Quem valida aqui é o Zod, pelo type provider, e o 400 sai do Fastify. Um
+  código no tuple para ela seria cardinalidade reservada a um consumidor
+  imaginário — a armadilha da tabela sem leitor pelo avesso, e é a metade da
+  regra do `code` que a guarda cobra. Removida.
+- **`routes/health/index.ts` tinha a quarta cópia da conferência do
+  `JOB_SECRET`, com `!==`.** A revisão da Fase 9 achou três e escreveu
+  "`assertJobSecret` é o **único** lugar que compara o `JOB_SECRET`"; esta é uma
+  quarta, com a comparação que sai no primeiro byte diferente e vaza o prefixo
+  para quem consegue medir. Apareceu porque era um dos sítios que precisavam
+  ganhar `JOB_SECRET_INVALID`. Cinco linhas viraram uma chamada.
+
+#### A auditoria de completude, e os três códigos que ela acrescentou
+
+Feita **depois** do CI verde, enumerando toda construção da família do
+`AppError` com o código que ela resolve, e toda resposta de erro que **não**
+passa pelo handler global (a armadilha 29, recém-escrita, virando ferramenta).
+Ela achou três falhas distintas compartilhando código com outra coisa — e a
+primeira é a mais cara:
+
+- **`POST /dev/dashboard/session` não escrevia nada.** É o **único formulário
+  de senha do produto**, alcançável de fora, e responde **303** — então nem a
+  linha de acesso do `observability.ts` ajudava, porque 303 < 400 e a tentativa
+  saía em `info`, no meio do tráfego normal. Quem insistisse em adivinhar o
+  `JOB_SECRET` não produzia sinal nenhum. `authn_fail` é o evento canônico do
+  vocabulário de log do OWASP que o **§3.2 deste mesmo plano cita**, e era o que
+  faltava. Virou `DASHBOARD_SECRET_INVALID`, separado do `JOB_SECRET_INVALID`
+  porque a superfície é outra: um é máquina com segredo velho, o outro é gente
+  adivinhando. **O palpite não entra no log** — registrar a tentativa não é
+  registrar o que foi tentado, e há asserção sobre isso.
+- **`POST /api/auth/upsert` conflava o evento mais sensível da API com o de
+  maior volume.** É a **única rota que cria usuário**; ali a assinatura confere
+  e o `purpose` passou, e o que falha é o token de uma pessoa sendo usado para
+  criar a conta de outra — o próprio comentário do arquivo dizia isso em prosa.
+  Sob `AUTH_TOKEN_INVALID` ficaria enterrado no balde de todo token expirado,
+  que é a versão por `code` do que a regra de nível evita por `level`. Virou
+  `AUTH_SUBJECT_MISMATCH`.
+- **Sessão que nós assinamos e que não identifica ninguém.** `account:35` e
+  `favorites:61` recusam um token **já verificado** que chega sem `sub`/`email`
+  — e forjar um exigiria o `AUTH_JWT_SECRET`, então quem emitiu fomos nós (o
+  `api-proxy.ts` assina `email: session.user.email ?? ''`). O leitor fica
+  logado com toda rota de conta respondendo 401, em silêncio. Virou
+  `AUTH_SESSION_INCOMPLETE`, com `category: 'internal'` — o que o faz sair em
+  `error` pela mesma regra do `AUTH_NOT_CONFIGURED`.
+
+**O que a auditoria conferiu e estava em ordem:** as seis categorias do plano,
+as 19 construções da família (cada uma com o código resolvido conferido à mão),
+e o `NOT_FOUND` compartilhado por nove sítios — esse fica, porque o fingerprint
+da Fase 4 carrega `route`, e é a rota que os separa.
+
+#### As guardas, e as três vezes que elas foram vistas reprovando
+
+| Guarda | O que trava |
+|---|---|
+| `tests/utils/error-taxonomy.test.ts` | conjuntos fechados, classificação de cada subclasse, e **as duas metades da regra do `code`**: nenhum literal interpolado ou computado, e nenhum código no tuple sem quem o lance |
+| `tests/plugins/error-handler.test.ts` | **a fiação** — um pino em `trace` no lugar do `baseLogger`, com o serializer real, medindo nível, campos e redação pelo caminho de produção |
+
+A primeira usa `ts.createSourceFile`, e é a armadilha 27 aplicada de saída:
+distinguir `'NOT_FOUND'` de `` `NOT_${x}` `` é gramática, não texto. Duas
+decisões a mais nela, e as duas saíram de vê-la falhar:
+
+- **a família do `AppError` é derivada do próprio arquivo**, não digitada — lista
+  escrita à mão responde "o que eu lembrei de olhar", que é exatamente como a
+  varredura da Fase 7a deixou de fora a única rota fora de `app/api`;
+- **os defaults contam como uso.** A primeira versão reprovou `INTERNAL` como
+  "código que ninguém lança", e ele é o que **todo** `new AppError('...')` sem
+  opções carrega — o literal está no `?? 'INTERNAL'` do construtor, não numa
+  propriedade `code:`. A varredura passou a ler também as atribuições a
+  `this.code`/`this.category` dentro de `errors.ts`, e reprova se um default
+  deixar de chegar a um literal.
+
+Os três controles negativos, rodados: um `code` interpolado num call site
+reprova (duas asserções); apagar a linha de log do handler reprova (cinco);
+tirar o `setNotFoundHandler` reprova (duas).
+
+#### O que fica de dívida
+
+**A taxonomia ainda não alcança o pipeline nem os providers.** Os `throw new
+Error(...)` de `gemini.provider`, `newsdata.provider`, `resend.provider` e
+`pipeline.service` continuam sendo erro cru — chegam ao handler pelo ramo do
+"erro que o servidor não escolheu", que já logava. Convertê-los é o que dá
+`category: 'upstream'` a uma falha de terceiro, e `upstream`, `database` e
+`contract` são hoje **categorias sem ninguém que as produza**. Não é regressão:
+o §7 fala do handler da API, e o `ErrorEvent` da Fase 4 é quem cria o leitor
+para essa distinção. **Gatilho:** a Fase 4, que traz `origin: PIPELINE` e passa
+a agrupar por `(code, category)` — sem os providers convertidos, todo erro de
+terceiro cairia num fingerprint só.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

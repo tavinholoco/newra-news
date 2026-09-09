@@ -274,9 +274,10 @@ a suíte de unidade, que roda sem rede.
   `docs/Newra-News-Observability-Plan.md` — log estruturado, taxonomia de erro,
   `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
-  `catch` do BFF) em 07/09 — e com a 7a o bloco 1 fechou.** Continuam abertas
-  **sete fases inteiras** (3, 4, 5, 6, 8, 9 e 11) mais as subfases **7b e 7c**.
-  A próxima é a **3**, que abre a espinha. O **§19** é
+  `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
+  09/09, abrindo a espinha.** Continuam abertas **seis fases inteiras** (4, 5, 6,
+  8, 9 e 11) mais as subfases **7b e 7c**. A próxima é a **4**, em dois PRs
+  (migration e código). O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -331,6 +332,55 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-09): o erro que o servidor escolhe devolver
+  parou de sumir, e a espinha do plano abriu.** A **Fase 3** (§7), PR 5 da ordem
+  do §19. `AppError` ganhou `code`, `category`, `cause` e `context`; o primeiro
+  ramo do handler global — que respondia e **não escrevia nada** — passou a
+  logar, com o nível saindo da categoria; e entrou o `setNotFoundHandler`.
+  **921 → 954 testes na API.** Item **56** do `docs/progress.md`.
+
+  > **O achado grande não estava no inventário do plano: o `catch` do
+  > `authPlugin` engolia toda recusa de sessão.** Ele responde 401 dali mesmo,
+  > então o handler que a fase acabara de instrumentar **nunca era chamado** —
+  > alcance de toda rota de conta e de admin. E o pior caso é o que torna isso
+  > caro: sem `AUTH_JWT_SECRET`, `verifyAuthJwt` recusa **todo** token com a
+  > mesma frase de um token expirado, e **essa variável já falhou em silêncio em
+  > produção uma vez**. Hoje a recusa passa por `logAppError` e a resposta segue
+  > idêntica — uniforme de propósito; quem separa as três causas é o `code`.
+  >
+  > **A regra de nível do plano estava errada num caso, e o plano foi corrigido
+  > no mesmo PR.** `< 500 ⇒ debug` é certo para 404 e para token expirado, e
+  > errado para o 401 acima: é configuração quebrada com cara de recusa. Quando
+  > categoria e status discordam sobre a gravidade, **ganha a categoria** — o
+  > status diz o que o cliente recebe, a categoria diz de quem é a culpa.
+  >
+  > **Mais três, todos medidos ao escrever a guarda.** O caminho não registrado
+  > era **a única resposta de erro fora do contrato** (`{message, error,
+  > statusCode}` do Fastify, com o caminho pedido ecoado de volta) e nenhuma
+  > guarda podia alcançá-lo, porque nenhuma rota declara schema de 404 para o
+  > que não é rota. `ValidationError` era classe exportada que **nenhum arquivo
+  > lançava**. E `routes/health/index.ts` tinha a **quarta** cópia da conferência
+  > do `JOB_SECRET`, com `!==` — a revisão da Fase 9 achou três e escreveu que
+  > `assertJobSecret` era o único lugar.
+  >
+  > **A auditoria de completude, feita depois do CI verde, achou mais três — e a
+  > pior é que o `POST /dev/dashboard/session` não escrevia nada.** É o **único
+  > formulário de senha do produto**, e como ele responde **303** nem a linha de
+  > acesso ajudava (303 < 400, sai em `info`): quem insistisse em adivinhar o
+  > `JOB_SECRET` não produzia sinal nenhum. `authn_fail` é justamente o evento
+  > que o §3.2 do plano cita. Junto: o `POST /api/auth/upsert` — **a única rota
+  > que cria usuário** — conflava "token de uma pessoa usado para criar a conta
+  > de outra" com todo token expirado; e uma sessão **que nós assinamos** sem
+  > `sub`/`email` deixava o leitor logado com toda rota de conta em 401, em
+  > silêncio. Três códigos novos, com guarda.
+  >
+  > **A guarda do `code` é derivada do parser, e falhou duas vezes antes de
+  > servir.** A família do `AppError` é lida do próprio arquivo (lista digitada
+  > responde "o que eu lembrei de olhar" — foi assim que a varredura da Fase 7a
+  > perdeu a única rota fora de `app/api`), e os **defaults do construtor contam
+  > como uso**: a primeira versão acusou `INTERNAL` de ser código sem quem o
+  > lance, e ele é o que todo `new AppError('...')` carrega.
+
 - **Fora da linha das fases (2026-09-07): o BFF parou de engolir a falha, e com
   isso o bloco 1 do plano de observabilidade fechou.** A **Fase 7a** (§11.1), PR
   4 da ordem do §19. O parser deu o número que a inspeção de 01/09 tinha dito em
@@ -603,7 +653,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.604 em 137 suites (**921 API em 66** + **683 web em 71** — todos
+- **Testes:** 1.637 em 139 suites (**954 API em 68** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

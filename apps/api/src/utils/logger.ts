@@ -36,6 +36,9 @@ export const MAX_MESSAGE_CHARS = 500;
 /** Teto do `stack`, em quadros (a linha de cabeçalho não conta). */
 export const MAX_STACK_FRAMES = 10;
 
+/** Teto de cada valor de texto do `context` de um `AppError`, em caracteres. */
+export const MAX_CONTEXT_CHARS = 200;
+
 const TRUNCATED = '… [truncado]';
 
 /**
@@ -88,6 +91,29 @@ function truncateStack(stack: string): string {
 const scrub = (text: string): string => redactSecrets(redactEmails(text));
 
 /**
+ * O `context` de um {@link AppError}, achatado e redigido.
+ *
+ * O tipo `ErrorContext` já limita o que entra a escalar, e é ali que a regra
+ * mora; esta função é a segunda metade dela, para o valor que chega por um
+ * `as` ou de fora do TypeScript. Descarta por lista de permissão — o mesmo
+ * critério do serializer abaixo, e pelo mesmo motivo.
+ */
+function scrubContext(context: unknown): Record<string, unknown> | undefined {
+  if (typeof context !== 'object' || context === null || Array.isArray(context)) {
+    return undefined;
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (typeof value === 'string') out[key] = truncate(scrub(value), MAX_CONTEXT_CHARS);
+    else if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+      out[key] = value;
+    }
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
+}
+
+/**
  * O serializer de `err`, que é o conserto do vazamento.
  *
  * Ele faz quatro coisas, e cada uma sai de um achado:
@@ -105,6 +131,17 @@ const scrub = (text: string): string => redactSecrets(redactEmails(text));
  * 4. **descarta o resto, por lista de permissão.** O `ai.service` pendura um
  *    `primaryError` inteiro na exceção do fallback; serializar tudo que um erro
  *    carrega seria serializar um segundo erro sem passar por redação nenhuma.
+ *
+ * ## O que a Fase 3 acrescentou, e por quê
+ *
+ * `category` e `context` entram porque a taxonomia da §7 só vale se chegar ao
+ * log; `code` e `statusCode` já passavam pelo item 3 acima, sem que ninguém os
+ * preenchesse. E entra o **`cause`, um nível, sem `stack`** — que é o achado da
+ * Fase 7a aplicado deste lado: o undici lança `TypeError: fetch failed` e o
+ * `ECONNREFUSED` está **só** ali dentro, então uma linha sem `cause` descreve a
+ * falha de rede como "fetch failed" e não diz nada. Um nível e sem `stack` é o
+ * que mantém o item 4 de pé: o erro de baixo entra como diagnóstico, não como
+ * um segundo erro inteiro.
  */
 export function redactingErrSerializer(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) {
@@ -115,7 +152,13 @@ export function redactingErrSerializer(error: unknown): Record<string, unknown> 
     };
   }
 
-  const err = error as Error & { code?: unknown; statusCode?: unknown };
+  const err = error as Error & {
+    code?: unknown;
+    statusCode?: unknown;
+    category?: unknown;
+    context?: unknown;
+    cause?: unknown;
+  };
   const out: Record<string, unknown> = {
     name: err.name,
     message: truncate(scrub(err.message), MAX_MESSAGE_CHARS),
@@ -124,6 +167,20 @@ export function redactingErrSerializer(error: unknown): Record<string, unknown> 
   if (typeof err.stack === 'string') out.stack = truncateStack(scrub(err.stack));
   if (err.code !== undefined) out.code = err.code;
   if (err.statusCode !== undefined) out.statusCode = err.statusCode;
+  if (typeof err.category === 'string') out.category = err.category;
+
+  const context = scrubContext(err.context);
+  if (context !== undefined) out.context = context;
+
+  if (err.cause !== undefined) {
+    out.cause =
+      err.cause instanceof Error
+        ? {
+            name: err.cause.name,
+            message: truncate(scrub(err.cause.message), MAX_MESSAGE_CHARS),
+          }
+        : { name: 'NonError', message: truncate(scrub(String(err.cause)), MAX_MESSAGE_CHARS) };
+  }
 
   return out;
 }
