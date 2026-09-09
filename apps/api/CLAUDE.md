@@ -500,6 +500,15 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
   a razão vai para o log, com o nome do provider. **A URL da sonda nunca entra na
   linha** — ela carrega a chave, e depender do redator seria depender de ele
   conhecer aquele valor.
+- **`app.inject()` não passa pelo parser HTTP, e isso já enganou uma guarda.**
+  O `light-my-request` entrega o objeto de headers direto ao Fastify; o parser do
+  Node **apara o espaço em branco do fim** do valor de um header. A guarda do
+  `content-type` provava a defesa com `application/json<TAB>` — forma que o fio
+  **nunca entrega**. Onde a coisa em teste é o tratamento de um header cru, teste
+  por porta efêmera, não por `inject`. E note que **um status compartilhado por
+  duas origens não prova de quem é a resposta**: o Fastify devolve 415 sozinho
+  para aquele header, e o que distingue é a frase fixa do nosso hook contra a
+  dele, que **ecoa o header forjado de volta**. Item 58 do `docs/progress.md`.
 - **`ErrorContext` é `Record<string, escalar>` de propósito.** O `context` vai
   para o log e, na Fase 4, para uma coluna; objeto aninhado é como um segundo
   erro inteiro entra sem passar por redação nenhuma.

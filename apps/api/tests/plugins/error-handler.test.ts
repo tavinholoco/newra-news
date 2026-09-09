@@ -407,12 +407,19 @@ describe('§7 (pós-merge) — a defesa que dispara em silêncio', () => {
    *
    * `warn` e não `debug` porque **produção roda em `LOG_LEVEL=info`**: em
    * `debug` a linha não seria escrita, e a correção não compraria nada.
+   *
+   * **O caractere vai no meio do valor, e isso importa.** A forma com TAB no
+   * **fim** — que a primeira versão desta asserção usava — não sobrevive ao
+   * parser HTTP do Node, que apara o espaço em branco do fim do header. O
+   * `inject` a preserva, então o teste passava sobre uma requisição que **não
+   * pode existir sobre HTTP**. Medido na verificação pós-merge da promoção, e o
+   * detalhe está em `tests/security/content-type-bypass.test.ts`.
    */
   it('logs the content-type rejection, and still answers 415', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/events',
-      headers: { 'content-type': 'application/json	' },
+      headers: { 'content-type': `application/json;	charset=utf-8` },
       payload: '{}',
     });
     const [line] = appErrorLines();
