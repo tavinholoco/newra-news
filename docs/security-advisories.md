@@ -19,8 +19,9 @@ gatilho.
 > publicada: `eslint@8`, `vitest@2`, o CLI do `shadcn`. Uma lista de exceção com
 > 35 linhas é a armadilha 21 do §17 do plano de observabilidade — vira ruído,
 > alguém desliga o passo, e ele deixa de existir de fato enquanto continua
-> existindo no arquivo. Com `--prod` são **18**, e as 18 já tinham alcance
-> analisado nos itens **9.S** e **10.S** do `docs/progress.md`.
+> existindo no arquivo. Com `--prod` são **20** — 18 com alcance analisado nos
+> itens **9.S** e **10.S** do `docs/progress.md`, mais as **duas *critical* do
+> `next`** que chegaram em 09/09/2026 e foram medidas na hora.
 >
 > O outro lado fica com o **Dependabot**, que abre PR semanal para dependência de
 > desenvolvimento também. A diferença entre os dois é o que cada um faz quando
@@ -28,12 +29,13 @@ gatilho.
 
 ## As três dívidas, e são só três
 
-Dezoito advisories, quatro grupos, três gatilhos. Nenhuma delas é novidade desta
-fase — o que é novo é o CI cobrar.
+**20** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
+neste documento têm guarda **derivada da lista**, porque número em prosa que
+descreve uma coleção é a armadilha do `13` dos feeds (item 41).
 
 | Gatilho | Advisories | Onde o aceite foi escrito |
 |---|---|---|
-| **`next` 14 → 15** | 8 do `next` + 7 da cadeia de build que ele carrega | item 10.S do `docs/progress.md` |
+| **`next` 14 → 15** | 10 do `next` + 7 da cadeia de build que ele carrega | item 10.S do `docs/progress.md`, e as duas de 09/09 na seção de medição abaixo |
 | **`fastify` 4 → 5** | `fastify` e `find-my-way` | item 9.S |
 | **UI do Swagger em produção** | `@fastify/static` | item 9.S |
 
@@ -62,11 +64,52 @@ sozinhas — a advisory sai do `audit`, e a guarda passa a reprovar por sobra.
 | GHSA-jx2c-rxcm-jvmq | `fastify` | Bypass de validação por `content-type` com tab — **mitigado na porta**: `content-type` com caractere de controle é recusado com 415 antes de o parser ser escolhido, e há guarda em `apps/api/tests/security/content-type-bypass.test.ts` | 23/08/2026 | a major `fastify@5`, dívida da Fase 13 |
 | GHSA-c96f-x56v-gq3h | `find-my-way` | DDoS com HTTP/2, e a API não serve HTTP/2 — o `buildApp` não passa a opção | 23/08/2026 | servir HTTP/2, ou `fastify@5` |
 | GHSA-83w8-p2f5-377r | `@fastify/static` | Bypass de route guard por travessia — o pacote só entra pelo `@fastify/swagger-ui`, que **deixou de ser registrado em produção** na Fase 9 (`isDocsUiEnabled`) | 23/08/2026 | reabrir a UI do Swagger em produção |
+| GHSA-p293-qw3h-jr36 | `next` | RCE por travessia de caminho, e a advisory diz **exclusivamente** *Windows filesystem* — o web é publicado só na Vercel (Linux), e o `render.yaml` declara um serviço só, que é a API | 09/09/2026 | publicar o web em host Windows, ou `next@15` |
+| GHSA-2xp9-vwfh-vxw4 | `next` | RCE no `libheif` do `sharp` ao otimizar AVIF, e **`sharp` não está no `pnpm-lock.yaml` nem no `node_modules`** — o `/_next/image` é servido pela plataforma da Vercel, não pela app (medido em 09/09; ver a nota abaixo) | 09/09/2026 | trazer a otimização de imagem para dentro — proxy próprio, `output: standalone`, self-host —, `sharp` entrar na árvore, ou `next@15` |
 
 > **Quem aceita:** Pedro Levi. As linhas de 23/08/2026 vêm dos itens 9.S e 10.S do
 > `docs/progress.md`, onde cada "não alcança" já era uma afirmação sobre o código
 > — e onde cada premissa virou teste. As de 05/09/2026 são a cadeia de build que
-> o `next@14` carrega, e saem junto com ele.
+> o `next@14` carrega, e saem junto com ele. As de **09/09/2026** são as duas
+> *critical* do `next` que apareceram entre o PR #161 passar e o merge dele na
+> `dev`, e o alcance das duas foi **medido**, não deduzido — a medição está logo
+> abaixo.
+
+### Como o alcance da GHSA-2xp9-vwfh-vxw4 foi medido — 09/09/2026
+
+Esta é a única das vinte cujo "não alcança" **não sai da leitura do código**: ela
+depende de onde a otimização de imagem roda. E depende porque a configuração
+deste projeto é justamente a que a tornaria alcançável — `remotePatterns` aceita
+`hostname: '**'`, então uma requisição não autenticada escolhe a URL que o
+otimizador vai buscar. **`formats: ['image/webp']` não protege**: aquilo decide o
+formato de **saída**, e a advisory é sobre **decodificar** AVIF na entrada.
+
+Quatro sinais independentes, e os quatro apontam para o mesmo lugar:
+
+| Medição | O que diz |
+|---|---|
+| `sharp` ausente do `pnpm-lock.yaml` e do `node_modules` | o `libheif` vulnerável não está no artefato publicado |
+| `X-Vercel-Error: OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` | erro de **plataforma** — o otimizador do Next não devolve 402 |
+| `/_next/image` responde **sem** `X-Matched-Path`, que a `/pt-BR` traz | a requisição não foi roteada para a app |
+| `X-Vercel-Id: gru1::…` no `/_next/image` × `gru1::iad1::…` na `/pt-BR` | um salto contra dois: nunca chegou à região da função |
+
+Somando o `next.config.js` sem `loader` e sem `output: standalone`, e o
+`render.yaml` que só publica a API: **o caminho `next → sharp → libheif` não
+existe neste deploy.** O `pnpm audit` casou por faixa de versão do `next`, que é
+o que ele sabe fazer.
+
+> ⚠️ **O gatilho desta linha está encostado, e não é hipótese.** O `next.config.js`
+> registra que a saída para o estouro de cota do otimizador é *"servir a imagem
+> por um proxy próprio"* — e **foi exatamente esse estouro que a medição de 09/09
+> encontrou** (todo `/_next/image` respondendo 402). Fazer o proxy traz a
+> otimização para dentro, põe `sharp`/`libheif` na árvore e **reabre esta
+> advisory**. Se a cota for resolvida por esse caminho, o `next@15` deixa de ser
+> dívida e vira pré-requisito.
+
+**A ressalva honesta da GHSA-p293-qw3h-jr36:** produção é Linux, mas a máquina de
+desenvolvimento é Windows, e `next dev` é um servidor em filesystem Windows. A
+exposição é o que alcança `localhost`, não a internet — pequena, mas não é zero, e
+é o único lugar onde essa advisory encosta neste projeto.
 
 ## Como acrescentar uma linha
 

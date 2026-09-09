@@ -5598,6 +5598,92 @@ no `gitleaks.yml` é política de esteira (Fase 10) e não item de fase de produ
 
 **680 → 682 testes no web.**
 
+---
+
+### 53. Duas *critical* do `next` reprovaram o CI, e a medição disse onde elas param ✅ 2026-09-09
+
+> **Não é fase — é o `pnpm audit` da Fase 10 fazendo o que foi construído para
+> fazer.** O CI da `dev` ficou vermelho no push do merge do PR #161, e **não era
+> o código mergeado**: Test, Lint e typecheck passaram. Reprovou o passo
+> *Audit de dependências de produção*.
+
+#### O que apareceu
+
+Duas advisories **critical** no `next@14.2.35`, publicadas entre o PR #161 passar
+(07/09) e o merge dele (09/09). As 18 *high* seguiram silenciadas normalmente.
+
+| Advisory | O que é | Corrigida em |
+|---|---|---|
+| GHSA-p293-qw3h-jr36 · 9.0 | travessia de caminho → RCE | 15.5.24 (sem backport 14.x) |
+| GHSA-2xp9-vwfh-vxw4 · 9.5 | `libheif` do `sharp` ao otimizar AVIF → RCE | 15.5.24 (sem backport 14.x) |
+
+#### A primeira foi leitura; a segunda teve de ser medida
+
+A do Windows é leitura da própria advisory: ela diz **exclusivamente** *Windows
+filesystem*, e o web é publicado só na Vercel (Linux) — o `render.yaml` declara um
+serviço, que é a API.
+
+**A do AVIF não dava para resolver lendo**, e vale dizer por quê: a configuração
+deste projeto é justamente a que a tornaria alcançável. O `remotePatterns` aceita
+`hostname: '**'` — decisão medida e escrita na Fase 10 —, então uma requisição não
+autenticada escolhe a URL que o otimizador vai buscar. E **`formats:
+['image/webp']` não protege**: aquilo decide o formato de **saída**, e a advisory
+é sobre **decodificar** AVIF na entrada. O reflexo de responder "temos só WebP,
+está tudo bem" seria errado.
+
+Quatro sinais independentes, todos medidos em 09/09:
+
+1. **`sharp` ausente** do `pnpm-lock.yaml` e do `node_modules` — o `libheif`
+   vulnerável não está no artefato publicado;
+2. `X-Vercel-Error: OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED` — erro de
+   **plataforma**; o otimizador do Next não devolve 402;
+3. `/_next/image` responde **sem** `X-Matched-Path`, que a `/pt-BR` traz — a
+   requisição não foi roteada para a app;
+4. `X-Vercel-Id: gru1::…` contra `gru1::iad1::…` na rota da app — um salto contra
+   dois: nunca chegou à região da função.
+
+Somando o `next.config.js` sem `loader` e sem `output: standalone`: **o caminho
+`next → sharp → libheif` não existe neste deploy.** O `pnpm audit` casou por faixa
+de versão, que é o que ele sabe fazer.
+
+#### O achado que a medição trouxe de brinde, e é o mais urgente
+
+O sinal 2 acima **não é sobre a advisory**. `OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED`
+significa que a **cota de otimização de imagem da Vercel estourou**: todo
+`/_next/image` responde **402**, em três larguras e duas origens testadas. A home
+responde 200 e as imagens de origem servem normalmente — o que morreu é o
+otimizador. Como o `SafeImage` **degrada sem gritar**, o site está no ar com o
+placeholder de marca no lugar das fotos, **sem erro em lugar nenhum**.
+
+É exatamente o gatilho que o `next.config.js` já previa por escrito. Ele disparou,
+e ninguém soube — a mesma família do keep-alive e da suspensão de 29/08: **plano
+gratuito que cobra uso avisa pelo produto quebrado, não por alerta.**
+
+> **E os dois problemas se cruzam.** A saída documentada para o estouro de cota é
+> *"servir a imagem por um proxy próprio"* — o que traz `sharp`/`libheif` para
+> dentro da árvore e **reabre a GHSA-2xp9-vwfh-vxw4**. Está escrito como gatilho
+> na linha dela: resolver a cota por esse caminho faz o `next@15` deixar de ser
+> dívida e virar pré-requisito.
+
+#### O que entrou
+
+As duas linhas em `pnpm.auditConfig.ignoreGhsas` + `docs/security-advisories.md`,
+com motivo, data e gatilho, mais a seção que registra **como** o alcance da
+segunda foi medido — porque ela é a única das vinte cujo "não alcança" não sai da
+leitura do código.
+
+**E uma guarda nova, que é o `13` dos feeds nesta tabela.** O documento afirma
+**duas vezes** quantas advisories estão silenciadas, e as duas frases estão em
+parágrafos que ninguém abre ao acrescentar uma linha — quem acrescenta mexe na
+tabela, quinze linhas abaixo. Neste PR as duas diziam 18 enquanto a lista ia para
+20. Agora o `workflow-hardening.test.ts` deriva as duas contagens da lista, e o
+par de regex é explícito de propósito: casar "qualquer número em negrito" pegaria
+o `35` da árvore inteira e o `10 do next` do agrupamento, que são outras
+contagens. **Vista reprovando nas duas direções** — prosa fora de sincronia, e
+GHSA sem linha no documento.
+
+**920 → 921 testes na API.**
+
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
