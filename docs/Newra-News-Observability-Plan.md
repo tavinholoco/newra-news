@@ -120,6 +120,13 @@ não depende de nada neste plano.
 > de cada fase vive na tabela da ordem, no §19, e no cabeçalho da seção de cada
 > uma — esta tabela aqui descreve a **forma** do plano, não o progresso. **O
 > bloco 1 fechou; a próxima é a Fase 3** (§7, a taxonomia), que abre a espinha.
+>
+> **Duas coisas que o bloco 1 deixou fora do plano e que a Fase 3 herda o
+> contexto:** as duas *critical* do `next` aceitas com alcance medido
+> (`docs/security-advisories.md`, item 53) e a **cota de otimização de imagem da
+> Vercel estourada** — o site está no ar sem foto até a virada do período de
+> faturamento, e isso **não é regressão de nenhuma fase**. Itens 53 a 55 do
+> `docs/progress.md`.
 
 Depois: **3 → 4 → 5**, que é a espinha, e a partir daí **6, 8, 9 e 11**.
 
@@ -1672,7 +1679,7 @@ aplica as duas migrations juntas na promoção.**
 
 | PR | Fase | Trava |
 |---|---|---|
-| 5 | **§7 — Fase 3, taxonomia** | O `code` que a Fase 4 usa como fingerprint. Sem ele a tabela nasce com cardinalidade sem teto |
+| **5 ← próxima** | **§7 — Fase 3, taxonomia** | O `code` que a Fase 4 usa como fingerprint. Sem ele a tabela nasce com cardinalidade sem teto. **Branch `observability/fase-3-taxonomia`, criada da `dev` em 09/09/2026** |
 | 6a | **§8 — Fase 4, a migration** | PR só de schema. `ErrorEvent` + os dois índices do `PipelineLog` |
 | 6b | **§8 — Fase 4, o código** | `recordError`, o buffer, a retenção na etapa 8 |
 | 7 | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |

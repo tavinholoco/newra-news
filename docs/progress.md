@@ -5765,6 +5765,94 @@ Se estourar de novo depois do corte, a resposta honesta é o **Pro**.
 
 **682 → 683 testes no web.**
 
+---
+
+### 55. Auditoria da sessão: a promoção pausada deixou a `main` com um `.gitignore` velho ✅ 2026-09-09
+
+> Varredura do que os itens **51 a 54** deixaram (Fase 7a, o pós-merge dela, as
+> duas *critical* do `next` e a cota de imagem). **As contagens e os documentos
+> estão em ordem**; o que apareceu foi um efeito colateral da política de
+> promoção que ninguém tinha escrito, e uma duplicação antiga.
+
+#### O que foi conferido e está certo
+
+- **1.604 testes em 137 suítes** (921 API + 683 web), batendo com o `CLAUDE.md`;
+- nenhuma referência obsoleta a "a próxima é a Fase 7a" sobrou;
+- as duas contagens do `docs/security-advisories.md` seguem derivadas da lista
+  (guarda do item 53);
+- o `next.config.js` deixou de afirmar o "**6**" que o item 54 tornou falso, e o
+  `apps/web/CLAUDE.md` cita os três limites **sem número**, então não envelheceu.
+
+#### Achado 1 — a `main` está com 3,5 MB de captura que a ferramenta declara não versionar
+
+`apps/web/.admin-captures/` tem **13 PNGs, 3,5 MB, versionados na `main`** — e o
+`capture-admin.mjs` diz, por escrito, *"o que sai daqui não é versionado"*. Nada
+no repositório os referencia.
+
+**Como entraram:** no commit `b94ec6c` (*"chore: atualiza a URL do LinkedIn"*),
+que pretendia mudar **duas linhas** de README. O `git add -A` levou o resto junto
+porque **a `main` não tem a linha do `.gitignore` que os ignora** — ela nasceu no
+PR #158, vive na `dev`, e **espera a promoção**.
+
+> **É a primeira consequência da promoção pausada que morde, e ela generaliza:**
+> enquanto a `dev` não promove, **a `main` roda com um `.gitignore` mais velho**,
+> e toda branch cortada da `main` fica sem as regras de ignore que a `dev` já
+> tem. O sintoma não é erro — é arquivo entrando de carona num commit sobre
+> outro assunto.
+
+**Consequência para a promoção, e ela não se resolve sozinha:** `.gitignore` **não
+desversiona o que já está versionado**. Quando a `dev` for promovida, a regra
+chega e os 13 arquivos **continuam rastreados** — é preciso um `git rm --cached`
+explícito. Está no ritual de promoção do `CLAUDE.md`.
+
+**A varredura foi feita, e o negativo importa:** rodando o que está versionado na
+`main` contra as regras da `dev` —
+`git ls-tree -r --name-only origin/main | git check-ignore --stdin` — voltam
+**exatamente esses 13 arquivos e mais nenhum**. O buraco do `.gitignore` velho
+custou uma coisa só, não é uma família de arquivos espalhada.
+
+#### Achado 2 — a `dev` ficou 2 commits atrás da `main`, e **desta vez não é risco**
+
+A regra do §19 manda conferir isso antes de ramificar, e o motivo dela é o
+incidente dos **217 commits** — fase desenvolvida contra código que não existe
+mais. Aqui os 2 commits são **duas linhas de README** mais os PNGs do achado 1.
+Não há código, e a mudança do README sobrevive à promoção sozinha (a `dev` não
+tocou aquelas linhas). **Sincronizar `main` → `dev` importaria os 3,5 MB**, então
+o certo é não sincronizar: a divergência é cosmética e morre na promoção.
+
+#### Achado 3 — duas implementações de `stripComments` em sete guardas, e a escolha não está escrita
+
+| Implementação | Arquivos | O que faz |
+|---|---|---|
+| `(^\|[^:])\/\/[^\n]*` | `bff-seam`, `trust-boundary`, `analytics-catalog` | tira comentário **inline** e protege `https://` |
+| `^\s*\/\/.*$` | `image-optimizer`, `images`, `browser-surface`, `api-failure` | tira **só linha inteira** de comentário |
+
+As duas são cópias exatas dentro de cada grupo. **A diferença é real** — a
+segunda deixa comentário no fim da linha —, e é aí que mora o risco: o
+`api-failure.test.ts` procura `.catch(() => null)` em páginas, e um
+`// .catch(() => null)` no fim de uma linha **não seria removido**, virando falso
+positivo. É a mesma família das quatro armadilhas da Fase 11.
+
+**Fica como dívida, não como correção**, e o motivo é o custo do erro: unificar
+sete guardas de uma vez é exatamente o tipo de mudança que enfraquece guarda sem
+ninguém notar. **Gatilho:** o primeiro falso positivo, ou a próxima guarda que
+precise varrer fonte — aí o helper nasce compartilhado, com teste próprio.
+`collectFiles` (4 arquivos) e `relativePath` (4 arquivos) entram junto.
+
+#### Sobre monitorar a cota antes de estourar
+
+Conferido na referência da API REST da Vercel: **não há endpoint de consumo**.
+Existem `billing/charges` (FOCUS) e `billing/buy`, e nada que responda "quantas
+transformações já foram usadas". **Aviso antecipado, no Hobby, é só o e-mail** —
+e ele foi enviado e passou batido.
+
+O que dá para automatizar é **detecção no dia**, não previsão: uma sonda que peça
+uma imagem **que ainda não esteja em cache** e reprove se não vier 200. O
+"não cacheada" é obrigatório — a documentação diz que imagem já otimizada
+**continua servindo** depois do estouro, então sondar a home devolveria 200 com a
+cota zerada. O preço honesto é **1 transformação por execução** (~30/mês, 0,6% da
+cota) para testar a cota. Está proposto e ainda **não implementado**.
+
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
