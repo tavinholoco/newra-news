@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { checkAllProviders } from '../../services/health.service';
 import type { ProvidersHealth } from '../../services/health.service';
+import { AppError, UnauthorizedError, logAppError } from '../../utils/errors';
 import { getDevLogs } from '../../services/pipeline-event.service';
 import type { DevLogSummary, DevLogsResult } from '../../services/pipeline-event.service';
 import {
@@ -215,12 +216,28 @@ export async function devDashboardRoutes(app: FastifyInstance) {
     },
   );
 
-  const authorized = (request: Parameters<typeof readCookie>[0]): boolean => {
+  /**
+   * **Credencial apresentada e recusada deixa linha; ausencia de credencial,
+   * nao.**
+   *
+   * Abrir `/dev/dashboard` sem cookie e sem cabecalho e o caminho **normal** —
+   * e assim que se chega ao formulario —, e uma linha por visita ensinaria
+   * alguem a ignorar o log. O que vale linha e a porta do `Bearer` recusando um
+   * segredo que alguem de fato mandou.
+   */
+  const authorized = (request: FastifyRequest): boolean => {
     if (isValidDashboardToken(readCookie(request, DASHBOARD_COOKIE_NAME))) return true;
+
+    const presented = request.headers.authorization !== undefined;
     try {
       assertJobSecret(request);
       return true;
-    } catch {
+    } catch (error) {
+      if (presented && error instanceof AppError) {
+        logAppError(request.log, error, {
+          route: request.routeOptions?.url ?? 'unmatched',
+        });
+      }
       return false;
     }
   };
@@ -254,6 +271,25 @@ export async function devDashboardRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const secret = request.body?.secret;
       if (!secret || !secretsMatch(secret, env.JOB_SECRET)) {
+        /**
+         * **`authn_fail`, e ate a Fase 3 este era um 303 mudo.**
+         *
+         * Este e o unico formulario de senha do produto, alcancavel de fora. A
+         * linha de acesso do `observability.ts` nao ajudava: **303 < 400**,
+         * entao a tentativa saia em `info`, no meio do trafego normal — quem
+         * insistisse em adivinhar o `JOB_SECRET` nao produzia sinal nenhum.
+         *
+         * **O que foi tentado nao entra no log.** Registrar a tentativa nao e
+         * registrar o palpite: senha errada aqui e senha certa em outro lugar.
+         */
+        logAppError(
+          request.log,
+          new UnauthorizedError('Invalid dashboard secret', {
+            code: 'DASHBOARD_SECRET_INVALID',
+            context: { presented: Boolean(secret) },
+          }),
+          { route: request.routeOptions?.url ?? 'unmatched' },
+        );
         // 303 e nao 401: o browser tem de trocar o POST por um GET, senao o
         // reload da pagina de erro reenvia o segredo.
         return reply.redirect('/dev/dashboard?failed=1', 303);

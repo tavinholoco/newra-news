@@ -46,7 +46,9 @@ vi.mock('../../src/config/env', () => ({
   },
 }));
 
-const { redactSecrets, REDACTED_SECRET } = await import('../../src/utils/redact');
+const { redactSecrets, REDACTED_SECRET, REDACTED_EMAIL } = await import(
+  '../../src/utils/redact'
+);
 const { redactingErrSerializer, MAX_MESSAGE_CHARS, MAX_STACK_FRAMES } = await import(
   '../../src/utils/logger'
 );
@@ -57,6 +59,9 @@ interface SerializedError {
   stack?: string;
   code?: unknown;
   statusCode?: unknown;
+  category?: unknown;
+  context?: unknown;
+  cause?: unknown;
 }
 
 const serialize = (error: unknown): SerializedError =>
@@ -197,6 +202,51 @@ describe('o serializer de `err` não deixa segredo chegar ao log', () => {
     const out = serialize('postgresql://newra:senha-do-banco@ep-quiet-1.neon.tech/newranews');
 
     expect(out.message).not.toContain('senha-do-banco');
+  });
+
+  /**
+   * **Os dois campos que a Fase 3 abriu, e que são caminho novo para o log.**
+   *
+   * `cause` e `context` não existiam quando as asserções acima foram escritas.
+   * Redação que cobre `message` e `stack` e deixa um terceiro campo passar é
+   * redação com buraco — e o `cause` é justamente onde mora a mensagem do
+   * driver, que é a que carrega a DSN.
+   */
+  it('redacts the DSN carried by the cause, one level deep and without a stack', () => {
+    const error = new Error('could not read the archive', {
+      cause: new Error(
+        'connect ECONNREFUSED postgresql://newra:senha-do-banco@ep-quiet-1.neon.tech/newranews',
+      ),
+    });
+
+    const out = serialize(error);
+    const cause = out.cause as { name: string; message: string };
+
+    expect(cause.name).toBe('Error');
+    expect(cause.message).not.toContain('senha-do-banco');
+    // O diagnóstico sobrevive — é o mesmo argumento do `err.message`.
+    expect(cause.message).toContain('ECONNREFUSED');
+    expect(cause).not.toHaveProperty('stack');
+  });
+
+  it('redacts the context, and drops what is not a scalar', () => {
+    const error = Object.assign(new Error('newsletter falhou'), {
+      context: {
+        dsn: 'postgresql://newra:senha-do-banco@ep-quiet-1.neon.tech/newranews',
+        recipient: 'assinante@exemplo.com',
+        attempt: 3,
+        nested: { token: 'chave-secreta-1234567890' },
+      },
+    });
+
+    const out = serialize(error);
+    const context = out.context as Record<string, unknown>;
+
+    expect(context.attempt).toBe(3);
+    expect(context.dsn).not.toContain('senha-do-banco');
+    expect(context.recipient).toBe(REDACTED_EMAIL);
+    // Objeto aninhado é como um segundo erro inteiro entraria sem redação.
+    expect(context).not.toHaveProperty('nested');
   });
 });
 

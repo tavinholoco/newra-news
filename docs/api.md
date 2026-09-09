@@ -1321,5 +1321,37 @@ Todos os erros seguem o formato:
 | 400 | Validação falhou (query param ou body inválido) |
 | 401 | Token ausente ou inválido |
 | 404 | Recurso não encontrado |
+| 415 | `Content-Type` com caractere de controle |
 | 429 | Rate limit excedido |
 | 500 | Erro interno do servidor |
+
+**Caminho que não é rota** responde `404 { "error": "Not Found" }`. Até a Fase 3
+do plano de observabilidade era a única resposta de erro da API **fora deste
+formato**: o handler padrão do Fastify devolvia três campos
+(`{ "message": "Route GET:/api/x not found", "error": "Not Found", "statusCode": 404 }`)
+e ecoava o caminho pedido de volta no corpo. Nenhuma rota declara schema para o
+que não é rota, então nada acusava.
+
+**O 500 é a exceção declarada, e traz um campo a mais:**
+
+```json
+{ "error": "Internal server error", "requestId": "…" }
+```
+
+A mensagem é fixa de propósito — erro de Prisma carrega nome de tabela, trecho
+de SQL e, em falha de conexão, a string de conexão. O `requestId` é o mesmo
+`x-request-id` que **toda** resposta devolve no header, e é por ele que um
+relato de fora encontra a linha do log.
+
+### O que o corpo não diz, e o log diz
+
+Desde a Fase 3 todo erro que o servidor escolheu devolver carrega, **do lado de
+dentro**, um `code` de um conjunto fechado e uma `category`
+(`upstream` · `database` · `validation` · `authorization` · `contract` ·
+`internal`). Isso não aparece no fio: dois 401 com a mesma frase — token
+expirado e `AUTH_JWT_SECRET` ausente — são `AUTH_TOKEN_INVALID` e
+`AUTH_NOT_CONFIGURED` no log, e a resposta continua idêntica, porque quem chamou
+não precisa saber qual porta bateu.
+
+**Gatilho para o `code` entrar no corpo:** a primeira tela que precise ramificar
+por qual falha foi. Hoje nenhuma ramifica, e o campo seria contrato sem leitor.

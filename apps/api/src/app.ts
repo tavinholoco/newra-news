@@ -33,7 +33,7 @@ import { accountRoutes } from './routes/account';
 import { adminPipelineRoutes } from './routes/admin/pipeline';
 import { devLogsRoutes } from './routes/dev/logs';
 import { devDashboardRoutes } from './routes/dev/dashboard';
-import { AppError } from './utils/errors';
+import { AppError, logAppError } from './utils/errors';
 import { baseLogger } from './utils/logger';
 
 export async function buildApp() {
@@ -144,9 +144,36 @@ export async function buildApp() {
    * tambem fala, porque a mensagem dele descreve a requisicao de quem chamou, e
    * nao o interior do servidor. Para o 5xx sobra uma frase fixa e o
    * `x-request-id`, que e como o relato de fora encontra a linha do log.
+   *
+   * ## O que a Fase 3 mudou: o primeiro ramo deixou de ser mudo
+   *
+   * O `AppError` respondia e **nao escrevia nada** — a forma como um service diz
+   * "nao consegui" saia pelo fio sem deixar registro, e um 500 escolhido pelo
+   * servidor era a unica falha da API sobre a qual nao havia o que ler depois.
+   * O nivel sai de `logLevelFor` (`utils/errors.ts`), que le a categoria: 404 e
+   * resultado normal e vai a `debug`, recusa de autorizacao vale linha e vai a
+   * `warn`, 5xx e falha `internal` vao a `error`.
+   *
+   * **O contrato do fio nao muda, de proposito.** `errorResponseSchema` continua
+   * `{ error }`; por o `code` no corpo seria por um campo em `ApiError` que
+   * nenhuma tela le. Gatilho para reverter: a primeira tela que precise
+   * ramificar por qual falha foi.
    */
   app.setErrorHandler((error, request, reply) => {
+    /**
+     * O **padrao** da rota (`/api/news/:id`), que e o campo que o `ErrorEvent`
+     * da Fase 4 vai usar — ali cardinalidade e tamanho de tabela, e a URL crua
+     * daria uma linha por id.
+     *
+     * O `url` crua continua na linha do ramo de baixo, **de proposito**: linha
+     * de log nao e tabela, e a query string e o que diz *qual* busca derrubou a
+     * rota. Os dois campos respondem perguntas diferentes e nenhum substitui o
+     * outro.
+     */
+    const route = request.routeOptions?.url ?? 'unmatched';
+
     if (error instanceof AppError) {
+      logAppError(request.log, error, { route });
       return reply.status(error.statusCode).send({ error: error.message });
     }
 
@@ -156,12 +183,33 @@ export async function buildApp() {
     }
 
     request.log.error(
-      { err: error, reqId: request.id, url: request.url },
+      { err: error, reqId: request.id, route, url: request.url },
       'unhandled error',
     );
     return reply
       .status(500)
       .send({ error: 'Internal server error', requestId: request.id });
+  });
+
+  /**
+   * O caminho que nao casa com rota nenhuma.
+   *
+   * O padrao do Fastify devolvia tres campos —
+   * `{"message":"Route GET:/api/x not found","error":"Not Found","statusCode":404}`
+   * — onde a `docs/api.md` promete **um**, e ecoava o caminho pedido de volta no
+   * corpo. Era a unica resposta de erro da API fora do contrato, e ninguem
+   * podia ter notado: nenhuma rota declara schema de 404 para o que nao e rota.
+   *
+   * `debug` e nao `warn`: endereco errado de robo e o trafego normal de
+   * qualquer API publica, e a linha de acesso do `observability.ts` ja registra
+   * o 404 com a rota `unmatched`.
+   */
+  app.setNotFoundHandler((request, reply) => {
+    request.log.debug(
+      { route: 'unmatched', method: request.method, url: request.url },
+      'route not found',
+    );
+    return reply.status(404).send({ error: 'Not Found' });
   });
 
   await app.register(healthRoutes, { prefix: '/api/health' });

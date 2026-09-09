@@ -1,8 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { env } from '../../config/env';
 import { checkAllProviders } from '../../services/health.service';
-import { UnauthorizedError } from '../../utils/errors';
+import { assertJobSecret } from '../../utils/job-secret';
 import { errorResponseSchema } from '../../utils/schemas';
 import { healthResponseSchema, providersHealthResponseSchema } from './schemas';
 
@@ -35,14 +34,12 @@ export async function healthRoutes(app: FastifyInstance) {
       },
     },
     async (request) => {
-      const auth = request.headers.authorization;
-      if (!auth || !auth.startsWith('Bearer ')) {
-        throw new UnauthorizedError('Invalid or missing token');
-      }
-      const token = auth.slice(7);
-      if (token !== env.JOB_SECRET) {
-        throw new UnauthorizedError('Invalid or missing token');
-      }
+      // Era uma quarta cópia da conferência do `JOB_SECRET`, com `!==` — a
+      // comparação que sai no primeiro byte diferente e vaza o prefixo correto
+      // para quem consegue medir. `assertJobSecret` é o único lugar que compara
+      // este segredo, compara em tempo constante, e agora carrega o
+      // `JOB_SECRET_INVALID` da taxonomia.
+      assertJobSecret(request);
       return checkAllProviders();
     },
   );

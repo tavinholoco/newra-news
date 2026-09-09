@@ -23,7 +23,12 @@ export async function authRoutes(app: FastifyInstance) {
       // ligação entre o token e o corpo — sem ela, um token válido criaria
       // usuário para outro e-mail.
       if (request.user?.email !== request.body.email.trim().toLowerCase()) {
-        throw new UnauthorizedError('Invalid or missing token');
+        // A frase para quem chamou e a mesma de um token invalido, de
+        // proposito; o `code` e quem diz, do lado de dentro, que a assinatura
+        // conferia e o que nao bateu foi a identidade.
+        throw new UnauthorizedError('Invalid or missing token', {
+          code: 'AUTH_SUBJECT_MISMATCH',
+        });
       }
 
       const user = await upsertUser({

@@ -602,7 +602,7 @@ do que o `admin/layout.tsx` faz do lado do web.
 
 ---
 
-## §7 Fase 3 — A taxonomia de erro
+## §7 Fase 3 — A taxonomia de erro ✅ 2026-09-09
 
 **Fecha:** um `throw new AppError('...', 500)` — a forma como um service diz
 "não consegui" — devolve 500 ao cliente e escreve **zero linhas**. Não há como
@@ -632,6 +632,95 @@ cai no padrão do Fastify e o `observability.ts` arquiva como rota `unmatched`.
 `{ error }`. Pôr `code` no corpo poria um campo em `ApiError` que nenhuma tela
 lê. **Gatilho para reverter:** a primeira tela que precise ramificar por qual
 falha foi.
+
+### O que a implementação mudou no que está escrito acima — 09/09/2026
+
+Três coisas, e a primeira corrige uma regra deste plano.
+
+**1. `category: 'internal'` é `error` mesmo abaixo de 500, e a regra escrita
+aqui mandava o contrário.** A regra `< 500 ⇒ debug` tem uma exceção que o plano
+não previu: `verifyAuthJwt` devolve **401** quando `AUTH_JWT_SECRET` está
+ausente — e aí *todo* token é recusado, conta e admin caem juntos, com a mesma
+frase de um token expirado. Pela regra escrita, a configuração que derruba
+metade do produto seria a única falha da API sem uma linha de log; e **esta
+variável já falhou em silêncio numa publicação deste projeto**. Categoria
+dizendo "é defeito nosso" e nível dizendo "não olhe" é contradição, e ganha a
+categoria. `logLevelFor`, em `utils/errors.ts`, tem as três linhas.
+
+**2. O `catch` do `authPlugin` era o buraco maior, e não estava no inventário.**
+O `preHandler` recusava com `catch { return reply.status(401) }` — responde sem
+deixar o erro subir, então o handler global **nunca o vê**. Era a mesma família
+dos quatro `catch` vazios que a Fase 7a fechou no BFF, e alcançava toda rota de
+conta e de admin. Hoje ele registra pela mesma função do handler (`logAppError`)
+e **responde exatamente o mesmo**: a resposta segue uniforme de propósito, e
+quem separa token expirado de servidor sem segredo é o `code`, do lado de
+dentro.
+
+**3. O `setNotFoundHandler` conserta a `docs/api.md`, não a métrica.** O motivo
+escrito aqui — *"o `observability.ts` arquiva como rota `unmatched`"* — continua
+verdade **depois** da mudança: `routeOptions.url` segue indefinido num caminho
+que não casa com rota, e `unmatched` é o balde certo, senão o mapa ganharia uma
+linha por endereço de robô. O que o handler conserta é outra coisa, medida na
+hora de escrever a guarda: o padrão do Fastify devolvia
+`{ "message": "Route GET:/api/x not found", "error": "Not Found", "statusCode": 404 }`
+— três campos onde a `docs/api.md` promete um, com o caminho pedido ecoado de
+volta —, e era **a única resposta de erro da API fora do contrato**. Ninguém
+poderia ter notado: nenhuma rota declara schema de 404 para o que não é rota.
+
+**4. A auditoria de completude achou três falhas distintas compartilhando
+código com outra coisa.** Ela enumerou toda construção da família com o código
+que ela resolve, e toda resposta de erro que **não** passa pelo handler global
+— a armadilha 29, recém-escrita, usada como ferramenta:
+
+- **`POST /dev/dashboard/session` não escrevia nada**, e é o **único formulário
+  de senha do produto**. Como ele responde **303**, nem a linha de acesso do
+  `observability.ts` ajudava (303 < 400 sai em `info`): adivinhação do
+  `JOB_SECRET` não produzia sinal nenhum. `authn_fail` é o evento canônico que
+  o **§3.2 deste plano cita**. Virou `DASHBOARD_SECRET_INVALID`, separado do
+  `JOB_SECRET_INVALID` porque um é máquina com segredo velho e o outro é gente
+  adivinhando — **e o palpite não entra no log.**
+- **`POST /api/auth/upsert`** — a única rota que cria usuário — conflava "token
+  de uma pessoa usado para criar a conta de outra" com todo token expirado.
+  Virou `AUTH_SUBJECT_MISMATCH`.
+- **Token já verificado, sem `sub`/`email`** (`account:35`, `favorites:61`): quem
+  assina é o BFF, então é sessão inutilizável emitida por nós, com o leitor
+  logado e toda rota de conta em 401. Virou `AUTH_SESSION_INCOMPLETE`, com
+  `category: 'internal'` — e portanto `error`, pela regra do item 1.
+
+O `NOT_FOUND` compartilhado por nove sítios **fica**: o fingerprint da Fase 4
+carrega `route`, e é a rota que os separa.
+
+> **A lição de fluxo: a auditoria rodou depois do CI verde, e achou o maior
+> buraco da fase.** Os três estão no código desde antes desta fase, e nenhum
+> tinha sintoma — é a mesma família do item 39 (a verificação pós-merge da 12) e
+> do 52 (a da 7a): **ler o que ficou de fora é uma pergunta diferente de "o
+> código está certo?", e só a segunda tem CI.**
+
+**O que entrou junto, por estar na mesma linha:** `ValidationError` foi
+**removido** — classe exportada que **nenhum arquivo lançava**, e um código no
+tuple para ela seria cardinalidade reservada a um consumidor imaginário (quem
+valida aqui é o Zod, pelo type provider, que produz o 400 do Fastify). E
+`routes/health/index.ts` deixou de ter a **quarta cópia** da conferência do
+`JOB_SECRET`, que comparava com `!==` — a comparação que sai no primeiro byte
+diferente. Passou a chamar `assertJobSecret`, que é o único lugar que compara
+este segredo, compara em tempo constante, e agora carrega o
+`JOB_SECRET_INVALID`.
+
+### A guarda
+
+Duas, e as duas foram vistas reprovando antes de o código existir:
+
+- `tests/utils/error-taxonomy.test.ts` — os conjuntos fechados, a classificação
+  de cada subclasse, e a regra do literal, **pelo parser do TypeScript**
+  (armadilha 27). Ela cobra as duas metades: nenhum `code` interpolado ou
+  computado, e **nenhum código no tuple que ninguém lance** — inclusive os
+  defaults declarados dentro de `errors.ts`, que é onde mora o `INTERNAL` de
+  todo `new AppError('...')` sem opções. A família do `AppError` é derivada do
+  arquivo, não digitada: subclasse nova entra na varredura sozinha.
+- `tests/plugins/error-handler.test.ts` — **a fiação** (armadilha 28). Um pino
+  em `trace` escrevendo num vetor, no lugar do `baseLogger`, com o serializer
+  real: mede nível, campos e redação pelo caminho de produção. Sem ela, trocar o
+  corpo do handler por um `send` mudo deixaria o outro arquivo inteiro verde.
 
 ---
 
@@ -1478,6 +1567,19 @@ Não-objetivos declarados como número, nunca como item de lista.
     redige não vale nada se o `buildApp` deixar de usá-lo, e a suíte inteira
     fica verde nesse cenário. Todo achado fechado com guarda sobre uma peça pede
     a segunda asserção sobre quem a liga.
+29. **Handler global não vê o erro de quem responde no lugar dele.** O
+    `preHandler` do `authPlugin` recusava com `catch { return reply.status(401) }`
+    — a resposta sai dali, o `setErrorHandler` nunca é chamado, e **toda** rota
+    de conta e de admin ficava fora do log que a Fase 3 acabara de instalar. Ao
+    fechar um buraco no handler central, procure antes quem responde sem passar
+    por ele: `preHandler`, `onRequest`, `setNotFoundHandler` e o hook de
+    `content-type` são todos saídas laterais.
+30. **Regra de nível escrita só por status esconde o 4xx que é defeito nosso.**
+    `< 500 ⇒ debug` é certo para 404 e para token expirado, e errado para o 401
+    de `AUTH_JWT_SECRET` ausente — que é configuração quebrada respondendo com
+    cara de recusa. Quando categoria e status discordam sobre quão grave é a
+    linha, **quem decide é a categoria**: o status descreve o que o cliente
+    recebe, a categoria descreve de quem é a culpa.
 
 ---
 
@@ -1493,6 +1595,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia |
 | **Workflow novo ou alterado** | `workflow-hardening.test.ts` (Fase 10) — `permissions:` declarado e `uses:` fixado em SHA |
 | **Chamada a `console.*` na API** | `secrets-in-logs.test.ts` (Fase 1) — e o `no-console: 'error'` do ESLint, que reprova antes |
+| **`code` novo, ou subclasse nova de `AppError`** | `error-taxonomy.test.ts` (Fase 3) — literal do tuple, e nenhum código sem quem o lance; a família é derivada do arquivo, então a subclasse entra na varredura sozinha |
 
 ---
 
@@ -1679,8 +1782,8 @@ aplica as duas migrations juntas na promoção.**
 
 | PR | Fase | Trava |
 |---|---|---|
-| **5 ← próxima** | **§7 — Fase 3, taxonomia** | O `code` que a Fase 4 usa como fingerprint. Sem ele a tabela nasce com cardinalidade sem teto. **Branch `observability/fase-3-taxonomia`, criada da `dev` em 09/09/2026** |
-| 6a | **§8 — Fase 4, a migration** | PR só de schema. `ErrorEvent` + os dois índices do `PipelineLog` |
+| ~~5~~ ✅ | **§7 — Fase 3, taxonomia** — **entregue em 09/09/2026** | O `code` que a Fase 4 usa como fingerprint, agora com teto e guarda derivada do parser. Achou de quebra o `catch` do `authPlugin`, que engolia **toda** recusa de sessão. Item **56** do `docs/progress.md` |
+| **6a ← próxima** | **§8 — Fase 4, a migration** | PR só de schema. `ErrorEvent` + os dois índices do `PipelineLog` |
 | 6b | **§8 — Fase 4, o código** | `recordError`, o buffer, a retenção na etapa 8 |
 | 7 | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |
 

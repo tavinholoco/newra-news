@@ -11,7 +11,7 @@
 - Cada rota em seu próprio arquivo com schema Zod adjacente
 - Services são classes ou funções puras (sem dependência de Fastify)
 - Providers organizados em `providers/news/` (NewsData.io, RSS) e `providers/ai/` (Gemini, Groq, ai-utils)
-- Erros customizados em src/utils/errors.ts
+- Erros customizados em `src/utils/errors.ts` — ver "A taxonomia de erro" abaixo. **`code` é literal do tuple e nunca é interpolado**
 - Logger em `src/utils/logger.ts` (pino) — ver "O log" abaixo. **`console.*` é erro de lint na API**
 - Plugins registrados em src/plugins/
 
@@ -439,6 +439,54 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
   coisa é `silent`. Escrito como `!== 'test'`, toda suíte que faz
   `vi.mock('../../src/config/env')` pela metade acordaria o logger em `info` e
   despejaria JSON no stdout do CI — medido, em duas suítes.
+
+## A taxonomia de erro (Fase 3 do plano de observabilidade)
+
+`src/utils/errors.ts` — `AppError` com `code`, `category`, `cause?` e
+`context?`, e a decisão de nível de log num lugar só.
+
+- **`code` é literal do tuple e nunca é interpolado.** Não é estilo: a Fase 4
+  grava uma linha de `ErrorEvent` por `(fingerprint, hora)`, e enquanto o
+  conjunto de códigos for finito a tabela tem teto qualquer que seja o tráfego.
+  Um código montado com o id da notícia trocaria "uma linha por falha distinta"
+  por "uma linha por notícia". **O corolário vale igual: código que ninguém
+  lança não entra no tuple.** As duas metades têm guarda em
+  `tests/utils/error-taxonomy.test.ts`, escrita com `ts.createSourceFile` —
+  literal contra template é gramática, não texto.
+- **O nível sai de `logLevelFor`, e a categoria vence o status.** 5xx é `error`;
+  `authorization` é `warn` (o `authz_fail` do vocabulário do OWASP); o resto
+  abaixo de 500 é `debug`, porque um 404 em `/news/:id` é resultado normal e
+  afogaria o sinal. **A exceção é `internal`, que é `error` mesmo em 4xx** —
+  `AUTH_NOT_CONFIGURED` é um 401 que recusa *todo* token e é configuração
+  quebrada, não recusa; esta variável já falhou em silêncio em produção.
+- **O `authPlugin` responde sem deixar o erro subir**, então o handler global
+  nunca o vê. Ele chama `logAppError` antes de responder, e a resposta continua
+  **uniforme** (`Invalid or missing token` para as três causas): quem chamou não
+  precisa saber qual porta bateu; quem separa é o `code`, do lado de dentro.
+  Corolário para quem for mexer no handler central: procure antes as saídas
+  laterais — `preHandler`, `onRequest`, `setNotFoundHandler`, o hook de
+  `content-type`.
+- **O contrato do fio não muda.** `errorResponseSchema` continua `{ error }`;
+  `code` no corpo seria campo em `ApiError` que nenhuma tela lê. Gatilho para
+  reverter: a primeira tela que ramifique por qual falha foi.
+- **`setNotFoundHandler` existe pela `docs/api.md`, não pela métrica.** A rota
+  continua sendo `unmatched` no mapa do `observability.ts` (é o balde certo —
+  senão o mapa ganha uma linha por endereço de robô). O que ele conserta é o
+  corpo: o padrão do Fastify devolvia três campos e ecoava o caminho pedido, e
+  era a única resposta de erro da API fora do contrato documentado.
+- **O serializer de `err` é quem carrega a taxonomia para o log**, e desde esta
+  fase ele também serializa o **`cause`, um nível e sem `stack`** — o undici
+  lança `TypeError: fetch failed` e o `ECONNREFUSED` está só ali dentro (achado
+  da Fase 7a). Um nível é o que mantém a lista de permissão de pé.
+- **O `/dev/dashboard` é o único formulário de senha do produto, e agora deixa
+  rastro.** Senha errada no `POST /dev/dashboard/session` escreve
+  `DASHBOARD_SECRET_INVALID` em `warn` — antes era um **303 mudo**, e 303 < 400,
+  então a linha de acesso o punha em `info` junto do tráfego normal. **O palpite
+  não entra no log.** Abrir a página sem credencial nenhuma **não** loga: é o
+  caminho normal, e uma linha por visita ensina a ignorar o log.
+- **`ErrorContext` é `Record<string, escalar>` de propósito.** O `context` vai
+  para o log e, na Fase 4, para uma coluna; objeto aninhado é como um segundo
+  erro inteiro entra sem passar por redação nenhuma.
 
 ## Observabilidade da API
 

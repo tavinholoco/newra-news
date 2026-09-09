@@ -58,7 +58,14 @@ export async function favoritesRoutes(app: FastifyInstance) {
   await app.register(authPlugin);
 
   const userIdOf = (sub?: string): string => {
-    if (!sub) throw new UnauthorizedError('Invalid or missing token');
+    // Ver o gemeo em `routes/account/index.ts`: token que passou pela
+    // verificacao de assinatura e nao traz sujeito e sessao que nos emitimos.
+    if (!sub) {
+      throw new UnauthorizedError('Invalid or missing token', {
+        code: 'AUTH_SESSION_INCOMPLETE',
+        category: 'internal',
+      });
+    }
     return sub;
   };
 

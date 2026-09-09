@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { verifyAuthJwt } from '../utils/jwt';
-import { ForbiddenError } from '../utils/errors';
+import { AppError, ForbiddenError, UnauthorizedError, logAppError } from '../utils/errors';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -52,17 +52,48 @@ export async function authPlugin(app: FastifyInstance, opts: AuthPluginOptions =
 
   app.decorateRequest('user', null);
 
+  /**
+   * **A recusa passa pelo log, e a resposta continua a mesma.**
+   *
+   * Este `preHandler` responde sem deixar o erro subir, então o handler global
+   * do `app.ts` nunca o vê: era a mesma família dos quatro `catch` vazios que a
+   * Fase 7a fechou no BFF, e o pior deles — `AUTH_JWT_SECRET` ausente faz
+   * `verifyAuthJwt` recusar **todo** token com esta mesma frase, e conta e
+   * admin caem juntos sem uma linha em lugar nenhum.
+   *
+   * O que muda é só o log: a resposta segue uniforme de propósito, porque quem
+   * chamou não precisa saber se o token expirou, veio de outro escopo ou se o
+   * servidor está sem segredo. Quem separa as três é o `code`, do lado de
+   * dentro.
+   *
+   * **Sem `error` é recusa sem exceção** — cabeçalho ausente, escopo errado —,
+   * e aí a linha é a do `AUTH_TOKEN_INVALID`. Com um erro que **não** é da
+   * família, ele vira `cause`: `verifyAuthJwt` só lança `UnauthorizedError`
+   * hoje, e descartar em silêncio o dia em que ele lançar outra coisa seria
+   * abrir de novo o buraco que esta função existe para fechar.
+   */
+  const refuse = (request: FastifyRequest, reply: FastifyReply, error?: unknown) => {
+    const denial =
+      error instanceof AppError
+        ? error
+        : new UnauthorizedError('Invalid or missing token', { cause: error });
+    logAppError(request.log, denial, {
+      route: request.routeOptions?.url ?? 'unmatched',
+    });
+    return reply.status(401).send({ error: 'Invalid or missing token' });
+  };
+
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const auth = request.headers.authorization;
     if (!auth || !auth.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Invalid or missing token' });
+      return refuse(request, reply);
     }
 
     let payload: Record<string, unknown>;
     try {
       payload = await verifyAuthJwt(auth.slice(7));
-    } catch {
-      return reply.status(401).send({ error: 'Invalid or missing token' });
+    } catch (error) {
+      return refuse(request, reply, error);
     }
 
     const purpose = typeof payload.purpose === 'string' ? payload.purpose : undefined;
@@ -70,7 +101,7 @@ export async function authPlugin(app: FastifyInstance, opts: AuthPluginOptions =
     // outro escopo e não serve aqui.
     const actual: string = purpose ?? 'session';
     if (actual !== expected) {
-      return reply.status(401).send({ error: 'Invalid or missing token' });
+      return refuse(request, reply);
     }
 
     request.user = {
