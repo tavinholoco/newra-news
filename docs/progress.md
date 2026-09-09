@@ -6109,6 +6109,67 @@ existiam para aquelas peças**, que é onde alguém vai procurar.
 
 **954 → 964 testes na API.**
 
+### 58. A guarda do `content-type` provava a defesa com uma requisição impossível ✅ 2026-09-09
+
+> **Achado da verificação pós-merge da promoção `dev → main` (#168).** Sondar a
+> mitigação contra produção era um passo de rotina; ela **não disparou**, e medir
+> em vez de deduzir deu três coisas que nenhuma suíte podia ver.
+
+#### O que a sonda contra produção mediu
+
+`Content-Type: application/json` com TAB no fim respondeu **400**, não 415 — e o
+`curl` **tinha enviado** o TAB (confirmado com `cat -A`: `application/json^I`).
+Com o caractere **no meio**, produção responde **415**.
+
+#### As três medições, e nenhuma era dedução
+
+1. **O parser HTTP do Node apara o espaço em branco do fim do valor do header**
+   (RFC 7230). Medido com servidor Node cru e requisição por socket:
+   `application/json<TAB>` chega ao app como `application/json`; no meio,
+   sobrevive. **A forma com TAB no fim não pode existir sobre HTTP** — e era a
+   **única** asserção de 415 do `content-type-bypass.test.ts`. O `inject` a
+   preserva porque o `light-my-request` entrega o objeto de headers direto ao
+   Fastify, sem parser no meio.
+2. **O 415 da forma alcançável é do próprio Fastify.** Medido num Fastify puro,
+   sem hook nenhum: `application/json;<TAB>charset=utf-8` responde **415
+   `FST_ERR_CTP_INVALID_MEDIA_TYPE`**, e `application/json<TAB>` responde **200**
+   com o corpo parseado — nenhum bypass, porque o header chegou limpo. Ou seja: a
+   primeira versão da guarda nova, escrita para consertar o achado, **também
+   passava pelo motivo errado**. Só o controle negativo pegou.
+3. **O que o hook compra, e é medido:** sem ele, o 415 do Fastify responde
+   `Unsupported Media Type: application/json;<TAB>charset=utf-8` — **entrada
+   hostil refletida de volta no corpo**. Com ele, a frase é fixa. O status não
+   distingue os dois; a mensagem sim.
+
+#### O que mudou
+
+**Nenhuma linha de `src/`.** A mitigação fica: remover uma defesa de segurança
+com base numa enumeração parcial de formas seria trocar risco conhecido por
+risco desconhecido. O que mudou é a guarda, que passou a falar **pelo fio** (uma
+porta efêmera no loopback, porque o parser é a peça em disputa) e a assertar a
+**frase fixa**, que é a assinatura do hook.
+
+O `error-handler.test.ts` da Fase 3 tinha o mesmo defeito na asserção do log de
+415 — usava a forma com TAB no fim — e passou a usar a alcançável.
+
+> **Gatilho para reavaliar o hook: a `fastify@5`**, onde o defeito é corrigido
+> upstream e ele perde a razão de existir. Já é dívida da Fase 13.
+
+#### A lição, que é de método
+
+**`app.inject()` não passa pelo parser HTTP.** Onde a coisa em teste *é* o
+tratamento de um header cru, o `inject` mede uma requisição que o fio não
+entrega. É a família de "guarda que passa verde sobre o defeito que existe para
+achar", agora numa forma nova: não é o regex que lê mal, é o harness que
+constrói uma requisição impossível.
+
+E o corolário, que custou duas tentativas: **um status compartilhado por duas
+origens não prova de quem é a resposta.** A primeira correção assertava `415` e
+teria continuado verde com o hook desligado, porque o Fastify devolve 415
+sozinho para aquele mesmo header.
+
+**964 → 967 testes na API.**
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
