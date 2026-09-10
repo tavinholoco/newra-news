@@ -795,6 +795,31 @@ A etapa 8 ganha `errorEvent.deleteMany` com corte em 14 dias — não 30: esta
 tabela responde "o que está quebrado agora"; `PipelineLog` e `DailyMetric`
 respondem "estava quebrado no mês passado".
 
+### O que o PR da migration decidiu — 10/09/2026
+
+**`code` e `category` são `String`, não enum do Postgres.** O conjunto fechado
+mora em `utils/errors.ts`, com guarda derivada do parser (Fase 3); repeti-lo no
+banco criaria uma segunda fonte de verdade e cobraria **uma migration por
+código novo** — e cada fase seguinte deste plano acrescenta pelo menos um.
+`origin` e `severity` são enum de verdade, porque esses dois descrevem a forma
+do sistema e não a taxonomia que cresce.
+
+**A guarda que nasceu junto vale para toda migration daqui em diante**, e o
+buraco que ela fecha não tinha sintoma: mudar o `schema.prisma` e esquecer o
+`prisma migrate dev` deixa a suíte **inteira verde**, porque o `prisma generate`
+lê o schema — o client tipa a tabela nova, o `tsc` aprova, e o erro só aparece
+na primeira consulta contra o banco real, que é produção. O
+`migrations.test.ts` passou a comparar conjuntos derivados do schema (models,
+enums e os nomes de índice que a convenção do Prisma implica) com o SQL
+aplicado.
+
+> **Sem Postgres à mão, o SQL sai canônico do mesmo jeito.**
+> `prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma
+> --script` **não precisa de banco nenhum** e devolve o SQL do schema inteiro,
+> de onde se extrai o pedaço novo. É o caminho quando o Docker local está fora
+> do ar — e o resultado é o que o Prisma geraria, não o que alguém lembrou da
+> convenção.
+
 ---
 
 ## §9 Fase 5 — As telas: Métricas e Segurança
@@ -1606,7 +1631,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Rota nova na API | `authorization-matrix.test.ts` (linha na `MATRIX`), `api-docs-drift.test.ts` (linha em `docs/api.md`), `shared-type-contract.test.ts` (tipo ou exceção escrita) |
 | Página nova no web | `state-matrix.test.ts` (linha + `toHaveLength`), `i18n-messages.test.ts` (chave nos **dois** arquivos de mensagem), `seo.test.ts` (`pageMetadata`/`alternatesFor`) |
 | Componente novo | `design-tokens.test.ts` (paleta camada 1, `inline-block`, `rounded-xl+`, `duration-<n>`, `shadow-*`) |
-| Migration | `migrations.test.ts` — **estática**, porque `turbo test` roda sem banco |
+| Migration | `migrations.test.ts` — **estática**, porque `turbo test` roda sem banco. Desde a Fase 4 ela é **derivada do schema**: model, enum ou índice declarado sem SQL que o crie reprova |
+| **Model novo no `schema.prisma`** | `schema-docs-drift.test.ts` (Fase 4) — a lista de models e a de enums do `packages/database/CLAUDE.md`; e `diagram-drift.test.ts`, que cobra a entidade no ER |
 | Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia |
 | **Workflow novo ou alterado** | `workflow-hardening.test.ts` (Fase 10) — `permissions:` declarado e `uses:` fixado em SHA |

@@ -87,6 +87,15 @@ model PipelineLog {
   startedAt   DateTime        @default(now())
   completedAt DateTime?
   events      PipelineEvent[]
+
+  /// A consulta que toda leitura de run faz: os últimos, por data de início —
+  /// `getDevLogs` ordena por `startedAt desc`, e a etapa 8 apaga por
+  /// `startedAt`. Esta tabela viveu nove fases **sem índice nenhum**, com o
+  /// Postgres varrendo tudo para devolver 30 linhas.
+  @@index([startedAt])
+  /// A dos dois filtros que existem: `recentErrors` (só `FAILED`, na mesma
+  /// ordem) e a idempotência do disparo (`SUCCESS`/`RUNNING` dentro do dia).
+  @@index([status, startedAt])
 }
 
 model PipelineEvent {
@@ -241,6 +250,87 @@ model ProductEvent {
   @@index([occurredAt])
 }
 
+/// Falha registrada de forma durável (§8 do plano de observabilidade).
+///
+/// **Uma linha por `(fingerprint, windowStart)`, nunca por ocorrência.** Um 500
+/// que dispara 10.000 vezes numa hora é *uma* linha com `count: 10000`. O que
+/// isso compra é o teto: a tabela cresce com *falhas distintas × 24*, e não com
+/// o tráfego — que é a diferença entre caber num plano free e não caber.
+///
+/// **O custo vai escrito aqui porque é real: não dá para reconstruir a
+/// ocorrência individual.** O que sobrevive é `count`, as duas pontas da janela
+/// (`firstRequestId`/`lastRequestId`, que acham a linha de log correspondente)
+/// e um `context` amostrado. Quem precisar da ocorrência exata vai ao log —
+/// enquanto ele ainda existir, que é justamente o problema que esta tabela
+/// resolve.
+///
+/// **Sem FK para `PipelineLog`, e o motivo não é a cascata.** O `ErrorEvent`
+/// vive 14 dias e o `PipelineLog` 30, então o erro sempre morre primeiro e uma
+/// cascata nunca alcançaria linha viva. O motivo é o coalescimento: uma linha
+/// cobre uma hora e pode acumular ocorrências de mais de um run, então
+/// `pipelineLogId` é o **último visto** — um ponteiro aproximado, não uma
+/// relação. Uma FK afirmaria um vínculo que a agregação torna falso, e o banco
+/// passaria a impedir o expurgo do run por causa dele.
+///
+/// **`code` e `category` são texto, não enum do Postgres.** O conjunto fechado
+/// mora em `apps/api/src/utils/errors.ts`, com guarda derivada do parser
+/// (`error-taxonomy.test.ts`); repeti-lo aqui criaria uma segunda fonte de
+/// verdade e cobraria uma migration por código novo — cada fase seguinte deste
+/// plano acrescenta pelo menos um. E `origin: PIPELINE` traz falha de terceiro,
+/// que não passa pelo tuple da API.
+///
+/// Retenção de 14 dias — e são 14, não 30, porque esta tabela responde *"o que
+/// está quebrado agora"*, enquanto `PipelineLog` e `DailyMetric` respondem
+/// *"estava quebrado no mês passado"*. **Quem apaga é a etapa 8 do pipeline
+/// diário, e ela aprende isso no PR de código desta fase** — hoje esta tabela
+/// não tem expurgo, e nada aqui a escreve ainda.
+model ErrorEvent {
+  id          String        @id @default(uuid())
+  /// Identidade da falha: o que separa uma de outra ao agrupar. Derivado de
+  /// `origin`, `code` e `route` — nunca de id de recurso, que trocaria o teto
+  /// da tabela por "uma linha por notícia".
+  fingerprint String
+  /// Hora cheia em UTC. É a segunda metade da chave do upsert.
+  windowStart DateTime
+  origin      ErrorOrigin
+  severity    ErrorSeverity
+  /// Literal de `ERROR_CODES` quando vem da API; nome de falha do pipeline nos
+  /// outros casos.
+  code        String
+  /// Literal de `ERROR_CATEGORIES`.
+  category    String
+
+  count Int @default(1)
+
+  /// **O padrão da rota (`/api/news/:id`), nunca a URL crua.** A URL traria o
+  /// id e a query string para dentro de uma coluna indexada, e cada uma viraria
+  /// um fingerprint próprio.
+  route          String?
+  statusCode     Int?
+  /// Já redigida e truncada na escrita — a redação é a mesma do logger.
+  message        String
+  /// As duas pontas da janela, que é o que liga esta linha ao log.
+  firstRequestId String?
+  lastRequestId  String?
+  /// Último run visto, sem FK (ver acima).
+  pipelineLogId  String?
+  /// Amostra escalar da circunstância (`ErrorContext`), não objeto aninhado.
+  context        Json?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  /// O alvo do upsert, e é ele que impede a segunda linha da mesma falha na
+  /// mesma hora. Serve também a busca por prefixo de `fingerprint`, e é por
+  /// isso que **não** existe um `@@index([fingerprint])` ao lado.
+  @@unique([fingerprint, windowStart])
+  /// A do expurgo e a da tela: a janela de 24 h / 7 d.
+  @@index([windowStart])
+  /// As duas dimensões pelas quais o painel da Fase 5 filtra.
+  @@index([origin, windowStart])
+  @@index([severity, windowStart])
+}
+
 enum Category {
   TECHNOLOGY
   POLITICS
@@ -289,4 +379,22 @@ enum ThemePreference {
   LIGHT
   DARK
   SYSTEM
+}
+
+/// De onde a falha veio. Enum de verdade — ao contrário de `code`, este
+/// conjunto é da forma do sistema, não da taxonomia que cresce a cada fase.
+enum ErrorOrigin {
+  API
+  PIPELINE
+  WEB
+  INVARIANT
+}
+
+/// `FATAL` é o que escreve na hora, sem passar pelo buffer: são poucos por dia,
+/// e perder um para um `SIGTERM` é perder o único registro do que matou o
+/// processo — que é exatamente a forma do incidente de 03/09/2026.
+enum ErrorSeverity {
+  WARN
+  ERROR
+  FATAL
 }

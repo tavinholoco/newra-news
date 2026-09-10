@@ -284,9 +284,9 @@ a suíte de unidade, que roda sem rede.
   `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
-  09/09, abrindo a espinha.** Continuam abertas **seis fases inteiras** (4, 5, 6,
-  8, 9 e 11) mais as subfases **7b e 7c**. A próxima é a **4**, em dois PRs
-  (migration e código). O **§19** é
+  09/09, abrindo a espinha; e a **4 abriu em 10/09, pelo PR da migration**.**
+  Continuam abertas **cinco fases inteiras** (5, 6, 8, 9 e 11), a **metade de
+  código da 4** e as subfases **7b e 7c**. O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -341,6 +341,36 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-10): a falha ganhou onde ser gravada.** A
+  **Fase 4** (§8), PR 6a da ordem do §19 — *só* schema. `ErrorEvent` grava **uma
+  linha por `(fingerprint, hora)`**, e não por ocorrência: um 500 que dispara
+  10.000 vezes numa hora é uma linha com `count: 10000`, o que dá à tabela um
+  teto de *falhas distintas × 24* qualquer que seja o tráfego. Junto vieram os
+  **dois índices que o `PipelineLog` nunca teve** — zero `@@index` em nove
+  fases, com `getDevLogs` ordenando por `startedAt desc`. **967 → 974 testes na
+  API.** Item **59** do `docs/progress.md`.
+
+  > **A guarda nova fecha um buraco que não tinha sintoma: mudar o
+  > `schema.prisma` e esquecer a migration deixa a suíte inteira verde.** O
+  > `prisma generate` lê o *schema*, então o client tipa a tabela nova, o `tsc`
+  > aprova e todo teste passa — o erro só aparece na primeira consulta contra o
+  > banco real, que é produção, porque o `migrate.yml` aplica o que existe em
+  > `migrations/`. Hoje há conjunto derivado do schema (models, enums e os nomes
+  > de índice que a convenção do Prisma implica) cobrado contra o SQL aplicado.
+  >
+  > **E sem Docker à mão o SQL sai canônico do mesmo jeito:**
+  > `prisma migrate diff --from-empty --to-schema-datamodel` **não precisa de
+  > banco**, e devolve o que o Prisma geraria — em vez do que eu lembrei da
+  > convenção.
+  >
+  > **A segunda guarda achou seis frases falsas no `packages/database/CLAUDE.md`,
+  > todas anteriores à fase.** É o documento que uma sessão fria lê para saber o
+  > que existe no banco, e ele não citava `UserPreference` (21/08) nem
+  > `ProductEvent` (22/08), faltava dois enums, descrevia o `Favorite` pela
+  > chave que a Fase 6 aposentou e dizia que o cleanup não apaga evento de
+  > produto — que ele apaga desde a Fase 8. Lista escrita em prosa é a família
+  > do `13` dos feeds, agora por **ausência** em vez de número errado.
+
 - **Fora da linha das fases (2026-09-09): o erro que o servidor escolhe devolver
   parou de sumir, e a espinha do plano abriu.** A **Fase 3** (§7), PR 5 da ordem
   do §19. `AppError` ganhou `code`, `category`, `cause` e `context`; o primeiro
@@ -690,7 +720,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.650 em 139 suites (**967 API em 68** + **683 web em 71** — todos
+- **Testes:** 1.657 em 140 suites (**974 API em 69** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
