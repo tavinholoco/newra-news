@@ -6278,10 +6278,11 @@ não só pelo parser da guarda.
 
 - **Síncrona** porque escrever no banco dentro do tratamento de um erro *de
   banco* é falha auto-amplificante (armadilha 2). Ela muta um `Map` e retorna
-  `undefined`; quem persiste é um intervalo de 30 s mais o `onClose`. **Duas
-  guardas**, e a segunda existe porque a primeira não bastava: `toBeUndefined()`
-  continuaria verde sobre uma `async function` de retorno `void`, então há uma
-  asserção **pelo parser** sobre a forma da declaração.
+  `undefined`; quem persiste é um intervalo de 30 s mais o `onClose`. A guarda é
+  **pelo parser, sobre a forma da declaração** — sem `async` e com retorno
+  declarado `void` —, e as duas asserções são necessárias: `async` obriga o
+  retorno a virar `Promise<void>`, mas dá para devolver uma promessa **sem**
+  `async`, e aí só o tipo denuncia.
 - **Coalescente** porque sem isso um laço que falha em cada iteração escreve
   linha na velocidade em que falha (armadilha 5). Uma linha por
   `(fingerprint, hora)`, com `count`.
@@ -6354,6 +6355,16 @@ dois códigos, `PIPELINE_STAGE_FAILED` e `PIPELINE_STAGE_DEGRADED`.
 
 #### As guardas
 
+> **O CodeQL do PR apontou a primeira versão desta guarda, e tinha razão.**
+> `js/use-of-returnless-function`: ela lia o valor de retorno de uma função
+> `void` (`expect(recordError(...)).toBeUndefined()`), que é defeito em qualquer
+> outro lugar do código. **A sugestão automática é que não servia** — trocava a
+> asserção por `expect(() => …).not.toThrow()`, que mede outra coisa e que o
+> mesmo arquivo já media três linhas abaixo: apagaria uma guarda e duplicaria
+> outra. O que entrou cobre **mais** que a versão acusada, porque o tipo
+> declarado pega a promessa devolvida **sem** `async`, forma que a checagem de
+> modificador sozinha deixava passar. Vista reprovando nas duas quebras.
+
 - `tests/services/error-event.test.ts` — o contrato (síncrona, pelo parser),
   o coalescimento, a janela de hora cheia, a separação por rota e por
   severidade, a redação da mensagem, o flush com prazo, e a retenção. Mais a
@@ -6373,7 +6384,7 @@ dois códigos, `PIPELINE_STAGE_FAILED` e `PIPELINE_STAGE_DEGRADED`.
 > comentário do teste vizinho, escrito quando o `ProductEvent` entrou, dizendo
 > exatamente isso. Duas linhas de mock.
 
-**974 → 1004 testes na API** (69 → 70 suítes). Web inalterado em 683.
+**974 → 1.003 testes na API** (69 → 70 suítes). Web inalterado em 683.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

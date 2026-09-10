@@ -350,7 +350,7 @@ a suíte de unidade, que roda sem rede.
   coalescente e nunca lança**; quem persiste é um intervalo de 30 s mais o
   `onClose`, e a etapa 8 apaga aos 14 dias. Junto vieram os **dois índices que o
   `PipelineLog` nunca teve** — zero `@@index` em nove fases, com `getDevLogs`
-  ordenando por `startedAt desc`. **967 → 1.004 testes na API.** Itens **59** e
+  ordenando por `startedAt desc`. **967 → 1.003 testes na API.** Itens **59** e
   **60** do `docs/progress.md`.
 
   > **Quem escreve são dois pontos únicos, e uma exceção declarada.**
@@ -740,7 +740,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.687 em 141 suites (**1.004 API em 70** + **683 web em 71** — todos
+- **Testes:** 1.686 em 141 suites (**1.003 API em 70** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

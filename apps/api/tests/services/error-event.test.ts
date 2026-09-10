@@ -69,17 +69,33 @@ beforeEach(() => {
 });
 
 describe('§8 — o contrato de `recordError`', () => {
-  it('devolve `undefined`, e não uma Promise', () => {
-    const returned = recordError(anError(), AT);
-
-    expect(returned).toBeUndefined();
-  });
-
-  it('não é declarada `async` — a asserção acima passaria mesmo assim', () => {
-    // `async function f() {}` chamada sem `await` também "devolve" algo que um
-    // `toBeUndefined()` mal escrito deixaria passar; e uma futura refatoração
-    // para `async` com retorno `void` enganaria a asserção de cima. Quem
-    // responde sobre a **forma** da função é o parser (armadilha 27).
+  /**
+   * **A pergunta é sobre a forma da função, então quem responde é o parser.**
+   *
+   * A primeira versão desta guarda lia o valor de retorno em tempo de execução
+   * (`expect(recordError(...)).toBeUndefined()`), e o CodeQL a acusou com razão
+   * — `js/use-of-returnless-function`: ler o retorno de uma função `void` é
+   * defeito em qualquer outro lugar do código, e uma guarda não é exceção que
+   * valha um alerta aberto para todo leitor futuro explicar.
+   *
+   * **A sugestão automática, essa, não serve:** ela trocava a asserção por
+   * `expect(() => recordError(...)).not.toThrow()`, que mede outra coisa — e
+   * que este arquivo **já** mede, três linhas abaixo. Seria apagar uma guarda
+   * e duplicar outra.
+   *
+   * O que sobra cobre **mais** que a versão acusada, e é o ponto: são duas
+   * formas de quebrar o contrato, e cada asserção pega uma que a outra não
+   * pega.
+   *
+   * - `async function recordError(…)` — o `async` obriga o retorno declarado a
+   *   virar `Promise<void>`, e é a forma óbvia;
+   * - `function recordError(…): Promise<void> { return flush(); }` — **sem
+   *   `async`**, que a checagem de modificador sozinha deixaria passar, e que a
+   *   asserção de tempo de execução pegava.
+   *
+   * As duas juntas são o que torna a leitura do retorno dispensável.
+   */
+  it('é síncrona: sem `async` e com retorno declarado `void`', () => {
     const source = ts.createSourceFile(
       'error-event.service.ts',
       readFileSync(join(__dirname, '../../src/services/error-event.service.ts'), 'utf8'),
@@ -96,8 +112,14 @@ describe('§8 — o contrato de `recordError`', () => {
     visit(source);
 
     expect(found, 'recordError não foi encontrada — a guarda ficaria vazia').toBeDefined();
+
     const isAsync = found?.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
     expect(isAsync ?? false).toBe(false);
+
+    // O retorno **declarado**, e não o inferido: `Promise<void>` aqui é o dia em
+    // que alguém acrescenta um `await` no handler de erro e põe a ida ao banco
+    // dentro do caminho que já falhou.
+    expect(found?.type?.getText(source)).toBe('void');
   });
 
   it('não lança quando o buffer recebe lixo', () => {

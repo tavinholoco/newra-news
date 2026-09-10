@@ -1571,10 +1571,12 @@ Não-objetivos declarados como número, nunca como item de lista.
 
 1. **`transport`/`pino-pretty` em produção** — segundo processo em 0.1 vCPU.
 2. **Aguardar a escrita do `ErrorEvent` no caminho que falhou** — escrita no
-   banco dentro do handler de um erro de banco é auto-amplificante. Há teste
-   afirmando que `recordError` devolve `undefined`, não `Promise` — **e um
-   segundo, pelo parser, afirmando que ela não é declarada `async`**, porque uma
-   função `async` de retorno `void` enganaria o primeiro. **O mesmo vale para o
+   banco dentro do handler de um erro de banco é auto-amplificante. A guarda é
+   **pelo parser, sobre a forma da declaração**: sem `async` e com retorno
+   declarado `void`. As duas asserções são necessárias, e **ler o valor de
+   retorno em tempo de execução não é uma delas** — o CodeQL acusa isso com
+   razão (`js/use-of-returnless-function`), e a leitura não cobria nada que o
+   tipo declarado não cubra. **O mesmo vale para o
    flush do desligamento**: o `onClose` tem prazo, senão o `app.close()` espera
    o banco justamente quando o banco é o suspeito — medido, e travou uma suíte
    em 10 s antes de ganhar prazo.

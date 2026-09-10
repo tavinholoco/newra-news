@@ -196,9 +196,12 @@ export function fingerprintFor(input: {
 /**
  * Registra uma ocorrência. **Síncrona, e nunca lança.**
  *
- * Devolve `undefined` — não uma `Promise` —, e há teste sobre isso: o dia em
- * que ela virar `async`, o `await` que alguém acrescentar no handler de erro
- * põe uma ida ao banco dentro do caminho que já falhou.
+ * **A guarda é sobre a forma da declaração, pelo parser**: sem `async` e com
+ * retorno declarado `void`. As duas asserções são necessárias — `async`
+ * obriga o retorno a virar `Promise<void>`, mas dá para devolver uma promessa
+ * **sem** `async`, e aí só o tipo denuncia. O que se evita é sempre o mesmo: o
+ * dia em que ela virar `Promise`, o `await` que alguém acrescentar no handler
+ * de erro põe uma ida ao banco dentro do caminho que já falhou.
  */
 export function recordError(input: RecordErrorInput, now: Date = new Date()): void {
   try {
