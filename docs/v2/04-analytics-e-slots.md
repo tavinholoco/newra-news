@@ -216,7 +216,26 @@ CTA de assinatura
 ## 11. O que fica fora desta fase
 
 Newsletter patrocinada (§21 fase 2), Newra Plus (fase 3) e API B2B (fase 4) não
-recebem especificação agora — dependem de base de usuários que não existe. O
-`premium-cta` entra no design system na Fase 8 apenas como componente, e
-`subscription_intent` já está no catálogo de eventos para medir interesse antes
-de qualquer coisa ser construída.
+recebem especificação agora — dependem de base de usuários que não existe, e as
+duas primeiras estão **adiadas para lançamento indeterminado**, com gatilho num
+número (sessões recorrentes e assinantes), nunca numa data.
+
+> **Corrigido em 10/09/2026 — a frase anterior prometia um componente que não
+> existe.** Ela dizia que *"o `premium-cta` entra no design system na Fase 8
+> apenas como componente"*. A Fase 8 fechou, e **`premium-cta` tem zero
+> ocorrências em `apps/web`** — medido. Não é atraso: foi reconsiderado e não
+> feito, porque um CTA que não leva a lugar nenhum mede clique em botão, não
+> intenção de compra — a armadilha do controle sem consequência.
+>
+> `subscription_intent` **continua no catálogo, e continua sem call site**, o
+> que é decisão e não esquecimento: está pronto para o dia em que houver plano,
+> e até lá não finge medir nada. **Essa metade tem guarda** —
+> `apps/web/tests/lib/analytics-catalog.test.ts` exige call site ou exceção
+> escrita para cada evento, e a exceção dele carrega o gatilho para sair da
+> lista (a primeira tela do Newra Plus; se o plano for cancelado, o evento sai
+> do catálogo, como `ad_view` e `ad_click` saíram).
+>
+> A metade do `premium-cta` **não tem guarda**, e é por isso que ela apodreceu
+> em silêncio por dezenove dias: nome de componente citado em prosa não é
+> derivado de nada. Ao prometer um componente aqui, ou ele nasce no mesmo PR, ou
+> a frase diz que ele não existe.
