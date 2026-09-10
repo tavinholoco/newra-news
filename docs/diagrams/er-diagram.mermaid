@@ -1,7 +1,12 @@
 %% Diagrama Entidade-Relacionamento — Newra News
 %% ---
-%% Atualizado em 01/09/2026: as 12 tabelas do `schema.prisma`, depois das
-%% Fases 0–12 da V2. O de 16/08 documentava quatro.
+%% Atualizado em 10/09/2026: **todas** as tabelas do `schema.prisma` — o de
+%% 16/08 documentava quatro, e o de 01/09 ganhou as oito que faltavam. A
+%% ERROR_EVENT entrou com a Fase 4 do plano de observabilidade.
+%% ---
+%% A contagem saiu daqui de propósito: número que descreve uma coleção apodrece
+%% no primeiro `model` novo, e quem garante que este desenho está completo é o
+%% `diagram-drift.test.ts`, que compara com a lista do schema.
 %% ---
 %% **Duas relações são chave estrangeira de verdade**, as duas com
 %% `onDelete: Cascade` — BRIEFING_SOURCE → ARTICLE e PIPELINE_EVENT →
@@ -14,7 +19,8 @@
 %% PipelineStatus (RUNNING · SUCCESS · FAILED) · PipelineEventLevel
 %% (INFO · WARN · ERROR) · SubscriberStatus (ACTIVE · UNSUBSCRIBED) ·
 %% UserRole (USER · ADMIN) · FavoriteItemType (NEWS · ARTICLE) ·
-%% ThemePreference (LIGHT · DARK · SYSTEM).
+%% ThemePreference (LIGHT · DARK · SYSTEM) · ErrorOrigin (API · PIPELINE ·
+%% WEB · INVARIANT) · ErrorSeverity (WARN · ERROR · FATAL).
 erDiagram
     NEWS {
         string id PK "uuid"
@@ -153,11 +159,32 @@ erDiagram
         datetime createdAt
     }
 
+    ERROR_EVENT {
+        string id PK "uuid"
+        string fingerprint "identidade da falha — origin + code + route"
+        datetime windowStart "hora cheia UTC — 1 linha por falha por hora"
+        ErrorOrigin origin "API · PIPELINE · WEB · INVARIANT"
+        ErrorSeverity severity "WARN · ERROR · FATAL"
+        string code "literal de ERROR_CODES — texto, não enum do banco"
+        string category "literal de ERROR_CATEGORIES"
+        int count "ocorrências coalescidas na janela"
+        string route "padrão da rota, nunca a URL crua"
+        int statusCode "nullable"
+        string message "redigida e truncada"
+        string firstRequestId "as duas pontas da janela — acham a linha do log"
+        string lastRequestId
+        string pipelineLogId "último run visto — aproximado, sem FK"
+        json context "amostra escalar, nullable"
+        datetime firstSeenAt
+        datetime lastSeenAt
+    }
+
     ARTICLE ||--o{ BRIEFING_SOURCE : "sources — FK, cascade"
     PIPELINE_LOG ||--o{ PIPELINE_EVENT : "events — FK, cascade"
 
     BRIEFING_SOURCE }o--o| NEWS : "sourceUrl (lógica)"
     PIPELINE_LOG }o--o| ARTICLE : "articleId (lógica)"
+    ERROR_EVENT }o--o| PIPELINE_LOG : "pipelineLogId — último visto, sem FK"
     NEWSLETTER_LOG }o--o| ARTICLE : "articleId (lógica)"
     ARTICLE ||--o| DAILY_METRIC : "1 briefing por dia ↔ 1 métrica por dia"
 

@@ -6170,6 +6170,102 @@ sozinho para aquele mesmo header.
 
 **964 → 967 testes na API.**
 
+### 59. Fase 4, PR 1 de 2 — a migration do `ErrorEvent` ✅ 2026-09-10
+
+> **§8 do plano de observabilidade, primeiro dos dois PRs.** Este é *só* schema:
+> a tabela, os dois enums e os dois índices que o `PipelineLog` nunca teve. O
+> `recordError`, o buffer e a retenção de 14 dias vêm no PR de código.
+
+#### O que entrou
+
+**`ErrorEvent`, uma linha por `(fingerprint, windowStart)`.** Não por
+ocorrência: um 500 que dispara 10.000 vezes numa hora é *uma* linha com
+`count: 10000`, e é o que dá teto à tabela — ela cresce com *falhas distintas ×
+24*, nunca com o tráfego. O custo está escrito no comentário do model, porque é
+real: **não dá para reconstruir a ocorrência individual**. Sobrevivem `count`,
+as duas pontas da janela (`firstRequestId`/`lastRequestId`, que acham a linha do
+log) e um `context` amostrado.
+
+Três decisões que o plano pedia, e o comentário do model explica cada uma:
+
+- **Sem FK para `PipelineLog`**, e o motivo não é a cascata — o `ErrorEvent`
+  vive 14 dias e o run 30, então o erro sempre morre primeiro. É o
+  coalescimento: uma linha cobre uma hora e pode acumular ocorrências de mais de
+  um run, então `pipelineLogId` é o **último visto**. FK afirmaria um vínculo
+  que a agregação torna falso, e impediria o expurgo do run.
+- **`code` e `category` são texto, não enum do Postgres.** O conjunto fechado
+  mora em `utils/errors.ts`, com guarda derivada do parser; repeti-lo no banco
+  cobraria uma migration por código novo — e **cada fase seguinte deste plano
+  acrescenta pelo menos um**. `origin` e `severity` são enum de verdade: esses
+  dois são da forma do sistema, não da taxonomia que cresce.
+- **Nenhum `@@index([fingerprint])` sozinho.** O `@@unique([fingerprint,
+  windowStart])` já é o alvo do upsert e serve busca por prefixo (armadilha 12).
+
+**E os dois índices do `PipelineLog`, que a fase aproveita para pagar.** A
+tabela viveu nove fases com **zero `@@index`**, enquanto `getDevLogs` ordena por
+`startedAt desc`, a idempotência do disparo filtra por `(status, startedAt)` e a
+etapa 8 apaga por `startedAt`.
+
+#### A guarda nova, e o buraco que ela fecha
+
+`migrations.test.ts` ganhou **"as migrations acompanham o schema que
+declaram"** — e o buraco é sério: editar o `schema.prisma` e esquecer o
+`prisma migrate dev` **não produz sintoma nenhum na suíte**. O `prisma generate`
+lê o *schema*, então o client tipa a tabela nova, o `tsc` aprova, todo teste
+passa e o código que a usa fica verde. O erro só aparece na primeira consulta
+contra o banco real — que é **produção**, porque o `migrate.yml` aplica o que
+existe em `migrations/`, não o que o schema diz.
+
+Ela compara **conjuntos derivados da fonte**: os `model`, os `enum`, e os nomes
+de índice que a convenção do Prisma implica (`Modelo_campo_campo_idx`,
+`..._key`). Tabela nova entra na varredura sozinha. Vista reprovando nas duas
+direções antes de servir — com a migration ausente (6 índices, 1 tabela e 2
+tipos faltando) e com um índice renomeado à mão no SQL.
+
+**O limite está escrito nela:** pergunta se o objeto foi *criado*, não se
+sobreviveu a um `DROP` posterior, e **não substitui o replay** contra banco de
+rascunho. Ela tranca o esquecimento, que é a falha frequente; o replay tranca o
+SQL inválido, que é a rara.
+
+> **O SQL não foi escrito à mão nem gerado contra o banco.** O Docker local
+> estava fora do ar, e `prisma migrate diff --from-empty --to-schema-datamodel`
+> **não precisa de banco nenhum** — ele devolve o SQL canônico do schema
+> inteiro, de onde saíram verbatim o `CREATE TABLE`, os dois `CREATE TYPE` e os
+> seis `CREATE INDEX`. É o caminho a usar quando não há Postgres à mão: o
+> resultado é o que o Prisma geraria, não o que eu lembrei da convenção.
+
+#### A segunda guarda, e ela achou deriva de meses
+
+`tests/docs/schema-docs-drift.test.ts` — o `packages/database/CLAUDE.md`
+enumera **models e enums um por um**, numa seção que a mudança de schema não
+abre. É a forma exata do `13` dos feeds, com a diferença de que aqui a deriva
+não é um número errado, é uma **ausência**: a tabela nova simplesmente não
+aparece e nada fica vermelho.
+
+Na estreia ela reprovou sobre quatro ausências anteriores a esta fase —
+**`UserPreference`** (21/08) e **`ProductEvent`** (22/08) nunca entraram na lista
+de Models; **`FavoriteItemType`** e **`ThemePreference`** nunca entraram na de
+Enums. E ao corrigir apareceram mais duas frases falsas no mesmo arquivo: o
+`Favorite` descrito como *"único por par userId+newsId"*, que deixou de ser
+verdade na Fase 6 (hoje alcança notícia **e** briefing, por
+`userId+itemType+itemId`), e a nota dizendo que o cleanup *"só apaga News,
+Article e PipelineLog"*, que ignora os 90 dias do `ProductEvent` desde a Fase 8.
+
+**O documento que uma sessão fria lê para saber o que existe no banco estava
+errado em seis pontos, e nada podia acusar.**
+
+#### O ER também mudou, e a contagem saiu dele
+
+`ERROR_EVENT` entrou no `er-diagram.mermaid`, com a relação lógica para
+`PIPELINE_LOG` marcada como *"último visto, sem FK"*. O cabeçalho dizia **"as 12
+tabelas"**; a contagem foi **removida** em vez de corrigida — número que
+descreve uma coleção apodrece no primeiro `model` novo, e quem garante que o
+desenho está completo é o `diagram-drift.test.ts`, que compara com a lista do
+schema. O diagrama foi conferido renderizando (`mermaid.render`, 396 KB de SVG),
+não só pelo parser da guarda.
+
+**967 → 974 testes na API** (68 → 69 suítes). Nenhuma mudança em `src/`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
