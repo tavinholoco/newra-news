@@ -24,9 +24,9 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - NewsletterLog → Resultado do envio diário da newsletter (um registro por data: total/enviados/falhos)
 - DailyMetric → Métricas diárias (retenção: indefinida)
 - ProductEvent → Evento de produto, anônimo por construção (retenção: 90 dias, por `occurredAt`)
-- ErrorEvent → Falha registrada de forma durável, **uma linha por `(fingerprint, hora)`** e não por ocorrência (retenção de 14 dias — a etapa 8 aprende a apagar no PR de código da Fase 4)
+- ErrorEvent → Falha registrada de forma durável, **uma linha por `(fingerprint, hora)`** e não por ocorrência (retenção: 14 dias, por `windowStart`)
 
-> O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) apaga News (30d), PipelineLog (30d), Article (90d) e ProductEvent (90d). PipelineEvent sai em cascata com o run; os demais models não têm política de retenção.
+> O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) apaga News (30d), PipelineLog (30d), Article (90d), ProductEvent (90d) e ErrorEvent (14d). PipelineEvent sai em cascata com o run; os demais models não têm política de retenção.
 
 ## Enums
 - ArticleStatus: DRAFT, PUBLISHED, FAILED

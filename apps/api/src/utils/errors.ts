@@ -12,6 +12,7 @@
  */
 
 import type { FastifyBaseLogger } from 'fastify';
+import { recordError } from '../services/error-event.service';
 
 /**
  * A natureza da falha, e é ela que a política de retry e de alerta lê.
@@ -228,20 +229,75 @@ export function logLevelFor(error: AppError): 'error' | 'warn' | 'debug' {
 }
 
 /**
- * Escreve a falha, uma vez, no nível que ela pede.
+ * Escreve a falha, uma vez, no nível que ela pede — **e a registra**.
  *
- * Duas portas chamam: o handler global do `app.ts` e o `preHandler` do
- * `authPlugin` — que recusa sem deixar o erro subir e, por isso, precisa
- * registrar antes de responder. Ter a decisão de nível em **uma** função é o
- * que impede as duas de divergirem; a guarda mede as duas pelo log que saem.
+ * Chamam o handler global do `app.ts` e **toda porta que responde sem deixar o
+ * erro subir** — o hook de `content-type`, o `preHandler` do `authPlugin`, as
+ * duas do `/dev/dashboard`. Ter a decisão de nível em **uma** função é o que
+ * impede as portas de divergirem; a guarda mede o log que elas escrevem.
+ *
+ * **O número de portas não está escrito aqui de propósito.** A versão anterior
+ * dizia "duas" e a Fase 3 já tinha feito três; a seguinte disse "três" e eram
+ * cinco — as duas erradas por prosa que ninguém reabre ao acrescentar um
+ * chamador. Quem quiser a lista, `grep logAppError(`.
  *
  * O `err` passa pelo serializer de `utils/logger.ts`, que é quem redige, trunca
  * e emite `code`, `category`, `cause` e `context`.
+ *
+ * ## O que a Fase 4 acrescentou: a linha também vira registro durável
+ *
+ * A chamada a `recordError` fica **aqui, e não em cada chamador**, pelo mesmo
+ * argumento que trouxe `logLevelFor` para cá: uma cópia por porta é uma chance
+ * por porta de a regra divergir, e a que divergisse seria uma porta cuja falha
+ * some da tabela sem nada acusar. É a fiação da armadilha 28 — e é também o que
+ * fez as duas portas do `/dev/dashboard` entrarem sem uma linha de código
+ * nova.
+ *
+ * `recordError` é síncrona e nunca lança (armadilha 2), então esta função
+ * continua sendo o que era: uma escrita em memória e nada mais no caminho que
+ * já falhou.
  */
 export function logAppError(
   log: FastifyBaseLogger,
   error: AppError,
-  fields: { route: string },
+  fields: { route: string; requestId?: string },
 ): void {
-  log[logLevelFor(error)]({ err: error, ...fields }, 'app error');
+  log[logLevelFor(error)]({ err: error, route: fields.route }, 'app error');
+  recordAppError(error, fields);
+}
+
+/**
+ * Traduz um `AppError` para o que a tabela guarda.
+ *
+ * **O nível decide se a falha vira linha**, e reusa `logLevelFor`: `debug` não
+ * grava. Um 404 em `/news/:id` é resultado normal — é o que todo robô com
+ * endereço velho produz — e gravá-lo encheria a tela da Fase 5 com a única
+ * falha que não é falha. O que sai daqui continua no log, no nível de sempre.
+ *
+ * **Gatilho para gravar o `debug` também:** a primeira vez que a pergunta for
+ * *"que endereço estão pedindo e não existe?"*. A resposta então é uma
+ * severidade nova, não afrouxar esta.
+ *
+ * Mora neste arquivo, e não no service, porque o service não pode importar
+ * `logLevelFor` de volta: ele já é importado daqui, e o ciclo em tempo de
+ * execução seria real (o service carrega o Prisma).
+ */
+function recordAppError(
+  error: AppError,
+  fields: { route: string; requestId?: string },
+): void {
+  const level = logLevelFor(error);
+  if (level === 'debug') return;
+
+  recordError({
+    origin: 'API',
+    severity: level === 'error' ? 'ERROR' : 'WARN',
+    code: error.code,
+    category: error.category,
+    message: error.message,
+    route: fields.route,
+    statusCode: error.statusCode,
+    requestId: fields.requestId ?? null,
+    context: error.context,
+  });
 }

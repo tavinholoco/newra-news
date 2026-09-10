@@ -279,16 +279,20 @@ model ProductEvent {
 /// plano acrescenta pelo menos um. E `origin: PIPELINE` traz falha de terceiro,
 /// que não passa pelo tuple da API.
 ///
-/// Retenção de 14 dias — e são 14, não 30, porque esta tabela responde *"o que
-/// está quebrado agora"*, enquanto `PipelineLog` e `DailyMetric` respondem
-/// *"estava quebrado no mês passado"*. **Quem apaga é a etapa 8 do pipeline
-/// diário, e ela aprende isso no PR de código desta fase** — hoje esta tabela
-/// não tem expurgo, e nada aqui a escreve ainda.
+/// Retenção de 14 dias, executada pela etapa 8 do pipeline diário — e são 14,
+/// não 30, porque esta tabela responde *"o que está quebrado agora"*, enquanto
+/// `PipelineLog` e `DailyMetric` respondem *"estava quebrado no mês passado"*.
+/// Quem escreve é `services/error-event.service.ts`, sempre pelo buffer.
 model ErrorEvent {
   id          String        @id @default(uuid())
   /// Identidade da falha: o que separa uma de outra ao agrupar. Derivado de
-  /// `origin`, `code` e `route` — nunca de id de recurso, que trocaria o teto
-  /// da tabela por "uma linha por notícia".
+  /// `origin`, `severity`, `code` e `route` — nunca de id de recurso, que
+  /// trocaria o teto da tabela por "uma linha por notícia".
+  ///
+  /// **A `severity` entrou na implementação**, e não estava no desenho: o
+  /// pipeline registra a mesma etapa como `WARN` (degradou) e como `ERROR`
+  /// (abortou), e sem ela as duas cairiam na mesma linha — com a segunda
+  /// apagando a gravidade da primeira na tela.
   fingerprint String
   /// Hora cheia em UTC. É a segunda metade da chave do upsert.
   windowStart DateTime

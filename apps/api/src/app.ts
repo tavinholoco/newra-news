@@ -34,6 +34,8 @@ import { adminPipelineRoutes } from './routes/admin/pipeline';
 import { devLogsRoutes } from './routes/dev/logs';
 import { devDashboardRoutes } from './routes/dev/dashboard';
 import { AppError, logAppError } from './utils/errors';
+import { errorEventsPlugin } from './plugins/error-events';
+import { UNHANDLED_CODE, recordError } from './services/error-event.service';
 import { baseLogger } from './utils/logger';
 
 export async function buildApp() {
@@ -98,6 +100,10 @@ export async function buildApp() {
   // Observabilidade primeiro: o `onResponse` tem de ver inclusive a resposta
   // que o rate limit recusou — 429 e resposta, e e justamente a que interessa.
   await app.register(observabilityPlugin);
+  // O buffer do `ErrorEvent` e o seu flush. Antes das rotas porque o `onClose`
+  // que ele registra tem de estar no lugar qualquer que seja o caminho até o
+  // desligamento.
+  await app.register(errorEventsPlugin);
   // Rate-limit depois: usa onRoute hook que precisa estar ativo antes das rotas serem registradas
   await app.register(rateLimitPlugin);
   // Swagger depois: suas rotas herdam o rate-limit
@@ -143,7 +149,7 @@ export async function buildApp() {
           code: 'CONTENT_TYPE_REJECTED',
           category: 'authorization',
         }),
-        { route: request.routeOptions?.url ?? 'unmatched' },
+        { route: request.routeOptions?.url ?? 'unmatched', requestId: request.id },
       );
       return reply.status(415).send({ error: 'Unsupported Media Type' });
     }
@@ -192,7 +198,7 @@ export async function buildApp() {
     const route = request.routeOptions?.url ?? 'unmatched';
 
     if (error instanceof AppError) {
-      logAppError(request.log, error, { route });
+      logAppError(request.log, error, { route, requestId: request.id });
       return reply.status(error.statusCode).send({ error: error.message });
     }
 
@@ -205,6 +211,29 @@ export async function buildApp() {
       { err: error, reqId: request.id, route, url: request.url },
       'unhandled error',
     );
+    /**
+     * **O 500 cru também vira linha na tabela, e é o que mais precisa.**
+     *
+     * Este ramo é o erro que ninguém escolheu devolver — Prisma, undici, um
+     * `TypeError` — e portanto o que menos se sabe explicar depois. Ele não
+     * passa por `logAppError` (não é `AppError`, e transformá-lo em um mudaria
+     * a resposta), então o registro é explícito aqui: a mesma armadilha 29
+     * relida do outro lado — o que responde fora do caminho comum precisa ser
+     * enumerado à mão.
+     *
+     * `code: UNHANDLED` é constante, e por isso o fingerprint continua com
+     * teto: quem separa uma dessas falhas de outra é a `route`.
+     */
+    recordError({
+      origin: 'API',
+      severity: 'ERROR',
+      code: UNHANDLED_CODE,
+      category: 'internal',
+      message: error.message,
+      route,
+      statusCode,
+      requestId: request.id,
+    });
     return reply
       .status(500)
       .send({ error: 'Internal server error', requestId: request.id });

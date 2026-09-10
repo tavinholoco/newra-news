@@ -740,7 +740,7 @@ Duas, e as duas foram vistas reprovando antes de o código existir:
 
 ---
 
-## §8 Fase 4 — `ErrorEvent`
+## §8 Fase 4 — `ErrorEvent` ✅ 2026-09-10
 
 **Fecha:** o único registro durável de uma falha de API é uma linha do Render
 que rola para fora; nada sobrevive a um deploy e nada é consultável.
@@ -819,6 +819,42 @@ aplicado.
 > de onde se extrai o pedaço novo. É o caminho quando o Docker local está fora
 > do ar — e o resultado é o que o Prisma geraria, não o que alguém lembrou da
 > convenção.
+
+### O que o PR do código decidiu — 10/09/2026
+
+**1. A `severity` entrou no fingerprint, e não estava no desenho.** O pipeline
+registra a mesma etapa como `WARN` (degradou, run seguiu) e como `ERROR`
+(abortou); com o fingerprint em `origin:code:route`, as duas cairiam na mesma
+linha e a segunda apagaria a gravidade da primeira na tela. Hoje é
+`origin:severity:code:route`, e o comentário do model diz isso.
+
+**2. A fiação mora em dois pontos únicos, e uma exceção declarada.**
+`logAppError` (que as três portas da API já chamavam) e `logPipelineEvent` (por
+onde toda etapa anuncia falha). **Não** nos `catch`: enumerar `catch` à mão é a
+forma de guarda que este projeto já viu falhar por omissão — a varredura da Fase
+7a cobria uma pasta, e a única rota fora dela era justamente a que engolia a
+falha. A exceção é o ramo do **500 cru** no `app.ts`, que não passa por
+`logAppError` porque não é `AppError`; ali a chamada é explícita, e é a
+armadilha 29 relida do outro lado.
+
+**3. `debug` não vira linha.** O nível sai de `logLevelFor`, então um 404 em
+`/news/:id` — o que todo robô com endereço velho produz — fica só no log.
+**Gatilho para mudar:** a primeira vez que a pergunta for *"que endereço estão
+pedindo e não existe?"*, e a resposta então é uma severidade nova.
+
+**4. O flush do `onClose` tem prazo.** Esperar o banco sem limite põe o
+desligamento nas mãos do serviço mais provável de estar fora quando há erro
+acumulado. Medido: sem prazo, a suíte de rota que não mocka o Prisma travou o
+`afterAll` em **10 s de timeout de hook** — em produção o sintoma seria um
+deploy que não termina.
+
+**5. `origin: PIPELINE` já tem produtor, com dois códigos.**
+`PIPELINE_STAGE_FAILED` e `PIPELINE_STAGE_DEGRADED`, com a etapa em `route`. A
+**categoria é inferida do provider** que o `extractErrorDetail` já deduz da
+mensagem — inferência declarada como tal, e o **gatilho para apagá-la** é a
+dívida que a Fase 3 deixou: converter `gemini`, `newsdata`, `resend` e o
+`pipeline.service` para `AppError`. `WEB` e `INVARIANT` seguem sem produtor, e
+são das Fases 7b/7c e 6.
 
 ---
 
@@ -1536,7 +1572,12 @@ Não-objetivos declarados como número, nunca como item de lista.
 1. **`transport`/`pino-pretty` em produção** — segundo processo em 0.1 vCPU.
 2. **Aguardar a escrita do `ErrorEvent` no caminho que falhou** — escrita no
    banco dentro do handler de um erro de banco é auto-amplificante. Há teste
-   afirmando que `recordError` devolve `undefined`, não `Promise`.
+   afirmando que `recordError` devolve `undefined`, não `Promise` — **e um
+   segundo, pelo parser, afirmando que ela não é declarada `async`**, porque uma
+   função `async` de retorno `void` enganaria o primeiro. **O mesmo vale para o
+   flush do desligamento**: o `onClose` tem prazo, senão o `app.close()` espera
+   o banco justamente quando o banco é o suspeito — medido, e travou uma suíte
+   em 10 s antes de ganhar prazo.
 3. **`refetchInterval` numa aba de admin deixada aberta** — 750 h/mês com 0,8%
    de folga, e esta API já foi suspensa uma vez. Sempre
    `refetchIntervalInBackground: false`.
@@ -1825,9 +1866,9 @@ aplica as duas migrations juntas na promoção.**
 | PR | Fase | Trava |
 |---|---|---|
 | ~~5~~ ✅ | **§7 — Fase 3, taxonomia** — **entregue em 09/09/2026** | O `code` que a Fase 4 usa como fingerprint, agora com teto e guarda derivada do parser. Achou de quebra o `catch` do `authPlugin`, que engolia **toda** recusa de sessão. Item **56** do `docs/progress.md` |
-| **6a ← próxima** | **§8 — Fase 4, a migration** | PR só de schema. `ErrorEvent` + os dois índices do `PipelineLog` |
-| 6b | **§8 — Fase 4, o código** | `recordError`, o buffer, a retenção na etapa 8 |
-| 7 | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |
+| ~~6a~~ ✅ | **§8 — Fase 4, a migration** — **entregue em 10/09/2026** | PR só de schema. `ErrorEvent` + os dois índices que o `PipelineLog` nunca teve. Nasceu junto a guarda que cobra migration para todo model, enum e índice do schema. Item **59** do `docs/progress.md` |
+| ~~6b~~ ✅ | **§8 — Fase 4, o código** — **entregue em 10/09/2026** | `recordError` (síncrona, coalescente, nunca lança), o buffer com flush de 30 s e no `onClose`, e a retenção de 14 dias na etapa 8. Item **60** |
+| **7 ← próxima** | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |
 
 **Bloco 3 — depois da espinha, em qualquer ordem.**
 

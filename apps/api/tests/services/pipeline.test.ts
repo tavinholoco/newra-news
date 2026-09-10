@@ -28,6 +28,13 @@ vi.mock('@newranews/database', async (importOriginal) => {
       productEvent: {
         deleteMany: vi.fn(),
       },
+      // E o `ErrorEvent` da Fase 4 entrou na mesma etapa 8, com corte em 14
+      // dias -- e avisou pelo mesmo teste, do mesmo jeito. `upsert` esta aqui
+      // porque o flush do buffer o chama no `onClose` do app.
+      errorEvent: {
+        deleteMany: vi.fn(),
+        upsert: vi.fn(),
+      },
       briefingSource: {
         deleteMany: vi.fn(),
         createMany: vi.fn(),
@@ -140,6 +147,7 @@ beforeEach(() => {
   vi.mocked(prisma.article.upsert).mockResolvedValue(mockSavedArticle as never);
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.errorEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.pipelineEvent.create).mockResolvedValue({} as never);
   vi.mocked(prisma.news.findMany).mockResolvedValue([] as never);

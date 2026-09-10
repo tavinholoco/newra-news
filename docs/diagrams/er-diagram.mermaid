@@ -161,14 +161,14 @@ erDiagram
 
     ERROR_EVENT {
         string id PK "uuid"
-        string fingerprint "identidade da falha — origin + code + route"
+        string fingerprint "identidade — origin + severity + code + route"
         datetime windowStart "hora cheia UTC — 1 linha por falha por hora"
         ErrorOrigin origin "API · PIPELINE · WEB · INVARIANT"
         ErrorSeverity severity "WARN · ERROR · FATAL"
         string code "literal de ERROR_CODES — texto, não enum do banco"
         string category "literal de ERROR_CATEGORIES"
         int count "ocorrências coalescidas na janela"
-        string route "padrão da rota, nunca a URL crua"
+        string route "escopo: padrão da rota na API, etapa no pipeline"
         int statusCode "nullable"
         string message "redigida e truncada"
         string firstRequestId "as duas pontas da janela — acham a linha do log"
