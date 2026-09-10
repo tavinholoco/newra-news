@@ -11,6 +11,25 @@ version: 2
 # **Agrupado, e não é preferência de estilo.** Sem agrupar, uma semana ruim abre
 # quinze PRs, cada um disparando o CI inteiro — e a resposta humana a quinze PRs
 # de bump é fechar todos. Agrupado por ecossistema, é um PR para ler.
+#
+# ## `target-branch: dev`, e sem isto o robô fura a política do projeto
+#
+# **Sem `target-branch`, o Dependabot abre contra o branch padrão do
+# repositório — que aqui é a `main`.** E a `main` é o que está no ar: a política
+# escrita no `CLAUDE.md` é que trabalho entra por PR na **`dev`** e a `main` só
+# recebe promoção deliberada.
+#
+# Isso não é hipótese. Em **09/09/2026**, quatro PRs de bump (#174, #169, #171 e
+# #170) foram mergeados direto na `main`, pulando a `dev` e o preview da Vercel:
+# cada um disparou Smoke E2E e **um deploy de produção**, e um deles subiu
+# `@base-ui/react` e `@tanstack/react-query` — dependências de produção — sem
+# nunca passar por uma branch de integração. As duas branches divergiram no
+# mesmo dia em que tinham sido alinhadas.
+#
+# **O risco que isto fecha tem data marcada:** a Fase 4 do plano de
+# observabilidade traz uma migration, e o `migrate.yml` dispara em **todo push
+# na `main`**. Um PR do robô mergeado naquela janela aplicaria schema em
+# produção sem ninguém ter pedido.
 
 updates:
   # As actions. É a metade que o `pnpm audit` não alcança de jeito nenhum, e a
@@ -19,6 +38,7 @@ updates:
   # comentário da versão junto, que é o que a armadilha 20 do §17 pede.
   - package-ecosystem: github-actions
     directory: '/'
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
@@ -44,6 +64,7 @@ updates:
   # `docs/security-advisories.md`, com gatilho.
   - package-ecosystem: npm
     directory: '/'
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday
@@ -56,6 +77,25 @@ updates:
       - dependency-name: next
         update-types: ['version-update:semver-major']
       - dependency-name: fastify
+        update-types: ['version-update:semver-major']
+      # **Duas que se juntaram em 09/09/2026, e pelo mesmo argumento de cima:
+      # major que não pode entrar vira PR semanal fechado sem ler.**
+      #
+      # `@fastify/helmet@13` **não instala** — o `checkVersion` do próprio
+      # Fastify recusa: `expected '5.x' fastify version, '4.29.1' is installed`.
+      # Ele é refém da major da `fastify`, que já está ignorada logo acima.
+      # Gatilho: os dois sobem juntos, quando a `fastify@5` entrar.
+      - dependency-name: '@fastify/helmet'
+        update-types: ['version-update:semver-major']
+      # `prisma@7` não é bump, é migração de configuração: o `datasource.url`
+      # deixou de ser aceito no schema (P1012), a URL vai para um
+      # `prisma.config.ts` e o `PrismaClient` passa a exigir `adapter`. Alcança
+      # o schema, a construção do client e o `migrate.yml` — que é o workflow
+      # com a credencial mais poderosa do repositório. Gatilho: trabalho
+      # próprio, depois da Fase 4 fechar.
+      - dependency-name: prisma
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@prisma/client'
         update-types: ['version-update:semver-major']
     groups:
       producao:

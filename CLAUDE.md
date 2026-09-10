@@ -68,6 +68,15 @@ uma janela controlada, mas é uma janela: promova com isso em mente.
 `main`, então Smoke E2E e Migrate rodam sem ninguém lembrar; o Lighthouse e a
 baseline continuam manuais, e estão logo abaixo.
 
+> **O Dependabot furava esta política até 09/09/2026.** Sem `target-branch`, ele
+> abre contra o branch **padrão** do repositório — a `main` —, e foi o que
+> aconteceu: quatro PRs de bump (#174, #169, #171, #170) entraram direto na
+> branch que publica, pulando a `dev` e o preview, cada um disparando Smoke E2E e
+> um deploy. Um deles subiu `@base-ui/react` e `@tanstack/react-query`, que são
+> **dependências de produção**. Hoje as duas entradas do
+> `.github/dependabot.yml` declaram `target-branch: dev`. **Se voltar a aparecer
+> PR de bump com base `main`, é esse campo que sumiu.**
+
 **As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
 padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
 porque o `render.yaml` **não declara `branch:`**: a configuração vive no painel,
