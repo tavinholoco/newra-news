@@ -9,6 +9,17 @@ export interface GenerateArticleResult {
   provider: 'gemini' | 'groq';
   /** Modelo que de fato gerou o artigo — gravado em `Article.modelVersion`. */
   modelVersion: string;
+  /**
+   * O erro do Gemini quando foi o Groq que entregou.
+   *
+   * Até a verificação pós-merge da Fase 4 ele só sobrevivia ao **fallback que
+   * também falhava** (`withPrimaryError`, abaixo); no dia bom — Gemini em 503,
+   * Groq salvando — restava uma linha de `warn` no stdout do Render, e o
+   * `DailyMetric.aiProvider`. É justamente a degradação mais frequente medida
+   * neste projeto (dois dias seguidos em 02–03/09), e não tinha registro
+   * durável. O pipeline o grava como `WARN` da etapa 6.
+   */
+  primaryError?: unknown;
 }
 
 export async function generateArticle(
@@ -21,7 +32,12 @@ export async function generateArticle(
     baseLogger.warn({ err: geminiError }, 'Gemini provider failed, falling back to Groq');
     try {
       const article = await generateArticleWithGroq(newsItems);
-      return { article, provider: 'groq', modelVersion: env.GROQ_MODEL };
+      return {
+        article,
+        provider: 'groq',
+        modelVersion: env.GROQ_MODEL,
+        primaryError: geminiError,
+      };
     } catch (groqError) {
       // Fallback também falhou: carrega o erro primário (Gemini) junto ao erro
       // final (Groq) para o pipeline persistir os DOIS no PipelineLog — sem

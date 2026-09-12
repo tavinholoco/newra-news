@@ -577,7 +577,25 @@ Regras que não são óbvias no código:
 - **A categoria de uma falha de etapa é inferida do provider**, porque os
   providers ainda lançam `Error` cru. **Gatilho para apagar a inferência:**
   converter `gemini`, `newsdata`, `resend` e o `pipeline.service` para
-  `AppError` — a dívida que a Fase 3 deixou escrita.
+  `AppError` — a dívida que a Fase 3 deixou escrita. A *"Collection degraded"*
+  da etapa 1 é `upstream` por construção: o provider mora dentro de cada
+  `FetchWarning`, não no topo do `context`, e a primeira inferência a chamava de
+  `internal`.
+- **`code` é tipo, não `string`** — `RecordedErrorCode`, a união dos literais
+  da taxonomia com as três constantes do service. Um `code` interpolado deixa
+  de compilar; a guarda pelo parser continua porque enumera os call sites.
+- **`pipelineLogId` é explícito quando quem chama sabe**, e `logPipelineEvent`
+  sempre soube. O `AsyncLocalStorage` é reserva: o enterro do run morto roda
+  fora do contexto do run, e pela reserva sozinha gravava `null`.
+- **`routePatternOf` (`utils/request-route.ts`) é o único lugar que escreve
+  `'unmatched'`.** O balde é chave no mapa de métricas e no `route` do
+  `ErrorEvent`; havia seis cópias, e a guarda reprova a sétima.
+- **Três falhas que não tinham registro, e agora têm:** o Gemini falhando com
+  o Groq entregando (`WARN` da etapa 6 — o run continua `SUCCESS` e
+  `pipelineErrors` não muda; "sucesso degradado" é da Fase 8); o `catch` final
+  do pipeline quando o próprio `update` para `FAILED` falha (o evento vai para o
+  buffer **antes** da ida ao banco); e o disparo interno do cron falhando antes
+  de existir run (`stage-0`, a convenção para "o run inteiro").
 
 ## Observabilidade da API
 

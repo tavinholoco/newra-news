@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { verifyAuthJwt } from '../utils/jwt';
 import { AppError, ForbiddenError, UnauthorizedError, logAppError } from '../utils/errors';
+import { routePatternOf } from '../utils/request-route';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -77,8 +78,12 @@ export async function authPlugin(app: FastifyInstance, opts: AuthPluginOptions =
       error instanceof AppError
         ? error
         : new UnauthorizedError('Invalid or missing token', { cause: error });
+    // `requestId` porque é o que liga a linha do `ErrorEvent` à do log — e
+    // esta é a porta de maior volume da API (todo 401 passa aqui). Era a única
+    // que não o passava; achado da verificação pós-merge da Fase 4.
     logAppError(request.log, denial, {
-      route: request.routeOptions?.url ?? 'unmatched',
+      route: routePatternOf(request),
+      requestId: request.id,
     });
     return reply.status(401).send({ error: 'Invalid or missing token' });
   };

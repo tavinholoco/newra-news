@@ -56,12 +56,16 @@ describe('AiService', () => {
   });
 
   it('should fallback to Groq when Gemini fails', async () => {
-    vi.mocked(generateArticleWithGemini).mockRejectedValue(new Error('Gemini API error'));
+    const geminiError = new Error('Gemini API error');
+    vi.mocked(generateArticleWithGemini).mockRejectedValue(geminiError);
     vi.mocked(generateArticleWithGroq).mockResolvedValue(mockGeneratedArticle);
 
     const result = await generateArticle(mockNewsItems);
 
     expect(result.provider).toBe('groq');
+    // O erro do primário sobrevive ao fallback bem-sucedido: é o que o
+    // pipeline grava como `WARN` da etapa 6 (verificação pós-merge da Fase 4).
+    expect(result.primaryError).toBe(geminiError);
     expect(result.article).toEqual(mockGeneratedArticle);
     expect(generateArticleWithGemini).toHaveBeenCalledWith(mockNewsItems);
     expect(generateArticleWithGroq).toHaveBeenCalledWith(mockNewsItems);

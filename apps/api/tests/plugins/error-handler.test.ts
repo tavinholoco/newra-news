@@ -119,6 +119,14 @@ beforeAll(async () => {
   app.get('/probe/raw-500', async () => {
     throw new Error('connect ECONNREFUSED postgres://user:hunter2@db:5432');
   });
+  app.get('/probe/raw-500-prisma', async () => {
+    // A forma do erro do Prisma: `name` próprio e um `code` (`P1001` = banco
+    // inalcançável). É o que torna a linha legível sem abrir o log.
+    throw Object.assign(new Error("Can't reach database server at db:5432"), {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P1001',
+    });
+  });
 
   await app.ready();
 });
@@ -523,6 +531,35 @@ describe('§8 — a falha que o handler escreve também vira registro durável',
     expect(event?.code).toBe('UNHANDLED');
     expect(event?.category).toBe('internal');
     expect(event?.severity).toBe('ERROR');
+  });
+
+  it('o 500 cru leva `name` e o `code` do próprio erro no context', async () => {
+    await app.inject({ method: 'GET', url: '/probe/raw-500-prisma' });
+    const [event] = pendingErrorEvents();
+
+    expect(event?.code).toBe('UNHANDLED');
+    expect(event?.context).toMatchObject({
+      name: 'PrismaClientKnownRequestError',
+      code: 'P1001',
+    });
+  });
+
+  it('o context do 500 cru passa pela mesma redação da mensagem', async () => {
+    await app.inject({ method: 'GET', url: '/probe/raw-500' });
+
+    expect(pendingErrorEvents()[0]?.context).toMatchObject({ name: 'Error', code: null });
+    expect(JSON.stringify(pendingErrorEvents())).not.toContain('hunter2');
+  });
+
+  it('a recusa do `authPlugin` leva o `requestId` — é a porta de maior volume', async () => {
+    // Era a única das portas que não o passava: todo 401 nascia sem o elo com a
+    // linha do log. Achado da verificação pós-merge da Fase 4.
+    const res = await app.inject({ method: 'GET', url: '/api/account' });
+    const [event] = pendingErrorEvents();
+
+    expect(res.statusCode).toBe(401);
+    expect(event?.code).toBe('AUTH_TOKEN_INVALID');
+    expect(event?.firstRequestId).toBe(res.headers['x-request-id']);
   });
 
   it('grava a recusa de `content-type`, que responde fora do handler', async () => {

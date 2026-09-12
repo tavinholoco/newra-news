@@ -37,6 +37,7 @@ import { AppError, logAppError } from './utils/errors';
 import { errorEventsPlugin } from './plugins/error-events';
 import { UNHANDLED_CODE, recordError } from './services/error-event.service';
 import { baseLogger } from './utils/logger';
+import { UNMATCHED_ROUTE, routePatternOf } from './utils/request-route';
 
 export async function buildApp() {
   const app = Fastify({
@@ -149,7 +150,7 @@ export async function buildApp() {
           code: 'CONTENT_TYPE_REJECTED',
           category: 'authorization',
         }),
-        { route: request.routeOptions?.url ?? 'unmatched', requestId: request.id },
+        { route: routePatternOf(request), requestId: request.id },
       );
       return reply.status(415).send({ error: 'Unsupported Media Type' });
     }
@@ -195,7 +196,7 @@ export async function buildApp() {
      * rota. Os dois campos respondem perguntas diferentes e nenhum substitui o
      * outro.
      */
-    const route = request.routeOptions?.url ?? 'unmatched';
+    const route = routePatternOf(request);
 
     if (error instanceof AppError) {
       logAppError(request.log, error, { route, requestId: request.id });
@@ -223,7 +224,14 @@ export async function buildApp() {
      *
      * `code: UNHANDLED` é constante, e por isso o fingerprint continua com
      * teto: quem separa uma dessas falhas de outra é a `route`.
+     *
+     * **O `name` e o `code` do próprio erro vão no `context`**, e é o que torna
+     * a linha legível sem abrir o log: `PrismaClientKnownRequestError` +
+     * `P1001` diz "banco inalcançável", `TypeError` + `ECONNREFUSED`
+     * (via `cause`) diz "a API de fora não respondeu". A mensagem, redigida e
+     * truncada, nem sempre diz. Achado da verificação pós-merge da Fase 4.
      */
+    const cause = (error as { cause?: unknown }).cause;
     recordError({
       origin: 'API',
       severity: 'ERROR',
@@ -233,6 +241,11 @@ export async function buildApp() {
       route,
       statusCode,
       requestId: request.id,
+      context: {
+        name: error.name,
+        code: typeof error.code === 'string' ? error.code : null,
+        cause: cause instanceof Error ? `${cause.name}: ${cause.message}` : null,
+      },
     });
     return reply
       .status(500)
@@ -254,7 +267,7 @@ export async function buildApp() {
    */
   app.setNotFoundHandler((request, reply) => {
     request.log.debug(
-      { route: 'unmatched', method: request.method, url: request.url },
+      { route: UNMATCHED_ROUTE, method: request.method, url: request.url },
       'route not found',
     );
     return reply.status(404).send({ error: 'Not Found' });

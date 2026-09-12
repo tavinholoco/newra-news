@@ -341,6 +341,26 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Verificação pós-merge da Fase 4 (2026-09-12): quatro falhas ainda morriam
+  com a linha de log.** Item **61**. A pergunta dos itens 39, 52 e 57 — *o que
+  ficou de fora?* — respondida enumerando todo `warn`/`error` escrito fora dos
+  dois pontos únicos: 22 linhas, **quatro lacunas**. A maior é a degradação mais
+  frequente medida neste projeto — **o Gemini falhando com o Groq entregando**,
+  que deixava só uma linha de stdout — e hoje é `WARN` da etapa 6, sem tocar em
+  `pipelineErrors`. Junto: o `catch` final do pipeline gravava o `ERROR`
+  **depois** do `update` que falha quando o banco é o problema; o disparo
+  interno do cron não tinha registro; e a coleta degradada saía como `internal`
+  quando é `upstream`. **1.003 → 1.015 testes na API.**
+
+  > **Três inconsistências eram minhas, e nenhuma tinha sintoma.** O
+  > `authPlugin` — a porta de maior volume — era a única sem `requestId`; o
+  > enterro do run morto gravava `pipelineLogId: null` sobre um id que estava na
+  > mão (`recordError` lia só o `AsyncLocalStorage`, e o enterro roda fora do
+  > contexto); e a contagem "três portas", corrigida no código, ficou errada em
+  > **quatro documentos**. O `'unmatched'` estava escrito seis vezes; hoje mora
+  > em `routePatternOf`, com guarda. E o teto do `code` virou **tipo**
+  > (`RecordedErrorCode`): interpolar deixa de compilar.
+
 - **Fora da linha das fases (2026-09-10): a falha parou de morrer junto com a
   linha de log.** A **Fase 4** (§8), nos dois PRs da ordem do §19 — **6a** só o
   schema, **6b** o código. `ErrorEvent` grava **uma linha por
@@ -354,7 +374,7 @@ a suíte de unidade, que roda sem rede.
   **60** do `docs/progress.md`.
 
   > **Quem escreve são dois pontos únicos, e uma exceção declarada.**
-  > `logAppError` (as três portas da API) e `logPipelineEvent` (toda etapa) — e
+  > `logAppError` (toda porta da API que responde erro) e `logPipelineEvent` (toda etapa) — e
   > **não** os `catch`, porque enumerar `catch` à mão é a forma de guarda que a
   > Fase 7a viu falhar por omissão. A exceção é o ramo do **500 cru**, que não é
   > `AppError` e é justamente a falha que menos se sabe explicar depois.
@@ -740,7 +760,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.686 em 141 suites (**1.003 API em 70** + **683 web em 71** — todos
+- **Testes:** 1.698 em 142 suites (**1.015 API em 71** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
