@@ -953,6 +953,65 @@ carregado pelo service, descartado pelo serializador, sem erro e sem teste
 vermelho — aplicado ao modelo que ele nunca cobriu. E força a decisão sobre o
 `aiTokensUsed` em vez de deixá-la parada.
 
+### Inventário reconferido antes de abrir — 12/09/2026
+
+O inventário acima é de 23/08 e a regra deste projeto é medi-lo antes de
+começar, porque ele deriva. Medido contra a `dev` em `2a742ed`:
+
+**O que continua verdade:** nenhum provider captura uso de token (grep vazio
+por `usageMetadata`/`usage`); `byDay` volta no `productMetricsSchema` e nenhum
+componente o lê (só o teste do `product-metrics-client`); `/api/metrics/http`
+não tem leitor no web; `state-matrix` está em **15**; não existe
+`admin-surface.test.ts`, e são **seis** rotas sob `app/api/admin/**`
+(`metrics`, `news/[id]`, `pipeline/runs`, `pipeline/runs/[pipelineId]`,
+`product-metrics`, `run-pipeline`); e não há `report-uri` de CSP em app nenhum.
+
+**O que derivou, ou estava impreciso:**
+
+- **`aiTokensUsed` aparece em três lugares, não dois** — `schema.prisma:214`,
+  `seed.ts:161` e o **`er-diagram.mermaid:143`**, que entrou em 01/09. O
+  `diagram-drift` compara entidades, não colunas: apagar a coluna e esquecer o
+  diagrama passa verde. A migration que a remove toca o diagrama junto.
+- **"As três colunas órfãs" são duas e meia.** `cleanupCount` é órfã em tudo
+  — nenhum service a lê. `newsApiCount` e `rssCount` **saem** pelo
+  `/api/metrics/monthly` como `newsApiTotal`/`rssTotal` (rota pública, sem
+  leitor no web) e **não** saem pelo `dashboardMetricsSchema`, que é o que a
+  tela de admin lê. Para a tela, as três são órfãs; para o contrato, só uma.
+- **"Horas do plano deriváveis do `uptime` do processo" não é verdade entre
+  reinícios.** Desde 01/09 a API dorme e acorda várias vezes por dia, e cada
+  acordada zera o `process.uptime()`. O arco de saturação do plano — "o mais
+  importante do plano inteiro" pela §4.3 — precisa de um **acumulador
+  persistido** (uma amostra por dia é o mínimo honesto) ou de um rótulo honesto
+  ("esta instância, desde X"). É decisão da fase, e tem de ser tomada antes de
+  desenhar o arco, senão o medidor mente na direção otimista — o que é pior do
+  que não ter medidor.
+
+**O que a §9 lista e não diz de onde vem o dado:**
+
+- **A leitura do `ErrorEvent`.** A aba de segurança agrupa por fingerprint e
+  por categoria, e não existe rota que devolva isso. Nasce `GET
+  /api/admin/errors` (janela 24 h / 7 d, agrupado, com `lastRequestId`) — e
+  rota nova custa as três guardas do §18 mais tipo em `packages/types` e linha
+  na `docs/api.md`.
+- **A "auditoria de ação de admin".** `request.user.sub` está disponível no
+  `POST /api/jobs/daily-pipeline` (via BFF) e no `DELETE /api/news/:id`, e
+  **nada o persiste**. Ou vira coluna/tabela — e aí é migration, na mesma
+  janela da remoção do `aiTokensUsed` —, ou vira `ErrorEvent`-like com
+  `origin` próprio, ou fica para depois com gatilho. Decisão da fase.
+- **O `admin:capture`** fotografa `/admin` e `/admin/metrics`; a
+  `/admin/security` tem de entrar no script, senão a única ferramenta que
+  alcança tela de admin não alcança a tela nova.
+
+**Recomendação de corte, pela medida da Fase 4:** três PRs em vez de um —
+**5a** a migration (remover `aiTokensUsed`; a tabela de auditoria, se a decisão
+for tabela), **5b** a API (`/api/admin/errors`, saturação no
+`/api/metrics/http`, as três colunas no `dashboardMetricsSchema`, o
+`response-schema-contract` estendido ao `DailyMetric`), **5c** o web (as três
+abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, o
+`admin:capture`). A 4 mostrou que schema separado de código revert-a limpo, e
+o 5c é o maior PR de tela do plano — misturá-lo com migration é o oposto do
+que o §19 pede.
+
 ---
 
 ## §10 Fase 6 — Invariantes (o eixo das inconsistências)
@@ -1895,7 +1954,7 @@ aplica as duas migrations juntas na promoção.**
 | ~~5~~ ✅ | **§7 — Fase 3, taxonomia** — **entregue em 09/09/2026** | O `code` que a Fase 4 usa como fingerprint, agora com teto e guarda derivada do parser. Achou de quebra o `catch` do `authPlugin`, que engolia **toda** recusa de sessão. Item **56** do `docs/progress.md` |
 | ~~6a~~ ✅ | **§8 — Fase 4, a migration** — **entregue em 10/09/2026** | PR só de schema. `ErrorEvent` + os dois índices que o `PipelineLog` nunca teve. Nasceu junto a guarda que cobra migration para todo model, enum e índice do schema. Item **59** do `docs/progress.md` |
 | ~~6b~~ ✅ | **§8 — Fase 4, o código** — **entregue em 10/09/2026** | `recordError` (síncrona, coalescente, nunca lança), o buffer com flush de 30 s e no `onClose`, e a retenção de 14 dias na etapa 8. Item **60** |
-| **7 ← próxima** | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |
+| **7 ← próxima** | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. **Inventário reconferido em 12/09** (fim da §9): três PRs recomendados — 5a migration, 5b API, 5c web — e duas decisões abertas antes de desenhar (as horas do plano não são deriváveis do `uptime` entre reinícios; a auditoria de admin não tem onde morar) |
 
 **Bloco 3 — depois da espinha, em qualquer ordem.**
 
