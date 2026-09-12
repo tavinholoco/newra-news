@@ -883,7 +883,7 @@ contexto sozinho.
 
 ---
 
-## §9 Fase 5 — As telas: Métricas e Segurança
+## §9 Fase 5 — As telas: Métricas e Segurança — 5a ✅ 2026-09-12 · 5b · 5c
 
 **Fecha:** quatro números calculados todo dia e jogados fora na serialização; um
 endpoint ADMIN inteiro sem leitor; e nenhuma tela que responda "a API está
@@ -952,6 +952,154 @@ motivo. **É literalmente o defeito para o qual esse teste foi escrito** —
 carregado pelo service, descartado pelo serializador, sem erro e sem teste
 vermelho — aplicado ao modelo que ele nunca cobriu. E força a decisão sobre o
 `aiTokensUsed` em vez de deixá-la parada.
+
+### Inventário reconferido antes de abrir — 12/09/2026
+
+O inventário acima é de 23/08 e a regra deste projeto é medi-lo antes de
+começar, porque ele deriva. Medido contra a `dev` em `2a742ed`:
+
+**O que continua verdade:** nenhum provider captura uso de token (grep vazio
+por `usageMetadata`/`usage`); `byDay` volta no `productMetricsSchema` e nenhum
+componente o lê (só o teste do `product-metrics-client`); `/api/metrics/http`
+não tem leitor no web; `state-matrix` está em **15**; não existe
+`admin-surface.test.ts`, e são **seis** rotas sob `app/api/admin/**`
+(`metrics`, `news/[id]`, `pipeline/runs`, `pipeline/runs/[pipelineId]`,
+`product-metrics`, `run-pipeline`); e não há `report-uri` de CSP em app nenhum.
+
+**O que derivou, ou estava impreciso:**
+
+- **`aiTokensUsed` aparece em três lugares, não dois** — `schema.prisma:214`,
+  `seed.ts:161` e o **`er-diagram.mermaid:143`**, que entrou em 01/09. O
+  `diagram-drift` compara entidades, não colunas: apagar a coluna e esquecer o
+  diagrama passa verde. A migration que a remove toca o diagrama junto.
+- **"As três colunas órfãs" são duas e meia.** `cleanupCount` é órfã em tudo
+  — nenhum service a lê. `newsApiCount` e `rssCount` **saem** pelo
+  `/api/metrics/monthly` como `newsApiTotal`/`rssTotal` (rota pública, sem
+  leitor no web) e **não** saem pelo `dashboardMetricsSchema`, que é o que a
+  tela de admin lê. Para a tela, as três são órfãs; para o contrato, só uma.
+- **"Horas do plano deriváveis do `uptime` do processo" não é verdade entre
+  reinícios.** Desde 01/09 a API dorme e acorda várias vezes por dia, e cada
+  acordada zera o `process.uptime()`. O arco de saturação do plano — "o mais
+  importante do plano inteiro" pela §4.3 — precisa de um **acumulador
+  persistido** (uma amostra por dia é o mínimo honesto) ou de um rótulo honesto
+  ("esta instância, desde X"). É decisão da fase, e tem de ser tomada antes de
+  desenhar o arco, senão o medidor mente na direção otimista — o que é pior do
+  que não ter medidor.
+
+**O que a §9 lista e não diz de onde vem o dado:**
+
+- **A leitura do `ErrorEvent`.** A aba de segurança agrupa por fingerprint e
+  por categoria, e não existe rota que devolva isso. Nasce `GET
+  /api/admin/errors` (janela 24 h / 7 d, agrupado, com `lastRequestId`) — e
+  rota nova custa as três guardas do §18 mais tipo em `packages/types` e linha
+  na `docs/api.md`.
+- **A "auditoria de ação de admin".** `request.user.sub` está disponível no
+  `DELETE /api/news/:id`, e **nada o persiste**. ~~E no `POST
+  /api/jobs/daily-pipeline` (via BFF)~~ — **não está, e foi medido ao abrir o
+  5a**: a cadeia é BFF (sessão) → `/api/cron/daily-news` (`CRON_SECRET`) →
+  `POST /api/jobs/daily-pipeline` (`JOB_SECRET`), e a API recebe o disparo
+  **sem usuário nenhum**. Quem sabe quem clicou é o BFF, e é ele que precisa
+  encaminhar o ator (trabalho do 5b). Ou vira coluna/tabela — e aí é migration,
+  na mesma janela da remoção do `aiTokensUsed` —, ou vira `ErrorEvent`-like com
+  `origin` próprio, ou fica para depois com gatilho. **Decidido em 12/09:
+  tabela** — ver "O que o PR da migration decidiu", abaixo.
+- **O `admin:capture`** fotografa `/admin` e `/admin/metrics`; a
+  `/admin/security` tem de entrar no script, senão a única ferramenta que
+  alcança tela de admin não alcança a tela nova.
+
+**Corte em três PRs — decidido em 12/09/2026, pela medida da Fase 4:**
+**5a** a migration (remover `aiTokensUsed`; a tabela de auditoria, se a decisão
+for tabela), **5b** a API (`/api/admin/errors`, saturação no
+`/api/metrics/http`, as três colunas no `dashboardMetricsSchema`, o
+`response-schema-contract` estendido ao `DailyMetric`), **5c** o web (as três
+abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, o
+`admin:capture`). A 4 mostrou que schema separado de código revert-a limpo, e
+o 5c é o maior PR de tela do plano — misturá-lo com migration é o oposto do
+que o §19 pede.
+
+> **A migration do `ErrorEvent` fez o replay de verdade em 12/09/2026**, ao
+> preparar o banco local para esta fase: `prisma migrate deploy` aplicou
+> `20260822160000_add_product_events` (pendente localmente desde 22/08 — o
+> banco local nunca teve `ProductEvent`) e `20260910120000_add_error_events`,
+> e o `migrate diff --from-url` contra o schema devolveu **só** o
+> `News_sourceUrl_key` que o baseline por `migrate resolve` sempre deixou de
+> fora. É a medição que a guarda estática de `migrations.test.ts` diz não
+> substituir, feita.
+
+### O que o PR da migration decidiu — 12/09/2026 (5a ✅)
+
+As duas decisões abertas foram tomadas antes de escrever uma linha de schema,
+porque as duas eram schema — e o corte em três PRs existe justamente para que
+schema não viaje com código.
+
+**1. A auditoria de admin é tabela: `AuditEvent`.** Uma linha por
+**ocorrência**, ao contrário do `ErrorEvent`, e de propósito: auditoria
+responde *qual* clique, de *quem*, *quando*, e coalescer por hora apagaria
+exatamente isso. O teto vem de outro lugar — só um humano com sessão ADMIN
+produz linha. `actorId` é `User.id` **sem FK** (a trilha tem de sobreviver ao
+ator, e é o padrão de todo `userId` deste schema) e **só o id**, nenhum e-mail;
+`action` é **texto** com o conjunto fechado no código, pela regra do
+`ErrorEvent.code`; `targetId` e `outcome` separam "clicou" de "aconteceu" (o
+disparo que devolve `already-succeeded-today` é linha com `targetId` nulo).
+Retenção de **365 dias** — mais que qualquer outra tabela, porque log de
+segurança responde pergunta feita meses depois —, aplicada na etapa 8 pelo 5b.
+As alternativas, e por que não: `ErrorEvent` com `origin` próprio poluiria a
+rosquinha de erro por categoria e herdaria 14 dias e coalescimento; adiar com
+gatilho ("a primeira vez que perguntarem quem apagou X") é adiar para o momento
+em que já é tarde.
+
+**2. As horas do plano são um acumulador persistido: `DailyUptime`.** Uma
+linha por dia UTC (`date @unique`, `seconds`), **incrementada** — o heartbeat
+do 5b faz `upsert` com `increment` do delta desde o último tique, e o `onClose`
+grava o resto com o prazo que o flush do `ErrorEvent` já tem. Perda máxima por
+`SIGKILL`: um intervalo de heartbeat. A leitura é soma do mês / 750 h, e a
+linha de hoje é incompleta por definição. **Não é coluna do `DailyMetric`**:
+aquela linha nasce na etapa 9 uma vez por dia e o seed também a cria — um
+heartbeat a cada cinco minutos seria um segundo escritor com outra cadência na
+mesma linha. O rótulo honesto ("esta instância, desde X") foi recusado porque
+deixa o arco da §4.3 sem existir. Retenção indefinida, como `DailyMetric`.
+
+**3. `aiTokensUsed` saiu**, dos três lugares — schema, seed e ER. E a saída
+mostrou o buraco de guarda que o inventário tinha previsto: **nenhuma das
+quatro asserções da Fase 4 alcança coluna**, e o `diagram-drift` comparava
+entidade. Remover a coluna do schema e esquecer o `DROP COLUMN` deixava a suíte
+verde e o banco de produção com uma coluna morta para sempre — sem que
+`migrate status` reclamasse de nada.
+
+**As duas guardas novas, vistas reprovando nas duas direções antes de servir:**
+
+- `migrations.test.ts` ganhou um **replay estático de colunas**: aplica, na
+  ordem do `migrate deploy`, os `CREATE TABLE`, `ADD COLUMN`, `DROP COLUMN` e
+  `RENAME COLUMN` de todas as migrations sobre um conjunto por tabela e compara
+  com as colunas escalares do schema. Coluna no schema sem SQL reprova; coluna
+  criada pelo SQL que o schema já não declara reprova. O `RENAME` da Fase 6
+  (`newsId` → `itemId`) é o que obriga o replay a ser em ordem.
+- `diagram-drift.test.ts` passou a comparar **coluna a coluna** por entidade —
+  e, na estreia, as 13 entidades já existentes bateram sem divergência: a
+  reescrita de 01/09 estava certa até no atributo.
+
+**O SQL saiu de um replay real, e o replay real foi feito.** Com o Docker de
+pé, `prisma migrate diff --from-migrations … --shadow-database-url` replayou
+as cinco anteriores num shadow DB vazio e devolveu o delta — é o único caminho
+que produz o `DROP COLUMN`, que o `--from-empty` da Fase 4 não produz. Depois:
+`migrate deploy` aplicou no banco local (com 30 linhas de `DailyMetric` com a
+coluna preenchida pelo seed — o `DROP` foi sobre dado real), o diff contra o
+banco vivo devolveu **só** o `News_sourceUrl_key` de sempre, e as **seis**
+migrations replayadas do zero contra o schema deram *"No difference
+detected"*. O `migrate dev` ficou de fora de propósito: com a deriva conhecida
+do baseline, ele pediria reset.
+
+**1.015 → 1.018 testes na API.** Nenhuma mudança em `src/`.
+
+> **O que o 5b herda daqui, escrito para não ser redescoberto:** o ator do
+> disparo precisa atravessar BFF → cron → API (hoje a API não o vê); o
+> conjunto de `action` mora no código com guarda (`pipeline.triggered`,
+> `news.deleted`); a etapa 8 ganha o expurgo de 365 dias do `AuditEvent`; o
+> heartbeat do `DailyUptime` tem de ser **outbound-only** (escrita no banco não
+> acorda o Render — o que acorda é tráfego HTTP de entrada) e o `onClose` dele
+> precisa do mesmo prazo do flush do `ErrorEvent`; e o seed **não** popula as
+> duas tabelas — o `admin:capture` do 5c vai querer dado para fotografar, e é
+> lá que se decide.
 
 ---
 
@@ -1629,7 +1777,10 @@ Não-objetivos declarados como número, nunca como item de lista.
     comentário do layout diz ter consertado.
 12. **`@@index([fingerprint])` redundante** — o `@@unique([fingerprint,
     windowStart])` já é o alvo do upsert e serve busca por prefixo.
-13. **`aiTokensUsed`** — não renderizar. Só o seed a escreve.
+13. ~~**`aiTokensUsed`** — não renderizar. Só o seed a escreve.~~ **Removida em
+    12/09/2026 (PR 5a)**, dos três lugares. A armadilha que sobrou é a de
+    coluna morta em geral, e ela tem guarda: o replay estático de colunas do
+    `migrations.test.ts`.
 14. **`inline-block` é proibido no projeto inteiro** — o `--spacing-block`
     sombreia a utility. Usar `inline-flex`, como o `admin-nav.tsx` já faz.
 15. **Rosquinha com fatia única em 100%** — `stroke-dasharray` com o arco
@@ -1699,7 +1850,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Rota nova na API | `authorization-matrix.test.ts` (linha na `MATRIX`), `api-docs-drift.test.ts` (linha em `docs/api.md`), `shared-type-contract.test.ts` (tipo ou exceção escrita) |
 | Página nova no web | `state-matrix.test.ts` (linha + `toHaveLength`), `i18n-messages.test.ts` (chave nos **dois** arquivos de mensagem), `seo.test.ts` (`pageMetadata`/`alternatesFor`) |
 | Componente novo | `design-tokens.test.ts` (paleta camada 1, `inline-block`, `rounded-xl+`, `duration-<n>`, `shadow-*`) |
-| Migration | `migrations.test.ts` — **estática**, porque `turbo test` roda sem banco. Desde a Fase 4 ela é **derivada do schema**: model, enum ou índice declarado sem SQL que o crie reprova |
+| Migration | `migrations.test.ts` — **estática**, porque `turbo test` roda sem banco. Desde a Fase 4 ela é **derivada do schema**: model, enum ou índice declarado sem SQL que o crie reprova. **Desde a Fase 5, coluna também, nas duas direções** — replay estático dos `CREATE TABLE`/`ADD`/`DROP`/`RENAME COLUMN` na ordem do deploy contra as colunas escalares do schema |
+| **Coluna que sai do schema** | `migrations.test.ts` (o replay acima cobra o `DROP COLUMN`) e `diagram-drift.test.ts`, que desde a Fase 5 compara o ER **coluna a coluna** — o `aiTokensUsed` ficou desenhado depois de sair, e a comparação por entidade não via |
 | **Model novo no `schema.prisma`** | `schema-docs-drift.test.ts` (Fase 4) — a lista de models e a de enums do `packages/database/CLAUDE.md`; e `diagram-drift.test.ts`, que cobra a entidade no ER |
 | Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia |
@@ -1895,7 +2047,9 @@ aplica as duas migrations juntas na promoção.**
 | ~~5~~ ✅ | **§7 — Fase 3, taxonomia** — **entregue em 09/09/2026** | O `code` que a Fase 4 usa como fingerprint, agora com teto e guarda derivada do parser. Achou de quebra o `catch` do `authPlugin`, que engolia **toda** recusa de sessão. Item **56** do `docs/progress.md` |
 | ~~6a~~ ✅ | **§8 — Fase 4, a migration** — **entregue em 10/09/2026** | PR só de schema. `ErrorEvent` + os dois índices que o `PipelineLog` nunca teve. Nasceu junto a guarda que cobra migration para todo model, enum e índice do schema. Item **59** do `docs/progress.md` |
 | ~~6b~~ ✅ | **§8 — Fase 4, o código** — **entregue em 10/09/2026** | `recordError` (síncrona, coalescente, nunca lança), o buffer com flush de 30 s e no `onClose`, e a retenção de 14 dias na etapa 8. Item **60** |
-| **7 ← próxima** | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16 |
+| ~~7a~~ ✅ | **§9 — Fase 5, a migration** — **entregue em 12/09/2026** | PR só de schema. `AuditEvent` (a auditoria de admin virou tabela), `DailyUptime` (as horas do plano viraram acumulador — `process.uptime()` não sabe dar desde que a API dorme), e o `aiTokensUsed` fora. Nasceram as duas guardas de **coluna**: o replay estático do `migrations.test.ts` e o ER coluna a coluna. Item **62** do `docs/progress.md` |
+| **7b ← próxima** | **§9 — Fase 5, a API** | `GET /api/admin/errors`, saturação no `/api/metrics/http` (memória, event loop, e a soma do `DailyUptime`), as três colunas no `dashboardMetricsSchema`, o `response-schema-contract` estendido ao `DailyMetric`, quem escreve `AuditEvent` (o ator do disparo tem de atravessar BFF → cron → API) e o heartbeat do `DailyUptime`. Rota nova custa as três guardas do §18 |
+| **7c** | **§9 — Fase 5, o web** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. As três abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, e o `admin:capture` cobrindo a tela nova. O maior PR de tela do plano — e é por isso que a migration não viajou com ele |
 
 **Bloco 3 — depois da espinha, em qualquer ordem.**
 

@@ -64,6 +64,46 @@ function entidadesDoDiagrama(): string[] {
   return [...ler(ER).matchAll(/^ {4}([A-Z][A-Z_]*)\s*\{/gm)].map((m) => m[1] as string);
 }
 
+/**
+ * As colunas escalares de cada model do schema — tudo que não é relação.
+ *
+ * Campo de relação é o cujo tipo é outro model (`events PipelineEvent[]`) ou
+ * que carrega `@relation`; nenhum dos dois é coluna, e o ER não os desenha
+ * como atributo — desenha como linha entre entidades. Lista de enum
+ * (`categories Category[]`) **é** coluna.
+ */
+function colunasDoSchema(): Map<string, string[]> {
+  const models = new Set(modelosDoSchema());
+  const colunas = new Map<string, string[]>();
+
+  for (const [, model, body] of semComentarios(ler(SCHEMA)).matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)) {
+    const proprias: string[] = [];
+    for (const linha of (body as string).split('\n')) {
+      const campo = /^\s*(\w+)\s+(\w+)(\[\])?\??(\s|$)/.exec(linha);
+      if (!campo || linha.includes('@relation') || models.has(campo[2] as string)) continue;
+      proprias.push(campo[1] as string);
+    }
+    colunas.set(model as string, proprias.sort());
+  }
+
+  return colunas;
+}
+
+/**
+ * Os atributos que cada entidade do ER desenha — a segunda palavra de cada
+ * linha do bloco (`int pipelineErrors "nullable"` → `pipelineErrors`).
+ */
+function atributosDoDiagrama(): Map<string, string[]> {
+  const atributos = new Map<string, string[]>();
+
+  for (const [, entidade, body] of ler(ER).matchAll(/^ {4}([A-Z][A-Z_]*)\s*\{([\s\S]*?)^ {4}\}/gm)) {
+    const nomes = [...(body as string).matchAll(/^ {8}\S+\s+(\w+)/gm)].map((m) => m[1] as string);
+    atributos.set(entidade as string, nomes.sort());
+  }
+
+  return atributos;
+}
+
 /** Toda `page.tsx` sob `app/[locale]`, como rota: `/`, `/news/[id]`, … */
 function rotasDoApp(): string[] {
   const base = path.join(RAIZ, 'apps/web/app/[locale]');
@@ -102,6 +142,9 @@ describe('os diagramas acompanham o sistema que descrevem', () => {
     expect(modelosDoSchema()).toContain('BriefingSource');
     expect(enumsDoSchema()).toContain('FavoriteItemType');
     expect(entidadesDoDiagrama()).toContain('BRIEFING_SOURCE');
+    expect(colunasDoSchema().get('PipelineLog')).toContain('startedAt');
+    expect(colunasDoSchema().get('PipelineLog')).not.toContain('events');
+    expect(atributosDoDiagrama().get('PIPELINE_LOG')).toContain('startedAt');
     expect(rotasDoApp()).toContain('/news/[id]');
     expect(etapasAnunciadas()).toContain('8.5');
   });
@@ -109,6 +152,30 @@ describe('os diagramas acompanham o sistema que descrevem', () => {
   it('o ER declara uma entidade para cada model do schema', () => {
     const esperadas = modelosDoSchema().map(paraEntidade).sort();
     expect(entidadesDoDiagrama().sort()).toEqual(esperadas);
+  });
+
+  it('o ER desenha, em cada entidade, exatamente as colunas do model', () => {
+    // A guarda de entidade passa verde sobre uma coluna que saiu do schema e
+    // ficou no desenho — foi o `aiTokensUsed`, removido na Fase 5 do plano de
+    // observabilidade, que o inventário da §9 tinha achado em três lugares e
+    // esta guarda não alcançava. Conjunto por entidade, nas duas direções:
+    // coluna do schema que o ER não desenha, e atributo do ER que o schema
+    // não tem.
+    const atributos = atributosDoDiagrama();
+    const divergencias: string[] = [];
+
+    for (const [model, colunas] of colunasDoSchema()) {
+      const entidade = paraEntidade(model);
+      const desenhadas = atributos.get(entidade) ?? [];
+      for (const coluna of colunas) {
+        if (!desenhadas.includes(coluna)) divergencias.push(`${entidade}.${coluna}: no schema, não desenhada`);
+      }
+      for (const atributo of desenhadas) {
+        if (!colunas.includes(atributo)) divergencias.push(`${entidade}.${atributo}: desenhada, ausente do schema`);
+      }
+    }
+
+    expect(divergencias).toEqual([]);
   });
 
   it('o ER nomeia todos os enums do schema', () => {

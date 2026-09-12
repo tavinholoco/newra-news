@@ -1,8 +1,11 @@
 %% Diagrama Entidade-Relacionamento — Newra News
 %% ---
-%% Atualizado em 10/09/2026: **todas** as tabelas do `schema.prisma` — o de
+%% Atualizado em 12/09/2026: **todas** as tabelas do `schema.prisma` — o de
 %% 16/08 documentava quatro, e o de 01/09 ganhou as oito que faltavam. A
-%% ERROR_EVENT entrou com a Fase 4 do plano de observabilidade.
+%% ERROR_EVENT entrou com a Fase 4 do plano de observabilidade; AUDIT_EVENT e
+%% DAILY_UPTIME com a Fase 5, que também tirou o `aiTokensUsed` de
+%% DAILY_METRIC — e a guarda passou a comparar **coluna a coluna**, porque a
+%% comparação por entidade deixava a coluna morta no desenho.
 %% ---
 %% A contagem saiu daqui de propósito: número que descreve uma coleção apodrece
 %% no primeiro `model` novo, e quem garante que este desenho está completo é o
@@ -140,7 +143,6 @@ erDiagram
         boolean articleGenerated
         int pipelineDuration "ms, nullable"
         string aiProvider "gemini ou groq, nullable"
-        int aiTokensUsed "nullable"
         int pipelineErrors
         int newsApiCount "NewsData.io"
         int rssCount
@@ -179,6 +181,24 @@ erDiagram
         datetime lastSeenAt
     }
 
+    AUDIT_EVENT {
+        string id PK "uuid"
+        string actorId "User.id — ponteiro lógico, sem FK: a trilha sobrevive ao ator"
+        string action "conjunto fechado no código — texto, não enum do banco"
+        string targetId "notícia apagada ou run disparado, nullable"
+        string outcome "o que a rota devolveu — separa clicou de aconteceu, nullable"
+        string requestId "acha a linha do log, nullable"
+        json context "amostra escalar, nullable"
+        datetime createdAt "1 linha por ocorrência — auditoria não coalesce"
+    }
+
+    DAILY_UPTIME {
+        string id PK "uuid"
+        datetime date UK "dia UTC — 1 linha por dia, incrementada pelo heartbeat"
+        int seconds "acumulado do dia; soma do mês / 750 h é o arco do plano"
+        datetime updatedAt
+    }
+
     ARTICLE ||--o{ BRIEFING_SOURCE : "sources — FK, cascade"
     PIPELINE_LOG ||--o{ PIPELINE_EVENT : "events — FK, cascade"
 
@@ -191,5 +211,8 @@ erDiagram
     USER ||--o| USER_PREFERENCE : "userId (lógica)"
     USER ||--o{ FAVORITE : "userId (lógica)"
     USER ||--o| SUBSCRIBER : "userId (lógica, nullable)"
+    USER ||--o{ AUDIT_EVENT : "actorId (lógica — sem FK de propósito)"
     FAVORITE }o--o| NEWS : "itemId quando itemType = NEWS"
     FAVORITE }o--o| ARTICLE : "itemId quando itemType = ARTICLE"
+    AUDIT_EVENT }o--o| NEWS : "targetId quando action = news.deleted"
+    AUDIT_EVENT }o--o| PIPELINE_LOG : "targetId quando action = pipeline.triggered"
