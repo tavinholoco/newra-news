@@ -1,5 +1,10 @@
 import { Prisma, prisma } from '@newranews/database';
 import type { PipelineEventLevel } from '@newranews/database';
+import {
+  PIPELINE_DEGRADED_CODE,
+  PIPELINE_FAILED_CODE,
+  recordError,
+} from './error-event.service';
 import { baseLogger } from '../utils/logger';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
@@ -98,6 +103,67 @@ export function extractErrorDetail(error: unknown): PipelineErrorDetail {
   return detail;
 }
 
+/**
+ * A etapa como escopo da falha — a peça do fingerprint que separa "a coleta
+ * falhou" de "a newsletter falhou".
+ *
+ * Conjunto finito por construção: são as etapas que o pipeline anuncia, e o
+ * `diagram-drift.test.ts` já as enumera a partir da fonte. **Sem contagem
+ * escrita aqui de propósito** — o número de etapas anunciadas já divergiu do
+ * número de etapas do plano, e as duas prosas estavam certas.
+ */
+function stageScope(stage: number): string {
+  return `stage-${stage}`;
+}
+
+/**
+ * A categoria de uma falha de etapa, inferida do que `extractErrorDetail` já
+ * sabe.
+ *
+ * É inferência, e o comentário diz isso de propósito: os providers ainda lançam
+ * `Error` cru — a taxonomia da Fase 3 não os alcança —, então o provider sai da
+ * mensagem. **Gatilho para apagar esta função:** converter `gemini`, `newsdata`,
+ * `resend` e o `pipeline.service` para `AppError`, que é a dívida que a Fase 3
+ * deixou escrita. Aí a categoria vem do erro, e não de um palpite sobre o
+ * texto dele.
+ */
+function categoryForStageFailure(context?: Record<string, unknown>): string {
+  const provider = typeof context?.provider === 'string' ? context.provider : undefined;
+  if (provider === 'prisma') return 'database';
+  if (provider !== undefined) return 'upstream';
+  return 'internal';
+}
+
+/**
+ * Põe a falha de etapa no buffer do `ErrorEvent`. Síncrona e sem lançar, como
+ * o `recordError` que ela chama.
+ *
+ * **Dois códigos, e não um com duas severidades**, porque a diferença é de
+ * natureza: `ERROR` aborta o run e `WARN` é etapa não-crítica que falhou
+ * sozinha (a newsletter, o cleanup, a renormalização). São os dois estados que
+ * pedem ações diferentes de quem lê a tela.
+ */
+function recordPipelineEvent(
+  stage: number,
+  level: PipelineEventLevel,
+  message: string,
+  context?: Record<string, unknown>,
+): void {
+  if (level === 'INFO') return;
+
+  recordError({
+    origin: 'PIPELINE',
+    severity: level === 'ERROR' ? 'ERROR' : 'WARN',
+    code: level === 'ERROR' ? PIPELINE_FAILED_CODE : PIPELINE_DEGRADED_CODE,
+    category: categoryForStageFailure(context),
+    message,
+    route: stageScope(stage),
+    // `statusCode` do provedor quando `extractErrorDetail` conseguiu inferi-lo;
+    // é HTTP de terceiro, não da nossa resposta.
+    statusCode: typeof context?.statusCode === 'number' ? context.statusCode : null,
+  });
+}
+
 function toJsonRecord(value: unknown): Record<string, unknown> | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'object') return null;
@@ -143,6 +209,20 @@ function toSummary(
  * Registra um evento da pipeline (Stage 1–9, nível, mensagem e contexto JSON).
  * Nunca lança: observabilidade não pode quebrar o pipeline — falha de
  * persistência vira uma linha de `warn` no log, e nada além disso.
+ *
+ * ## O que a Fase 4 acrescentou: `WARN` e `ERROR` também viram `ErrorEvent`
+ *
+ * A fiação fica **aqui, e não em cada `catch` de etapa**, pelo mesmo motivo
+ * que a pôs dentro do `logAppError` do outro lado: este é o único ponto por
+ * onde toda etapa anuncia que algo deu errado, e enumerar `catch` à mão é a
+ * forma de guarda que este projeto já viu falhar por omissão. Etapa nova entra
+ * sozinha.
+ *
+ * **O que isso responde, e o `PipelineLog` não respondia:** *"a etapa 8.5 falha
+ * há três dias?"*. O run guarda o desfecho de um dia; o `ErrorEvent` coalesce a
+ * mesma falha ao longo da retenção, com contagem.
+ *
+ * **`INFO` não grava** — é o caminho feliz, e é a maioria das linhas de um run.
  */
 export async function logPipelineEvent(
   pipelineLogId: string,
@@ -151,6 +231,8 @@ export async function logPipelineEvent(
   message: string,
   context?: Record<string, unknown>,
 ): Promise<void> {
+  recordPipelineEvent(stage, level, message, context);
+
   try {
     await prisma.pipelineEvent.create({
       data: {

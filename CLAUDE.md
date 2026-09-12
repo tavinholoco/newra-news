@@ -284,9 +284,9 @@ a suíte de unidade, que roda sem rede.
   `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
-  09/09, abrindo a espinha; e a **4 abriu em 10/09, pelo PR da migration**.**
-  Continuam abertas **cinco fases inteiras** (5, 6, 8, 9 e 11), a **metade de
-  código da 4** e as subfases **7b e 7c**. O **§19** é
+  09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
+  PRs**.** Continuam abertas **cinco fases inteiras** (5, 6, 8, 9 e 11) mais as
+  subfases **7b e 7c**. A próxima é a **5** (as telas). O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -341,14 +341,34 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
-- **Fora da linha das fases (2026-09-10): a falha ganhou onde ser gravada.** A
-  **Fase 4** (§8), PR 6a da ordem do §19 — *só* schema. `ErrorEvent` grava **uma
-  linha por `(fingerprint, hora)`**, e não por ocorrência: um 500 que dispara
-  10.000 vezes numa hora é uma linha com `count: 10000`, o que dá à tabela um
-  teto de *falhas distintas × 24* qualquer que seja o tráfego. Junto vieram os
-  **dois índices que o `PipelineLog` nunca teve** — zero `@@index` em nove
-  fases, com `getDevLogs` ordenando por `startedAt desc`. **967 → 974 testes na
-  API.** Item **59** do `docs/progress.md`.
+- **Fora da linha das fases (2026-09-10): a falha parou de morrer junto com a
+  linha de log.** A **Fase 4** (§8), nos dois PRs da ordem do §19 — **6a** só o
+  schema, **6b** o código. `ErrorEvent` grava **uma linha por
+  `(fingerprint, hora)`**, e não por ocorrência: um 500 que dispara 10.000 vezes
+  numa hora é uma linha com `count: 10000`, o que dá à tabela um teto de *falhas
+  distintas × 24* qualquer que seja o tráfego. `recordError` é **síncrona,
+  coalescente e nunca lança**; quem persiste é um intervalo de 30 s mais o
+  `onClose`, e a etapa 8 apaga aos 14 dias. Junto vieram os **dois índices que o
+  `PipelineLog` nunca teve** — zero `@@index` em nove fases, com `getDevLogs`
+  ordenando por `startedAt desc`. **967 → 1.003 testes na API.** Itens **59** e
+  **60** do `docs/progress.md`.
+
+  > **Quem escreve são dois pontos únicos, e uma exceção declarada.**
+  > `logAppError` (as três portas da API) e `logPipelineEvent` (toda etapa) — e
+  > **não** os `catch`, porque enumerar `catch` à mão é a forma de guarda que a
+  > Fase 7a viu falhar por omissão. A exceção é o ramo do **500 cru**, que não é
+  > `AppError` e é justamente a falha que menos se sabe explicar depois.
+  >
+  > **O flush do desligamento precisou de prazo, e o teste deu o preço.** Sem
+  > limite, a suíte que não mocka o Prisma travou o `afterAll` em **10 s**; em
+  > produção o mesmo desenho entrega o processo ao `SIGKILL`, porque `close()` é
+  > o caminho do `SIGTERM` e **a hora em que há erro acumulado é a hora em que o
+  > banco é o suspeito**.
+  >
+  > **E uma guarda minha passava verde sobre o defeito que existia para achar** —
+  > sétima vez desta família. A asserção da severidade no fingerprint variava o
+  > **código** junto, então continuava verde com a severidade removida. Só
+  > apareceu porque as cinco quebras de propósito foram rodadas uma a uma.
 
   > **A guarda nova fecha um buraco que não tinha sintoma: mudar o
   > `schema.prisma` e esquecer a migration deixa a suíte inteira verde.** O
@@ -720,7 +740,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.657 em 140 suites (**974 API em 69** + **683 web em 71** — todos
+- **Testes:** 1.686 em 141 suites (**1.003 API em 70** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

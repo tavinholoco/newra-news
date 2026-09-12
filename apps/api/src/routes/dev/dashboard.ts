@@ -236,6 +236,7 @@ export async function devDashboardRoutes(app: FastifyInstance) {
       if (presented && error instanceof AppError) {
         logAppError(request.log, error, {
           route: request.routeOptions?.url ?? 'unmatched',
+          requestId: request.id,
         });
       }
       return false;
@@ -288,7 +289,7 @@ export async function devDashboardRoutes(app: FastifyInstance) {
             code: 'DASHBOARD_SECRET_INVALID',
             context: { presented: Boolean(secret) },
           }),
-          { route: request.routeOptions?.url ?? 'unmatched' },
+          { route: request.routeOptions?.url ?? 'unmatched', requestId: request.id },
         );
         // 303 e nao 401: o browser tem de trocar o POST por um GET, senao o
         // reload da pagina de erro reenvia o segredo.

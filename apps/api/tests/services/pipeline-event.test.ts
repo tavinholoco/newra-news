@@ -6,6 +6,11 @@ import {
   getDevLogs,
   logPipelineEvent,
 } from '../../src/services/pipeline-event.service';
+import {
+  pendingErrorEventCount,
+  pendingErrorEvents,
+  resetErrorEventBuffer,
+} from '../../src/services/error-event.service';
 
 vi.mock('@newranews/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@newranews/database')>();
@@ -254,5 +259,84 @@ describe('getDevLogDetail', () => {
     await expect(
       getDevLogDetail('ffffffff-ffff-ffff-ffff-ffffffffffff'),
     ).resolves.toBeNull();
+  });
+});
+
+/**
+ * **A fiação da §8 do lado do pipeline.**
+ *
+ * A chamada a `recordError` fica dentro do `logPipelineEvent`, e não nos oito
+ * `catch` das etapas, pelo mesmo motivo que a pôs dentro do `logAppError`: este
+ * é o **único** ponto por onde toda etapa anuncia que algo deu errado. Enumerar
+ * `catch` à mão é a forma de guarda que este projeto já viu falhar por omissão
+ * — a varredura da Fase 7a cobria uma pasta e a única rota fora dela era
+ * justamente a que engolia a falha.
+ *
+ * O que isto compra, e o `PipelineLog` não comprava: *"a etapa 8.5 falha há
+ * três dias?"*. O run guarda o desfecho de um dia; o `ErrorEvent` coalesce a
+ * mesma falha ao longo da retenção, com contagem.
+ */
+describe('§8 — o evento de etapa também vira registro durável', () => {
+  beforeEach(() => {
+    resetErrorEventBuffer();
+  });
+
+  it('grava o `ERROR` de uma etapa, com a etapa como escopo', async () => {
+    await logPipelineEvent('run-1', 6, 'ERROR', 'Gemini API error 500: boom', {
+      provider: 'gemini',
+      statusCode: 500,
+    });
+    const [event] = pendingErrorEvents();
+
+    expect(event?.origin).toBe('PIPELINE');
+    expect(event?.severity).toBe('ERROR');
+    expect(event?.code).toBe('PIPELINE_STAGE_FAILED');
+    // A etapa é o que separa "a coleta falhou" de "a newsletter falhou", e é
+    // conjunto finito — hoje onze.
+    expect(event?.route).toBe('stage-6');
+    expect(event?.statusCode).toBe(500);
+    expect(event?.category).toBe('upstream');
+  });
+
+  it('grava o `WARN` de etapa não-crítica com outro código', async () => {
+    await logPipelineEvent('run-1', 8.5, 'WARN', 'Renormalization failed (non-critical)');
+    const [event] = pendingErrorEvents();
+
+    expect(event?.severity).toBe('WARN');
+    expect(event?.code).toBe('PIPELINE_STAGE_DEGRADED');
+    expect(event?.route).toBe('stage-8.5');
+    // Sem provider inferido, a culpa é nossa até prova em contrário.
+    expect(event?.category).toBe('internal');
+  });
+
+  it('chama o Prisma de `database`, e não de `upstream`', async () => {
+    await logPipelineEvent('run-1', 4, 'ERROR', 'boom', { provider: 'prisma' });
+
+    expect(pendingErrorEvents()[0]?.category).toBe('database');
+  });
+
+  it('**não** grava o `INFO`, que é o caminho feliz', async () => {
+    await logPipelineEvent('run-1', 1, 'INFO', 'News collected', { count: 377 });
+
+    // São ~15 por run; gravá-los faria a tabela de falhas contar sucesso.
+    expect(pendingErrorEvents()).toEqual([]);
+  });
+
+  it('coalesce a mesma etapa falhando de novo dentro da hora', async () => {
+    await logPipelineEvent('run-1', 8.5, 'WARN', 'Renormalization failed (non-critical)');
+    await logPipelineEvent('run-1', 8.5, 'WARN', 'Renormalization failed (non-critical)');
+
+    expect(pendingErrorEvents()).toHaveLength(1);
+    expect(pendingErrorEventCount()).toBe(2);
+  });
+
+  it('registra mesmo quando a persistência do evento falha', async () => {
+    // Os dois registros são independentes de propósito: o `PipelineEvent` vive
+    // no mesmo banco que pode estar fora, e o buffer não.
+    vi.mocked(prisma.pipelineEvent.create).mockRejectedValueOnce(new Error('P1001'));
+
+    await logPipelineEvent('run-1', 6, 'ERROR', 'boom');
+
+    expect(pendingErrorEvents()).toHaveLength(1);
   });
 });

@@ -150,7 +150,8 @@ Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup �
 **Renormalização** → Métricas
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias,
-**ProductEvents >90 dias** (por `occurredAt`)
+**ProductEvents >90 dias** (por `occurredAt`) e **ErrorEvents >14 dias** (por
+`windowStart`)
 
 **A etapa 8.5 (renormalização) é o que faz uma correção de regra alcançar o que
 já está gravado.** Consertar a ingestão só conserta o que entra; sem ela, uma
@@ -512,6 +513,71 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
 - **`ErrorContext` é `Record<string, escalar>` de propósito.** O `context` vai
   para o log e, na Fase 4, para uma coluna; objeto aninhado é como um segundo
   erro inteiro entra sem passar por redação nenhuma.
+
+## O registro durável de falha (Fase 4 do plano de observabilidade)
+
+`src/services/error-event.service.ts` e o `model ErrorEvent`. Fecha o buraco de
+que **o único vestígio de um 500 era uma linha do stdout do Render** — que rola
+para fora, não sobrevive a um deploy e não responde "isto já aconteceu antes?".
+
+| Peça | Papel |
+|---|---|
+| `services/error-event.service.ts` | o buffer, o fingerprint, o flush e o expurgo |
+| `plugins/error-events.ts` | o intervalo de 30 s e o flush no `onClose` |
+| `utils/errors.ts` (`logAppError`) | a fiação do lado da API |
+| `services/pipeline-event.service.ts` (`logPipelineEvent`) | a fiação do lado do pipeline |
+
+Regras que não são óbvias no código:
+
+- **`recordError` é síncrona por contrato, e há teste sobre a forma da função.**
+  Ela muta um `Map` e retorna `undefined`. Escrever no banco dentro do
+  tratamento de um erro *de banco* é falha auto-amplificante — e o dia em que
+  ela virar `async`, alguém acrescenta um `await` no handler e põe a ida ao
+  banco no caminho que já falhou.
+- **Uma linha por `(fingerprint, hora)`**, com `count`. Um 500 que dispara
+  10.000 vezes numa hora é uma linha: a tabela cresce com *falhas distintas ×
+  24*, nunca com o tráfego.
+- **O fingerprint é `origin:severity:code:route`**, e as quatro peças são de
+  conjunto finito. A **severidade entrou na implementação**, fora do desenho: o
+  pipeline registra a mesma etapa como `WARN` e como `ERROR`, e sem ela as duas
+  colidiriam com a segunda apagando a gravidade da primeira.
+- **`route` é escopo, não só rota**: o padrão da rota na API, `stage-8.5` no
+  pipeline. URL crua ou id de recurso trocariam o teto por "uma linha por
+  notícia" — há guarda pelo parser cobrando que nenhum `code` chegue interpolado
+  ao `recordError`.
+- **O nível decide o que vira linha, e `debug` não vira.** É `logLevelFor`
+  outra vez: um 404 em `/news/:id` é resultado normal, e gravá-lo encheria a
+  tela com a única falha que não é falha. **Gatilho para mudar:** a primeira vez
+  que a pergunta for "que endereço estão pedindo e não existe?".
+- **A fiação mora nos dois pontos únicos**, `logAppError` e `logPipelineEvent`,
+  e não nos `catch`. Enumerar `catch` à mão é a forma de guarda que este projeto
+  já viu falhar por omissão. **Exceção declarada:** o ramo do 500 cru no
+  `app.ts`, que não passa por `logAppError` porque não é `AppError` — e é a
+  falha mais grave que a API sabe produzir, então a chamada é explícita ali.
+- **A mensagem e o `context` passam por `scrubMessage`/`scrubErrorContext`, do
+  `utils/logger.ts`.** São as mesmas funções do serializer, e não uma cópia: o
+  modo de falha de uma segunda cópia é a coluna vazar, de forma **durável**, o
+  segredo que o log aprendeu a esconder.
+- **O flush do `onClose` tem prazo (`ERROR_EVENT_CLOSE_TIMEOUT_MS`).** Esperar
+  sem limite põe uma ida ao banco no caminho do desligamento, e a hora em que há
+  erro acumulado é justamente a hora em que o banco é o suspeito. Medido ao
+  escrever a fase: sem prazo, uma suíte de rota travou o `afterAll` em 10 s.
+- **A falha do flush é escrita pelo `baseLogger` direto**, nunca por
+  `logAppError` — aquele chama `recordError`, e o laço se fecharia exatamente
+  quando o banco está fora. Há teste sobre isso.
+- **`code` e `category` são texto no banco**, e o conjunto fechado mora em
+  `utils/errors.ts`. Enum do Postgres cobraria uma migration por código novo, e
+  cada fase seguinte do plano acrescenta pelo menos um.
+- **`origin: WEB` e `origin: INVARIANT` ainda não têm produtor** — são das
+  Fases 7b/7c e 6. O enum descreve o desenho; a coluna aceita o que existe hoje.
+- **`pipelineLogId` vem do `AsyncLocalStorage`** que o `runPipeline` abre, e é o
+  **último visto** dentro da janela. Por isso não é chave estrangeira: uma FK
+  afirmaria um vínculo que o coalescimento torna falso, e impediria o expurgo do
+  run.
+- **A categoria de uma falha de etapa é inferida do provider**, porque os
+  providers ainda lançam `Error` cru. **Gatilho para apagar a inferência:**
+  converter `gemini`, `newsdata`, `resend` e o `pipeline.service` para
+  `AppError` — a dívida que a Fase 3 deixou escrita.
 
 ## Observabilidade da API
 

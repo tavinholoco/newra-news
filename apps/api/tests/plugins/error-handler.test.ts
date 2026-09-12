@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { FastifyInstance } from 'fastify';
 import { SignJWT } from 'jose';
 import { AppError, NotFoundError } from '../../src/utils/errors';
+import {
+  pendingErrorEvents,
+  resetErrorEventBuffer,
+} from '../../src/services/error-event.service';
 
 /**
  * **A fiação da §7 — o handler global, o `setNotFoundHandler`, e o `catch` do
@@ -458,5 +462,104 @@ describe('§7 (pós-merge) — a defesa que dispara em silêncio', () => {
         (l) => (l.err as { code?: string } | undefined)?.code === 'CONTENT_TYPE_REJECTED',
       ),
     ).toEqual([]);
+  });
+});
+
+/**
+ * **A fiação da §8 — o que o log escreve, a tabela também guarda.**
+ *
+ * Mesma razão do bloco de cima, um andar adiante: `error-event.test.ts` prova
+ * que o buffer coalesce e nunca lança, e nada ali prova que **alguém chama**.
+ * Tirar a linha de `recordError` de dentro do `logAppError` deixaria aquele
+ * arquivo inteiro verde, com o produto voltando a esquecer toda falha assim que
+ * a linha de log rola para fora — que é o buraco que esta fase existe para
+ * fechar.
+ *
+ * As asserções são sobre o **buffer**, não sobre o Prisma: o que se mede aqui é
+ * o registro, e persistir é trabalho do flush (que esta suíte nem tem mockado).
+ */
+describe('§8 — a falha que o handler escreve também vira registro durável', () => {
+  beforeEach(() => {
+    resetErrorEventBuffer();
+  });
+
+  it('grava o `AppError` de 500 com origem, severidade e rota', async () => {
+    const res = await app.inject({ method: 'GET', url: '/probe/app-error-500' });
+    const [event] = pendingErrorEvents();
+
+    expect(event?.origin).toBe('API');
+    expect(event?.severity).toBe('ERROR');
+    expect(event?.code).toBe('INTERNAL');
+    expect(event?.category).toBe('database');
+    expect(event?.route).toBe('/probe/app-error-500');
+    expect(event?.statusCode).toBe(500);
+    // O `requestId` é o mesmo `x-request-id` que a resposta devolve — é ele que
+    // liga esta linha da tabela à linha do log, nas duas pontas da janela.
+    expect(event?.firstRequestId).toBe(res.headers['x-request-id']);
+  });
+
+  it('**não** grava o 404, que é resultado normal', async () => {
+    await app.inject({ method: 'GET', url: '/probe/not-found' });
+
+    // A regra é o nível: `debug` não vira linha. Gravá-lo encheria a tela com a
+    // única falha que não é falha — todo robô com endereço velho produz um.
+    expect(pendingErrorEvents()).toEqual([]);
+  });
+
+  it('grava a recusa de autorização como `WARN`', async () => {
+    await app.inject({ method: 'GET', url: '/probe/forbidden' });
+    const [event] = pendingErrorEvents();
+
+    expect(event?.severity).toBe('WARN');
+    expect(event?.code).toBe('ADMIN_REQUIRED');
+  });
+
+  it('grava o 500 cru, que é o que menos se sabe explicar depois', async () => {
+    await app.inject({ method: 'GET', url: '/probe/raw-500' });
+    const [event] = pendingErrorEvents();
+
+    // Este ramo não passa por `logAppError` — não é `AppError` —, então a
+    // chamada é explícita no handler. É a armadilha 29 relida do outro lado.
+    expect(event?.code).toBe('UNHANDLED');
+    expect(event?.category).toBe('internal');
+    expect(event?.severity).toBe('ERROR');
+  });
+
+  it('grava a recusa de `content-type`, que responde fora do handler', async () => {
+    // O caractere de controle é o que faz a requisição chegar ao nosso hook —
+    // com um espaço no lugar dele quem responde 415 é o próprio Fastify, e a
+    // guarda mediria uma defesa que não disparou.
+    await app.inject({
+      method: 'POST',
+      url: '/api/events',
+      headers: { 'content-type': `application/json;\tmarcador-forjado` },
+      payload: '{}',
+    });
+    const [event] = pendingErrorEvents();
+
+    expect(event?.code).toBe('CONTENT_TYPE_REJECTED');
+    expect(event?.statusCode).toBe(415);
+    // E o cabeçalho forjado continua fora — do log e agora também da coluna.
+    expect(JSON.stringify(pendingErrorEvents())).not.toContain('marcador-forjado');
+  });
+
+  it('o `onClose` esvazia o buffer — sem ele, o desligamento perde tudo', async () => {
+    const { buildApp } = await import('../../src/app');
+    const disposable = await buildApp();
+
+    // A rota entra **antes** do `ready()`: o Fastify recusa rota nova depois de
+    // a instância começar a servir, e o `inject` faz o `ready()` sozinho.
+    disposable.get('/probe/closing', async () => {
+      throw new AppError('the archive did not answer', 500);
+    });
+    await disposable.inject({ method: 'GET', url: '/probe/closing' });
+    expect(pendingErrorEvents()).toHaveLength(1);
+
+    await disposable.close();
+
+    // O `prisma.errorEvent` não existe no mock desta suíte, então o upsert
+    // falha e o `catch` do flush o absorve — o que se mede aqui é que o flush
+    // **aconteceu**, que é a fiação. Sem o hook, o buffer continuaria cheio.
+    expect(pendingErrorEvents()).toEqual([]);
   });
 });

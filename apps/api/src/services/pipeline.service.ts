@@ -4,6 +4,7 @@ import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
 import { renormalizeStoredNews } from './news-renormalizer.service';
 import { deleteExpiredProductEvents } from './product-event.service';
+import { deleteExpiredErrorEvents } from './error-event.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
@@ -390,7 +391,11 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       // é o mesmo expurgo por idade que a notícia e o briefing já fazem, e o
       // que a §4 dos slots pede (90 dias no nível de evento). Etapa própria
       // seria um segundo lugar para lembrar de olhar quando algo parasse.
-      const [deletedNews, deletedLogs, deletedArticles, deletedEvents] =
+      //
+      // O `ErrorEvent` entrou pelo mesmo argumento, com corte em **14 dias** —
+      // ele responde "o que está quebrado agora", e não "estava quebrado no mês
+      // passado", que é o que `PipelineLog` e `DailyMetric` respondem.
+      const [deletedNews, deletedLogs, deletedArticles, deletedEvents, deletedErrors] =
         await Promise.all([
           prisma.news.deleteMany({ where: { createdAt: { lt: thirtyDaysAgo } } }),
           prisma.pipelineLog.deleteMany({
@@ -398,12 +403,18 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
           }),
           prisma.article.deleteMany({ where: { createdAt: { lt: ninetyDaysAgo } } }),
           deleteExpiredProductEvents(),
+          deleteExpiredErrorEvents(),
         ]);
       metrics.cleanupCount =
-        deletedNews.count + deletedLogs.count + deletedArticles.count + deletedEvents;
+        deletedNews.count +
+        deletedLogs.count +
+        deletedArticles.count +
+        deletedEvents +
+        deletedErrors;
       await logPipelineEvent(pipelineLogId, 8, 'INFO', 'Cleanup completed', {
         deleted: metrics.cleanupCount,
         productEvents: deletedEvents,
+        errorEvents: deletedErrors,
       });
     } catch (cleanupErr) {
       metrics.pipelineErrors += 1;

@@ -6266,6 +6266,126 @@ não só pelo parser da guarda.
 
 **967 → 974 testes na API** (68 → 69 suítes). Nenhuma mudança em `src/`.
 
+### 60. Fase 4, PR 2 de 2 — a falha parou de morrer com a linha de log ✅ 2026-09-10
+
+> **§8 do plano de observabilidade, a metade de código.** A tabela existia desde
+> o PR anterior e ninguém escrevia nela. Agora escrevem: as três portas da API,
+> o ramo do 500 cru, e toda etapa do pipeline que anuncia `WARN` ou `ERROR`.
+
+#### O contrato, e por que cada metade dele é assim
+
+**`recordError` é síncrona, coalescente e nunca lança.** As três não são estilo:
+
+- **Síncrona** porque escrever no banco dentro do tratamento de um erro *de
+  banco* é falha auto-amplificante (armadilha 2). Ela muta um `Map` e retorna
+  `undefined`; quem persiste é um intervalo de 30 s mais o `onClose`. A guarda é
+  **pelo parser, sobre a forma da declaração** — sem `async` e com retorno
+  declarado `void` —, e as duas asserções são necessárias: `async` obriga o
+  retorno a virar `Promise<void>`, mas dá para devolver uma promessa **sem**
+  `async`, e aí só o tipo denuncia.
+- **Coalescente** porque sem isso um laço que falha em cada iteração escreve
+  linha na velocidade em que falha (armadilha 5). Uma linha por
+  `(fingerprint, hora)`, com `count`.
+- **Nunca lança**, e a falha do flush é escrita pelo `baseLogger` **direto** —
+  nunca por `logAppError`, que chamaria `recordError` de volta e fecharia o laço
+  exatamente quando o banco está fora. Há teste afirmando que o buffer não
+  volta a encher nesse caso.
+
+#### Os quatro achados, e nenhum estava no plano
+
+**1. A `severity` precisava entrar no fingerprint.** O desenho dizia
+`origin + code + route`. Só que o pipeline registra a mesma etapa como `WARN`
+(degradou, o run seguiu) e como `ERROR` (abortou) — as duas cairiam na mesma
+linha, com a segunda apagando a gravidade da primeira na tela de quem está
+lendo. Hoje é `origin:severity:code:route`.
+
+**2. O flush do `onClose` precisava de prazo, e o teste mediu o preço.** A
+primeira versão esperava o banco sem limite. A suíte `admin-pipeline` — que
+**não** mocka o Prisma e produz 401 de propósito — travou o `afterAll` em
+**10 s de timeout de hook**, contra um Postgres local que nem estava no ar. O
+sintoma em produção seria pior que um CI vermelho: `app.close()` é o caminho do
+`SIGTERM`, e esperar o banco justamente quando **o banco é o suspeito** entrega o
+processo ao `SIGKILL` — perdendo o buffer do mesmo jeito e atrasando a volta.
+`ERROR_EVENT_CLOSE_TIMEOUT_MS` são 2 s, e a corrida não cancela a consulta: ela
+só para de esperar.
+
+**3. Ciclo de import entre `utils/errors.ts` e o service.** A primeira versão pôs
+o adaptador `AppError → registro` dentro do service, que precisava de
+`logLevelFor` — e `errors.ts` precisa de `recordError`. Os dois em tempo de
+execução, com o service carregando o Prisma. O adaptador foi para `errors.ts`,
+que é quem já é dono da regra de nível; o service importa dali **só tipo**, que
+some na compilação.
+
+**4. Uma guarda minha passava verde sobre o defeito que existia para achar.** A
+asserção "separa por severidade" comparava o par do pipeline —
+`PIPELINE_STAGE_DEGRADED` em `WARN` contra `PIPELINE_STAGE_FAILED` em `ERROR` —
+e, como o **código** já diferia, continuava verde com a severidade removida do
+fingerprint. Sétima vez desta família neste projeto, e de novo só apareceu
+**insistindo em ver a guarda reprovar**: as cinco quebras de propósito (tirar o
+`recordAppError`, tirar o `recordPipelineEvent`, tirar o `onClose`, tornar
+`recordError` `async`, tirar a severidade) foram rodadas uma a uma, e a quinta
+não reprovou.
+
+#### O que a fiação alcança, e onde ela declara exceção
+
+A chamada mora em **dois pontos únicos** — `logAppError` (as três portas da API)
+e `logPipelineEvent` (toda etapa) —, e não nos `catch`: enumerar `catch` à mão é
+a forma de guarda que a Fase 7a viu falhar por omissão. **A exceção é o ramo do
+500 cru** no `app.ts`: ele não é `AppError`, não passa por `logAppError`, e é a
+falha que menos se sabe explicar depois — a chamada é explícita ali, com
+`code: 'UNHANDLED'`, que fica **fora** de `ERROR_CODES` de propósito (aquele
+tuple é o que o servidor *escolhe lançar*, e a guarda da Fase 3 cobra que todo
+membro tenha quem o lance).
+
+E `debug` **não** vira linha: um 404 em `/news/:id` é resultado normal, e gravá-lo
+encheria a tela da Fase 5 com a única falha que não é falha.
+
+#### O que o pipeline ganhou, e a dívida que ele carrega
+
+Toda etapa que anuncia `WARN`/`ERROR` vira registro, com a etapa em `route`
+(`stage-8.5`) — o que responde *"a etapa 8.5 falha há três dias?"*, pergunta que
+o `PipelineLog` nunca respondeu porque ele guarda o desfecho de **um** dia. São
+dois códigos, `PIPELINE_STAGE_FAILED` e `PIPELINE_STAGE_DEGRADED`.
+
+> **A categoria é inferida do provider, e isso é dívida com gatilho.** Os
+> providers ainda lançam `Error` cru — a taxonomia da Fase 3 não os alcança —,
+> então `prisma` vira `database`, provider conhecido vira `upstream`, e o resto
+> `internal`. **Gatilho para apagar a inferência:** converter `gemini`,
+> `newsdata`, `resend` e o `pipeline.service` para `AppError`.
+
+#### As guardas
+
+> **O CodeQL do PR apontou a primeira versão desta guarda, e tinha razão.**
+> `js/use-of-returnless-function`: ela lia o valor de retorno de uma função
+> `void` (`expect(recordError(...)).toBeUndefined()`), que é defeito em qualquer
+> outro lugar do código. **A sugestão automática é que não servia** — trocava a
+> asserção por `expect(() => …).not.toThrow()`, que mede outra coisa e que o
+> mesmo arquivo já media três linhas abaixo: apagaria uma guarda e duplicaria
+> outra. O que entrou cobre **mais** que a versão acusada, porque o tipo
+> declarado pega a promessa devolvida **sem** `async`, forma que a checagem de
+> modificador sozinha deixava passar. Vista reprovando nas duas quebras.
+
+- `tests/services/error-event.test.ts` — o contrato (síncrona, pelo parser),
+  o coalescimento, a janela de hora cheia, a separação por rota e por
+  severidade, a redação da mensagem, o flush com prazo, e a retenção. Mais a
+  varredura, **pelo parser**, cobrando que nenhum `code` chegue interpolado ao
+  `recordError` — o buraco que a guarda da Fase 3 não alcança, porque ali o
+  parâmetro é `string` de propósito (`origin: PIPELINE` não passa pelo tuple).
+  Ela aceita três formas com teto e nomeia cada uma: literal, constante do
+  módulo, e a leitura de `.code`, que a outra guarda já limita.
+- `tests/plugins/error-handler.test.ts` e `tests/services/pipeline-event.test.ts`
+  — **a fiação** (armadilha 28), incluindo a asserção de que o `onClose` esvazia
+  o buffer. Sem ela, tirar o hook deixaria tudo verde e o desligamento voltaria
+  a perder o registro do que o causou.
+
+> **E o mock parcial mentiu por omissão outra vez, do jeito documentado.** O
+> `errorEvent` não estava no `vi.mock` de `@newranews/database` das duas suítes
+> de pipeline, então a etapa 8 lançava e caía de `INFO` para `WARN` — com o
+> comentário do teste vizinho, escrito quando o `ProductEvent` entrou, dizendo
+> exatamente isso. Duas linhas de mock.
+
+**974 → 1.003 testes na API** (69 → 70 suítes). Web inalterado em 683.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
