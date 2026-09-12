@@ -371,6 +371,13 @@ a suíte de unidade, que roda sem rede.
   > DB — o único caminho que produz `DROP COLUMN`), aplicou sobre as 30 linhas
   > seedadas do banco local, e as seis migrations do zero dão *"No difference
   > detected"*.
+  >
+  > **O pós-merge (item 63) achou que o seed não era tipado por ninguém:** o
+  > `packages/database` não tinha `typecheck`, o `build` tipa só `src/`, e o
+  > `tsx` não tipa — coluna removida do schema e esquecida no seed passava por
+  > lint, typecheck e suíte, e morria em runtime no `dev-bootstrap.sh`. Hoje há
+  > `tsconfig.typecheck.json` cobrindo `prisma/*.ts`, e o `turbo typecheck` tem
+  > 6 tarefas em vez de 5.
 - **Verificação pós-merge da Fase 4 (2026-09-12): quatro falhas ainda morriam
   com a linha de log.** Item **61**. A pergunta dos itens 39, 52 e 57 — *o que
   ficou de fora?* — respondida enumerando todo `warn`/`error` escrito fora dos
