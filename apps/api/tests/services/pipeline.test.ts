@@ -64,6 +64,10 @@ import { fetchAll } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
+import {
+  pendingErrorEvents,
+  resetErrorEventBuffer,
+} from '../../src/services/error-event.service';
 
 const mockFetchResult = {
   newsDataItems: [
@@ -136,6 +140,7 @@ const mockLog = {
 };
 
 beforeEach(() => {
+  resetErrorEventBuffer();
   vi.resetAllMocks();
 
   vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue(null);
@@ -482,6 +487,56 @@ describe('PipelineService', () => {
     const data = warnCall?.[0] as { data: { stage: number; message: string; context: unknown } };
     expect(data.data.stage).toBe(7.5);
     expect(data.data.message).toBe('Newsletter failed (non-critical)');
+  });
+
+  it('records the Gemini failure as a stage-6 WARN when Groq served the day', async () => {
+    // O cenário de 02–03/09/2026: Gemini em 503, Groq entregando. Até a
+    // verificação pós-merge da Fase 4 isso era uma linha de `warn` no stdout e
+    // o `aiProvider` da métrica — nada durável, nada que respondesse "há
+    // quantos dias?". E o run **continua** SUCCESS: o briefing saiu.
+    vi.mocked(generateArticle).mockResolvedValueOnce({
+      ...mockGeneratedArticle,
+      provider: 'groq',
+      primaryError: new Error('Gemini API error 503: UNAVAILABLE'),
+    });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
+
+    const warn = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) => (call[0] as { data: { stage: number; level: string } }).data.stage === 6
+        && (call[0] as { data: { level: string } }).data.level === 'WARN',
+    );
+    expect(warn).toBeDefined();
+    expect((warn?.[0] as { data: { context: { fallbackProvider: string; provider: string } } }).data.context)
+      .toMatchObject({ fallbackProvider: 'groq', provider: 'gemini' });
+
+    const recorded = pendingErrorEvents().find((e) => e.route === 'stage-6');
+    expect(recorded?.severity).toBe('WARN');
+    expect(recorded?.category).toBe('upstream');
+
+    // Sucesso degradado não é erro do pipeline — quem define isso é a Fase 8.
+    const [metric] = vi.mocked(prisma.dailyMetric.upsert).mock.calls[0] as [
+      { create: { pipelineErrors: number; aiProvider: string } },
+    ];
+    expect(metric.create.pipelineErrors).toBe(0);
+    expect(metric.create.aiProvider).toBe('groq');
+  });
+
+  it('records the aborting failure even when marking the run FAILED throws', async () => {
+    // O caso em que o banco é o que abortou o run: o `update` para FAILED
+    // também falha. Na ordem antiga o `ERROR` vinha **depois** do `update`, e
+    // este caso terminava sem registro nenhum.
+    vi.mocked(generateArticle).mockRejectedValue(new Error('Gemini API error 500: boom'));
+    vi.mocked(prisma.pipelineLog.update).mockImplementation(((args: { data: { status?: string } }) =>
+      args.data.status === 'FAILED'
+        ? Promise.reject(new Error('P1001: database unreachable'))
+        : Promise.resolve({})) as never);
+
+    await triggerPipeline();
+    await vi.waitFor(() =>
+      expect(pendingErrorEvents().some((e) => e.severity === 'ERROR' && e.route === 'stage-6')).toBe(true),
+    );
   });
 
   it('should record both the primary and fallback provider errors on AI failure', async () => {

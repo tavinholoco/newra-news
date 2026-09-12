@@ -5,6 +5,7 @@ import {
   PIPELINE_FAILED_CODE,
   recordError,
 } from './error-event.service';
+import type { ErrorCategory } from '../utils/errors';
 import { baseLogger } from '../utils/logger';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
@@ -126,8 +127,16 @@ function stageScope(stage: number): string {
  * `resend` e o `pipeline.service` para `AppError`, que é a dívida que a Fase 3
  * deixou escrita. Aí a categoria vem do erro, e não de um palpite sobre o
  * texto dele.
+ *
+ * **O `warnings` da etapa 1 é `upstream` por construção.** A primeira versão
+ * lia só `context.provider` e classificava *"Collection degraded"* — um feed
+ * em `ETIMEDOUT`, a NewsData fora do ar — como `internal`, porque o provider
+ * ali está dentro de cada `FetchWarning`, não no topo. Achado da verificação
+ * pós-merge da Fase 4: a classe de falha mais frequente do pipeline era a que
+ * a categoria descrevia errado.
  */
-function categoryForStageFailure(context?: Record<string, unknown>): string {
+function categoryForStageFailure(context?: Record<string, unknown>): ErrorCategory {
+  if (Array.isArray(context?.warnings)) return 'upstream';
   const provider = typeof context?.provider === 'string' ? context.provider : undefined;
   if (provider === 'prisma') return 'database';
   if (provider !== undefined) return 'upstream';
@@ -144,6 +153,7 @@ function categoryForStageFailure(context?: Record<string, unknown>): string {
  * pedem ações diferentes de quem lê a tela.
  */
 function recordPipelineEvent(
+  pipelineLogId: string,
   stage: number,
   level: PipelineEventLevel,
   message: string,
@@ -158,6 +168,9 @@ function recordPipelineEvent(
     category: categoryForStageFailure(context),
     message,
     route: stageScope(stage),
+    // Explícito, e não pelo `AsyncLocalStorage`: o enterro do run morto roda
+    // fora do contexto do run, e o id está na mão de quem chama.
+    pipelineLogId,
     // `statusCode` do provedor quando `extractErrorDetail` conseguiu inferi-lo;
     // é HTTP de terceiro, não da nossa resposta.
     statusCode: typeof context?.statusCode === 'number' ? context.statusCode : null,
@@ -231,7 +244,7 @@ export async function logPipelineEvent(
   message: string,
   context?: Record<string, unknown>,
 ): Promise<void> {
-  recordPipelineEvent(stage, level, message, context);
+  recordPipelineEvent(pipelineLogId, stage, level, message, context);
 
   try {
     await prisma.pipelineEvent.create({

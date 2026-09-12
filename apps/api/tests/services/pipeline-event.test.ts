@@ -315,6 +315,31 @@ describe('§8 — o evento de etapa também vira registro durável', () => {
     expect(pendingErrorEvents()[0]?.category).toBe('database');
   });
 
+  it('grava o id do run mesmo fora do contexto assíncrono — o enterro do run morto', async () => {
+    // `triggerPipeline` enterra o `RUNNING` velho **antes** de abrir o contexto
+    // do run novo; o id só chega ao registro porque `logPipelineEvent` o passa
+    // explicitamente. Pelo `AsyncLocalStorage` sozinho, esta linha era `null`.
+    await logPipelineEvent('run-morto', 0, 'ERROR', 'Run marked FAILED after 20 min in RUNNING', {
+      reason: 'stale-running',
+    });
+    const [event] = pendingErrorEvents();
+
+    expect(event?.pipelineLogId).toBe('run-morto');
+    expect(event?.route).toBe('stage-0');
+  });
+
+  it('classifica a coleta degradada como `upstream` — o provider mora dentro de cada warning', async () => {
+    // O `context` da etapa 1 é `{ warnings: FetchWarning[] }`, sem `provider` no
+    // topo. A primeira inferência lia só o topo e chamava um feed em `ETIMEDOUT`
+    // de `internal` — a classe de falha mais frequente do pipeline, com a
+    // categoria errada.
+    await logPipelineEvent('run-1', 1, 'WARN', 'Collection degraded', {
+      warnings: [{ kind: 'feed-failed', source: 'Superinteressante', detail: 'ETIMEDOUT' }],
+    });
+
+    expect(pendingErrorEvents()[0]?.category).toBe('upstream');
+  });
+
   it('**não** grava o `INFO`, que é o caminho feliz', async () => {
     await logPipelineEvent('run-1', 1, 'INFO', 'News collected', { count: 377 });
 

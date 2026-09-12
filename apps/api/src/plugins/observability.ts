@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
+import { routePatternOf } from '../utils/request-route';
 
 /**
  * As duas métricas técnicas que a §26 do plano promete — **error rate** e **API
@@ -184,7 +185,7 @@ export const observabilityPlugin = fp(async function observabilityPlugin(
   app.addHook('onResponse', async (request, reply) => {
     // `routeOptions.url` é o **padrão** (`/api/news/:id`). A URL crua traria um
     // id por linha, e o mapa cresceria sem teto.
-    const route = request.routeOptions?.url ?? 'unmatched';
+    const route = routePatternOf(request);
     recordHttpResponse(
       `${request.method} ${route}`,
       reply.statusCode,

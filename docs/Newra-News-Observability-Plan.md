@@ -829,7 +829,7 @@ linha e a segunda apagaria a gravidade da primeira na tela. Hoje é
 `origin:severity:code:route`, e o comentário do model diz isso.
 
 **2. A fiação mora em dois pontos únicos, e uma exceção declarada.**
-`logAppError` (que as três portas da API já chamavam) e `logPipelineEvent` (por
+`logAppError` (que toda porta da API que responde erro já chamava) e `logPipelineEvent` (por
 onde toda etapa anuncia falha). **Não** nos `catch`: enumerar `catch` à mão é a
 forma de guarda que este projeto já viu falhar por omissão — a varredura da Fase
 7a cobria uma pasta, e a única rota fora dela era justamente a que engolia a
@@ -849,12 +849,37 @@ acumulado. Medido: sem prazo, a suíte de rota que não mocka o Prisma travou o
 deploy que não termina.
 
 **5. `origin: PIPELINE` já tem produtor, com dois códigos.**
+*(A verificação pós-merge — item 61 do `docs/progress.md` — achou quatro falhas
+que ainda escapavam do registro, e a maior era o Gemini falhando com o Groq
+entregando; ver "O que a verificação pós-merge mudou", abaixo.)*
 `PIPELINE_STAGE_FAILED` e `PIPELINE_STAGE_DEGRADED`, com a etapa em `route`. A
 **categoria é inferida do provider** que o `extractErrorDetail` já deduz da
 mensagem — inferência declarada como tal, e o **gatilho para apagá-la** é a
 dívida que a Fase 3 deixou: converter `gemini`, `newsdata`, `resend` e o
 `pipeline.service` para `AppError`. `WEB` e `INVARIANT` seguem sem produtor, e
 são das Fases 7b/7c e 6.
+
+### O que a verificação pós-merge mudou — 12/09/2026
+
+Item **61** do `docs/progress.md`. O método foi o dos itens 39, 52 e 57:
+enumerar a superfície — todo `warn`/`error` escrito fora de `logAppError` e
+`logPipelineEvent` — e classificar linha a linha. Quatro lacunas fechadas:
+
+- **o fallback de IA bem-sucedido** vira `WARN` da etapa 6 (`generateArticle`
+  passou a devolver `primaryError` no dia bom). `pipelineErrors` **não** muda —
+  "sucesso degradado" é função sobre eventos, e é da Fase 8 (§12);
+- **o `catch` final do pipeline** grava o `ERROR` no buffer **antes** do
+  `update` para `FAILED`, porque é o `update` que falha quando o banco é o
+  problema;
+- **o disparo interno do cron** que falha antes de existir run vira
+  `stage-0`;
+- **a coleta degradada** é `upstream`, não `internal`.
+
+E duas decisões que este plano não tinha escrito: **`code` é tipo**
+(`RecordedErrorCode` — interpolar deixa de compilar), e **`pipelineLogId` é
+explícito** quando quem chama sabe, com o `AsyncLocalStorage` como reserva. O
+enterro do run morto roda fora do contexto do run e gravava `null` pelo
+contexto sozinho.
 
 ---
 

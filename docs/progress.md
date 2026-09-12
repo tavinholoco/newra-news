@@ -6269,7 +6269,7 @@ não só pelo parser da guarda.
 ### 60. Fase 4, PR 2 de 2 — a falha parou de morrer com a linha de log ✅ 2026-09-10
 
 > **§8 do plano de observabilidade, a metade de código.** A tabela existia desde
-> o PR anterior e ninguém escrevia nela. Agora escrevem: as três portas da API,
+> o PR anterior e ninguém escrevia nela. Agora escrevem: toda porta da API que responde erro,
 > o ramo do 500 cru, e toda etapa do pipeline que anuncia `WARN` ou `ERROR`.
 
 #### O contrato, e por que cada metade dele é assim
@@ -6328,7 +6328,7 @@ não reprovou.
 
 #### O que a fiação alcança, e onde ela declara exceção
 
-A chamada mora em **dois pontos únicos** — `logAppError` (as três portas da API)
+A chamada mora em **dois pontos únicos** — `logAppError` (toda porta da API que responde erro)
 e `logPipelineEvent` (toda etapa) —, e não nos `catch`: enumerar `catch` à mão é
 a forma de guarda que a Fase 7a viu falhar por omissão. **A exceção é o ramo do
 500 cru** no `app.ts`: ele não é `AppError`, não passa por `logAppError`, e é a
@@ -6385,6 +6385,101 @@ dois códigos, `PIPELINE_STAGE_FAILED` e `PIPELINE_STAGE_DEGRADED`.
 > exatamente isso. Duas linhas de mock.
 
 **974 → 1.003 testes na API** (69 → 70 suítes). Web inalterado em 683.
+
+### 61. A verificação pós-merge da Fase 4: quatro falhas que ainda morriam com a linha de log ✅ 2026-09-12
+
+> **Mesma pergunta dos itens 39, 52 e 57 — *o que ficou de fora?* —, e o método
+> foi enumerar a superfície.** Duas varreduras sobre a `dev` mergeada: todo
+> `warn`/`error` escrito **fora** dos dois pontos únicos (`logAppError` e
+> `logPipelineEvent`), e todo chamador de `logAppError`. A primeira deu 22
+> linhas; classificadas uma a uma, **quatro eram lacunas**, o resto era coberto
+> pelo caminho terminal ou excluído de propósito (a falha do próprio flush, a
+> sonda de saúde, o boot). A segunda deu a porta de maior volume sem o campo que
+> liga a tabela ao log.
+
+#### As quatro falhas sem registro durável
+
+1. **O Gemini falhando com o Groq entregando.** É a degradação mais frequente
+   medida neste projeto (dois dias seguidos em 02–03/09), e sobrava uma linha de
+   `warn` no stdout mais o `aiProvider` da métrica — nada que respondesse *"há
+   quantos dias?"*, que é o gatilho escrito no `CLAUDE.md` (três seguidos). O
+   `generateArticle` passou a devolver `primaryError` no fallback bem-sucedido,
+   e a etapa 6 grava um `WARN` (`upstream`, `stage-6`). **`pipelineErrors` não
+   muda:** o briefing saiu, e "sucesso degradado" é função sobre eventos que a
+   Fase 8 define.
+2. **O `catch` final do pipeline quando o próprio banco abortou o run.** A
+   ordem era `update` (para `FAILED`) → `logPipelineEvent(ERROR)`. Com o banco
+   fora, o `update` lançava, o `ERROR` nunca era escrito, e o `.catch` de fora
+   só logava. Invertida: o evento vai para o buffer — síncrono, nunca lança —
+   **antes** da ida ao banco.
+3. **O disparo interno do cron falhando antes de existir um run.** Sem
+   `PipelineLog`, sem `ErrorEvent`; só `app.log.error`. Virou
+   `PIPELINE_STAGE_FAILED` em `stage-0`, a convenção do pipeline para "sobre o
+   run inteiro". (O gatilho principal, o cron da Vercel, passa pela rota e já
+   caía no handler global.)
+4. **A *"Collection degraded"* classificada como `internal`.** A inferência de
+   categoria lia `context.provider`, e na etapa 1 o provider mora dentro de cada
+   `FetchWarning`. Um feed em `ETIMEDOUT` — a classe de falha mais comum do
+   pipeline — saía com a categoria de "defeito nosso". É `upstream`.
+
+#### As inconsistências, e três eram minhas
+
+- **O `authPlugin` era a única porta sem `requestId`** — e é a de maior volume:
+  todo 401 nascia sem o elo com a linha do log. Passei o campo nas quatro outras
+  e esqueci justamente esta.
+- **O enterro do run morto gravava `pipelineLogId: null`** sobre um id que
+  estava na mão. `recordError` lia só o `AsyncLocalStorage`, e `triggerPipeline`
+  enterra o `RUNNING` velho **fora** do contexto do run novo. `logPipelineEvent`
+  sempre teve o id como primeiro parâmetro; agora o passa, e o contexto é
+  reserva.
+- **"Três portas" em quatro documentos.** Corrigi o comentário do código no PR
+  #179 e deixei a mesma contagem errada no `CLAUDE.md`, no plano e duas vezes
+  neste arquivo. Virou "toda porta da API que responde erro" — a saída que o
+  código já tinha tomado.
+- **`'unmatched'` escrito seis vezes em `src/`.** O balde é chave no mapa de
+  métricas e no `route` do `ErrorEvent`; o dia em que uma cópia virasse
+  `'unknown'` o balde se partiria em dois sem nenhuma guarda acusar. Hoje mora
+  em `routePatternOf` (`utils/request-route.ts`), com guarda pelo parser
+  reprovando a sétima.
+- **Os dois diagramas do pipeline** diziam que a etapa 8 apaga "artigos e
+  eventos >90d" e não sabiam dos 14 dias do erro. O `diagram-drift` compara
+  etapas, não o que cada etapa faz.
+
+#### As refatorações
+
+- **O teto do `code` virou tipo.** `RecordedErrorCode` é a união dos literais
+  da taxonomia com as três constantes do service; `category` virou
+  `ErrorCategory`. Um `code` interpolado **deixa de compilar** — a guarda pelo
+  parser continua porque enumera os call sites, mas o teto em si passou ao
+  `tsc`.
+- **O 500 cru leva `name`, `code` e `cause` no `context`.** `code: UNHANDLED`
+  é constante de propósito, então a linha dizia só a rota e uma mensagem
+  redigida; `PrismaClientKnownRequestError` + `P1001` é o que a torna legível
+  sem abrir o log. O `context` passa pela mesma redação da mensagem.
+- **O `currentStage = 1` duplicado** — o `js/useless-assignment-to-local` que o
+  CodeQL apontava na `main` desde 05/09 — saiu: o inicializador **é** a etapa 1.
+
+#### O que foi visto e ficou como está, com o motivo
+
+- **As sondas de `/api/health/providers`** escrevem `warn` e não gravam
+  `ErrorEvent`: são medição sob demanda, e gravá-las dobraria a contagem com as
+  falhas que o pipeline já registra do mesmo provider. **Gatilho:** a tela da
+  Fase 5 pedir histórico de saúde por provedor.
+- **O retry de `ai-utils`** avisa a cada tentativa; se todas falham, o erro
+  chega ao `catch` do pipeline e é gravado ali. Gravar a tentativa contaria
+  três vezes uma falha.
+- **A falha do próprio flush e a do `pipelineEvent.create`** continuam pelo
+  `baseLogger` direto — o laço.
+
+#### O método, de novo
+
+**As oito quebras de propósito foram rodadas uma a uma, por script, e as oito
+reprovaram.** E a primeira execução do script quebrou por outro motivo — o
+`subprocess` do Python decodificando o stdout do vitest em cp1252 —, o que é a
+mesma família da armadilha do heredoc: ferramenta de verificação que falha
+antes de verificar parece verificação que passou, se ninguém ler a saída.
+
+**1.003 → 1.015 testes na API** (70 → 71 suítes). Web inalterado em 683.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

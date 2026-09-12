@@ -3,6 +3,7 @@ import ts from 'typescript';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { prisma } from '@newranews/database';
+import { pipelineContext } from '../../src/utils/logger';
 import {
   ERROR_EVENT_RETENTION_DAYS,
   deleteExpiredErrorEvents,
@@ -192,6 +193,20 @@ describe('§8 — uma linha por (fingerprint, hora)', () => {
     });
 
     expect(asWarn).not.toBe(asError);
+  });
+
+  it('usa o `pipelineLogId` de quem chama, e o contexto assíncrono só como reserva', () => {
+    // A primeira versão lia só o `AsyncLocalStorage`. O enterro do run morto
+    // (`triggerPipeline`, etapa 0) roda **fora** do contexto do run, e gravava
+    // `null` sobre um id que estava na mão de quem chamava.
+    recordError(anError({ pipelineLogId: 'run-explicito' }), AT);
+    expect(pendingErrorEvents()[0]?.pipelineLogId).toBe('run-explicito');
+
+    resetErrorEventBuffer();
+    pipelineContext.run({ pipelineLogId: 'run-do-contexto' }, () => {
+      recordError(anError(), AT);
+    });
+    expect(pendingErrorEvents()[0]?.pipelineLogId).toBe('run-do-contexto');
   });
 
   it('guarda as duas pontas da janela, que é o que liga a linha ao log', async () => {

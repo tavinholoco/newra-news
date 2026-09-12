@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyBaseLogger } from 'fastify';
 import fastifySchedule from '@fastify/schedule';
 import { AsyncTask, CronJob } from 'toad-scheduler';
 import { env } from '../config/env';
+import { PIPELINE_FAILED_CODE, recordError } from '../services/error-event.service';
 import { triggerPipeline } from '../services/pipeline.service';
 
 /**
@@ -48,6 +49,19 @@ export async function registerDailyPipelineJob(app: FastifyInstance): Promise<vo
     (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       app.log.error(`[cron] task failed: ${message}`);
+      // O disparo que falha **antes de existir um run** não tem `PipelineLog`,
+      // e até a verificação pós-merge da Fase 4 não tinha `ErrorEvent` — só
+      // esta linha, que rola para fora. `stage-0` é a convenção do pipeline
+      // para "sobre o run inteiro", e aqui o run inteiro não começou. (O gatilho
+      // principal, o cron da Vercel, passa pela rota e cai no handler global.)
+      recordError({
+        origin: 'PIPELINE',
+        severity: 'ERROR',
+        code: PIPELINE_FAILED_CODE,
+        category: 'internal',
+        message: `[cron] task failed: ${message}`,
+        route: 'stage-0',
+      });
     },
   );
 

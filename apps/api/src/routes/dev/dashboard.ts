@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { checkAllProviders } from '../../services/health.service';
 import type { ProvidersHealth } from '../../services/health.service';
 import { AppError, UnauthorizedError, logAppError } from '../../utils/errors';
+import { routePatternOf } from '../../utils/request-route';
 import { getDevLogs } from '../../services/pipeline-event.service';
 import type { DevLogSummary, DevLogsResult } from '../../services/pipeline-event.service';
 import {
@@ -235,7 +236,7 @@ export async function devDashboardRoutes(app: FastifyInstance) {
     } catch (error) {
       if (presented && error instanceof AppError) {
         logAppError(request.log, error, {
-          route: request.routeOptions?.url ?? 'unmatched',
+          route: routePatternOf(request),
           requestId: request.id,
         });
       }
@@ -289,7 +290,7 @@ export async function devDashboardRoutes(app: FastifyInstance) {
             code: 'DASHBOARD_SECRET_INVALID',
             context: { presented: Boolean(secret) },
           }),
-          { route: request.routeOptions?.url ?? 'unmatched', requestId: request.id },
+          { route: routePatternOf(request), requestId: request.id },
         );
         // 303 e nao 401: o browser tem de trocar o POST por um GET, senao o
         // reload da pagina de erro reenvia o segredo.

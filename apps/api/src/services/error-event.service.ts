@@ -1,6 +1,6 @@
 import { prisma, type Prisma } from '@newranews/database';
 import type { ErrorOrigin, ErrorSeverity } from '@newranews/database';
-import type { ErrorContext } from '../utils/errors';
+import type { ErrorCategory, ErrorCode, ErrorContext } from '../utils/errors';
 import {
   baseLogger,
   pipelineContext,
@@ -99,17 +99,34 @@ export const PIPELINE_FAILED_CODE = 'PIPELINE_STAGE_FAILED';
 /** Etapa não-crítica que falhou sem abortar o run — o `WARN` das etapas 7.5 a 9. */
 export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
 
+/**
+ * **Todo código que pode chegar à tabela, como tipo.** É o teto do fingerprint
+ * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as três
+ * constantes deste arquivo. Um `code: \`stage-${n}\`` deixa de compilar, e um
+ * `code: algumaString` também. A guarda pelo parser em
+ * `tests/services/error-event.test.ts` continua, porque enumera os call sites
+ * — mas o teto em si passou a ser garantido em tempo de compilação.
+ *
+ * `origin: WEB` e `origin: INVARIANT` acrescentam os seus aqui quando nascerem
+ * (Fases 7b/7c e 6): a união é o lugar onde a decisão fica visível.
+ */
+export type RecordedErrorCode =
+  | ErrorCode
+  | typeof UNHANDLED_CODE
+  | typeof PIPELINE_FAILED_CODE
+  | typeof PIPELINE_DEGRADED_CODE;
+
 export interface RecordErrorInput {
   origin: ErrorOrigin;
   severity: ErrorSeverity;
   /**
    * **Literal, nunca interpolado.** É a peça do fingerprint que separa uma
    * falha de outra; montá-lo com o id de um recurso trocaria o teto da tabela
-   * por "uma linha por notícia". Guarda em `tests/services/error-event.test.ts`,
-   * pelo parser.
+   * por "uma linha por notícia". O tipo fecha o conjunto; a guarda em
+   * `tests/services/error-event.test.ts` enumera quem o usa.
    */
-  code: string;
-  category: string;
+  code: RecordedErrorCode;
+  category: ErrorCategory;
   message: string;
   /**
    * O escopo da falha, e é a terceira peça do fingerprint: o **padrão** da rota
@@ -119,6 +136,15 @@ export interface RecordErrorInput {
   route?: string | null;
   statusCode?: number | null;
   requestId?: string | null;
+  /**
+   * O run a que a falha pertence, quando quem chama **sabe**. O
+   * `logPipelineEvent` sempre soube — é o primeiro parâmetro dele —, e a
+   * primeira versão deste serviço ignorava isso e lia só o `AsyncLocalStorage`:
+   * o enterro do run morto (`triggerPipeline`, etapa 0) roda **fora** do
+   * contexto do run, e gravava `pipelineLogId: null` sobre um id que estava na
+   * mão. O contexto assíncrono continua sendo a reserva para quem não sabe.
+   */
+  pipelineLogId?: string | null;
   context?: ErrorContext;
 }
 
@@ -209,10 +235,12 @@ export function recordError(input: RecordErrorInput, now: Date = new Date()): vo
     const fingerprint = fingerprintFor(input);
     const key = `${fingerprint}|${windowStart.toISOString()}`;
 
-    // O run corrente, quando há um — o mesmo `AsyncLocalStorage` que põe
-    // `pipelineLogId` em toda linha de log escrita de dentro de um run. É o
-    // **último visto**, e é por isso que a coluna não é chave estrangeira.
-    const pipelineLogId = pipelineContext.getStore()?.pipelineLogId ?? null;
+    // O run: o que quem chamou disse, ou o corrente — o mesmo
+    // `AsyncLocalStorage` que põe `pipelineLogId` em toda linha de log escrita
+    // de dentro de um run. É o **último visto**, e é por isso que a coluna não
+    // é chave estrangeira.
+    const pipelineLogId =
+      input.pipelineLogId ?? pipelineContext.getStore()?.pipelineLogId ?? null;
     const requestId = input.requestId ?? null;
 
     const existing = buffer.get(key);

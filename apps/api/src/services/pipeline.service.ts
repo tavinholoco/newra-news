@@ -217,7 +217,10 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
   const startedAt = Date.now();
   const today = startOfDay(new Date());
 
-  // Etapa atual — usada para gravar o errorStage quando o pipeline falha
+  // Etapa atual — usada para gravar o errorStage quando o pipeline falha. O
+  // inicializador **é** a etapa 1: a primeira coisa que o `try` faz é a coleta,
+  // e reatribuir ali era o `useless-assignment-to-local` que o CodeQL apontava
+  // desde 05/09.
   let currentStage = 1;
 
   const metrics = {
@@ -232,8 +235,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
   };
 
   try {
-    // Stage 1: Collect news (NewsData.io + RSS)
-    currentStage = 1;
+    // Stage 1: Collect news (NewsData.io + RSS) — `currentStage` já é 1.
     const { newsDataItems, rssItems, allItems, warnings } = await fetchAll();
     metrics.newsDataCount = newsDataItems.length;
     metrics.rssCount = rssItems.length;
@@ -307,8 +309,20 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // Stage 6: Generate article via AI (Gemini → Groq fallback)
     currentStage = 6;
     const generatedAt = new Date();
-    const { article, provider, modelVersion } = await generateArticle(selected);
+    const { article, provider, modelVersion, primaryError } = await generateArticle(selected);
     metrics.aiProvider = provider;
+    // O dia em que o Gemini falhou e o Groq entregou é um dia **degradado**, e
+    // até aqui só o `aiProvider` da métrica contava isso. O `WARN` faz a falha
+    // do primário virar `ErrorEvent` (upstream, etapa 6) e responder "há
+    // quantos dias o Gemini falha?" — que é o gatilho escrito no `CLAUDE.md`
+    // (três dias seguidos). **Não conta em `pipelineErrors`**: o briefing saiu,
+    // e "sucesso degradado" é função sobre eventos que a Fase 8 define.
+    if (primaryError !== undefined) {
+      await logPipelineEvent(pipelineLogId, 6, 'WARN', 'Primary provider failed, fallback served', {
+        ...extractErrorDetail(primaryError),
+        fallbackProvider: provider,
+      });
+    }
     await logPipelineEvent(pipelineLogId, 6, 'INFO', 'Article generated', {
       provider,
       modelVersion,
@@ -525,6 +539,16 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       });
     }
 
+    // **O evento antes do `update`, de propósito.** `logPipelineEvent` põe a
+    // falha no buffer do `ErrorEvent` de forma síncrona e nunca lança; o
+    // `update` abaixo é uma ida ao banco que pode falhar — e falha justamente
+    // quando o que abortou o run foi o banco. Na ordem antiga, esse caso
+    // terminava sem registro nenhum: o `update` lançava, o `ERROR` nunca era
+    // escrito, e o `.catch` de fora só logava. Achado da verificação
+    // pós-merge da Fase 4.
+    await logPipelineEvent(pipelineLogId, currentStage, 'ERROR', detail.message, {
+      ...detail,
+    });
     await prisma.pipelineLog.update({
       where: { id: pipelineLogId },
       data: {
@@ -534,9 +558,6 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
         errorDetail: { ...detail } as unknown as Prisma.InputJsonValue,
         completedAt: new Date(),
       },
-    });
-    await logPipelineEvent(pipelineLogId, currentStage, 'ERROR', detail.message, {
-      ...detail,
     });
     throw error;
   }
