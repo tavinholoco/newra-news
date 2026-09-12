@@ -6579,6 +6579,54 @@ guarda.
 **1.015 → 1.018 testes na API** (71 suítes). Web inalterado em 683. Nenhuma
 mudança em `src/`.
 
+### 63. A verificação pós-merge do 5a: o seed não era tipado por ninguém ✅ 2026-09-12
+
+> Sobre a árvore mergeada (`b726d4c`), a pergunta dos itens 39, 52, 57 e 61 —
+> *o que ficou de fora?* — feita a um PR só de schema.
+
+**O que foi conferido e está em ordem:** #181 mergeado na `dev` com os oito
+checks verdes, e CI, CodeQL e Gitleaks verdes no push do merge (o Gitleaks com
+**0 commits varridos** — quarta medição do buraco do §16); a `dev` a 0 da
+`main`; nenhum leitor vivo do `aiTokensUsed` (os quatro `findMany`/`findFirst`
+do `metrics.service` são sem `select`, e o resto é histórico, plano e
+comentário de guarda); nenhuma lista de tabelas em prosa fora das duas
+guardadas (README, `presentation.md`, `setup.md`, `db-baseline.md` e os outros
+cinco diagramas não enumeram models); as quatro guardas de schema verdes na
+árvore mergeada; `migrate status` em dia no banco local; e o **seed rodando
+limpo** sobre o schema sem a coluna.
+
+#### O achado: `prisma/seed.ts` fora de todo `tsc`
+
+O `tsconfig.json` do `packages/database` inclui só `src/**/*.ts`, o pacote
+**não tinha script `typecheck`** (o `turbo typecheck` rodava 5 tarefas: três
+typechecks e dois builds de dependência), e `prisma/seed.ts` e
+`prisma/cleanup-news-duplicates.ts` rodam por `tsx`, que não tipa. **Esquecer
+a linha do `aiTokensUsed` no seed passaria por lint, `typecheck` e a suíte
+inteira** — o seed morreria em runtime, num container novo, no
+`dev-bootstrap.sh`, com `Unknown argument`. É o buraco da Fase 4 (schema muda,
+suíte verde) numa terceira forma: lá o esquecimento quebrava produção; no 5a,
+não quebrava nada; aqui quebra o ambiente de quem chega.
+
+Entrou `tsconfig.typecheck.json` — o mesmo desenho do `tsconfig.tests.json` da
+API: estende o `tsconfig.json`, `noEmit`, `rootDir: "."`, e inclui `src/**/*.ts`
+mais `prisma/*.ts` — e o script `typecheck`. O `turbo typecheck` passou de **5
+a 6 tarefas**, e o `ci.yml` já o roda. Visto reprovando com a linha de volta:
+`TS2353: 'aiTokensUsed' does not exist in type DailyMetricCreateInput`.
+
+#### O que fica escrito para o 5b
+
+- **A retenção está em prosa em três lugares sem guarda** — `S8` do
+  `data-flow.mermaid`, a linha 8 do `pipeline-sequence.mermaid` e "Pipeline
+  Diário" do `apps/api/CLAUDE.md`. Os 365 dias do `AuditEvent` envelhecem os
+  três; o `diagram-drift` compara etapas, não retenção.
+- **`response-schema-contract` lê colunas do `Prisma.dmmf`** e as duas guardas
+  de coluna do 5a leem o `.prisma` por regex (a da Fase 4 precisa da regex
+  porque o DMMF não expõe `@@index`). Modos de falha da regex conferidos —
+  `@map`, `IF EXISTS`, prefixo de schema — e todos reprovam **alto**. Não é
+  defeito; é a mesma pergunta em dois dialetos.
+
+Sem mudança em `src/` nem em teste; contagem em **1.018 / 683**.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

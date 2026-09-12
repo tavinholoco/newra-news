@@ -54,6 +54,7 @@ Nenhum outro package deve importar @prisma/client diretamente.
   - Baseline e passo a passo: docs/db-baseline.md
   - Estratégia completa: §37 de docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - Após alterar o schema, sempre rodar `pnpm db:generate`
+- `pnpm --filter @newranews/database typecheck` tipa `src/` **e** `prisma/*.ts` (seed e cleanup). O `build` tipa só `src/`, e `tsx` não tipa nada — até 12/09/2026 uma coluna removida do schema e esquecida no seed passava por lint, typecheck e suíte, e só morria em runtime no `dev-bootstrap.sh`
 - Índices definidos no schema para queries frequentes (category, publishedAt, date)
 - O campo Article.date é @unique — apenas um artigo por dia
 - DailyMetric.date é @unique — usa upsert para evitar duplicatas

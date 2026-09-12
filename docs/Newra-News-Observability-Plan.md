@@ -1101,6 +1101,41 @@ do baseline, ele pediria reset.
 > duas tabelas — o `admin:capture` do 5c vai querer dado para fotografar, e é
 > lá que se decide.
 
+### O que a verificação pós-merge achou — 12/09/2026
+
+Item **63** do `docs/progress.md`. A pergunta de sempre — *o que ficou de fora?*
+— sobre um PR só de schema pergunta por **quem tipa o que não é `src/`**, e a
+resposta era ninguém: o `tsconfig.json` do `packages/database` inclui só
+`src/**/*.ts`, o pacote **não tinha script `typecheck`**, e `prisma/seed.ts` e
+`prisma/cleanup-news-duplicates.ts` rodam por `tsx`, que não tipa. Esquecer a
+linha do `aiTokensUsed` no seed deixaria lint, `pnpm turbo typecheck` e a suíte
+inteira verdes — e o seed morreria em runtime, num container novo, pelo
+`dev-bootstrap.sh`. Hoje há `tsconfig.typecheck.json` (o mesmo desenho do
+`tsconfig.tests.json` da API) e o `turbo typecheck` passou de 5 a 6 tarefas;
+visto reprovando com a linha de volta (`TS2353`).
+
+**Três coisas para o 5b, medidas na árvore mergeada:**
+
+- **A retenção está escrita em prosa em três lugares que nenhuma guarda
+  alcança** — o nó `S8` do `data-flow.mermaid`, a linha 8 do
+  `pipeline-sequence.mermaid` e a seção "Pipeline Diário" do
+  `apps/api/CLAUDE.md` (*"erros >14d"*). Quando a etapa 8 ganhar os 365 dias
+  do `AuditEvent`, os três envelhecem juntos; o `diagram-drift` compara etapas,
+  não retenção. É a família do `13` dos feeds: número em prosa que descreve
+  código. Ou entra guarda derivada das constantes da etapa 8, ou os três são
+  tocados à mão no mesmo PR.
+- **`response-schema-contract` lê colunas do `Prisma.dmmf`** (`f.kind !==
+  'object'`) — o parser de verdade —, enquanto as duas guardas de coluna do 5a
+  leem o `.prisma` por regex, como a da Fase 4 (que precisa da regex porque o
+  DMMF **não** expõe `@@index`). Os modos de falha da regex foram conferidos
+  (`@map`, `IF EXISTS`, prefixo de schema) e **todos reprovam alto**, então
+  não é defeito — mas ao estender o contrato ao `DailyMetric`, é a mesma
+  pergunta em dois dialetos, e o DMMF é o que responde por coluna.
+- **Nada em `src/` lia a coluna** (os quatro `findMany`/`findFirst` do
+  `metrics.service` são sem `select`), o seed roda limpo sobre o schema
+  mergeado, `migrate status` está em dia no banco local, e o Gitleaks varreu
+  **0 commits** no push do merge — quarta medição do §16.
+
 ---
 
 ## §10 Fase 6 — Invariantes (o eixo das inconsistências)
@@ -1852,6 +1887,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Componente novo | `design-tokens.test.ts` (paleta camada 1, `inline-block`, `rounded-xl+`, `duration-<n>`, `shadow-*`) |
 | Migration | `migrations.test.ts` — **estática**, porque `turbo test` roda sem banco. Desde a Fase 4 ela é **derivada do schema**: model, enum ou índice declarado sem SQL que o crie reprova. **Desde a Fase 5, coluna também, nas duas direções** — replay estático dos `CREATE TABLE`/`ADD`/`DROP`/`RENAME COLUMN` na ordem do deploy contra as colunas escalares do schema |
 | **Coluna que sai do schema** | `migrations.test.ts` (o replay acima cobra o `DROP COLUMN`) e `diagram-drift.test.ts`, que desde a Fase 5 compara o ER **coluna a coluna** — o `aiTokensUsed` ficou desenhado depois de sair, e a comparação por entidade não via |
+| **Script fora de `src/` no `packages/database`** (`prisma/seed.ts`, `prisma/cleanup-news-duplicates.ts`) | `pnpm --filter @newranews/database typecheck` (pós-merge do 5a) — o `build` tipa só `src/`, e `tsx` não tipa nada; coluna removida do schema e esquecida no seed passava por tudo |
 | **Model novo no `schema.prisma`** | `schema-docs-drift.test.ts` (Fase 4) — a lista de models e a de enums do `packages/database/CLAUDE.md`; e `diagram-drift.test.ts`, que cobra a entidade no ER |
 | Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia |
