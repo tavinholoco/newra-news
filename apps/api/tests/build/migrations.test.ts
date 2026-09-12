@@ -194,3 +194,143 @@ describe('as migrations acompanham o schema que declaram', () => {
     expect(ausentes).toEqual([]);
   });
 });
+
+/**
+ * **A guarda de coluna, que a Fase 5 cobrou: o schema perdeu uma coluna e a
+ * migration não.**
+ *
+ * A guarda acima pergunta por model, enum e índice — e por *criação*. Uma
+ * coluna que sai do `schema.prisma` sem `DROP COLUMN` não é alcançada por
+ * nenhuma das quatro asserções, e o sintoma é ainda mais mudo que o da tabela
+ * esquecida: o client deixa de conhecer a coluna, toda escrita continua
+ * funcionando (a coluna morta é nullable ou tem default), e o banco de produção
+ * fica com uma coluna que nenhum código lê, para sempre, sem que `migrate
+ * status` reclame de nada. O `aiTokensUsed` do `DailyMetric` é o caso exato.
+ *
+ * Por isso esta é um **replay estático**: ela aplica, na ordem do `migrate
+ * deploy`, os `CREATE TABLE`, `ADD COLUMN`, `DROP COLUMN` e `RENAME COLUMN`
+ * de todas as migrations sobre um conjunto por tabela, e compara o resultado
+ * com as colunas escalares que o schema declara — nas **duas** direções.
+ * Coluna no schema sem SQL que a crie reprova; coluna criada pelo SQL que o
+ * schema já não declara reprova também. O `RENAME` da Fase 6 (`newsId` →
+ * `itemId`) é o que obriga o replay a ser em ordem em vez de um `includes`.
+ *
+ * O limite continua o mesmo: ela lê os statements que este conjunto usa, não
+ * SQL arbitrário. Um `ALTER TABLE ... RENAME TO` ou um `ALTER COLUMN ... TYPE`
+ * passariam sem reprovar — e é o replay contra banco de rascunho que os pega.
+ * E é regex sobre SQL gerado, não parser (armadilha 27 do plano): o corte por
+ * `;` e o strip de `--` assumem que nenhum literal de string os contém, o que
+ * é verdade para tudo que o Prisma emite e para o backfill escrito à mão.
+ */
+
+/**
+ * As colunas escalares de cada model — tudo que não é campo de relação.
+ *
+ * Campo de relação é o cujo tipo é outro model (`pipelineLog PipelineLog`,
+ * `events PipelineEvent[]`) ou que carrega `@relation`; nenhum dos dois vira
+ * coluna. Lista de enum (`categories Category[]`) **é** coluna, e é o motivo de
+ * a distinção ser pelo conjunto de models e não pelo `[]`.
+ */
+function schemaColumnsByModel(): Map<string, Set<string>> {
+  const models = new Set(schemaModels());
+  const colunas = new Map<string, Set<string>>();
+
+  for (const [, model, body] of schemaWithoutComments().matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)) {
+    const proprias = new Set<string>();
+    for (const linha of (body as string).split('\n')) {
+      const campo = /^\s*(\w+)\s+(\w+)(\[\])?\??(\s|$)/.exec(linha);
+      if (!campo || linha.includes('@relation')) continue;
+      if (models.has(campo[2] as string)) continue;
+      proprias.add(campo[1] as string);
+    }
+    colunas.set(model as string, proprias);
+  }
+
+  return colunas;
+}
+
+/**
+ * O replay: cada statement do SQL, na ordem em que o `migrate deploy` o
+ * aplica, sobre um conjunto de colunas por tabela.
+ */
+function sqlColumnsByTable(): Map<string, Set<string>> {
+  const tabelas = new Map<string, Set<string>>();
+  const de = (tabela: string): Set<string> => {
+    if (!tabelas.has(tabela)) tabelas.set(tabela, new Set());
+    return tabelas.get(tabela) as Set<string>;
+  };
+
+  const statements = allMigrationSql()
+    .replace(/--.*$/gm, '')
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    const create = /^CREATE TABLE "(\w+)"\s*\(([\s\S]*)\)$/.exec(statement);
+    if (create) {
+      for (const coluna of (create[2] as string).matchAll(/^\s*"(\w+)"\s/gm)) {
+        de(create[1] as string).add(coluna[1] as string);
+      }
+      continue;
+    }
+
+    const dropTable = /^DROP TABLE "(\w+)"/.exec(statement);
+    if (dropTable) {
+      tabelas.delete(dropTable[1] as string);
+      continue;
+    }
+
+    const alter = /^ALTER TABLE "(\w+)"\s([\s\S]*)$/.exec(statement);
+    if (!alter) continue;
+    const tabela = de(alter[1] as string);
+    const corpo = alter[2] as string;
+
+    for (const add of corpo.matchAll(/ADD COLUMN\s+"(\w+)"/g)) tabela.add(add[1] as string);
+    for (const drop of corpo.matchAll(/DROP COLUMN\s+"(\w+)"/g)) tabela.delete(drop[1] as string);
+    for (const rename of corpo.matchAll(/RENAME COLUMN\s+"(\w+)"\s+TO\s+"(\w+)"/g)) {
+      tabela.delete(rename[1] as string);
+      tabela.add(rename[2] as string);
+    }
+  }
+
+  return tabelas;
+}
+
+describe('as colunas do schema são as colunas que as migrations deixam', () => {
+  it('acha o que precisa achar — conjunto vazio aprovaria tudo', () => {
+    const schema = schemaColumnsByModel();
+    const sql = sqlColumnsByTable();
+
+    expect([...(schema.get('DailyMetric') ?? [])]).toContain('newsApiCount');
+    // Relação não é coluna: `PipelineEvent.pipelineLog` é `@relation`, e
+    // `PipelineLog.events` é lista de model.
+    expect([...(schema.get('PipelineEvent') ?? [])]).not.toContain('pipelineLog');
+    expect([...(schema.get('PipelineLog') ?? [])]).not.toContain('events');
+    // Lista de enum é coluna.
+    expect([...(schema.get('UserPreference') ?? [])]).toContain('categories');
+    // O replay honra a ordem: o `newsId` do Favorite foi renomeado, não criado
+    // duas vezes.
+    expect([...(sql.get('Favorite') ?? [])]).toContain('itemId');
+    expect([...(sql.get('Favorite') ?? [])]).not.toContain('newsId');
+    // E lê o `ADD COLUMN` em continuação de linha do formato do Prisma.
+    expect([...(sql.get('Article') ?? [])]).toContain('promptVersion');
+  });
+
+  it('cada model tem no SQL exatamente as colunas que declara', () => {
+    const sql = sqlColumnsByTable();
+    const divergencias: string[] = [];
+
+    for (const [model, declaradas] of schemaColumnsByModel()) {
+      const aplicadas = sql.get(model) ?? new Set<string>();
+      for (const coluna of declaradas) {
+        if (!aplicadas.has(coluna)) divergencias.push(`${model}.${coluna}: no schema, sem SQL que a crie`);
+      }
+      for (const coluna of aplicadas) {
+        if (!declaradas.has(coluna)) divergencias.push(`${model}.${coluna}: criada pelo SQL, ausente do schema`);
+      }
+    }
+
+    expect(divergencias).toEqual([]);
+  });
+});

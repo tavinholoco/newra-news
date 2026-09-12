@@ -25,8 +25,10 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - DailyMetric → Métricas diárias (retenção: indefinida)
 - ProductEvent → Evento de produto, anônimo por construção (retenção: 90 dias, por `occurredAt`)
 - ErrorEvent → Falha registrada de forma durável, **uma linha por `(fingerprint, hora)`** e não por ocorrência (retenção: 14 dias, por `windowStart`)
+- AuditEvent → Ação de admin — quem disparou o pipeline, quem apagou o quê. **Uma linha por ocorrência**, ao contrário do `ErrorEvent`; `actorId` é `User.id` sem FK (a trilha sobrevive ao ator) e `action` é texto com o conjunto fechado no código (retenção: 365 dias — a etapa 8 passa a aplicá-la no PR 5b; até lá, sem expurgo)
+- DailyUptime → Segundos em que a API esteve de pé, **uma linha por dia UTC, incrementada** pelo heartbeat (PR 5b). É o acumulador das horas do plano do Render, que `process.uptime()` não sabe dar desde que a API dorme e acorda (retenção: indefinida)
 
-> O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) apaga News (30d), PipelineLog (30d), Article (90d), ProductEvent (90d) e ErrorEvent (14d). PipelineEvent sai em cascata com o run; os demais models não têm política de retenção.
+> O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) apaga News (30d), PipelineLog (30d), Article (90d), ProductEvent (90d) e ErrorEvent (14d). PipelineEvent sai em cascata com o run; os demais models não têm política de retenção. **`AuditEvent` ganha os 365 dias no PR 5b** — a tabela nasceu no 5a, só de schema.
 
 ## Enums
 - ArticleStatus: DRAFT, PUBLISHED, FAILED
@@ -55,6 +57,7 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - Índices definidos no schema para queries frequentes (category, publishedAt, date)
 - O campo Article.date é @unique — apenas um artigo por dia
 - DailyMetric.date é @unique — usa upsert para evitar duplicatas
+- DailyUptime.date é @unique — o heartbeat usa upsert com `increment`, nunca create
 - NewsletterLog.date é @unique — apenas um envio registrado por dia
 - Seed deve criar dados realistas para todas as categorias
 

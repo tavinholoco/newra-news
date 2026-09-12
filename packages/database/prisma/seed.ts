@@ -158,7 +158,6 @@ async function main() {
         articleGenerated: true,
         pipelineDuration: 24_000 + ((daysAgo * 1300) % 12_000),
         aiProvider: daysAgo % 5 === 0 ? 'groq' : 'gemini',
-        aiTokensUsed: 8_200 + ((daysAgo * 310) % 3_000),
         pipelineErrors: 0,
         newsApiCount,
         rssCount,

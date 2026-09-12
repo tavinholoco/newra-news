@@ -99,13 +99,13 @@ model PipelineLog {
 }
 
 model PipelineEvent {
-  id            String              @id @default(uuid())
+  id            String             @id @default(uuid())
   pipelineLogId String
-  stage         Float               // Stage 1–9 (ex.: 7.5 = newsletter)
+  stage         Float // Stage 1–9 (ex.: 7.5 = newsletter)
   level         PipelineEventLevel
   message       String
   context       Json?
-  createdAt     DateTime            @default(now())
+  createdAt     DateTime           @default(now())
 
   pipelineLog PipelineLog @relation(fields: [pipelineLogId], references: [id], onDelete: Cascade)
 
@@ -211,7 +211,6 @@ model DailyMetric {
   articleGenerated Boolean  @default(false)
   pipelineDuration Int?
   aiProvider       String?
-  aiTokensUsed     Int?
   pipelineErrors   Int      @default(0)
   newsApiCount     Int      @default(0)
   rssCount         Int      @default(0)
@@ -401,4 +400,98 @@ enum ErrorSeverity {
   WARN
   ERROR
   FATAL
+}
+
+/// Ação de admin registrada de forma durável — quem disparou o pipeline, quem
+/// apagou o quê (§9 do plano de observabilidade, decidido em 12/09/2026).
+///
+/// **É o `authz_admin` do vocabulário do OWASP (§3.2)**, e até esta tabela uma
+/// notícia apagada não deixava rastro de quem a apagou: `request.user.sub`
+/// chegava à rota e morria com a resposta. A linha de log do Render é o único
+/// outro registro, e ela rola para fora.
+///
+/// **Uma linha por ocorrência — ao contrário do `ErrorEvent`, de propósito.**
+/// Auditoria existe para responder *qual* clique, de *quem*, *quando*;
+/// coalescer por hora apagaria exatamente isso. O teto vem de outro lugar: só
+/// um humano com sessão ADMIN produz linha, então a tabela cresce com cliques
+/// de admin, e não com tráfego.
+///
+/// **`actorId` sem FK para `User`**, como todo `userId` deste schema
+/// (`Favorite`, `UserPreference`, `Subscriber`). Aqui há um motivo a mais: a
+/// trilha tem de sobreviver ao ator. Não há exclusão de conta no produto hoje,
+/// e quando houver, o registro de quem apagou o quê não pode sumir junto. E
+/// **só o id** — nenhum e-mail: quem precisar do nome junta com `User` na
+/// leitura, e a tabela fica sem dado pessoal, como o `ErrorEvent`.
+///
+/// **`action` é texto, não enum do Postgres**, pela mesma regra do
+/// `ErrorEvent.code`: o conjunto fechado mora no código, com guarda, e cada
+/// mutação de admin nova acrescentaria um valor — enum aqui cobraria uma
+/// migration por ação, além da rota e das três guardas que ela já custa.
+///
+/// **Quem escreve é a API, no PR 5b** — e o disparo do pipeline exige que o
+/// BFF encaminhe o ator, porque a cadeia sessão → `CRON_SECRET` →
+/// `JOB_SECRET` chega à API sem usuário nenhum. O `actorId` é obrigatório de
+/// propósito: linha de auditoria sem ator não é auditoria.
+///
+/// Retenção de 365 dias, na etapa 8 — mais que qualquer outra tabela, porque
+/// log de segurança responde perguntas feitas meses depois.
+model AuditEvent {
+  id        String  @id @default(uuid())
+  /// `User.id` de quem agiu — ponteiro lógico, sem FK (ver acima).
+  actorId   String
+  /// Literal do conjunto fechado do código (`pipeline.triggered`,
+  /// `news.deleted`, …), nunca interpolado.
+  action    String
+  /// O alvo, quando há: o id da notícia apagada, o `PipelineLog.id` do run
+  /// disparado. Nulo quando a ação não criou nada (disparo que devolveu
+  /// `already-succeeded-today`).
+  targetId  String?
+  /// O desfecho que a rota devolveu — o `outcome` do disparo, `deleted` ou
+  /// `not-found` na exclusão. É o que separa "clicou" de "aconteceu".
+  outcome   String?
+  /// O `x-request-id` da requisição, que acha a linha de log.
+  requestId String?
+  /// Amostra escalar, não objeto aninhado — mesma regra do `ErrorEvent`.
+  context   Json?
+
+  createdAt DateTime @default(now())
+
+  /// A da tela (mais recentes primeiro) e a do expurgo.
+  @@index([createdAt])
+}
+
+/// Segundos em que a API esteve de pé, por dia UTC — o acumulador das horas
+/// do plano (§3.1 e §4.3 do plano de observabilidade, decidido em 12/09/2026).
+///
+/// **O teto que suspendeu a API em 29/08/2026 era uma métrica de saturação
+/// que ninguém observava**: 750 h/mês no plano free do Render, e o keep-alive
+/// gastava 744. Desde 01/09 a API dorme e acorda várias vezes por dia, o que
+/// resolve a conta e destrói a única medida que existia — `process.uptime()`
+/// zera a cada acordada, então "horas do mês" não é derivável dele, e o
+/// `uptimeSeconds` do `/api/metrics/http` fala só desta instância.
+///
+/// **Uma linha por dia, incrementada** — não uma amostra por acordada. O
+/// heartbeat (PR 5b) faz `upsert` do dia com `increment` do delta desde o
+/// último tique, e o `onClose` grava o resto com o mesmo prazo do flush do
+/// `ErrorEvent`. A perda máxima por `SIGKILL` é um intervalo de heartbeat; a
+/// soma do mês dividida por 750 é o arco de saturação, e a linha de hoje é
+/// incompleta por definição.
+///
+/// **Não é coluna do `DailyMetric`, de propósito.** Aquela linha nasce na
+/// etapa 9 do pipeline, uma vez por dia, e o seed também a cria; um heartbeat
+/// escrevendo nela a cada cinco minutos seria um segundo escritor com outra
+/// cadência na mesma linha. Uma tabela de duas colunas custa menos que essa
+/// disputa.
+///
+/// Mais de uma instância soma na mesma linha, que é como o Render cobra.
+///
+/// Retenção indefinida, como o `DailyMetric` — 365 linhas por ano.
+model DailyUptime {
+  id      String   @id @default(uuid())
+  /// Dia de calendário à meia-noite UTC, como `DailyMetric.date`.
+  date    DateTime @unique
+  /// Acumulado do dia. Cabe em `Int` com folga: o máximo é 86.400.
+  seconds Int      @default(0)
+
+  updatedAt DateTime @updatedAt
 }

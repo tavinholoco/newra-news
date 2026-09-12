@@ -285,10 +285,12 @@ a suíte de unidade, que roda sem rede.
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
   09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
-  PRs**.** Continuam abertas **cinco fases inteiras** (5, 6, 8, 9 e 11) mais as
-  subfases **7b e 7c**. A próxima é a **5** (as telas) — **inventário
-  reconferido em 12/09 no fim da §9**, **em três PRs** (5a migration, 5b
-  API, 5c web — decidido em 12/09) e duas decisões a tomar antes de desenhar. O **§19** é
+  PRs**; e a **5 está em curso, em três PRs** — o **5a (a migration) fechou em
+  12/09**.** Continuam abertas **quatro fases inteiras** (6, 8, 9 e 11), os
+  **5b e 5c** e as subfases **7b e 7c**. A próxima é o **5b** (a API da Fase
+  5): `/api/admin/errors`, saturação, o escritor do `AuditEvent` — que precisa
+  do ator atravessando BFF → cron → API — e o heartbeat do `DailyUptime`; o que
+  ele herda está escrito no fim da §9. O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -343,6 +345,32 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-12): a Fase 5 abriu pelo schema — PR 5a.**
+  §9, item **62**. As duas decisões que o inventário deixava *"antes de
+  desenhar"* eram schema, e foram tomadas: a auditoria de admin é tabela
+  (`AuditEvent`, uma linha por ocorrência, `actorId` sem FK e sem e-mail,
+  `action` texto com conjunto no código, 365 dias) e as horas do plano do
+  Render são acumulador (`DailyUptime`, uma linha por dia UTC incrementada por
+  heartbeat — `process.uptime()` zera a cada acordada desde 01/09, e o arco de
+  saturação que faltava em 29/08 não tinha de onde sair). O `aiTokensUsed` saiu
+  dos três lugares. **1.015 → 1.018 na API**, nenhuma mudança em `src/`.
+
+  > **Nenhuma guarda alcançava coluna, e agora duas alcançam.** Tirar uma
+  > coluna do schema e esquecer o `DROP COLUMN` deixava a suíte inteira verde e
+  > produção com coluna morta para sempre. `migrations.test.ts` ganhou um
+  > **replay estático** (`CREATE`/`ADD`/`DROP`/`RENAME COLUMN` na ordem do
+  > deploy, contra o schema, nas duas direções) e o `diagram-drift` compara o ER
+  > **coluna a coluna** — as 13 entidades de 01/09 bateram até no atributo.
+  >
+  > **O inventário errava um fato que muda o 5b:** a API **não** vê quem
+  > disparou o pipeline — a cadeia BFF → cron → API chega com `JOB_SECRET` e
+  > usuário nenhum. O ator tem de ser encaminhado; a tabela nasceu com
+  > `actorId` obrigatório de propósito.
+  >
+  > **O SQL saiu de replay real** (`migrate diff --from-migrations` num shadow
+  > DB — o único caminho que produz `DROP COLUMN`), aplicou sobre as 30 linhas
+  > seedadas do banco local, e as seis migrations do zero dão *"No difference
+  > detected"*.
 - **Verificação pós-merge da Fase 4 (2026-09-12): quatro falhas ainda morriam
   com a linha de log.** Item **61**. A pergunta dos itens 39, 52 e 57 — *o que
   ficou de fora?* — respondida enumerando todo `warn`/`error` escrito fora dos
@@ -762,7 +790,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.698 em 142 suites (**1.015 API em 71** + **683 web em 71** — todos
+- **Testes:** 1.701 em 142 suites (**1.018 API em 71** + **683 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

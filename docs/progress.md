@@ -6481,6 +6481,104 @@ antes de verificar parece verificação que passou, se ninguém ler a saída.
 
 **1.003 → 1.015 testes na API** (70 → 71 suítes). Web inalterado em 683.
 
+### 62. Fase 5, PR 1 de 3 — a migration: `AuditEvent`, `DailyUptime`, e o `aiTokensUsed` fora ✅ 2026-09-12
+
+> **§9 do plano de observabilidade, primeiro dos três PRs.** Este é *só* schema,
+> pela medida da Fase 4: a tabela de auditoria de admin, o acumulador das horas
+> do plano, e a coluna morta removida. A API que escreve nas duas tabelas é o
+> 5b; as telas são o 5c.
+
+#### As duas decisões, tomadas antes de escrever schema
+
+O inventário de 12/09 (fim da §9) deixava duas perguntas *"a tomar antes de
+desenhar"*, e as duas eram schema — por isso são deste PR e não do 5c.
+
+**A auditoria de admin virou tabela: `AuditEvent`.** Uma linha por
+**ocorrência**, ao contrário do `ErrorEvent` — auditoria responde *qual*
+clique, de *quem*, *quando*, e coalescer por hora apagaria exatamente isso. O
+teto vem de outro lugar: só um humano com sessão ADMIN produz linha, então a
+tabela cresce com cliques, nunca com tráfego. `actorId` é `User.id` **sem FK**
+(a trilha tem de sobreviver ao ator; é o padrão de todo `userId` do schema) e
+**só o id** — nenhum e-mail, como o `ErrorEvent`; `action` é **texto** com o
+conjunto fechado no código, pela regra do `ErrorEvent.code`; `targetId` e
+`outcome` separam "clicou" de "aconteceu". Retenção de **365 dias**, aplicada
+pela etapa 8 no 5b. As alternativas, recusadas com motivo: `ErrorEvent` com
+`origin` próprio poluiria a rosquinha de erro e herdaria 14 dias e
+coalescimento; adiar com gatilho é adiar para o momento em que já é tarde.
+
+**As horas do plano viraram acumulador: `DailyUptime`.** Uma linha por dia UTC,
+**incrementada** — o heartbeat do 5b faz `upsert` com `increment` do delta
+desde o último tique e o `onClose` grava o resto com o prazo que o flush do
+`ErrorEvent` já tem. Perda máxima por `SIGKILL`: um intervalo. Leitura: soma do
+mês / 750 h, que é o arco de saturação que a §4.3 chama de *"o mais importante
+do plano inteiro"* — e que em 29/08 teria mostrado 744 h chegando. **Não é
+coluna do `DailyMetric`**: aquela linha nasce na etapa 9 e o seed também a
+cria — dois escritores com cadências diferentes na mesma linha. O rótulo
+honesto ("esta instância, desde X") foi recusado porque deixa o arco sem
+existir.
+
+#### O achado que muda o 5b: a API não sabe quem disparou o pipeline
+
+O inventário dizia que `request.user.sub` está disponível no `POST
+/api/jobs/daily-pipeline` *"via BFF"*. **Não está.** A cadeia é BFF (sessão
+ADMIN) → `GET /api/cron/daily-news` (`CRON_SECRET`) → API (`JOB_SECRET`), e a
+API recebe o disparo **sem usuário nenhum** — o único lugar onde o ator existe
+é o BFF. A tabela nasceu com `actorId` obrigatório de propósito (linha de
+auditoria sem ator não é auditoria), e encaminhar o ator pela cadeia é trabalho
+do 5b, escrito na §9 para não ser redescoberto.
+
+#### As duas guardas de coluna, e o buraco que o inventário tinha previsto
+
+**Nenhuma das quatro asserções da Fase 4 alcança coluna.** Remover
+`aiTokensUsed` do schema e esquecer o `DROP COLUMN` deixava a suíte inteira
+verde — model, enum e índice continuavam todos criados — e o banco de produção
+ficaria com uma coluna que nenhum código lê, para sempre, sem que `migrate
+status` reclamasse. É o buraco da Fase 4 pelo avesso: lá, o esquecimento
+quebrava produção na primeira consulta; aqui, não quebra nada nunca, e é por
+isso que ninguém o acharia.
+
+- **`migrations.test.ts` ganhou um replay estático de colunas.** Aplica, na
+  ordem do `migrate deploy`, os `CREATE TABLE`, `ADD COLUMN`, `DROP COLUMN` e
+  `RENAME COLUMN` de todas as migrations sobre um conjunto por tabela, e compara
+  com as colunas escalares do schema **nas duas direções**. O `RENAME` da Fase
+  6 (`newsId` → `itemId`) é o que obriga o replay a ser em ordem em vez de um
+  `includes`; o `ADD COLUMN` em continuação de linha do formato do Prisma e o
+  `UPDATE` de backfill escrito à mão foram os dois casos que o parser teve de
+  ler. Na estreia, os 13 models já existentes bateram sem divergência.
+- **`diagram-drift.test.ts` passou a comparar o ER coluna a coluna.** A
+  comparação por entidade — a que existia — passava verde com o `aiTokensUsed`
+  desenhado depois de sair do schema, e o inventário da §9 tinha escrito isso
+  como previsão. As 13 entidades de 01/09 bateram até no atributo.
+
+**As duas foram vistas reprovando nas duas direções antes de servir:** com a
+coluna tirada do schema e nada mais (*"criada pelo SQL, ausente do schema"* /
+*"desenhada, ausente do schema"*), e com uma coluna fantasma acrescentada só ao
+schema (*"no schema, sem SQL que a crie"* / *"no schema, não desenhada"*).
+
+> **E a quebra de propósito mordeu de volta:** restaurar o schema com `git
+> checkout` **reverteu o PR inteiro**, não só a coluna fantasma — o arquivo não
+> estava commitado. Salvou o backup feito por reflexo um comando antes.
+> Lição pequena e barata: quebra de propósito sobre arquivo não commitado se
+> desfaz com o backup, nunca com o git.
+
+#### O SQL saiu de replay real, e o replay real foi feito
+
+Com o Docker de pé, `prisma migrate diff --from-migrations …
+--shadow-database-url` replayou as cinco migrations anteriores num shadow DB
+vazio e devolveu o delta — **é o único caminho que produz o `DROP COLUMN`**; o
+`--from-empty` da Fase 4 devolve o schema inteiro e não sabe o que saiu.
+Depois: `migrate deploy` aplicou no banco local, cujas 30 linhas de
+`DailyMetric` tinham a coluna preenchida pelo seed — o `DROP` foi sobre dado
+real —, o diff contra o banco vivo devolveu **só** o `News_sourceUrl_key` que o
+baseline sempre deixou de fora, e as **seis** migrations replayadas do zero
+contra o schema deram *"No difference detected"*. O `migrate dev` ficou de fora
+de propósito: com a deriva conhecida do baseline, ele pediria reset. O ER foi
+conferido renderizando no Mermaid 11 (443 KB de SVG), não só pelo parser da
+guarda.
+
+**1.015 → 1.018 testes na API** (71 suítes). Web inalterado em 683. Nenhuma
+mudança em `src/`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
