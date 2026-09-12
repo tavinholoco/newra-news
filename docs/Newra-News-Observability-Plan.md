@@ -1002,7 +1002,7 @@ não tem leitor no web; `state-matrix` está em **15**; não existe
   `/admin/security` tem de entrar no script, senão a única ferramenta que
   alcança tela de admin não alcança a tela nova.
 
-**Recomendação de corte, pela medida da Fase 4:** três PRs em vez de um —
+**Corte em três PRs — decidido em 12/09/2026, pela medida da Fase 4:**
 **5a** a migration (remover `aiTokensUsed`; a tabela de auditoria, se a decisão
 for tabela), **5b** a API (`/api/admin/errors`, saturação no
 `/api/metrics/http`, as três colunas no `dashboardMetricsSchema`, o
@@ -1011,6 +1011,15 @@ abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, o
 `admin:capture`). A 4 mostrou que schema separado de código revert-a limpo, e
 o 5c é o maior PR de tela do plano — misturá-lo com migration é o oposto do
 que o §19 pede.
+
+> **A migration do `ErrorEvent` fez o replay de verdade em 12/09/2026**, ao
+> preparar o banco local para esta fase: `prisma migrate deploy` aplicou
+> `20260822160000_add_product_events` (pendente localmente desde 22/08 — o
+> banco local nunca teve `ProductEvent`) e `20260910120000_add_error_events`,
+> e o `migrate diff --from-url` contra o schema devolveu **só** o
+> `News_sourceUrl_key` que o baseline por `migrate resolve` sempre deixou de
+> fora. É a medição que a guarda estática de `migrations.test.ts` diz não
+> substituir, feita.
 
 ---
 
@@ -1954,7 +1963,7 @@ aplica as duas migrations juntas na promoção.**
 | ~~5~~ ✅ | **§7 — Fase 3, taxonomia** — **entregue em 09/09/2026** | O `code` que a Fase 4 usa como fingerprint, agora com teto e guarda derivada do parser. Achou de quebra o `catch` do `authPlugin`, que engolia **toda** recusa de sessão. Item **56** do `docs/progress.md` |
 | ~~6a~~ ✅ | **§8 — Fase 4, a migration** — **entregue em 10/09/2026** | PR só de schema. `ErrorEvent` + os dois índices que o `PipelineLog` nunca teve. Nasceu junto a guarda que cobra migration para todo model, enum e índice do schema. Item **59** do `docs/progress.md` |
 | ~~6b~~ ✅ | **§8 — Fase 4, o código** — **entregue em 10/09/2026** | `recordError` (síncrona, coalescente, nunca lança), o buffer com flush de 30 s e no `onClose`, e a retenção de 14 dias na etapa 8. Item **60** |
-| **7 ← próxima** | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. **Inventário reconferido em 12/09** (fim da §9): três PRs recomendados — 5a migration, 5b API, 5c web — e duas decisões abertas antes de desenhar (as horas do plano não são deriváveis do `uptime` entre reinícios; a auditoria de admin não tem onde morar) |
+| **7 ← próxima** | **§9 — Fase 5, as telas** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. **Inventário reconferido em 12/09** (fim da §9): **três PRs, decididos** — 5a migration, 5b API, 5c web — e duas decisões abertas antes de desenhar (as horas do plano não são deriváveis do `uptime` entre reinícios; a auditoria de admin não tem onde morar) |
 
 **Bloco 3 — depois da espinha, em qualquer ordem.**
 

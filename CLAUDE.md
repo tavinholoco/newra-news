@@ -287,8 +287,8 @@ a suíte de unidade, que roda sem rede.
   09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
   PRs**.** Continuam abertas **cinco fases inteiras** (5, 6, 8, 9 e 11) mais as
   subfases **7b e 7c**. A próxima é a **5** (as telas) — **inventário
-  reconferido em 12/09 no fim da §9**, com três PRs recomendados (migration,
-  API, web) e duas decisões a tomar antes de desenhar. O **§19** é
+  reconferido em 12/09 no fim da §9**, **em três PRs** (5a migration, 5b
+  API, 5c web — decidido em 12/09) e duas decisões a tomar antes de desenhar. O **§19** é
   o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
   fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
