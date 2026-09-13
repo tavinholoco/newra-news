@@ -65,8 +65,12 @@ if ($Install) {
   $script = $PSCommandPath
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
     -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`""
+  # Sem `-RepetitionDuration`: no Windows 10/11 a ausência significa "indefinidamente".
+  # `[TimeSpan]::MaxValue` — a receita antiga — vira `P99999999DT23H59M59S` no XML
+  # da tarefa e o Agendador recusa ("valor formatado incorretamente ou fora do
+  # intervalo"). Medido em 12/09/2026, na primeira instalação.
   $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
-    -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue)
+    -RepetitionInterval (New-TimeSpan -Minutes 5)
   $settings = New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable `
     -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances IgnoreNew
