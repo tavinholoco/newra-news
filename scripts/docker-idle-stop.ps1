@@ -99,8 +99,12 @@ if ($devServers) {
 $limite = (Get-Date).ToUniversalTime().AddMinutes(-$IdadeMinimaMin)
 $alvos = @(); $novos = @()
 foreach ($nome in $running) {
-  $startedAt = [datetime]::Parse((cmd /c "docker inspect --format `"{{.State.StartedAt}}`" $nome 2>nul"), $null, 'AdjustToUniversal')
-  if ($startedAt -lt $limite) { $alvos += $nome } else { $novos += $nome }
+  $estado, $inicio = (cmd /c "docker inspect --format `"{{.State.Status}}|{{.State.StartedAt}}`" $nome 2>nul") -split '\|'
+  $startedAt = [datetime]::Parse($inicio, $null, 'AdjustToUniversal')
+  # Container em loop de reinício nunca tem 3 min de vida — o `StartedAt` zera
+  # a cada volta —, e a regra de idade o pouparia para sempre (medido em
+  # 12/09/2026: um `supabase_vector` reiniciando a cada minuto). É alvo sempre.
+  if ($estado -eq 'restarting' -or $startedAt -lt $limite) { $alvos += $nome } else { $novos += $nome }
 }
 if ($DryRun) {
   Write-Host ('sem dev server. pararia ({0}): {1}' -f $alvos.Count, ($alvos -join ', '))
