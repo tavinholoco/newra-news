@@ -1,10 +1,17 @@
-version: '3.8'
-
+# Banco local. **Quem sobe e desce o postgres é a sessão de dev**, não o Docker:
+# `pnpm --filter @newranews/api dev` (e por extensão `pnpm dev`) passa por
+# `scripts/dev-with-db.mjs`, que faz `up -d postgres` antes e `stop postgres`
+# depois. Por isso `restart: "no"` — com `unless-stopped`, abrir o Docker
+# Desktop ressuscitava o container de todo projeto desta máquina, quisesse ou
+# não (medido em 12/09/2026: 12 containers de pé, 1 deste projeto).
+#
+# O pgAdmin fica atrás do profile `tools`: `docker compose --profile tools up -d`.
+# Sem o profile, `docker compose up -d` sobe só o postgres.
 services:
   postgres:
     image: postgres:16-alpine
     container_name: newranews-db
-    restart: unless-stopped
+    restart: "no"
     ports:
       - '5432:5432'
     environment:
@@ -13,11 +20,17 @@ services:
       POSTGRES_DB: newranews
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U user -d newranews']
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: newranews-pgadmin
-    restart: unless-stopped
+    restart: "no"
+    profiles: ['tools']
     ports:
       - '5050:80'
     environment:

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node ../../scripts/dev-with-db.mjs tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "archive:hygiene": "node scripts/measure-archive-hygiene.mjs",
