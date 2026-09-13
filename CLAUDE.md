@@ -12,7 +12,7 @@
 ## Comandos
 - `./scripts/dev-bootstrap.sh` — **ambiente pronto do zero**: Postgres, envs locais, migrations, imagens de placeholder e seed (idempotente; não sobrescreve `.env` existente). Use em container novo antes de rodar o app ou capturar screenshots
 - `pnpm install` — instalar dependências
-- `pnpm dev` — rodar todos os apps em dev
+- `pnpm dev` — rodar todos os apps em dev. **O postgres sobe e para junto com o dev server da API** (`scripts/dev-with-db.mjs`); o vigia `scripts/docker-idle-stop.ps1 -Install` para o que escapou por kill forçado. `docs/setup.md` §4.1
 - `pnpm build` — build de produção
 - `pnpm lint` — ESLint em todo o monorepo
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
