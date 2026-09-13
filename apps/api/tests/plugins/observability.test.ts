@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  EVENT_LOOP_RESOLUTION_MS,
   LATENCY_BUCKETS_MS,
+  getEventLoopLag,
   getHttpMetrics,
   percentileFromBuckets,
   recordHttpResponse,
   resetHttpMetrics,
+  startEventLoopMonitor,
 } from '../../src/plugins/observability';
 
 /**
@@ -123,5 +126,53 @@ describe('9.5 — a chave é o padrão da rota, não a URL', () => {
 
     expect(byRoute['GET /api/home']).toBe(1);
     expect(byRoute['GET /api/news']).toBe(0);
+  });
+});
+
+/**
+ * **A terceira medida de saturação da §3.1** — o histograma que teria acusado
+ * os 45 s de 03/09/2026 antes do `SIGTERM`.
+ *
+ * O que se mede: que o lag sai **sem** a resolução (em regime, perto de zero,
+ * e não ≈ 10 ms), e que uma parada síncrona do loop aparece no `max`. A parada
+ * é curta de propósito — 60 ms — para não custar à suíte o que custou à API.
+ */
+describe('§3.1 — o atraso do event loop', () => {
+  it('responde zero, e diz que não tem amostra, antes de o monitor existir ou colher', () => {
+    // Antes de `startEventLoopMonitor` neste módulo o histograma é indefinido;
+    // depois, pode ter zero amostras. Nos dois casos a forma é completa.
+    const lag = getEventLoopLag();
+
+    expect(lag.resolutionMs).toBe(EVENT_LOOP_RESOLUTION_MS);
+    expect(lag.lagMs.p50).toBeGreaterThanOrEqual(0);
+    expect(lag.lagMs.max).toBeGreaterThanOrEqual(lag.lagMs.p99);
+  });
+
+  it('registra uma parada síncrona do loop no máximo, já sem a resolução', async () => {
+    startEventLoopMonitor();
+    // Deixa o histograma colher algumas amostras em regime.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const stallMs = 60;
+    const until = Date.now() + stallMs;
+    while (Date.now() < until) {
+      // segura o loop de propósito
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const lag = getEventLoopLag();
+    expect(lag.samples).toBeGreaterThan(0);
+    // A parada de 60 ms aparece como ≥ ~40 ms de atraso além da resolução; a
+    // folga cobre a granularidade do relógio do sistema (~15 ms no Windows).
+    expect(lag.lagMs.max).toBeGreaterThanOrEqual(stallMs - EVENT_LOOP_RESOLUTION_MS - 15);
+  });
+
+  it('é idempotente — o buildApp roda em toda suíte e não pode criar dois histogramas', () => {
+    startEventLoopMonitor();
+    const before = getEventLoopLag().samples;
+    startEventLoopMonitor();
+
+    // Um segundo histograma zeraria a contagem; o mesmo continua contando.
+    expect(getEventLoopLag().samples).toBeGreaterThanOrEqual(before);
   });
 });

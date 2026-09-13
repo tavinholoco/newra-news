@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { authPlugin, requireAdmin } from '../../plugins/auth';
 import {
   getDevLogDetail,
   getDevLogs,
@@ -35,6 +34,11 @@ import { errorResponseSchema } from '../../utils/schemas';
  * `authorization-matrix.test.ts` enumera o `printRoutes()`, filtra o prefixo e
  * cobra `access: 'admin'` de cada rota.
  *
+ * **Desde a Fase 5 o grupo é `routes/admin/index.ts`**, e não este arquivo:
+ * com três subgrupos sob o prefixo, as duas linhas de proteção moram no pai e
+ * os filhos herdam o `preHandler`. Este arquivo não registra auth nenhuma —
+ * e é assim que deve ser lido: rota aqui nasce protegida porque está aqui.
+ *
  * O efeito colateral bom é que o caminho do BFF e o da API finalmente têm o
  * mesmo nome: `/api/admin/pipeline/runs` dos dois lados.
  *
@@ -50,26 +54,6 @@ import { errorResponseSchema } from '../../utils/schemas';
  * um JWT de admin válido.
  */
 export async function adminPipelineRoutes(app: FastifyInstance) {
-  /**
-   * As duas linhas que fazem o prefixo valer.
-   *
-   * `authPlugin` é exportado sem encapsulamento (o `fp()` do export default
-   * marca a própria função com `skip-override`), então o `preHandler` dele
-   * entra **neste** contexto — o de `adminPipelineRoutes` — e vale para toda
-   * rota registrada abaixo, e só para elas. O mesmo desenho do
-   * `routes/metrics/admin.ts`, que mantém `/weekly` e `/monthly` públicas em
-   * outro contexto.
-   *
-   * O `requireAdmin` vem logo depois, como hook do grupo e não como primeira
-   * linha de cada handler: quatro cópias inline de `if (role !== 'ADMIN')` foi
-   * exatamente o que a revisão da Fase 9 encontrou e desfez. Hook do grupo
-   * significa que a rota nova nasce protegida sem ninguém lembrar de nada.
-   */
-  await app.register(authPlugin);
-  app.addHook('preHandler', async (request) => {
-    requireAdmin(request);
-  });
-
   app.withTypeProvider<ZodTypeProvider>().get(
     '/runs',
     {

@@ -44,6 +44,11 @@ const SRC_DIR = join(__dirname, '../../src');
  * o mesmo `weeklyMetricsSchema` é reusado dentro de `dashboardMetricsSchema`,
  * que é o que a tela de admin lê e que tem asserção própria. A entrada aqui é
  * sobre a rota `/api/metrics/weekly`, que nenhuma tela chama.
+ *
+ * **`httpMetricsResponseSchema` saiu desta lista na Fase 5.** O motivo escrito
+ * era "lida por operador, sem tela"; no instante em que a saturação passou a
+ * existir para ser desenhada, o motivo deixou de ser verdade — e a terceira
+ * asserção abaixo é o que impede a exceção de sobreviver ao contrato.
  */
 const WITHOUT_SHARED_TYPE: Record<string, string> = {
   removeFavoriteResponseSchema: 'booleano de confirmação, declarado inline no web',
@@ -54,7 +59,6 @@ const WITHOUT_SHARED_TYPE: Record<string, string> = {
   pipelineStatusResponseSchema: 'status de job, lido por operador',
   healthResponseSchema: 'sonda de plataforma (Render), sem consumidor no web',
   providersHealthResponseSchema: 'sonda de operador, sem consumidor no web',
-  httpMetricsResponseSchema: 'observabilidade lida por operador, sem tela',
   weeklyMetricsResponseSchema: 'rota sem tela; o mesmo schema é coberto dentro do dashboard',
   monthlyMetricsResponseSchema: 'rota sem tela, sem tipo compartilhado equivalente',
 };

@@ -28,7 +28,11 @@
 - GET /api/articles — listar artigos (com os campos de auditoria, sem `sources`)
 - GET /api/articles/:date — artigo por data (YYYY-MM-DD) + `sources`
 - GET /api/articles/latest — artigo mais recente + `sources`
-- POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min)
+- POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min).
+  **`x-actor-id` opcional** — o `User.id` de quem clicou no painel, que o BFF
+  põe e o cron do Next repassa; com ele a rota grava `pipeline.triggered` no
+  `AuditEvent`. O cron da Vercel não o manda, e o disparo agendado não é ação
+  de ninguém. Fase 5 do plano de observabilidade
 - POST /api/jobs/renormalize-news — a mesma renormalização da etapa 8.5, sob
   demanda (Bearer `JOB_SECRET`). **O pipeline já faz isso todo dia** — esta rota
   serve para *inspecionar* (`dryRun`, o padrão, devolve o relatório sem gravar)
@@ -42,10 +46,11 @@
 - GET /api/metrics/product — **admin**: métricas de **produto** (`ProductEvent`)
   — audiência, leitura, cliques por origem, categorias e buscas sem resultado.
   `days` de 1 a 90 (o teto é a retenção do evento cru)
-- GET /api/metrics/http — **admin**: error rate, taxa de 4xx e latência
-  (p50/p95/p99/max) do processo que está no ar, mais a lista por rota. As duas
-  métricas técnicas da §26, que até a Fase 9 ninguém produzia. **Em memória** —
-  ver "Observabilidade da API" abaixo
+- GET /api/metrics/http — **admin**: os quatro sinais de ouro. Error rate,
+  taxa de 4xx e latência (p50/p95/p99/max) do processo que está no ar, mais a
+  lista por rota — **em memória**, ver "Observabilidade da API" abaixo — e,
+  desde a Fase 5, **`saturation`**: memória residente / 512 MB, atraso do
+  event loop, e as horas do plano no mês (soma do `DailyUptime`) / 750
 - POST /api/auth/upsert — cria o usuário no primeiro sign-in. Exige JWT com
   `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
@@ -57,6 +62,12 @@
 - GET /api/admin/pipeline/runs/:pipelineId — **admin**: o run com os eventos por
   etapa. **Tudo sob `/api/admin` é admin-only por construção** — `authPlugin` e
   `requireAdmin` registram uma vez no grupo, e há guarda enumerando o roteador
+- GET /api/admin/errors — **admin**: o `ErrorEvent` **agrupado por
+  fingerprint** na janela (`window` = `24h` | `7d`), com contagem, horas,
+  `lastRequestId` e as três distribuições (categoria, severidade, origem). A
+  primeira leitura da tabela da Fase 4. Fase 5
+- GET /api/admin/audit — **admin**: a trilha de ação de admin, mais recente
+  primeiro (`days` ≤ 365, `limit` ≤ 200). Só o `actorId`, nunca e-mail. Fase 5
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only: runs, erros e status dos providers.
@@ -67,9 +78,13 @@
 
 ## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
 
-**A garantia é do grupo, não da rota.** `routes/admin/pipeline.ts` registra o
-`authPlugin` e um `preHandler` com `requireAdmin` uma vez; toda rota do grupo
-nasce protegida sem ninguém lembrar de repetir a linha. É o gêmeo, do lado da
+**A garantia é do grupo, não da rota.** `routes/admin/index.ts` registra o
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os três subgrupos
+(`pipeline`, `errors`, `audit`) herdam o hook — hook de contexto pai vale para
+todo `register` abaixo dele. Toda rota do grupo nasce protegida sem ninguém
+lembrar de repetir a linha; **na Fase 2 as duas linhas moravam em
+`pipeline.ts`**, e subiram para o pai quando a Fase 5 pôs dois subgrupos ao
+lado. É o gêmeo, do lado da
 API, do que o `admin/layout.tsx` faz do lado do web — e tem guarda:
 `authorization-matrix.test.ts` enumera o `printRoutes()`, filtra o prefixo e
 cobra `access: 'admin'` de cada linha, com uma asserção separada exigindo que o
@@ -150,8 +165,16 @@ Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup �
 **Renormalização** → Métricas
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias,
-**ProductEvents >90 dias** (por `occurredAt`) e **ErrorEvents >14 dias** (por
-`windowStart`)
+**ProductEvents >90 dias** (por `occurredAt`), **ErrorEvents >14 dias** (por
+`windowStart`) e **AuditEvents >365 dias** (por `createdAt` — mais que
+qualquer outra tabela, porque log de segurança responde pergunta feita meses
+depois)
+
+> **Cada um desses números está escrito em prosa em quatro documentos que a
+> etapa não abre**, e há guarda: `tests/docs/retention-drift.test.ts` compara
+> esta linha, os dois diagramas do pipeline e o `packages/database/CLAUDE.md`
+> com as constantes de retenção de cada service. É a família do `13` dos
+> feeds — número que descreve código quer guarda derivada do código.
 
 **A etapa 8.5 (renormalização) é o que faz uma correção de regra alcançar o que
 já está gravado.** Consertar a ingestão só conserta o que entra; sem ela, uma
@@ -615,6 +638,82 @@ Regras que não são óbvias no código:
   percentil cai. O `max` é o valor real, e é ele que denuncia o cold start.
 - **O `x-request-id` de quem chama é respeitado**, o que permite seguir uma
   requisição do BFF até aqui. O BFF ainda não o envia — costura da Fase 11.
+- **A saturação é a única parte da resposta que vai ao banco** (Fase 5), e só
+  ao `DailyUptime`. Memória e event loop são leitura de processo; ver "A
+  trilha de auditoria e a saturação", abaixo.
+
+## A trilha de auditoria e a saturação (Fase 5 do plano de observabilidade)
+
+O PR 5b: quem escreve `AuditEvent` e `DailyUptime` (tabelas do 5a), a leitura
+do `ErrorEvent`, e o quarto sinal de ouro.
+
+| Peça | Papel |
+|---|---|
+| `services/audit.service.ts` | `AUDIT_ACTIONS` (o conjunto fechado), `recordAuditEvent`, a leitura e o expurgo de 365 d |
+| `services/uptime.service.ts` | o crédito de segundos por dia UTC, o tique, o flush com prazo e a soma do mês |
+| `plugins/uptime-heartbeat.ts` | o intervalo de 5 min e o `onClose` — **registrado no `server.ts`** |
+| `services/error-summary.service.ts` | a soma por fingerprint na janela — o **leitor** do `ErrorEvent`, separado do escritor |
+| `services/saturation.service.ts` | memória, event loop (`plugins/observability.ts`) e horas do plano, com teto e razão |
+| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos |
+
+Regras que não são óbvias no código:
+
+- **A API não vê quem disparou o pipeline, e foi medido.** A cadeia do botão é
+  BFF (sessão) → `GET /api/cron/daily-news` (`CRON_SECRET`) →
+  `POST /api/jobs/daily-pipeline` (`JOB_SECRET`), sem usuário. O BFF põe o
+  `User.id` em `x-actor-id`, o cron repassa, a rota grava. **Cabeçalho, não
+  corpo**: o primeiro salto é `GET`, e um `body` no `POST` quebraria todo
+  chamador que hoje não manda nenhum (o validador recebe `null`, e
+  `.default({})` só cobre `undefined`). **Não é schema de `headers`** do
+  Fastify: o `validatorCompiler` do type provider devolve o objeto parseado e
+  o Fastify o põe no lugar de `request.headers` — um `z.object` ali apagaria
+  o `authorization`. Lido à mão, **depois** do `assertJobSecret`.
+- **Valor malformado é 400, não silêncio.** Só o BFF escreve o cabeçalho, então
+  um valor errado é bug nosso; ignorá-lo dispararia o pipeline e perderia a
+  linha sem sinal. `ACTOR_ID_INVALID` é `internal` num 400 pela regra da Fase
+  3 — a linha tem de existir em produção.
+- **`action` é literal do tuple, e todo membro tem quem o grave.** Mesma regra
+  e mesma guarda pelo parser do `ErrorEvent.code`
+  (`tests/services/audit.service.test.ts`). `targetId` só quando a ação criou
+  ou tocou algo — no disparo, só com `outcome: 'started'`; nos outros dois o
+  id do run existente vai no `context`.
+- **`recordAuditEvent` nunca lança, e a falha vira `ErrorEvent`.** A ação já
+  aconteceu; falhar a resposta mentiria. Ao contrário do flush do
+  `ErrorEvent`, aqui registrar a própria falha não fecha laço nenhum
+  (`AUDIT_WRITE_FAILED`, com a ação como escopo).
+- **`requireSubject` mora em `plugins/auth.ts`**, ao lado do `requireAdmin`. O
+  `DELETE /api/news/:id` precisava do `sub` e já havia duas cópias da
+  conferência; a de `favorites` virou a função, a de `account` continua própria
+  porque também exige o e-mail. O ator é conferido **antes** de apagar.
+- **O heartbeat vive no `server.ts`, não no `buildApp`.** O `buildApp` roda em
+  toda suíte, e um `onClose` que vai ao banco custaria o prazo inteiro em cada
+  uma — contra um banco que não existe no CI. É o mesmo lugar do cron interno,
+  pela mesma razão; a fiação tem guarda pelo parser.
+- **Outbound-only.** O heartbeat escreve no banco e não faz HTTP nenhum: o que
+  mantém o Render acordado é tráfego **de entrada**, e um timer batendo no
+  próprio `/api/health` seria o keep-alive de volta — o que gastou 744 h.
+- **O crédito é de segundos inteiros, com o resto guardado.** Arredondar a cada
+  cinco minutos derivaria; a travessia da meia-noite divide entre os dois dias.
+  Um tique que falha **não avança o crédito** — o seguinte tenta o intervalo
+  inteiro. E não vira `ErrorEvent`: quando este `upsert` falha o banco está
+  fora, e toda rota que responde 500 já grava a causa.
+- **O lag do event loop sai sem a resolução.** `monitorEventLoopDelay` registra
+  o intervalo entre disparos de um timer de 10 ms, não o excesso — em regime o
+  p50 cru é ≈ 10 ms (≈ 25 no Windows), o que leria como lentidão. O que sai é
+  `max(0, percentil − resolução)`; o `max` fica até o processo reiniciar, e é
+  ele que teria acusado os 45 s de 03/09.
+- **O leitor do `ErrorEvent` agrega em memória, com teto.** A tabela é
+  coalescida por construção (`fingerprints × 168` linhas em 7 d), e o
+  `groupBy` do Prisma não devolve mensagem nem `lastRequestId`. Teto de 5.000
+  linhas com `truncated`; **gatilho:** p95 da rota > 1.000 ms.
+- **`byCategory` traz as seis categorias sempre**, na ordem da taxonomia, com
+  zero onde não houve — a rosquinha tem fatias fixas e a janela vazia tem forma
+  completa.
+- **As retenções da etapa 8 viraram constantes nomeadas**
+  (`NEWS_RETENTION_DAYS`, `PIPELINE_LOG_RETENTION_DAYS`,
+  `ARTICLE_RETENTION_DAYS`), e a prosa que as repete tem guarda —
+  `tests/docs/retention-drift.test.ts`, sobre os dois diagramas e os dois
+  `CLAUDE.md`.
 
 ## As guardas que enumeram a superfície
 
@@ -626,6 +725,7 @@ novo: **enumeram a superfície e exigem decisão para cada item.**
 | `tests/routes/api-docs-drift.test.ts` | as rotas do roteador | linha na `docs/api.md` |
 | `tests/routes/response-schema-contract.test.ts` | as colunas do Prisma | campo no schema de resposta, ou motivo escrito |
 | `tests/security/authorization-matrix.test.ts` | as rotas do roteador | linha na matriz de autorização |
+| `tests/docs/retention-drift.test.ts` | as retenções da etapa 8 (constantes) | o número certo em cada frase que o repete |
 
 **Cada uma tem uma asserção que segura as outras**: um parser que devolvesse
 lista vazia faria a guarda passar para sempre, então há um teste afirmando que a

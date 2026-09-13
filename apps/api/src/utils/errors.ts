@@ -111,6 +111,15 @@ export const ERROR_CODES = [
    * linha simplesmente não existiria.
    */
   'CONTENT_TYPE_REJECTED',
+  /**
+   * `x-actor-id` presente e fora do formato, no `POST /api/jobs/daily-pipeline`.
+   *
+   * Só o BFF escreve esse cabeçalho, então um valor errado é defeito nosso —
+   * `internal`, e não `validation`, para que a linha exista em produção
+   * (`validation` sai em `debug`) em vez de o pipeline disparar e a linha de
+   * auditoria sumir em silêncio.
+   */
+  'ACTOR_ID_INVALID',
   /** O default do `AppError` cru: falha nossa que não ganhou nome próprio. */
   'INTERNAL',
 ] as const;

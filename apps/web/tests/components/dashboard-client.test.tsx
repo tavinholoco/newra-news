@@ -13,6 +13,10 @@ const mockMetrics: DashboardMetrics = {
     // Milissegundos, como o backend grava (`Date.now() - startedAt`).
     pipelineDuration: 27_000,
     pipelineErrors: 0,
+    // As três colunas que a Fase 5 do plano de observabilidade pôs no contrato.
+    newsApiCount: 300,
+    rssCount: 191,
+    cleanupCount: 12,
   },
   lastWeek: {
     period: {

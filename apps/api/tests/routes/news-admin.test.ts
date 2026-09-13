@@ -13,6 +13,11 @@ vi.mock('@newranews/database', async (importOriginal) => {
         deleteMany: vi.fn(),
         findUnique: vi.fn(),
       },
+      // A trilha de auditoria da Fase 5 — sem o mock, `recordAuditEvent` cai
+      // no `catch` e a suíte passaria sem medir a linha.
+      auditEvent: {
+        create: vi.fn(),
+      },
     },
   };
 });
@@ -65,6 +70,7 @@ describe('DELETE /api/news/:id (admin)', () => {
     vi.clearAllMocks();
     vi.mocked(prisma.news.deleteMany).mockResolvedValue({ count: 1 });
     vi.mocked(prisma.news.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.auditEvent.create).mockResolvedValue({} as never);
   });
 
   it('should return 401 without a token', async () => {
@@ -142,6 +148,92 @@ describe('DELETE /api/news/:id (admin)', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  /**
+   * **Quem apagou o quê — a trilha da Fase 5.** Até aqui o `sub` chegava a este
+   * handler e morria com a resposta; a linha do Render era o único outro
+   * registro, e ela rola para fora.
+   */
+  describe('the audit trail', () => {
+    it('records the actor, the target and the outcome when the news is deleted', async () => {
+      const token = await signToken({ sub: ADMIN_ID, email: 'admin@test.com', role: 'ADMIN' });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/news/${NEWS_ID}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(prisma.auditEvent.create).toHaveBeenCalledTimes(1);
+      const [arg] = vi.mocked(prisma.auditEvent.create).mock.calls[0] as [
+        { data: Record<string, unknown> },
+      ];
+      expect(arg.data).toMatchObject({
+        actorId: ADMIN_ID,
+        action: 'news.deleted',
+        targetId: NEWS_ID,
+        outcome: 'deleted',
+        requestId: res.headers['x-request-id'],
+      });
+    });
+
+    it('records the attempt on a news that does not exist — the 404 is an action too', async () => {
+      vi.mocked(prisma.news.deleteMany).mockResolvedValue({ count: 0 });
+      const token = await signToken({ sub: ADMIN_ID, email: 'admin@test.com', role: 'ADMIN' });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/news/${NEWS_ID}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(404);
+      const [arg] = vi.mocked(prisma.auditEvent.create).mock.calls[0] as [
+        { data: Record<string, unknown> },
+      ];
+      expect(arg.data).toMatchObject({ action: 'news.deleted', outcome: 'not-found' });
+    });
+
+    it('refuses before deleting when the session has no subject — an unattributable deletion is what the trail exists to prevent', async () => {
+      const token = await signToken({ email: 'admin@test.com', role: 'ADMIN' });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/news/${NEWS_ID}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(prisma.news.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('does not write for the refused caller — 403 never reaches the handler', async () => {
+      const token = await signToken({ sub: USER_ID, email: 'user@test.com', role: 'USER' });
+
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/news/${NEWS_ID}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('still answers 200 when the audit write fails — the news is already gone', async () => {
+      vi.mocked(prisma.auditEvent.create).mockRejectedValueOnce(new Error('connection refused'));
+      const token = await signToken({ sub: ADMIN_ID, email: 'admin@test.com', role: 'ADMIN' });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/news/${NEWS_ID}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+    });
   });
 
   it('should not require auth for the public GET /api/news/:id', async () => {

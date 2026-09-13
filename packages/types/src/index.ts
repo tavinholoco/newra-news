@@ -9,3 +9,4 @@ export * from './account';
 export * from './admin';
 export * from './pipeline';
 export * from './analytics';
+export * from './observability';

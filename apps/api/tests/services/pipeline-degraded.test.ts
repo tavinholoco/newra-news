@@ -33,6 +33,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
       article: { upsert: vi.fn(), deleteMany: vi.fn() },
       productEvent: { deleteMany: vi.fn() },
       errorEvent: { deleteMany: vi.fn(), upsert: vi.fn() },
+      auditEvent: { deleteMany: vi.fn() },
       briefingSource: { deleteMany: vi.fn(), createMany: vi.fn() },
       dailyMetric: { upsert: vi.fn() },
       pipelineEvent: { create: vi.fn() },
@@ -95,6 +96,7 @@ beforeEach(() => {
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.errorEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.auditEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.briefingSource.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.briefingSource.createMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);

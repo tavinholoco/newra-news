@@ -136,6 +136,10 @@ const MATRIX: Row[] = [
   // é o que funciona quando o que quebrou é o provedor de sessão.
   { route: 'GET /api/admin/pipeline/runs', access: 'admin' },
   { route: 'GET /api/admin/pipeline/runs/:pipelineId', access: 'admin' },
+  // Fase 5 — a leitura do `ErrorEvent` (agrupado) e da trilha de auditoria.
+  // Ambas herdam a proteção do grupo em `routes/admin/index.ts`.
+  { route: 'GET /api/admin/errors', access: 'admin' },
+  { route: 'GET /api/admin/audit', access: 'admin' },
 
   { route: 'GET /api/dev/logs', access: 'job' },
   { route: 'GET /api/dev/logs/:pipelineId', access: 'job' },

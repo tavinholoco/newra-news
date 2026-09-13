@@ -63,6 +63,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // **O ator, quando há um.** O botão do painel (`/api/admin/run-pipeline`)
+  // põe o `User.id` da sessão em `x-actor-id` e reentra por aqui; o cron da
+  // Vercel não manda o cabeçalho, e o disparo agendado não é ação de ninguém.
+  // Esta rota só repassa — quem sabe quem clicou é o BFF, e quem grava é a
+  // API. Fase 5 do plano de observabilidade.
+  const actorId = request.headers.get('x-actor-id');
+
   const jobUrl = process.env.BACKEND_JOB_URL;
   if (!jobUrl) {
     return NextResponse.json(
@@ -86,6 +93,7 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(PIPELINE_TRIGGER_TIMEOUT_MS),
       headers: {
         Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}`,
+        ...(actorId ? { 'x-actor-id': actorId } : {}),
       },
     });
 

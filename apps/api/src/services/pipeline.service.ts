@@ -5,6 +5,7 @@ import { sendDailyNewsletter } from './newsletter.service';
 import { renormalizeStoredNews } from './news-renormalizer.service';
 import { deleteExpiredProductEvents } from './product-event.service';
 import { deleteExpiredErrorEvents } from './error-event.service';
+import { deleteExpiredAuditEvents } from './audit.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
@@ -43,6 +44,20 @@ function startOfDay(date: Date): Date {
  * morto.
  */
 const STALE_RUN_MS = 15 * 60 * 1000;
+
+/**
+ * As retenções da etapa 8, nomeadas.
+ *
+ * Eram literais dentro da etapa (`thirtyDaysAgo`, `ninetyDaysAgo`), e o número
+ * de cada uma está escrito em prosa em quatro documentos que a etapa não abre
+ * — os dois diagramas do pipeline e os dois `CLAUDE.md`. A guarda
+ * `tests/docs/retention-drift.test.ts` compara a prosa com estas constantes
+ * (e com as dos outros três services), pela mesma razão do `13` dos feeds:
+ * número que descreve código quer guarda derivada do código.
+ */
+export const NEWS_RETENTION_DAYS = 30;
+export const PIPELINE_LOG_RETENTION_DAYS = 30;
+export const ARTICLE_RETENTION_DAYS = 90;
 
 /**
  * Grava a lista de fontes do briefing (plano V2 §18.4).
@@ -395,11 +410,14 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // Stage 8: Cleanup old data (non-critical — failure does not abort pipeline)
     try {
       currentStage = 8;
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const ninetyDaysAgo = new Date();
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const cutoff = (days: number): Date => {
+        const at = new Date();
+        at.setDate(at.getDate() - days);
+        return at;
+      };
+      const newsCutoff = cutoff(NEWS_RETENTION_DAYS);
+      const logsCutoff = cutoff(PIPELINE_LOG_RETENTION_DAYS);
+      const articlesCutoff = cutoff(ARTICLE_RETENTION_DAYS);
 
       // A retenção de evento de produto entra **aqui**, e não numa etapa nova:
       // é o mesmo expurgo por idade que a notícia e o briefing já fazem, e o
@@ -409,26 +427,40 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       // O `ErrorEvent` entrou pelo mesmo argumento, com corte em **14 dias** —
       // ele responde "o que está quebrado agora", e não "estava quebrado no mês
       // passado", que é o que `PipelineLog` e `DailyMetric` respondem.
-      const [deletedNews, deletedLogs, deletedArticles, deletedEvents, deletedErrors] =
-        await Promise.all([
-          prisma.news.deleteMany({ where: { createdAt: { lt: thirtyDaysAgo } } }),
-          prisma.pipelineLog.deleteMany({
-            where: { startedAt: { lt: thirtyDaysAgo }, id: { not: pipelineLogId } },
-          }),
-          prisma.article.deleteMany({ where: { createdAt: { lt: ninetyDaysAgo } } }),
-          deleteExpiredProductEvents(),
-          deleteExpiredErrorEvents(),
-        ]);
+      //
+      // O `AuditEvent` (Fase 5) é o oposto: **365 dias**, mais que qualquer
+      // outra tabela, porque log de segurança responde pergunta feita meses
+      // depois. As constantes moram em cada service; os literais em prosa têm
+      // guarda em `tests/docs/retention-drift.test.ts`.
+      const [
+        deletedNews,
+        deletedLogs,
+        deletedArticles,
+        deletedEvents,
+        deletedErrors,
+        deletedAudit,
+      ] = await Promise.all([
+        prisma.news.deleteMany({ where: { createdAt: { lt: newsCutoff } } }),
+        prisma.pipelineLog.deleteMany({
+          where: { startedAt: { lt: logsCutoff }, id: { not: pipelineLogId } },
+        }),
+        prisma.article.deleteMany({ where: { createdAt: { lt: articlesCutoff } } }),
+        deleteExpiredProductEvents(),
+        deleteExpiredErrorEvents(),
+        deleteExpiredAuditEvents(),
+      ]);
       metrics.cleanupCount =
         deletedNews.count +
         deletedLogs.count +
         deletedArticles.count +
         deletedEvents +
-        deletedErrors;
+        deletedErrors +
+        deletedAudit;
       await logPipelineEvent(pipelineLogId, 8, 'INFO', 'Cleanup completed', {
         deleted: metrics.cleanupCount,
         productEvents: deletedEvents,
         errorEvents: deletedErrors,
+        auditEvents: deletedAudit,
       });
     } catch (cleanupErr) {
       metrics.pipelineErrors += 1;

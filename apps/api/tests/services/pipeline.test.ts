@@ -35,6 +35,12 @@ vi.mock('@newranews/database', async (importOriginal) => {
         deleteMany: vi.fn(),
         upsert: vi.fn(),
       },
+      // O `AuditEvent` da Fase 5, com corte em 365 dias — terceira vez que
+      // este teste avisa, pelo mesmo caminho: sem o mock, a etapa 8 lança e o
+      // run inteiro conta um erro.
+      auditEvent: {
+        deleteMany: vi.fn(),
+      },
       briefingSource: {
         deleteMany: vi.fn(),
         createMany: vi.fn(),
@@ -153,6 +159,7 @@ beforeEach(() => {
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.errorEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.auditEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.pipelineEvent.create).mockResolvedValue({} as never);
   vi.mocked(prisma.news.findMany).mockResolvedValue([] as never);
@@ -768,6 +775,7 @@ describe('PipelineService — retenção de eventos de produto (etapa 8)', () =>
 
   it('should count the purged events in the cleanup total', async () => {
     vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 12 });
+    vi.mocked(prisma.auditEvent.deleteMany).mockResolvedValue({ count: 3 });
 
     await triggerPipeline();
     await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
@@ -775,8 +783,26 @@ describe('PipelineService — retenção de eventos de produto (etapa 8)', () =>
     const [arg] = vi.mocked(prisma.dailyMetric.upsert).mock.calls[0] as [
       { create: { cleanupCount: number } },
     ];
-    // 5 notícias + 0 logs + 0 artigos + 12 eventos
-    expect(arg.create.cleanupCount).toBe(17);
+    // 5 notícias + 0 logs + 0 artigos + 12 eventos + 0 erros + 3 auditorias
+    expect(arg.create.cleanupCount).toBe(20);
+  });
+
+  /**
+   * **A trilha de auditoria expira na mesma etapa, e mais tarde que tudo.**
+   * 365 dias, por `createdAt` — log de segurança responde pergunta feita meses
+   * depois, e o `ErrorEvent` (14 d) responde "o que está quebrado agora".
+   */
+  it('should purge audit events at 365 days, by createdAt', async () => {
+    await triggerPipeline();
+    await vi.waitFor(() => expect(prisma.auditEvent.deleteMany).toHaveBeenCalled());
+
+    const [arg] = vi.mocked(prisma.auditEvent.deleteMany).mock.calls[0] as [
+      { where: { createdAt: { lt: Date } } },
+    ];
+    const cutoff = arg.where.createdAt.lt;
+    const days = Math.round((Date.now() - cutoff.getTime()) / 86_400_000);
+
+    expect(days).toBe(365);
   });
 });
 

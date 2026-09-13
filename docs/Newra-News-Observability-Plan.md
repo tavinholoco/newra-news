@@ -883,7 +883,7 @@ contexto sozinho.
 
 ---
 
-## §9 Fase 5 — As telas: Métricas e Segurança — 5a ✅ 2026-09-12 · 5b · 5c
+## §9 Fase 5 — As telas: Métricas e Segurança — 5a ✅ 2026-09-12 · 5b ✅ 2026-09-12 · 5c
 
 **Fecha:** quatro números calculados todo dia e jogados fora na serialização; um
 endpoint ADMIN inteiro sem leitor; e nenhuma tela que responda "a API está
@@ -1135,6 +1135,113 @@ visto reprovando com a linha de volta (`TS2353`).
   `metrics.service` são sem `select`), o seed roda limpo sobre o schema
   mergeado, `migrate status` está em dia no banco local, e o Gitleaks varreu
   **0 commits** no push do merge — quarta medição do §16.
+
+### O que o PR da API decidiu — 12/09/2026 (5b ✅)
+
+Item **64** do `docs/progress.md`. Tudo o que a linha 7b do §19 lista, mais
+duas coisas que ela não listava e que o 5c precisaria de qualquer jeito.
+
+**1. O ator atravessa por cabeçalho, e é lido depois do segredo.** O BFF
+(`run-pipeline`) põe o `User.id` da sessão em `x-actor-id`, o cron do Next
+repassa, e o `POST /api/jobs/daily-pipeline` grava `pipeline.triggered` — com
+`targetId` só quando `outcome` é `started`; nos outros dois desfechos o id do
+run existente vai no `context`, e a linha diz que a pessoa clicou e nada foi
+disparado. O cron da Vercel não manda o cabeçalho, e o disparo agendado
+**não** produz linha. **Cabeçalho, não corpo**, por dois motivos medidos: o
+primeiro salto (BFF → cron) é `GET`; e um `body` no `POST` quebraria todo
+chamador que hoje não manda nenhum — o validador do Fastify entrega `null`
+quando não há corpo, e `.default({})` do Zod só cobre `undefined` (é por isso
+que toda suíte da `renormalize-news` manda `payload: {}`). **E não é schema de
+`headers`**: o `validatorCompiler` do type provider devolve o objeto
+parseado, o Fastify o põe no lugar de `request.headers`, e um `z.object` ali
+apagaria o `authorization`. Valor malformado é **400** (`ACTOR_ID_INVALID`,
+`internal` pela regra da Fase 3) — ignorar em silêncio dispararia o pipeline
+e perderia a linha, a falha muda de sempre.
+
+**2. `GET /api/admin/audit` entrou, e o plano não o listava.** A §9 nomeava a
+leitura do `ErrorEvent` e calava sobre a da auditoria; sem ela, o 5c teria de
+abrir rota na API num PR "só de web", ou a tabela nasceria sem leitor — a
+armadilha que este projeto já pagou duas vezes. Só o `actorId` sai, nunca
+e-mail. Com o `/errors`, o prefixo `/api/admin` passou a ter três subgrupos,
+e as duas linhas de proteção subiram de `pipeline.ts` para
+`routes/admin/index.ts` — os filhos herdam o `preHandler`, e a guarda da
+matriz continua a mesma (vista reprovando com o grupo sem `authPlugin`: as
+quatro rotas de uma vez).
+
+**3. O heartbeat vive no `server.ts`, não no `buildApp`.** A herança do 5a
+pedia "o mesmo prazo do flush do `ErrorEvent`" no `onClose` — e esse flush
+mora num plugin do `buildApp`. Copiar o desenho custaria **uma ida ao banco
+por suíte**: o `buildApp` roda em toda suíte de rota, o buffer do `ErrorEvent`
+quase sempre está vazio em teste (então o flush não toca o banco), mas o
+heartbeat **sempre** tem delta a creditar — 71 suítes × 2 s de prazo contra um
+banco que não existe no CI. O cron interno já vive no `server.ts` pelo mesmo
+motivo; a fiação tem guarda pelo parser (vista reprovando com o `register`
+apagado). O crédito é de **segundos inteiros com o resto guardado** (arredondar
+a cada 5 min derivaria), a meia-noite UTC divide entre os dois dias, e um tique
+que falha não avança o crédito — nem vira `ErrorEvent`, porque o banco fora já
+produz linha por toda rota que responde 500.
+
+**4. O lag do event loop sai sem a resolução.** `monitorEventLoopDelay`
+registra o **intervalo** entre disparos do timer, não o excesso: com resolução
+de 10 ms o p50 cru é ≈ 10 ms no Linux e ≈ 25 no Windows, o que numa tela leria
+como lentidão onde não há nenhuma. O que sai é `max(0, percentil − resolução)`,
+com `resolutionMs` ao lado para quem quiser refazer a conta; o `max` fica até o
+processo reiniciar, e é ele que teria acusado os 45 s de 03/09.
+
+**5. O leitor do `ErrorEvent` é arquivo próprio e agrega em memória.**
+`error-summary.service.ts` separado do escritor — e por necessidade, não só
+por gosto: ele importa `ERROR_CATEGORIES` de `utils/errors`, que importa
+`recordError` do escritor; juntar os dois fecharia um ciclo. A soma por
+fingerprint é em memória porque a tabela é coalescida por construção
+(`fingerprints × 168` linhas em 7 d) e o `groupBy` do Prisma não devolve
+mensagem nem `lastRequestId`; teto de 5.000 linhas com `truncated`, e o
+gatilho já estava no §16. `byCategory` traz **as seis** categorias sempre —
+fatias fixas —, e a janela vazia tem forma completa.
+
+**6. A `/http` deixou de ser exceção no `shared-type-contract`.** O motivo
+escrito era "lida por operador, sem tela"; no instante em que a saturação
+passou a existir para ser desenhada, o motivo deixou de ser verdade. Ganhou
+`HttpMetrics` em `packages/types`, junto de `ErrorSummary` e `AuditTrail`
+(`observability.ts`), e o `metrics.service` parou de duplicar
+`WeeklyMetrics`/`DashboardMetrics` localmente.
+
+**7. As retenções da etapa 8 viraram constantes, e a prosa ganhou guarda.** A
+herança do item 63 dava a escolha — guarda derivada ou tocar os três à mão —,
+e a resposta foi as duas: os literais `30`/`90` da etapa viraram
+`NEWS_RETENTION_DAYS`, `PIPELINE_LOG_RETENTION_DAYS` e
+`ARTICLE_RETENTION_DAYS`, e `tests/docs/retention-drift.test.ts` compara os
+dois diagramas, os dois `CLAUDE.md` e os dois READMEs com as seis constantes,
+**positiva e negativamente** (frase ausente reprova; número velho ao lado do
+novo reprova). Vista reprovando nas duas formas.
+
+**8. `requireSubject` em `plugins/auth.ts`.** O `DELETE /api/news/:id`
+precisava do `sub` e já havia duas cópias da conferência (`favorites`,
+`account`); a terceira virou a função, ao lado do `requireAdmin`. O ator é
+conferido **antes** de apagar — exclusão que não pode ser atribuída é o que a
+trilha existe para impedir —, e o 404 também grava (`outcome: 'not-found'`):
+tentar apagar o que não existe é ação de admin.
+
+**As oito guardas novas foram vistas reprovando antes de servir**, com um
+script que muta, roda a suíte e restaura: número velho e frase apagada na
+retenção, `action` interpolada e membro do tuple sem call site, o `register`
+do heartbeat apagado, `cleanupCount` e `saturation` fora dos schemas, e o
+grupo `/api/admin` sem proteção. **O primeiro passe do script disse "passou
+verde" para as quatro primeiras** — e o defeito era do script: os códigos ANSI
+do vitest entre "Tests" e o número quebravam o regex de "failed", e o
+`server.ts` tem CRLF. Guarda que mede guarda também precisa ser vista
+falhando.
+
+**1.018 → 1.098 testes na API** (71 → 77 suítes), **683 → 685 no web**. O
+`DashboardToday` ganhou três campos e o fixture do web foi ajustado.
+
+> **O que o 5c herda daqui:** os três tipos em `packages/types/src/observability.ts`
+> (`ErrorSummary`, `AuditTrail`, `HttpMetrics` com `Saturation`) são o
+> contrato das três abas; `byCategory` já vem com seis fatias fixas e
+> `saturation.*.ratio` já vem calculado — a tela desenha sem conhecer o plano
+> do Render; `eventLoop.lagMs` já está sem a resolução; a `/admin/security`
+> tem de entrar no `admin:capture`; e o **seed não popula `AuditEvent` nem
+> `DailyUptime`** — a captura vai fotografar arco em zero e trilha vazia, e é
+> no 5c que se decide se o seed as semeia.
 
 ---
 
@@ -1760,7 +1867,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | `ErrorEvent` não guarda ocorrência individual | o primeiro incidente em que `firstRequestId`/`lastRequestId` provadamente não bastaram |
 | `code` não vai no corpo da resposta | a primeira tela que precise ramificar por qual falha foi |
 | Fingerprint granular demais | **> 2.000 linhas em 14 dias** ou **> 50 fingerprints em 24 h** — conserta-se o normalizador, não a tabela |
-| Leitura do painel de erros pesada | **p95 de `GET /api/admin/errors` > 1.000 ms** no `/api/metrics/http` |
+| Leitura do painel de erros pesada | **p95 de `GET /api/admin/errors` > 1.000 ms** no `/api/metrics/http` — ou `truncated: true` em qualquer resposta (o teto de 5.000 linhas lidas foi alcançado) |
+| Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
 | Alerta ativo (e-mail/webhook) | depois de a tela existir e de sabermos qual sinal dispara de fato |
@@ -1875,6 +1983,32 @@ Não-objetivos declarados como número, nunca como item de lista.
     cara de recusa. Quando categoria e status discordam sobre quão grave é a
     linha, **quem decide é a categoria**: o status descreve o que o cliente
     recebe, a categoria descreve de quem é a culpa.
+31. **Schema de `headers` com o type provider do Zod apaga os outros
+    cabeçalhos.** O `validatorCompiler` do `fastify-type-provider-zod` devolve
+    `{ value: schema.parse(data) }`, e o `validateParam` do Fastify faz
+    `request[paramName] = ret.value` — para `headers`, o objeto parseado
+    **substitui** `request.headers`, e um `z.object` sem `passthrough()` deixa
+    o `authorization` de fora. Nada acusa até o `assertJobSecret` ler
+    `undefined`. Cabeçalho opcional se lê à mão, depois da autorização (5b).
+32. **`.default({})` do Zod não cobre corpo ausente.** O Fastify entrega
+    `null` ao validador quando o `POST` não tem corpo (`isUndefined ? null :
+    …`), e `default` só age sobre `undefined`. Pôr um `body` opcional numa
+    rota que hoje é chamada sem corpo é quebrar todo chamador dela — é por isso
+    que toda suíte da `renormalize-news` manda `payload: {}`, e por isso o
+    ator do disparo viaja em cabeçalho.
+33. **Trabalho de fundo do processo não entra no `buildApp`.** O `buildApp`
+    roda em toda suíte; um plugin com `onClose` que **sempre** vai ao banco
+    (o heartbeat do `DailyUptime` sempre tem delta) custaria o prazo inteiro
+    em cada uma — 71 × 2 s contra um banco que não existe no CI. O flush do
+    `ErrorEvent` escapa porque o buffer em teste quase sempre está vazio. O
+    lugar é o `server.ts`, onde o cron interno já mora, com guarda pelo parser
+    sobre a fiação.
+34. **Script que mede guardas também precisa ser visto falhando.** O primeiro
+    passe do "quebre de propósito" do 5b disse *passou verde* para quatro
+    guardas que estavam reprovando: os códigos ANSI do vitest entre `Tests` e
+    o número quebravam o regex de `failed`, e o CRLF do `server.ts` fez a
+    mutação não acontecer. Sétima ocorrência da família "a guarda vê caractere,
+    não intenção" — desta vez na ferramenta que confere as guardas.
 
 ---
 
@@ -1894,6 +2028,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **Workflow novo ou alterado** | `workflow-hardening.test.ts` (Fase 10) — `permissions:` declarado e `uses:` fixado em SHA |
 | **Chamada a `console.*` na API** | `secrets-in-logs.test.ts` (Fase 1) — e o `no-console: 'error'` do ESLint, que reprova antes |
 | **`code` novo, ou subclasse nova de `AppError`** | `error-taxonomy.test.ts` (Fase 3) — literal do tuple, e nenhum código sem quem o lance; a família é derivada do arquivo, então a subclasse entra na varredura sozinha |
+| **Retenção nova na etapa 8, ou número de retenção alterado** | `retention-drift.test.ts` (Fase 5) — a prosa dos dois diagramas, dos dois `CLAUDE.md` e dos dois READMEs contra as constantes dos services, nas duas direções |
+| **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
 
 ---
 
@@ -2084,8 +2220,8 @@ aplica as duas migrations juntas na promoção.**
 | ~~6a~~ ✅ | **§8 — Fase 4, a migration** — **entregue em 10/09/2026** | PR só de schema. `ErrorEvent` + os dois índices que o `PipelineLog` nunca teve. Nasceu junto a guarda que cobra migration para todo model, enum e índice do schema. Item **59** do `docs/progress.md` |
 | ~~6b~~ ✅ | **§8 — Fase 4, o código** — **entregue em 10/09/2026** | `recordError` (síncrona, coalescente, nunca lança), o buffer com flush de 30 s e no `onClose`, e a retenção de 14 dias na etapa 8. Item **60** |
 | ~~7a~~ ✅ | **§9 — Fase 5, a migration** — **entregue em 12/09/2026** | PR só de schema. `AuditEvent` (a auditoria de admin virou tabela), `DailyUptime` (as horas do plano viraram acumulador — `process.uptime()` não sabe dar desde que a API dorme), e o `aiTokensUsed` fora. Nasceram as duas guardas de **coluna**: o replay estático do `migrations.test.ts` e o ER coluna a coluna. Item **62** do `docs/progress.md` |
-| **7b ← próxima** | **§9 — Fase 5, a API** | `GET /api/admin/errors`, saturação no `/api/metrics/http` (memória, event loop, e a soma do `DailyUptime`), as três colunas no `dashboardMetricsSchema`, o `response-schema-contract` estendido ao `DailyMetric`, quem escreve `AuditEvent` (o ator do disparo tem de atravessar BFF → cron → API) e o heartbeat do `DailyUptime`. Rota nova custa as três guardas do §18 |
-| **7c** | **§9 — Fase 5, o web** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. As três abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, e o `admin:capture` cobrindo a tela nova. O maior PR de tela do plano — e é por isso que a migration não viajou com ele |
+| ~~7b~~ ✅ | **§9 — Fase 5, a API** — **entregue em 12/09/2026** | `GET /api/admin/errors` **e `/audit`** (a leitura da auditoria não estava listada — tabela sem leitor), saturação no `/api/metrics/http`, as três colunas no `dashboardMetricsSchema`, o `response-schema-contract` no `DailyMetric`, o ator atravessando BFF → cron → API por `x-actor-id`, e o heartbeat do `DailyUptime` — **no `server.ts`**, não no `buildApp`. Item **64** do `docs/progress.md` |
+| **7c ← próxima** | **§9 — Fase 5, o web** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. As três abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, e o `admin:capture` cobrindo a tela nova. O maior PR de tela do plano — e é por isso que a migration não viajou com ele. Os contratos estão em `packages/types/src/observability.ts`; o que herda do 5b está no fim da §9 |
 
 **Bloco 3 — depois da espinha, em qualquer ordem.**
 
@@ -2123,7 +2259,7 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
       na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
       decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
       primeiro modelo pago.
-- [ ] Ler o §17 inteiro. São 28 armadilhas e a maioria custou um incidente.
+- [ ] Ler o §17 inteiro. São 34 armadilhas e a maioria custou um incidente.
 
 **Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
 não depende de nada neste plano, o que a torna a partida natural.

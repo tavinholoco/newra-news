@@ -132,6 +132,38 @@ describe('POST /api/admin/run-pipeline', () => {
     const [request] = vi.mocked(cronGet).mock.calls[0] as [Request];
     expect(request.headers.get('authorization')).toBe('Bearer cron-secret');
   });
+
+  /**
+   * **Este é o único lugar da cadeia que sabe quem clicou** (Fase 5 do plano
+   * de observabilidade). O cron recebe o `CRON_SECRET` e a API o `JOB_SECRET`;
+   * o `User.id` da sessão vai em `x-actor-id` e é o que a trilha de auditoria
+   * grava como ator. O **id**, não o e-mail — a tabela não guarda dado pessoal.
+   */
+  it('puts the session user id in x-actor-id when reentering the cron route', async () => {
+    getServerSessionMock.mockResolvedValue(adminSession);
+    process.env.CRON_SECRET = 'cron-secret';
+    vi.mocked(cronGet).mockResolvedValue(
+      NextResponse.json(
+        {
+          success: true,
+          data: {
+            outcome: 'started' as const,
+            pipelineId: 'pipe-1',
+            startedAt: '2026-08-25T11:00:00.000Z',
+          },
+          revalidated: true,
+          warmed: true,
+        },
+        { status: 200 },
+      ),
+    );
+
+    await POST();
+
+    const [request] = vi.mocked(cronGet).mock.calls[0] as [Request];
+    expect(request.headers.get('x-actor-id')).toBe('admin-1');
+    expect(request.headers.get('x-actor-id')).not.toContain('@');
+  });
 });
 
 describe('DELETE /api/admin/news/:id', () => {

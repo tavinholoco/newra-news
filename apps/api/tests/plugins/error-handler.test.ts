@@ -129,7 +129,16 @@ beforeAll(async () => {
   });
 
   await app.ready();
-});
+  /**
+   * **30 s, e não os 10 s padrão do hook — medido em 12/09/2026.** Esta é a
+   * única suíte que importa `src/app` **dentro** do `beforeAll` (o `import()`
+   * acima, para que o logger mockado esteja no lugar), então a transformação
+   * do grafo inteiro conta contra o prazo do hook — e sob o `turbo test`, com
+   * a suíte do web rodando ao lado, ela estourou em 2 de 5 execuções
+   * (`Hook timed out in 10000ms`, com os 28 testes pulados). Nas outras
+   * suítes o `buildTestApp` é importado no topo, fora de qualquer prazo.
+   */
+}, 30_000);
 
 afterAll(async () => {
   await app.close();
