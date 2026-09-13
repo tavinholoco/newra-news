@@ -372,6 +372,14 @@ a suíte de unidade, que roda sem rede.
   > **O script que verificava as guardas reprovando disse "verde" para quatro
   > que estavam vermelhas.** ANSI do vitest no regex de `failed`, e CRLF no
   > `server.ts`. Guarda que mede guarda também se vê falhando.
+  >
+  > **A verificação pós-merge (item 65, 13/09) achou dois defeitos na leitura
+  > nova:** a saturação tinha posto o banco no caminho do `/api/metrics/http`
+  > — a rota que é em memória justamente para responder quando o banco é o
+  > suspeito — e banco fora derrubava os quatro sinais de uma vez (hoje
+  > `saturation.plan` é `null` com `warn`); e a janela do
+  > `/api/admin/errors` cortava o balde da hora parcial, até 59 min de "24h"
+  > (piso na hora cheia). **1.099 na API.**
 
 - **Fora da linha das fases (2026-09-12): a Fase 5 abriu pelo schema — PR 5a.**
   §9, item **62**. As duas decisões que o inventário deixava *"antes de
@@ -825,7 +833,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.783 em 148 suites (**1.098 API em 77** + **685 web em 71** — todos
+- **Testes:** 1.784 em 148 suites (**1.099 API em 77** + **685 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
