@@ -154,6 +154,12 @@ payload (o JWT é assinado pelo frontend com o role vindo da sessão, que segue
 **Resposta 404:** `{ "error": "News not found" }` — notícia inexistente.  
 **Resposta 400:** `id` não é UUID válido.
 
+> **Deixa rastro desde a Fase 5 do plano de observabilidade.** Cada chamada
+> grava um `AuditEvent` com `action: "news.deleted"`, o `sub` da sessão como
+> `actorId`, o id pedido como `targetId` e `outcome: "deleted" | "not-found"`
+> — o 404 também é ação de admin. Lê-se em `GET /api/admin/audit`. A gravação
+> nunca falha a resposta: a exclusão já aconteceu quando ela roda.
+
 ---
 
 ## Editorial
@@ -390,7 +396,9 @@ a notícia é removida.
 Dispara o pipeline de coleta de notícias e geração do artigo.
 
 **Rate limit:** 20 req/min  
-**Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`
+**Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`  
+**Header opcional:** `x-actor-id: <User.id>` — o admin que clicou, quando o
+disparo é manual (ver abaixo)
 
 O processamento é assíncrono — o endpoint retorna imediatamente com o ID do
 pipeline, **e com o que ele de fato fez**.
@@ -435,6 +443,24 @@ existia.
 ```json
 { "error": "Invalid or missing token" }
 ```
+
+**Resposta 400:** `{ "error": "Invalid x-actor-id header" }` — o cabeçalho
+veio e não é UUID.
+
+> **Quem disparou, e como a API fica sabendo (Fase 5 do plano de
+> observabilidade).** A API não vê sessão nenhuma nesta rota: a cadeia do
+> botão do painel é BFF (sessão ADMIN) → `GET /api/cron/daily-news`
+> (`CRON_SECRET`) → esta rota (`JOB_SECRET`), e o disparo chegava sem usuário.
+> O BFF passou a mandar `x-actor-id` com o `User.id` da sessão, o cron do Next
+> o repassa, e esta rota grava um `AuditEvent` com `action:
+> "pipeline.triggered"`, o `outcome` acima, `targetId` igual ao `pipelineId`
+> **só quando `outcome` é `started`** (nos outros dois desfechos o id é de um
+> run que já existia, e vai no `context`). O cron da Vercel não manda o
+> cabeçalho e **não** produz linha — só um humano com sessão ADMIN produz.
+>
+> A confiança é a do `JOB_SECRET`: só quem o tem chega a ler o cabeçalho, e
+> quem o tem já dispara o pipeline à vontade. Valor malformado é bug do BFF, e
+> responde 400 em vez de disparar e perder a linha em silêncio.
 
 ---
 
@@ -653,7 +679,10 @@ ADMIN.
       "articleGenerated": true,
       "aiProvider": "gemini",
       "pipelineDuration": 11000,
-      "pipelineErrors": 0
+      "pipelineErrors": 0,
+      "newsApiCount": 30,
+      "rssCount": 20,
+      "cleanupCount": 7
     },
     "lastWeek": { ...weeklyMetrics },
     "lastMonth": {
@@ -665,6 +694,12 @@ ADMIN.
   }
 }
 ```
+
+> **`newsApiCount`, `rssCount` e `cleanupCount` saem desde a Fase 5 do plano
+> de observabilidade.** O `DailyMetric` as grava desde a V1 e o schema nunca
+> as declarou — o serializador as descartava em silêncio. São a rosquinha
+> "ingestão por fonte" (§4.3) e o cartão do expurgo. `pipelineDuration` é
+> **milissegundo**; o `durationSeconds` de `/api/admin/pipeline/runs` é segundo.
 
 ---
 
@@ -710,10 +745,11 @@ origem, truncado em 100). É mais uma razão para a rota ser admin-only. Teto de
 
 ### GET /api/metrics/http (admin)
 
-As duas métricas técnicas que a §26 do plano promete — **error rate** e **API
-latency** — na única forma em que elas existem: a janela do processo que está no
-ar. Até a Fase 9 não havia instrumentação nenhuma, e os dois números eram uma
-promessa sem produtor.
+Os **quatro sinais de ouro** (§3.1 do plano de observabilidade). Latência,
+tráfego e erro existem desde a Fase 9, na única forma em que existem: a janela
+do processo que está no ar. **Saturação** entrou na Fase 5 — memória residente,
+atraso do event loop e as horas do plano no mês —, e é o sinal que faltava nos
+três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
 
 **Resposta 200:**
 ```json
@@ -727,10 +763,25 @@ promessa sem produtor.
     "latencyMs": { "avg": 42, "p50": 50, "p95": 250, "p99": 500, "max": 4903 },
     "routes": [
       { "route": "GET /api/news", "count": 812, "errorRate": 0, "avgMs": 38, "p95Ms": 100, "maxMs": 940 }
-    ]
+    ],
+    "saturation": {
+      "memory": { "rssBytes": 98304000, "heapUsedBytes": 41000000, "heapTotalBytes": 60000000, "limitBytes": 536870912, "ratio": 0.1831 },
+      "eventLoop": { "resolutionMs": 10, "samples": 35912, "lagMs": { "p50": 0, "p95": 2, "p99": 11, "max": 45210 } },
+      "plan": { "month": "2026-09", "monthStart": "2026-09-01T00:00:00.000Z", "secondsUsed": 1098000, "hoursUsed": 305, "limitHours": 750, "ratio": 0.4067 }
+    }
   }
 }
 ```
+
+> **`saturation.plan` é a única parte que vem do banco, e a única que fala do
+> mês.** É a soma do `DailyUptime` no mês de calendário UTC — a tabela que um
+> heartbeat de cinco minutos incrementa enquanto o processo está de pé, e que o
+> `SIGTERM` fecha. `process.uptime()` não serve: desde 01/09 a API dorme e
+> acorda várias vezes por dia, e cada acordada zera o contador. `ratio` acima
+> de 1 é o que suspendeu a API em 29/08/2026. `memory.ratio` é RSS sobre os
+> 512 MB do plano; `eventLoop.lagMs` é o atraso **além** da resolução do timer
+> (10 ms), então em regime o p50 é ~0 e o `max` guarda a pior parada que esta
+> instância viu.
 
 > **`since` e `uptimeSeconds` não são enfeite.** A janela é em memória: **zera a
 > cada deploy e a cada hibernação** (o plano free do Render dorme com ~15 min
@@ -1216,6 +1267,116 @@ INFO/WARN/ERROR, mensagem e contexto JSON).
 
 **Erros:** `401` sem sessão · `403` sem `role: ADMIN` · `404` id inexistente ·
 `400` id fora do formato UUID
+
+### GET /api/admin/errors
+
+O `ErrorEvent` da Fase 4, **agrupado por fingerprint** na janela — a primeira
+leitura da tabela, e o que a aba de segurança (`/admin/security`) desenha.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query:** `window` = `24h` (padrão) | `7d`
+
+**Resposta 200:** tipada em `packages/types` como `ApiResponse<ErrorSummary>`.
+
+```json
+{
+  "data": {
+    "window": { "key": "24h", "hours": 24, "since": "ISO string", "until": "ISO string" },
+    "total": 1042,
+    "distinctFingerprints": 6,
+    "byCategory": [
+      { "category": "upstream", "count": 1000 },
+      { "category": "database", "count": 0 },
+      { "category": "validation", "count": 0 },
+      { "category": "authorization", "count": 40 },
+      { "category": "contract", "count": 0 },
+      { "category": "internal", "count": 2 }
+    ],
+    "bySeverity": [ { "severity": "WARN", "count": 1040 }, { "severity": "ERROR", "count": 2 }, { "severity": "FATAL", "count": 0 } ],
+    "byOrigin": [ { "origin": "API", "count": 42 }, { "origin": "PIPELINE", "count": 1000 }, { "origin": "WEB", "count": 0 }, { "origin": "INVARIANT", "count": 0 } ],
+    "groups": [
+      {
+        "fingerprint": "API:WARN:AUTH_TOKEN_INVALID:/api/account",
+        "origin": "API",
+        "severity": "WARN",
+        "code": "AUTH_TOKEN_INVALID",
+        "category": "authorization",
+        "route": "/api/account",
+        "statusCode": 401,
+        "message": "Invalid or missing token",
+        "count": 40,
+        "hours": 3,
+        "firstSeenAt": "ISO string",
+        "lastSeenAt": "ISO string",
+        "lastRequestId": "uuid",
+        "pipelineLogId": null
+      }
+    ],
+    "truncated": false
+  }
+}
+```
+
+Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
+`hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
+crônico), e `message`, `lastSeenAt` e `lastRequestId` são da hora mais
+recente. `byCategory` traz **sempre as seis** categorias da taxonomia, na
+ordem dela, com zero onde não houve — a rosquinha tem fatias fixas. `groups`
+vem mais recente primeiro.
+
+> **A agregação é em memória, com teto de 5.000 linhas lidas** (`truncated`
+> avisa). A tabela é coalescida por construção — uma linha por
+> `(fingerprint, hora)` —, então 7 dias são no máximo *fingerprints × 168*
+> linhas, e o §16 do plano já dá o gatilho de fingerprint granular demais em
+> 2.000 linhas em 14 dias. **Gatilho para mudar a leitura:** p95 desta rota
+> acima de 1.000 ms no `/api/metrics/http`.
+
+**Erros:** `400` `window` fora de `24h`/`7d` · `401` sem sessão · `403` sem
+`role: ADMIN`
+
+### GET /api/admin/audit
+
+A trilha de ação de admin: quem disparou o pipeline, quem apagou o quê. Uma
+linha por ocorrência, mais recente primeiro.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query:** `days` (1 a 365, padrão 30 — o teto é a retenção) · `limit` (1 a
+200, padrão 50)
+
+**Resposta 200:** tipada como `ApiResponse<AuditTrail>`.
+
+```json
+{
+  "data": {
+    "window": { "days": 30, "since": "ISO string" },
+    "total": 312,
+    "events": [
+      {
+        "id": "uuid",
+        "actorId": "uuid",
+        "action": "pipeline.triggered",
+        "targetId": "uuid | null",
+        "outcome": "started",
+        "requestId": "uuid | null",
+        "context": { "pipelineId": "uuid", "startedAt": "ISO string" },
+        "createdAt": "ISO string"
+      }
+    ]
+  }
+}
+```
+
+`total` conta a janela inteira, não o tamanho de `events`. **Só o `actorId`
+sai** — nenhum e-mail, como a tabela: quem precisar do nome junta com `User`
+na tela. As ações existentes são `pipeline.triggered` (`outcome` = o do
+disparo; `targetId` só quando `started`) e `news.deleted` (`outcome` =
+`deleted` | `not-found`); o conjunto fechado mora em
+`services/audit.service.ts`, com guarda.
+
+**Erros:** `400` `days`/`limit` fora do intervalo · `401` sem sessão · `403`
+sem `role: ADMIN`
 
 ---
 

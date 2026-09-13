@@ -285,14 +285,15 @@ a suíte de unidade, que roda sem rede.
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
   09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
-  PRs**; e a **5 está em curso, em três PRs** — o **5a (a migration) fechou em
-  12/09**.** Continuam abertas **quatro fases inteiras** (6, 8, 9 e 11), os
-  **5b e 5c** e as subfases **7b e 7c**. A próxima é o **5b** (a API da Fase
-  5): `/api/admin/errors`, saturação, o escritor do `AuditEvent` — que precisa
-  do ator atravessando BFF → cron → API — e o heartbeat do `DailyUptime`; o que
-  ele herda está escrito no fim da §9. O **§19** é
-  o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
-  fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
+  PRs**; e a **5 está em curso, em três PRs** — o **5a (a migration) e o 5b (a
+  API) fecharam em 12/09**.** Continuam abertas **quatro fases inteiras** (6, 8,
+  9 e 11), o **5c** e as subfases **7b e 7c**. A próxima é o **5c** (o web da
+  Fase 5): a `/admin/security`, as três abas, `series-bars`, rosquinhas, KPI
+  com variação, `admin-surface.test.ts` e o `admin:capture` cobrindo a tela
+  nova; os contratos que ele consome estão em
+  `packages/types/src/observability.ts` e o que herda está no fim da §9. O
+  **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
+  sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
   SRE, dimensões de qualidade de dado)
 - **Advisories aceitas, com motivo, data e gatilho:**
@@ -345,6 +346,33 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-12): a Fase 5 ganhou a API — PR 5b.**
+  §9, item **64**. Quem escreve as duas tabelas do 5a, quem lê o `ErrorEvent`
+  que a Fase 4 gravava e ninguém lia, e o **quarto sinal de ouro**. Entraram
+  `GET /api/admin/errors` (agrupado por fingerprint, seis fatias fixas por
+  categoria) e `GET /api/admin/audit` — **este não estava no plano**, e sem ele
+  a tabela nasceria sem leitor —, a saturação no `/api/metrics/http` (memória
+  / 512 MB, atraso do event loop já sem a resolução do timer, horas do mês /
+  750), o heartbeat do `DailyUptime` **registrado no `server.ts`** (no
+  `buildApp` custaria uma ida ao banco por suíte), as três colunas no
+  dashboard com o `response-schema-contract` no `DailyMetric`, e os 365 dias
+  do `AuditEvent` na etapa 8. **1.018 → 1.098 na API, 683 → 685 no web.**
+
+  > **O ator atravessa por cabeçalho (`x-actor-id`), e o motivo é medido.** O
+  > BFF é o único ponto da cadeia que sabe quem clicou; o primeiro salto é
+  > `GET`, um `body` no `POST` quebraria todo chamador sem corpo (o Fastify
+  > entrega `null`, e `.default({})` só cobre `undefined`), e schema de
+  > `headers` do type provider **substitui `request.headers`** — apagaria o
+  > `authorization`. Lido à mão, depois do `assertJobSecret`; malformado é 400.
+  >
+  > **A retenção em prosa ganhou guarda** (`retention-drift.test.ts`, sobre os
+  > dois diagramas, os dois `CLAUDE.md` e os dois READMEs) e as retenções de
+  > notícia, log e artigo viraram constantes — eram literais na etapa 8.
+  >
+  > **O script que verificava as guardas reprovando disse "verde" para quatro
+  > que estavam vermelhas.** ANSI do vitest no regex de `failed`, e CRLF no
+  > `server.ts`. Guarda que mede guarda também se vê falhando.
+
 - **Fora da linha das fases (2026-09-12): a Fase 5 abriu pelo schema — PR 5a.**
   §9, item **62**. As duas decisões que o inventário deixava *"antes de
   desenhar"* eram schema, e foram tomadas: a auditoria de admin é tabela
@@ -797,7 +825,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.701 em 142 suites (**1.018 API em 71** + **683 web em 71** — todos
+- **Testes:** 1.783 em 148 suites (**1.098 API em 77** + **685 web em 71** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

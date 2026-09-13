@@ -6627,6 +6627,109 @@ a 6 tarefas**, e o `ci.yml` já o roda. Visto reprovando com a linha de volta:
 
 Sem mudança em `src/` nem em teste; contagem em **1.018 / 683**.
 
+### 64. Fase 5, PR 2 de 3 — a API: quem escreve a auditoria, o heartbeat, a saturação e a leitura dos erros ✅ 2026-09-12
+
+> **§9 do plano de observabilidade, segundo dos três PRs.** O 5a deixou duas
+> tabelas sem escritor e uma coluna a menos; este PR é quem escreve
+> `AuditEvent` e `DailyUptime`, quem lê o `ErrorEvent` (que a Fase 4 gravava e
+> ninguém lia), e o quarto sinal de ouro. As telas são o 5c.
+
+#### O que entrou, e o que a linha 7b do §19 não listava
+
+- **`GET /api/admin/errors`** — o `ErrorEvent` agrupado por fingerprint na
+  janela (`24h`/`7d`): contagem somada, horas distintas, mensagem e
+  `lastRequestId` da hora mais recente, mais as três distribuições (categoria
+  com **as seis fatias sempre**, severidade, origem). Agrega em memória com
+  teto de 5.000 linhas e `truncated`; o gatilho de p95 já estava no §16.
+- **`GET /api/admin/audit`** — **não estava no plano.** A §9 nomeava a leitura
+  do `ErrorEvent` e calava sobre a da auditoria; sem ela, o 5c abriria rota na
+  API num PR de web, ou a tabela nasceria sem leitor. Só o `actorId`, nunca
+  e-mail. Com três subgrupos sob `/api/admin`, as duas linhas de proteção
+  subiram de `pipeline.ts` para `routes/admin/index.ts`; os filhos herdam o
+  `preHandler` e a guarda da matriz continua a mesma.
+- **O ator atravessa BFF → cron → API por `x-actor-id`.** O
+  `run-pipeline` põe o `User.id` da sessão no cabeçalho ao reentrar no cron,
+  o cron repassa, e o `POST /api/jobs/daily-pipeline` grava
+  `pipeline.triggered` — `targetId` só com `outcome: 'started'`; nos outros
+  dois desfechos o id do run existente vai no `context`. O cron da Vercel não
+  manda o cabeçalho e o disparo agendado não produz linha. Valor malformado é
+  **400** (`ACTOR_ID_INVALID`, `internal`), não silêncio. O
+  `DELETE /api/news/:id` grava `news.deleted` com o `sub` — conferido
+  **antes** de apagar, via `requireSubject` novo em `plugins/auth.ts` (a
+  cópia de `favorites` virou a função) — e o 404 também grava.
+- **Saturação no `/api/metrics/http`**: memória residente / 512 MB, atraso do
+  event loop (histograma do `perf_hooks`, ligado no plugin de observabilidade)
+  e horas do plano no mês (soma do `DailyUptime`) / 750 — cada uma com teto e
+  razão já calculados. A rota deixou de ser exceção no `shared-type-contract`
+  e ganhou `HttpMetrics` em `packages/types`.
+- **O heartbeat do `DailyUptime`**: crédito de segundos inteiros a cada 5 min
+  com o resto guardado, meia-noite UTC dividida entre os dois dias, tique que
+  falha não avança o crédito, `onClose` com o prazo do `ErrorEvent`. E
+  **outbound-only**: escreve no banco e não faz HTTP — o keep-alive de volta
+  seria o oposto do que o 5a decidiu.
+- **As três colunas** (`newsApiCount`, `rssCount`, `cleanupCount`) no
+  `dashboardTodaySchema`, e o `response-schema-contract` estendido ao
+  `DailyMetric` — com `id`, `date`, `newsByCategory` e `createdAt` omitidas
+  com motivo, e uma asserção de que o `aiTokensUsed` não voltou.
+- **Etapa 8 com os 365 dias do `AuditEvent`**, e as retenções de notícia, log
+  e artigo viraram constantes nomeadas (eram literais na etapa).
+
+#### Três decisões que o plano não tinha escrito
+
+**O ator vai em cabeçalho, e é lido depois do segredo.** O primeiro salto
+(BFF → cron) é `GET`, que não carrega corpo; e um `body` no `POST` quebraria
+todo chamador que hoje não manda nenhum — o Fastify entrega `null` ao
+validador quando não há corpo e `.default({})` do Zod só cobre `undefined`
+(é por isso que toda suíte da `renormalize-news` manda `payload: {}`). E não é
+schema de `headers`: o `validatorCompiler` do type provider devolve o objeto
+parseado e o Fastify o põe **no lugar de `request.headers`** — um `z.object`
+ali apagaria o `authorization`. Armadilhas 31 e 32 do §17.
+
+**O heartbeat vive no `server.ts`, não no `buildApp`.** A herança do 5a pedia
+"o mesmo prazo do flush do `ErrorEvent`" no `onClose`, e esse flush mora num
+plugin do `buildApp`. Copiar o desenho custaria uma ida ao banco por suíte:
+o buffer do `ErrorEvent` quase sempre está vazio em teste, mas o heartbeat
+**sempre** tem delta — 71 suítes × 2 s de prazo contra um banco que não existe
+no CI. O cron interno já vive no `server.ts` pelo mesmo motivo; a fiação tem
+guarda pelo parser. Armadilha 33.
+
+**O lag do event loop sai sem a resolução.** `monitorEventLoopDelay` registra
+o intervalo entre disparos do timer, não o excesso — com 10 ms de resolução o
+p50 cru é ≈ 10 no Linux e ≈ 25 no Windows, o que numa tela leria como
+lentidão. Sai `max(0, percentil − resolução)`, com `resolutionMs` ao lado.
+
+#### A guarda de retenção, e o script que media guardas e estava errado
+
+A herança do item 63 — retenção em prosa em três lugares sem guarda — dava a
+escolha entre guarda derivada e tocar à mão; a resposta foi as duas.
+`tests/docs/retention-drift.test.ts` compara os dois diagramas, os dois
+`CLAUDE.md` e os dois READMEs com as seis constantes, **nas duas direções**:
+frase ausente reprova, número velho ao lado do novo reprova. É a família do
+`13` dos feeds.
+
+**As oito guardas novas foram vistas reprovando antes de servir**, com um
+script que muta, roda a suíte e restaura — e **o primeiro passe do script disse
+"passou verde" para as quatro primeiras**. O defeito era do script: os códigos
+ANSI do vitest entre `Tests` e o número quebravam o regex de `failed`, e o
+CRLF do `server.ts` fez uma mutação não acontecer. Sétima ocorrência da
+família "a guarda vê caractere, não intenção", desta vez na ferramenta que
+confere as guardas. Armadilha 34.
+
+**1.018 → 1.098 testes na API** (71 → 77 suítes), **683 → 685 no web**. O
+`DashboardToday` ganhou três campos, o fixture do web foi ajustado, e o
+`metrics.service` parou de duplicar `WeeklyMetrics`/`DashboardMetrics`
+localmente. O nome do cabeçalho do ator tem guarda de **costura**: a suíte da
+API lê os dois arquivos do web que o escrevem, porque cada lado sozinho
+continuaria verde depois de um rename.
+
+> **Achado de raspão, ao rodar o ritual:** `error-handler.test.ts` caiu na
+> coleta em **2 de 5** execuções do `pnpm test` da raiz (`Hook timed out in
+> 10000ms`, 28 testes pulados) e passava sempre sozinha. É a única suíte que
+> importa `src/app` **dentro** do `beforeAll`, então a transformação do grafo
+> conta contra o prazo do hook — e com a suíte do web rodando ao lado pelo
+> `turbo`, estourou. Ganhou 30 s de prazo com o motivo escrito. Não é do 5b;
+> é o CI que ficaria vermelho por acaso.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

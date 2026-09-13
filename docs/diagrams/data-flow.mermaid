@@ -16,7 +16,7 @@ flowchart TB
     S6["6 · Geração IA<br/>(Gemini → Groq fallback)"]
     S7["7 · Persistência do briefing<br/>(article.upsert + BriefingSource)"]
     S75["7.5 · Newsletter<br/>(Resend — não crítico)"]
-    S8["8 · Expurgo<br/>(news >30d · logs >30d<br/>artigos e eventos >90d · erros >14d)"]
+    S8["8 · Expurgo<br/>(news >30d · logs >30d<br/>artigos e eventos >90d · erros >14d · auditoria >365d)"]
     S85["8.5 · Renormalização<br/>(reaplica as regras ao acervo gravado)"]
     S9["9 · Métricas<br/>(dailyMetric.upsert)"]
 

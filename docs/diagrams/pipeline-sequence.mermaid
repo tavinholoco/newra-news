@@ -41,7 +41,7 @@ sequenceDiagram
     IA-->>API: título, dek e corpo do briefing em Markdown
     API->>DB: 7 · article.upsert por data + auditoria + BriefingSource
     API->>RES: 7.5 · newsletter do dia (idempotente por data)
-    API->>DB: 8 · expurgo — news >30d · logs >30d · artigos e eventos >90d · erros >14d
+    API->>DB: 8 · expurgo — news >30d · logs >30d · artigos e eventos >90d · erros >14d · auditoria >365d
     API->>DB: 8.5 · renormaliza o acervo com as regras de ingestão atuais
     API->>DB: 9 · dailyMetric.upsert
 

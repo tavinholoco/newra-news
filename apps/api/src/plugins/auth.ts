@@ -139,4 +139,29 @@ export function requireAdmin(request: FastifyRequest): void {
   }
 }
 
+/**
+ * O `sub` de uma sessão que já passou pelo `preHandler` — ou a recusa.
+ *
+ * Chegar aqui exige assinatura válida, e quem assina é o BFF: um token sem
+ * `sub` é sessão inutilizável **emitida por nós**, daí `category: 'internal'`
+ * (o leitor está logado e toda rota de conta responde 401, em silêncio — ver
+ * `AUTH_SESSION_INCOMPLETE` em `utils/errors.ts`).
+ *
+ * Havia duas cópias desta conferência (`routes/favorites`, `routes/account`), e
+ * a Fase 5 precisava de uma terceira — o `DELETE /api/news/:id` passou a gravar
+ * **quem** apagou, e auditoria sem ator não é auditoria. Três cópias inline é o
+ * padrão que a revisão da Fase 9 desfez para o `requireAdmin`; a de `account`
+ * continua própria porque também exige o e-mail.
+ */
+export function requireSubject(request: FastifyRequest): string {
+  const sub = request.user?.sub;
+  if (!sub) {
+    throw new UnauthorizedError('Invalid or missing token', {
+      code: 'AUTH_SESSION_INCOMPLETE',
+      category: 'internal',
+    });
+  }
+  return sub;
+}
+
 export default fp(authPlugin);

@@ -100,8 +100,17 @@ export const PIPELINE_FAILED_CODE = 'PIPELINE_STAGE_FAILED';
 export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
 
 /**
+ * A trilha de auditoria (Fase 5) não conseguiu gravar a ação.
+ *
+ * Mora aqui e não em `audit.service.ts` porque aquele importa `recordError`
+ * deste arquivo: o tipo da união abaixo precisa da constante, e o import no
+ * sentido contrário fecharia um ciclo em tempo de execução.
+ */
+export const AUDIT_WRITE_FAILED_CODE = 'AUDIT_WRITE_FAILED';
+
+/**
  * **Todo código que pode chegar à tabela, como tipo.** É o teto do fingerprint
- * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as três
+ * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as quatro
  * constantes deste arquivo. Um `code: \`stage-${n}\`` deixa de compilar, e um
  * `code: algumaString` também. A guarda pelo parser em
  * `tests/services/error-event.test.ts` continua, porque enumera os call sites
@@ -114,7 +123,8 @@ export type RecordedErrorCode =
   | ErrorCode
   | typeof UNHANDLED_CODE
   | typeof PIPELINE_FAILED_CODE
-  | typeof PIPELINE_DEGRADED_CODE;
+  | typeof PIPELINE_DEGRADED_CODE
+  | typeof AUDIT_WRITE_FAILED_CODE;
 
 export interface RecordErrorInput {
   origin: ErrorOrigin;
