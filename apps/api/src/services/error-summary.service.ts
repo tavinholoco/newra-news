@@ -2,6 +2,7 @@ import { prisma } from '@newranews/database';
 import type { ErrorOrigin, ErrorSeverity } from '@newranews/database';
 import type { ErrorGroup, ErrorSummary, ErrorSummaryWindow } from '@newranews/types';
 import { ERROR_CATEGORIES } from '../utils/errors';
+import { windowStartFor } from './error-event.service';
 
 /**
  * **A leitura do `ErrorEvent` — §9 do plano de observabilidade, PR 5b.**
@@ -50,7 +51,17 @@ export async function getErrorSummary(
   now: Date = new Date(),
 ): Promise<ErrorSummary> {
   const hours = ERROR_SUMMARY_WINDOWS[windowKey];
-  const since = new Date(now.getTime() - hours * 60 * 60 * 1000);
+  /**
+   * **Alinhada à hora cheia, e é achado da verificação pós-merge.** A tabela
+   * guarda um balde por hora, e a primeira versão comparava `windowStart >=
+   * now − 24 h`: com `now` às 15:30, o balde das 14:00 de ontem — que contém
+   * ocorrências das 14:30 às 14:59, **dentro** da janela — ficava de fora
+   * inteiro, porque começa antes dela. Até 59 min de "24h" sumiam, sem sinal.
+   * O piso vai para a hora cheia que contém o início da janela, e o `since` da
+   * resposta diz o valor de fato usado: a janela é *as últimas N horas, mais o
+   * que sobrar da hora em que ela começa*.
+   */
+  const since = windowStartFor(new Date(now.getTime() - hours * 60 * 60 * 1000));
 
   // Mais recente primeiro **na leitura**, e não só na saída: com o teto, o que
   // fica de fora é o mais velho, que é o que menos responde "o que está

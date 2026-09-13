@@ -6730,6 +6730,65 @@ continuaria verde depois de um rename.
 > `turbo`, estourou. Ganhou 30 s de prazo com o motivo escrito. Não é do 5b;
 > é o CI que ficaria vermelho por acaso.
 
+### 65. A verificação pós-merge do 5b: a rota em memória passou a depender do banco, e a janela cortava a hora parcial ✅ 2026-09-13
+
+> Sobre a árvore mergeada (`ce130bb`), a pergunta dos itens 39, 52, 57, 61 e
+> 63 — *o que ficou de fora?* — feita a um PR que escreve trilha, lê tabela
+> e mede saturação. O método é enumerar, não reler o diff.
+
+**O que foi conferido e está em ordem:** #184 mergeado na `dev` com os oito
+checks verdes; CodeQL e Gitleaks verdes no push do merge (o Gitleaks com **0
+commits varridos** — quinta medição do buraco do §16); a `dev` a 0 da `main`
+e 26 à frente. As enumerações: **toda mutação com sessão de admin deixa
+trilha** (só há uma, o `DELETE /api/news/:id`; o disparo do pipeline deixa
+quando há ator); **todo leitor de `sub`** passa por `requireSubject`, exceto
+`account`, que exige e-mail junto e ficou próprio de propósito; **os dois
+`setInterval` de `src/`** têm `unref()` e `onClose` com prazo; **as seis
+retenções do `packages/database/CLAUDE.md`** batem com os seis `deleteMany`
+da etapa 8 (a guarda de retenção já as cobre); o smoke E2E não dispara o
+pipeline, então a trilha de produção não ganha linha de robô; e a prosa em
+"PR 5b" que sobrou no `schema.prisma` é histórico correto.
+
+#### Os dois achados, e os dois são da saturação e do leitor
+
+**1. A saturação pôs o banco no caminho da única rota que respondia sem ele.**
+O `/api/metrics/http` é em memória **de propósito** — responde "a API está
+devolvendo erro agora?" justamente quando o banco é o suspeito —, e o 5b
+deixou o `aggregate` do `DailyUptime` sem `catch`: banco fora ⇒ a rota
+inteira em 500, com latência, tráfego e erro perdidos junto com as horas do
+plano. Vale também na janela da promoção: o deploy do Render e o
+`migrate.yml` correm em paralelo, e a tabela pode não existir nos primeiros
+minutos da versão nova. Hoje `saturation.plan` é **`null`** com um `warn`
+quando o banco não responde, os outros três sinais saem, e o tipo
+compartilhado diz isso à tela (`plan: {...} | null` — desenhar "indisponível",
+nunca zero). Só `warn`, pela mesma decisão do heartbeat: banco fora já vira
+`ErrorEvent` por toda rota que responde 500.
+
+**2. A janela do `/api/admin/errors` cortava a hora parcial.** A tabela guarda
+um balde por hora e a leitura comparava `windowStart >= now − 24 h`: com
+`now` às 15:30, o balde das 14:00 de ontem — que contém ocorrências das
+14:30 às 14:59, **dentro** da janela — ficava de fora inteiro, porque começa
+antes dela. Até 59 min de "24h" sumiam sem sinal. O piso agora é a hora cheia
+que contém o início da janela (`windowStartFor`), e o `since` da resposta
+diz o valor de fato usado.
+
+**As duas guardas foram vistas reprovando** com o mesmo script do 5b (já
+consertado): sem o piso, dois testes da janela; relançando a falha do banco,
+o teste da rota que exige `plan: null` com os outros sinais intactos.
+
+#### O que fica escrito para depois
+
+- **`POST /api/jobs/renormalize-news` com `dryRun: false` muta o acervo sem
+  ator.** É a única mutação por `JOB_SECRET` que reescreve dado de produto, e
+  não tem BFF — quem a chama é operador com o segredo, não uma sessão. Não é
+  trilha de admin hoje. **Gatilho:** o primeiro BFF para ela; aí entra
+  `news.renormalized` no tuple, com o ator.
+- **`authz_change` da §3.2** (o `role` gravado a cada sign-in por
+  `roleForEmail()`) continua sem evento. Nasce no web, não na API; é assunto
+  da 7b/7c.
+
+**1.098 → 1.099 testes na API**; web em 685. Sem migration, sem env nova.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -164,14 +164,17 @@ const saturationSchema = z.object({
     samples: z.number(),
     lagMs: z.object({ p50: z.number(), p95: z.number(), p99: z.number(), max: z.number() }),
   }),
-  plan: z.object({
-    month: z.string(),
-    monthStart: z.string(),
-    secondsUsed: z.number(),
-    hoursUsed: z.number(),
-    limitHours: z.number(),
-    ratio: z.number(),
-  }),
+  // `null` quando o banco não respondeu — a única medida que depende dele.
+  plan: z
+    .object({
+      month: z.string(),
+      monthStart: z.string(),
+      secondsUsed: z.number(),
+      hoursUsed: z.number(),
+      limitHours: z.number(),
+      ratio: z.number(),
+    })
+    .nullable(),
 });
 
 export const httpMetricsSchema = z.object({
