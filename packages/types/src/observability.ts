@@ -94,6 +94,12 @@ export interface Saturation {
     ratio: number;
   };
   eventLoop: EventLoopLag;
+  /**
+   * As horas do plano — **`null` quando o banco não respondeu.** É a única
+   * medida que sai do banco (`DailyUptime`), e a rota é em memória de
+   * propósito para responder quando o banco é o problema; a tela desenha
+   * "indisponível", nunca zero.
+   */
   plan: {
     /** `YYYY-MM`, em UTC — o mês de calendário que o Render cobra. */
     month: string;
@@ -103,7 +109,7 @@ export interface Saturation {
     limitHours: number;
     /** `hoursUsed / limitHours`. Passar de 1 é o que suspendeu a API em 29/08/2026. */
     ratio: number;
-  };
+  } | null;
 }
 
 export interface HttpRouteMetrics {

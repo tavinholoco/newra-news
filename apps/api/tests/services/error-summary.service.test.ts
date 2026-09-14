@@ -56,13 +56,16 @@ beforeEach(() => {
 });
 
 describe('§9 — a janela', () => {
-  it('lê da hora que a janela alcança, mais recente primeiro e com teto', async () => {
+  it('lê da hora cheia que contém o início da janela, mais recente primeiro e com teto', async () => {
     await getErrorSummary('24h', NOW);
 
     const [query] = vi.mocked(prisma.errorEvent.findMany).mock.calls[0] as [
       { where: { windowStart: { gte: Date } }; orderBy: unknown; take: number },
     ];
-    expect(query.where.windowStart.gte.toISOString()).toBe('2026-09-11T15:30:00.000Z');
+    // 15:30 − 24 h = 15:30 de ontem; o balde das 15:00 contém meia hora da
+    // janela, e comparar `windowStart >= 15:30` o deixava de fora inteiro
+    // (achado da verificação pós-merge do 5b).
+    expect(query.where.windowStart.gte.toISOString()).toBe('2026-09-11T15:00:00.000Z');
     expect(query.orderBy).toEqual({ lastSeenAt: 'desc' });
     expect(query.take).toBe(ERROR_SUMMARY_ROW_CEILING);
   });
@@ -74,10 +77,11 @@ describe('§9 — a janela', () => {
   it('descreve a própria janela na resposta', async () => {
     const summary = await getErrorSummary('7d', NOW);
 
+    // O `since` diz o valor de fato usado — a hora cheia —, não o pedido.
     expect(summary.window).toEqual({
       key: '7d',
       hours: 168,
-      since: '2026-09-05T15:30:00.000Z',
+      since: '2026-09-05T15:00:00.000Z',
       until: NOW.toISOString(),
     });
   });

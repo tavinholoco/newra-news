@@ -1234,14 +1234,35 @@ falhando.
 **1.018 → 1.098 testes na API** (71 → 77 suítes), **683 → 685 no web**. O
 `DashboardToday` ganhou três campos e o fixture do web foi ajustado.
 
+### O que a verificação pós-merge do 5b achou — 13/09/2026
+
+Item **65** do `docs/progress.md`. Dois achados, os dois no que o 5b acrescentou
+à leitura:
+
+- **A saturação pôs o banco no caminho da única rota que respondia sem ele.**
+  O `aggregate` do `DailyUptime` estava sem `catch`, e banco fora derrubava o
+  `/api/metrics/http` inteiro — a rota que existe em memória para responder
+  justamente quando o banco é o suspeito, e que na janela da promoção pode
+  subir antes de o `migrate.yml` criar a tabela. Hoje `saturation.plan` é
+  **`null`** com `warn`, e o tipo compartilhado obriga a tela a desenhar
+  "indisponível", nunca zero.
+- **A janela do `/api/admin/errors` cortava a hora parcial**: `windowStart >=
+  now − 24 h` deixava de fora o balde que contém o início da janela — até
+  59 min de "24h". O piso foi para a hora cheia, e o `since` da resposta diz o
+  valor usado.
+
+E uma dívida com gatilho: `renormalize-news` com `dryRun: false` muta o acervo
+por `JOB_SECRET`, sem ator — entra no tuple de auditoria quando ganhar BFF.
+
 > **O que o 5c herda daqui:** os três tipos em `packages/types/src/observability.ts`
 > (`ErrorSummary`, `AuditTrail`, `HttpMetrics` com `Saturation`) são o
 > contrato das três abas; `byCategory` já vem com seis fatias fixas e
 > `saturation.*.ratio` já vem calculado — a tela desenha sem conhecer o plano
 > do Render; `eventLoop.lagMs` já está sem a resolução; a `/admin/security`
-> tem de entrar no `admin:capture`; e o **seed não popula `AuditEvent` nem
-> `DailyUptime`** — a captura vai fotografar arco em zero e trilha vazia, e é
-> no 5c que se decide se o seed as semeia.
+> tem de entrar no `admin:capture`; **`saturation.plan` pode ser `null`** e a
+> tela desenha "indisponível", nunca zero; e o **seed não popula `AuditEvent`
+> nem `DailyUptime`** — a captura vai fotografar arco em zero e trilha vazia,
+> e é no 5c que se decide se o seed as semeia.
 
 ---
 
@@ -1868,6 +1889,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | `code` não vai no corpo da resposta | a primeira tela que precise ramificar por qual falha foi |
 | Fingerprint granular demais | **> 2.000 linhas em 14 dias** ou **> 50 fingerprints em 24 h** — conserta-se o normalizador, não a tabela |
 | Leitura do painel de erros pesada | **p95 de `GET /api/admin/errors` > 1.000 ms** no `/api/metrics/http` — ou `truncated: true` em qualquer resposta (o teto de 5.000 linhas lidas foi alcançado) |
+| Mutação por segredo sem ator | **o primeiro BFF para `POST /api/jobs/renormalize-news`** — hoje só operador com `JOB_SECRET` a chama, e `dryRun: false` reescreve o acervo sem linha de auditoria; com BFF, `news.renormalized` entra no tuple |
 | Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |

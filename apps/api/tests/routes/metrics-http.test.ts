@@ -78,7 +78,7 @@ interface HttpMetricsBody {
         hoursUsed: number;
         limitHours: number;
         ratio: number;
-      };
+      } | null;
     };
   };
 }
@@ -155,12 +155,13 @@ describe('GET /api/metrics/http — saturação', () => {
     });
 
     const { data } = res.json() as HttpMetricsBody;
-    expect(data.saturation.plan.secondsUsed).toBe(1_098_000);
-    expect(data.saturation.plan.hoursUsed).toBe(305);
-    expect(data.saturation.plan.limitHours).toBe(RENDER_FREE_PLAN_HOURS);
-    expect(data.saturation.plan.ratio).toBeCloseTo(305 / 750, 3);
-    expect(data.saturation.plan.month).toMatch(/^\d{4}-\d{2}$/);
-    expect(data.saturation.plan.monthStart.endsWith('-01T00:00:00.000Z')).toBe(true);
+    expect(data.saturation.plan).not.toBeNull();
+    expect(data.saturation.plan?.secondsUsed).toBe(1_098_000);
+    expect(data.saturation.plan?.hoursUsed).toBe(305);
+    expect(data.saturation.plan?.limitHours).toBe(RENDER_FREE_PLAN_HOURS);
+    expect(data.saturation.plan?.ratio).toBeCloseTo(305 / 750, 3);
+    expect(data.saturation.plan?.month).toMatch(/^\d{4}-\d{2}$/);
+    expect(data.saturation.plan?.monthStart.endsWith('-01T00:00:00.000Z')).toBe(true);
 
     const [arg] = vi.mocked(prisma.dailyUptime.aggregate).mock.calls[0] as [
       { where: { date: { gte: Date } } },
@@ -181,5 +182,30 @@ describe('GET /api/metrics/http — saturação', () => {
 
     const { data } = res.json() as HttpMetricsBody;
     expect(data.saturation.plan).toMatchObject({ secondsUsed: 0, hoursUsed: 0, ratio: 0 });
+  });
+
+  /**
+   * **A rota continua respondendo com o banco fora — achado da verificação
+   * pós-merge do 5b.** Ela é em memória de propósito: responde "a API está
+   * devolvendo erro agora?" justamente quando o banco é o suspeito. A primeira
+   * versão da saturação deixava o `aggregate` sem `catch`, e banco fora
+   * derrubava latência, tráfego e erro junto com as horas do plano.
+   */
+  it('keeps the other three signals when the DailyUptime read fails — plan becomes null', async () => {
+    vi.mocked(prisma.dailyUptime.aggregate).mockRejectedValueOnce(
+      new Error("Can't reach database server"),
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/http',
+      headers: { authorization: `Bearer ${admin}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { data } = res.json() as HttpMetricsBody;
+    expect(data.saturation.plan).toBeNull();
+    expect(data.saturation.memory.rssBytes).toBeGreaterThan(0);
+    expect(typeof data.since).toBe('string');
   });
 });

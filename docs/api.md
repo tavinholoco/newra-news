@@ -774,7 +774,11 @@ três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
 ```
 
 > **`saturation.plan` é a única parte que vem do banco, e a única que fala do
-> mês.** É a soma do `DailyUptime` no mês de calendário UTC — a tabela que um
+> mês — e por isso a única que pode vir `null`.** Com o banco fora (ou nos
+> primeiros minutos de uma promoção, antes de o `migrate.yml` aplicar), a rota
+> continua respondendo os outros três sinais e `plan: null`; ela é em memória
+> de propósito, para responder justamente quando o banco é o problema. É a
+> soma do `DailyUptime` no mês de calendário UTC — a tabela que um
 > heartbeat de cinco minutos incrementa enquanto o processo está de pé, e que o
 > `SIGTERM` fecha. `process.uptime()` não serve: desde 01/09 a API dorme e
 > acorda várias vezes por dia, e cada acordada zera o contador. `ratio` acima
@@ -1317,6 +1321,13 @@ leitura da tabela, e o que a aba de segurança (`/admin/security`) desenha.
   }
 }
 ```
+
+**A janela é alinhada à hora cheia.** A tabela guarda um balde por hora, então
+`since` é a hora cheia que contém `until − 24 h` (ou `− 7 d`): "as últimas N
+horas, mais o que sobrar da hora em que começam". Comparar contra `until −
+24 h` cru deixava o primeiro balde de fora inteiro — até 59 min de "24h"
+sumiam (verificação pós-merge do 5b). O `since` da resposta é o valor de fato
+usado.
 
 Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
 `hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
