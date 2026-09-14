@@ -74,8 +74,13 @@ baseline continuam manuais, e estão logo abaixo.
 > branch que publica, pulando a `dev` e o preview, cada um disparando Smoke E2E e
 > um deploy. Um deles subiu `@base-ui/react` e `@tanstack/react-query`, que são
 > **dependências de produção**. Hoje as duas entradas do
-> `.github/dependabot.yml` declaram `target-branch: dev`. **Se voltar a aparecer
-> PR de bump com base `main`, é esse campo que sumiu.**
+> `.github/dependabot.yml` declaram `target-branch: dev`. **E o campo só vale
+> na branch padrão** — o Dependabot lê a configuração da `main`, e a correção
+> de 09/09 tinha ficado só na `dev`: em **14/09** ele abriu **seis** PRs contra
+> a `main` de novo (#186–#191, cinco majors que não podem entrar), fechados no
+> mesmo dia. Mudança no `dependabot.yml` vai para a `main` num PR só com ele,
+> sem esperar a promoção. **Se voltar a aparecer PR de bump com base `main`, é
+> a versão da `main` que está velha.**
 
 **As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
 padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
