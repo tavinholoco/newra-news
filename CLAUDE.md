@@ -49,6 +49,18 @@ qualquer PR**, senão a fase é desenvolvida contra código velho:
 git fetch origin && git push origin origin/main:refs/heads/dev
 ```
 
+> **E há um terceiro estado, que o par de comandos acima não cobre: as duas
+> à frente uma da outra.** Aconteceu em 14/09/2026 com o #193 — um PR **só de
+> configuração na `main`** (o `dependabot.yml`, que a plataforma lê da branch
+> padrão) enquanto a `dev` carregava 30 commits do plano. O `push` acima é
+> recusado (não é fast-forward), forçar apagaria a `dev`, e abrir `dev → main`
+> seria promover para sincronizar. **O certo é o inverso: mergear a `main` na
+> `dev` por um PR** (`git checkout -B chore/sync origin/dev && git merge
+> origin/main`) — o diff de conteúdo é vazio quando os dois lados já têm o
+> mesmo arquivo, e é assim que `git rev-list --count origin/dev..origin/main`
+> volta a zero. Só configuração que a plataforma lê da branch padrão justifica
+> um PR direto na `main` no meio do plano; tudo o mais espera a promoção.
+
 **O que roda em cada base — confira antes de assumir:**
 
 | Workflow | Base `dev` | Base `main` |

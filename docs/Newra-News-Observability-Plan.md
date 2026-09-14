@@ -2187,7 +2187,12 @@ aplica as duas migrations juntas na promoção.**
    >
    > O `push` só é fast-forward enquanto a `dev` não tiver commit próprio —
    > confira `git rev-list --count origin/main..origin/dev` antes, e **nunca
-   > force**: se ela estiver à frente, o certo é abrir `dev → main`.
+   > force**. Se ela estiver à frente **e** a `main` também (as duas
+   > divergiram — em 14/09/2026 foi o #193, configuração do Dependabot que a
+   > plataforma lê da branch padrão), o certo é **mergear a `main` na `dev` por
+   > PR** (`git merge origin/main` numa branch cortada da `dev`), não promover
+   > nem forçar. Só se a `dev` estiver à frente e a `main` não tiver nada de
+   > novo é que a resposta é a promoção `dev → main`.
 2. **Escrever a guarda antes do código, e vê-la reprovar.** É a regra da §2, e
    nesta sessão ela já pagou duas vezes: a guarda de contagem passava verde
    sobre um `treze` real, e passou a reprovar só depois de a varredura ler prosa
