@@ -30,6 +30,15 @@ version: 2
 # observabilidade traz uma migration, e o `migrate.yml` dispara em **todo push
 # na `main`**. Um PR do robô mergeado naquela janela aplicaria schema em
 # produção sem ninguém ter pedido.
+#
+# **E o campo só vale quando este arquivo está na branch padrão.** O Dependabot
+# lê a configuração da `main`, não da branch em que a correção foi feita: a
+# versão de 09/09 entrou pela `dev` e ficou lá, e em **14/09/2026** o robô
+# abriu seis PRs contra a `main` de novo (#186–#191) — cinco majors que não
+# podem entrar e um bump de action inofensivo, todos fechados. Mudança neste
+# arquivo pede um PR **na `main`** só com ele, sem esperar a promoção; se
+# voltar a aparecer PR de bump com base `main`, é a versão da `main` que está
+# velha, não a da `dev`.
 
 updates:
   # As actions. É a metade que o `pnpm audit` não alcança de jeito nenhum, e a
@@ -79,14 +88,9 @@ updates:
       - dependency-name: fastify
         update-types: ['version-update:semver-major']
       # **Duas que se juntaram em 09/09/2026, e pelo mesmo argumento de cima:
-      # major que não pode entrar vira PR semanal fechado sem ler.**
+      # major que não pode entrar vira PR semanal fechado sem ler.** A primeira
+      # era `@fastify/helmet`, hoje coberta pelo padrão `@fastify/*` abaixo.
       #
-      # `@fastify/helmet@13` **não instala** — o `checkVersion` do próprio
-      # Fastify recusa: `expected '5.x' fastify version, '4.29.1' is installed`.
-      # Ele é refém da major da `fastify`, que já está ignorada logo acima.
-      # Gatilho: os dois sobem juntos, quando a `fastify@5` entrar.
-      - dependency-name: '@fastify/helmet'
-        update-types: ['version-update:semver-major']
       # `prisma@7` não é bump, é migração de configuração: o `datasource.url`
       # deixou de ser aceito no schema (P1012), a URL vai para um
       # `prisma.config.ts` e o `PrismaClient` passa a exigir `adapter`. Alcança
@@ -96,6 +100,41 @@ updates:
       - dependency-name: prisma
         update-types: ['version-update:semver-major']
       - dependency-name: '@prisma/client'
+        update-types: ['version-update:semver-major']
+      # **Cinco que se juntaram em 14/09/2026, medidas em cinco PRs abertos e
+      # fechados no mesmo dia (#187–#191).** Nenhuma é preferência: cada uma
+      # reprovou o CI ou contraria uma decisão escrita, e sem esta lista o robô
+      # as reabre a cada versão nova.
+      #
+      # `@fastify/*` inteiro, e não só o helmet. Em 09/09 foi o
+      # `@fastify/helmet@13` que **não instalou** — o `checkVersion` do
+      # próprio Fastify recusa: `expected '5.x' fastify version, '4.29.1' is
+      # installed` —, e em 14/09 o `@fastify/cors@11` reprovou pelo mesmo
+      # motivo. Todo plugin oficial acompanha a major do fastify, então o padrão
+      # cobre os seis que o repositório usa e o próximo que entrar. Gatilho: os
+      # sete sobem juntos, quando a `fastify@5` entrar.
+      - dependency-name: '@fastify/*'
+        update-types: ['version-update:semver-major']
+      # `pino` é pinado em `9.14.0` de propósito (Fase 1 do plano de
+      # observabilidade): o `fastify@4` traz `pino@^9`, e uma segunda cópia em
+      # major diferente é o que a guarda dos serializers
+      # (`server-hardening.test.ts`, via `pino.symbols`) existe para impedir.
+      # O #188 passou no CI — e é justamente por isso que precisa estar aqui:
+      # verde não é o mesmo que uma cópia só. Sobe junto com o fastify.
+      - dependency-name: pino
+        update-types: ['version-update:semver-major']
+      # `eslint-config-next` acompanha a major do `next`, já ignorada acima —
+      # a 16 exige Next 16, e o Next 15 já é gatilho de três dívidas.
+      - dependency-name: eslint-config-next
+        update-types: ['version-update:semver-major']
+      # `eslint@9+` é flat config, e o `packages/eslint-config` é `.eslintrc`:
+      # é migração de configuração do monorepo inteiro, não bump. Gatilho:
+      # trabalho próprio, com a migração do `packages/eslint-config` junto.
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      # `lucide-react` 0.x → 1.x renomeia ícone (Lint, Test e Vercel
+      # reprovaram no #191). É decisão da Fase 13, não do robô.
+      - dependency-name: lucide-react
         update-types: ['version-update:semver-major']
     groups:
       producao:
