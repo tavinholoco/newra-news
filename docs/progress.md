@@ -6789,6 +6789,48 @@ o teste da rota que exige `plan: null` com os outros sinais intactos.
 
 **1.098 → 1.099 testes na API**; web em 685. Sem migration, sem env nova.
 
+### 66. O Dependabot lia a `main`: doze PRs em dois dias, e a configuração na branch errada ✅ 2026-09-14
+
+> Não é fase; é a esteira da Fase 10 (item 47) mordendo de volta, e o registro
+> existe para a próxima segunda-feira não ser uma surpresa.
+
+**O que aconteceu.** Seis PRs do robô contra a `main` na segunda de manhã
+(#186–#191). A correção `target-branch: dev` de 09/09 (`fc15263`) só tinha
+chegado à `dev` — e o Dependabot lê o `.github/dependabot.yml` da branch
+**padrão**. O `CLAUDE.md` dizia *"é esse campo que sumiu"*; o campo nunca
+tinha chegado. Com a promoção pausada, seriam seis por semana até o fim do
+plano.
+
+**O que foi feito, em dois PRs.** #192 (`dev`) estendeu a lista de `ignore`
+com os cinco majors que reprovaram ou contrariam decisão escrita —
+`@fastify/*` (o `checkVersion` recusa contra o fastify 4; substitui a entrada
+só do helmet), `pino` (pinado em 9.14.0 para haver uma cópia só ao lado do
+`pino@^9` do fastify — o #188 passou no CI, e é por isso que precisa da lista),
+`eslint-config-next` (acompanha o `next`), `eslint` (flat config é migração)
+e `lucide-react` (0.x → 1.x renomeia ícone) — e corrigiu a frase do
+`CLAUDE.md`. **#193 (`main`) levou o arquivo sozinho**: um commit, um
+arquivo, cortado da `main` com `git checkout <branch> -- .github/dependabot.yml`,
+para o robô mirar a `dev` sem esperar a promoção.
+
+**A segunda rodada, no mesmo dia, já contra a `dev` (#194–#199).** Quatro
+majors reprovaram e entraram no `ignore` pelo mesmo critério — `react`/
+`react-dom`/`@types/react*` (acompanham o `next`: o 14 só suporta React 18),
+`@types/node` (acompanha o runtime, Node 22 — reprovou o `typecheck` em
+`IntervalHistogram`), `typescript` (o 7 é o compilador novo; migração de
+`tsconfig`, parser e `tsx`) e `@vitejs/plugin-react` (exige vite 6+; sobe
+com o vitest, que fica fora da lista de propósito). Dois ficaram verdes e
+abertos para decisão humana: #196 (actions) e #194 (`fastify-plugin` 5 → 6).
+
+**O efeito colateral do #193, e o terceiro estado que os documentos não
+cobriam.** Um PR só na `main` deixou as duas branches **divergentes** — a
+`dev` 30 à frente e 2 atrás. O par de comandos do `CLAUDE.md` cobria "atrás"
+(fast-forward) e "à frente" (promover); divergida, o `push` é recusado, forçar
+apagaria a `dev` e promover seria sincronizar pelo caminho errado. O certo é
+**mergear a `main` na `dev` por PR** — diff de conteúdo vazio, porque os dois
+lados já tinham o arquivo idêntico —, e está escrito nos dois lugares.
+
+**Sem mudança em `src/`**; contagem em **1.099 / 685**.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

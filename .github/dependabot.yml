@@ -136,6 +136,39 @@ updates:
       # reprovaram no #191). É decisão da Fase 13, não do robô.
       - dependency-name: lucide-react
         update-types: ['version-update:semver-major']
+      # **A segunda rodada, no mesmo 14/09/2026 — a primeira contra a `dev`,
+      # com a configuração finalmente na branch certa (#194–#199).** Quatro
+      # majors reprovaram o CI, e cada um acompanha uma major já decidida:
+      #
+      # `react`/`react-dom` (e os dois `@types`) acompanham o `next`: o Next 14
+      # suporta só o React 18, e o 19 vem com o Next 15 — que já é gatilho
+      # escrito acima. Lint, Test e Vercel reprovaram no #199.
+      - dependency-name: react
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/react-dom'
+        update-types: ['version-update:semver-major']
+      # `@types/node` acompanha o **runtime**: CI e Render rodam Node 22
+      # (`.nvmrc`, `engines`), e os tipos do 26 descrevem API que ele não tem —
+      # o #195 reprovou o `typecheck` em `IntervalHistogram`. Gatilho: subir o
+      # Node nos três lugares, e aí os tipos vão junto.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # `typescript@7` é o compilador novo (o port nativo): muda configuração e
+      # ferramental — `tsconfig`, o parser do ESLint, o `tsx` do seed. É
+      # migração do monorepo inteiro, não bump; Lint, Test e Vercel reprovaram
+      # no #198. Gatilho: trabalho próprio, junto com a migração do ESLint.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # `@vitejs/plugin-react@6` exige vite 6+, e o `vitest@2` traz vite 5 —
+      # Test reprovou no #197. Sobe junto com o vitest, que **não** está nesta
+      # lista de propósito: a major dele é um bump legítimo de ferramenta, e é
+      # ela que puxa o plugin.
+      - dependency-name: '@vitejs/plugin-react'
+        update-types: ['version-update:semver-major']
     groups:
       producao:
         dependency-type: production
