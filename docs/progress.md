@@ -6931,8 +6931,45 @@ de escrevê-lo é a correção. A matriz de estados tem a contagem no
 
 **Duas chaves de mensagem saíram** (`dashboard.pipelineDuration`,
 `dashboard.successRate`), substituídas pela linha de KPI — o teste de i18n
-reprova chave que ninguém lê. **685 → 750 testes no web** (71 → 76 suítes);
-a API fica em 1.099. Sem migration, sem env nova, sem mudança na API.
+reprova chave que ninguém lê.
+
+#### A captura achou três, e nenhum tinha sintoma de código
+
+É o padrão do item 50, de novo: build, lint, `tsc` e 750 testes verdes por
+cima dos três. O `admin:capture` fotografou as três abas (17/17) e a
+inspeção por elemento, a 1440 e a 375 nos dois temas, mostrou:
+
+1. **A legenda da rosquinha atravessava a página inteira.** `flex-1` num
+   contêiner de largura cheia punha o valor e a porcentagem a 1.600 px do
+   rótulo — "RSS ......................... 320 84%". Largura máxima
+   (`max-w-md`), e a legenda volta a ser legível de uma olhada.
+2. **Oito categorias sobre cinco cores: Mundo e Saúde no mesmo vermelho,
+   lado a lado na legenda.** A §4.3 avisava ("8 é o limite"). Da sexta fatia
+   em diante a cor repete **esmaecida** (`opacity-60`, no arco e no ponto da
+   legenda) — separa as duas sem inventar cor fora dos tokens, e há teste.
+3. **A série por dia era um retângulo de largura inteira.** A API só devolve
+   os dias com evento; com um dia de dado numa janela de 30, a única barra
+   ocupava a largura toda e o eixo do tempo deixava de existir — a barra
+   parecia dizer "o mês" quando dizia "um dia". `fillCalendarDays`
+   (`lib/series.ts`) dá um lugar a cada dia UTC da janela, zero onde não
+   houve nada; 15/08 → 14/09 com uma barra no fim é o retrato honesto.
+
+Mais dois ajustes de composição: a linha do ritmo do mês ficou centrada sob o
+arco (era um parágrafo solto à esquerda do painel), e o painel de saturação
+alinha os três blocos pelo centro. A interação foi conferida no navegador
+real: trocar a janela dispara `?window=7d`, ordenar por "visto por último"
+reordena, o filtro de severidade deixa só o `INTERNAL`, 200 em todas as
+rotas e zero erro de console.
+
+**E um achado de raspão que é o item 55 voltando por outra porta:** os **13
+PNGs de `apps/web/.admin-captures/`** que entraram na `main` pelo `b94ec6c`
+chegaram à `dev` na sincronização do #200 — rastreados, e a captura de hoje os
+marcou todos como modificados. O `CLAUDE.md` prescrevia o `git rm --cached -r`
+para a promoção; foi feito aqui, porque foi aqui que eles chegaram, e a
+remoção viaja para a `main` na promoção como qualquer outro commit.
+
+**685 → 754 testes no web** (71 → 76 suítes); a API fica em 1.099. Sem
+migration, sem env nova, sem mudança na API.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

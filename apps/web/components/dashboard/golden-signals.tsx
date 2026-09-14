@@ -41,11 +41,15 @@ export function PlanPaceLine({ plan }: { plan: NonNullable<Saturation['plan']> }
   const pace = planPace(plan, new Date());
 
   if (!pace) {
-    return <p className='text-xs text-muted-foreground'>{t('signals.paceTooEarly')}</p>;
+    return (
+      <p className='max-w-56 text-center text-xs text-muted-foreground'>
+        {t('signals.paceTooEarly')}
+      </p>
+    );
   }
 
   return (
-    <p className='text-xs text-ink-secondary'>
+    <p className='max-w-56 text-center text-xs text-ink-secondary'>
       {t('signals.pace', {
         hours: formatHours(pace.projectedHours, locale),
         ratio: formatRatio(pace.projectedRatio, locale),
@@ -87,7 +91,7 @@ export function SaturationPanel({
   const { plan, memory, eventLoop } = saturation;
 
   return (
-    <div className='flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:items-start sm:gap-10'>
+    <div className='flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-10'>
       <div className='flex flex-col items-center gap-2'>
         <SaturationArc
           ratio={plan ? plan.ratio : null}

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useProductMetrics } from '@/lib/queries';
 import { formatCalendarDay, formatCount, formatPercent } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
+import { fillCalendarDays } from '@/lib/series';
 import { MetricCard } from './metric-card';
 import { CategoryBars } from './category-bars';
 import { SeriesBars } from './series-bars';
@@ -97,11 +98,17 @@ export function ProductMetricsClient() {
           * `byDay` voltava desde a Fase 8 e nenhum componente o desenhava. É
           * série temporal — barra na ordem da data, nunca rosquinha nem o
           * `CategoryBars`, que reordena por valor (§4.3 do plano de
-          * observabilidade).
+          * observabilidade). **Todos os dias da janela entram**, com zero onde
+          * não houve evento: a API só devolve os dias com linha, e um dia com
+          * evento numa janela de 30 virava uma barra de largura inteira.
           */}
         <SeriesBars
           label={t('byDayTitle')}
-          points={data.byDay.map((day) => ({
+          points={fillCalendarDays(data.byDay, data.period, (date) => ({
+            date,
+            sessions: 0,
+            events: 0,
+          })).map((day) => ({
             key: day.date,
             label: formatCalendarDay(day.date, locale),
             value: day.sessions,

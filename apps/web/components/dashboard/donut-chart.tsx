@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { chartColor } from './chart-colors';
+import { CHART_COLORS, chartColor } from './chart-colors';
 
 export interface DonutSlice {
   key: string;
@@ -27,6 +27,9 @@ interface DonutChartProps {
   emptyText?: string;
 }
 
+/** Da sexta fatia em diante a paleta repete: a repetição sai esmaecida, para duas fatias da mesma cor não se confundirem. */
+const DIMMED_FROM = CHART_COLORS.length;
+
 /** Geometria do arco: raio e o comprimento que o `stroke-dasharray` recorta. */
 const RADIUS = 38;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -49,6 +52,12 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
  * - **fatia única em 100% desenhada à mão** — `stroke-dasharray` com o arco
  *   inteiro não desenha nada em alguns navegadores (armadilha 15 do §17), então
  *   ela vira um círculo sem recorte;
+ * - **da sexta fatia em diante a cor repete esmaecida** — são cinco cores para
+ *   até oito fatias, e a primeira captura mostrou Mundo e Saúde no mesmo
+ *   vermelho, lado a lado na legenda; a opacidade separa as duas sem inventar
+ *   cor fora dos tokens;
+ * - **a legenda tem largura máxima** — num contêiner de página inteira, valor e
+ *   porcentagem iam parar a 1.600 px do rótulo;
  * - **sem animação de entrada**: o `prefers-reduced-motion` do `globals.css`
  *   cobre CSS, e não há o que cobrir aqui porque não há transição.
  */
@@ -91,7 +100,7 @@ export function DonutChart({ slices, label, center, keepOrder = false, emptyText
             r={RADIUS}
             fill='none'
             strokeWidth='14'
-            className={chartColor(arcs[0]!.index).stroke}
+            className={cn(chartColor(arcs[0]!.index).stroke, arcs[0]!.index >= DIMMED_FROM && 'opacity-60')}
           />
         ) : (
           arcs.map(({ slice, index, length, offset: start }) => (
@@ -105,7 +114,7 @@ export function DonutChart({ slices, label, center, keepOrder = false, emptyText
               strokeDasharray={`${length} ${CIRCUMFERENCE - length}`}
               strokeDashoffset={-start}
               transform='rotate(-90 50 50)'
-              className={chartColor(index).stroke}
+              className={cn(chartColor(index).stroke, index >= DIMMED_FROM && 'opacity-60')}
             />
           ))
         )}
@@ -135,12 +144,16 @@ export function DonutChart({ slices, label, center, keepOrder = false, emptyText
         )}
       </svg>
 
-      <ul className='flex min-w-0 flex-1 flex-col gap-1.5 self-stretch justify-center text-sm'>
+      <ul className='flex w-full min-w-0 max-w-md flex-col justify-center gap-1.5 self-stretch text-sm'>
         {ordered.map((slice, index) => (
           <li key={slice.key} className='flex items-center gap-2'>
             <span
               aria-hidden='true'
-              className={cn('h-2.5 w-2.5 shrink-0 rounded-full', chartColor(index).bg)}
+              className={cn(
+                'h-2.5 w-2.5 shrink-0 rounded-full',
+                chartColor(index).bg,
+                index >= DIMMED_FROM && 'opacity-60',
+              )}
             />
             <span className='min-w-0 flex-1 truncate text-ink-secondary'>{slice.label}</span>
             <span className='shrink-0 tabular-nums text-ink'>

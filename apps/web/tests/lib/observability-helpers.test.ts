@@ -10,6 +10,7 @@ import {
   formatUptime,
 } from '@/lib/format';
 import { kpiDelta } from '@/lib/kpi';
+import { fillCalendarDays } from '@/lib/series';
 import {
   ATTENTION_RATIO,
   PACE_MIN_ELAPSED_HOURS,
@@ -107,6 +108,33 @@ describe('planPace', () => {
   it('uses the calendar length of the month', () => {
     const october = { ...plan, month: '2026-10', monthStart: '2026-10-01T00:00:00.000Z' };
     expect(planPace(october, new Date('2026-10-11T00:00:00.000Z'))?.hoursInMonth).toBe(744);
+  });
+});
+
+describe('fillCalendarDays', () => {
+  const period = { start: '2026-09-11T18:35:00.000Z', end: '2026-09-14T18:35:00.000Z' };
+  const empty = (date: string) => ({ date, sessions: 0, events: 0 });
+
+  it('gives every calendar day of the window a slot, zero where nothing happened', () => {
+    // A API só devolve os dias com evento: um dia numa janela de 30 virava
+    // uma barra de largura inteira, e o eixo do tempo deixava de existir.
+    const filled = fillCalendarDays([{ date: '2026-09-13', sessions: 4, events: 9 }], period, empty);
+
+    expect(filled.map((day) => day.date)).toEqual(['2026-09-11', '2026-09-12', '2026-09-13', '2026-09-14']);
+    expect(filled.map((day) => day.sessions)).toEqual([0, 0, 4, 0]);
+  });
+
+  it('counts the days in UTC — the keys are UTC days', () => {
+    // 23:30 UTC do dia 11 ainda é dia 11; no fuso de São Paulo seria 20:30 do
+    // mesmo dia, mas em Tóquio já seria dia 12 — e a chave é UTC.
+    const filled = fillCalendarDays([], { start: '2026-09-11T23:30:00.000Z', end: '2026-09-12T00:30:00.000Z' }, empty);
+    expect(filled.map((day) => day.date)).toEqual(['2026-09-11', '2026-09-12']);
+  });
+
+  it('leaves the points alone when the window is not a window', () => {
+    const points = [{ date: '2026-09-13', sessions: 1, events: 1 }];
+    expect(fillCalendarDays(points, { start: 'nope', end: period.end }, empty)).toBe(points);
+    expect(fillCalendarDays(points, { start: period.end, end: period.start }, empty)).toBe(points);
   });
 });
 

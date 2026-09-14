@@ -77,6 +77,28 @@ describe('DonutChart', () => {
     expect(screen.getByText('0%')).toBeInTheDocument();
   });
 
+  it('dims the sixth slice on, where the five colors start to repeat', () => {
+    // A primeira captura mostrou Mundo e Saúde no mesmo vermelho, lado a lado
+    // na legenda. A repetição sai esmaecida; a paleta continua a dos tokens.
+    const slices = Array.from({ length: 8 }, (_, i) => ({
+      key: `c${i}`,
+      label: `Categoria ${i}`,
+      value: 80 - i * 10,
+    }));
+    renderWithIntl(<DonutChart label='oito' slices={slices} />);
+
+    const circles = [...screen.getByRole('img', { name: 'oito' }).querySelectorAll('circle')];
+    expect(circles).toHaveLength(8);
+    expect(circles[0]?.getAttribute('class')).toContain('stroke-chart-1');
+    expect(circles[0]?.getAttribute('class')).not.toContain('opacity-60');
+    expect(circles[5]?.getAttribute('class')).toContain('stroke-chart-1');
+    expect(circles[5]?.getAttribute('class')).toContain('opacity-60');
+
+    const swatches = screen.getAllByRole('listitem').map((li) => li.querySelector('span')?.className ?? '');
+    expect(swatches[5]).toContain('opacity-60');
+    expect(swatches[4]).not.toContain('opacity-60');
+  });
+
   it('shows the empty state — the same one as CategoryBars by default', () => {
     const { unmount } = renderWithIntl(
       <DonutChart label='x' slices={[{ key: 'a', label: 'A', value: 0 }]} />,

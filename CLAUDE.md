@@ -130,11 +130,14 @@ que não precisa ir a produção fase a fase.
   (3,5 MB)** de `apps/web/.admin-captures/`, um caminho que a `dev` ignora desde
   o PR #158 e que o `capture-admin.mjs` declara não versionar. Item **55**.
 
-> ⚠️ **Ao promover, `.gitignore` não desversiona o que já está versionado.** Os
-> 13 arquivos acima **continuam rastreados** depois do merge; a promoção precisa
-> de um `git rm --cached -r apps/web/.admin-captures` explícito. Confira também
-> se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho:
-> `git ls-tree -r --name-only origin/main | git check-ignore --stdin`.
+> ⚠️ **`.gitignore` não desversiona o que já está versionado — e a
+> sincronização `main → dev` do #200 trouxe os 13 PNGs para a `dev`, ainda
+> rastreados.** O `git rm --cached -r apps/web/.admin-captures` que este aviso
+> pedia para a promoção **foi feito no PR 5c (14/09)**, quando a captura os
+> marcou todos como modificados; a remoção viaja para a `main` na promoção
+> como qualquer outro commit. O que continua valendo é a conferência: antes de
+> promover, `git ls-tree -r --name-only origin/main | git check-ignore --stdin`
+> diz se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho.
 
 > ⚠️ **O gatilho para promover antes do fim é a Fase 9.** Ela é a única que pode
 > **deixar o site sem briefing** (§13: portão de saída que bloqueia e não cai
@@ -346,7 +349,15 @@ a suíte de unidade, que roda sem rede.
   `proxyToApi` com `requireRole: 'ADMIN'` — cobrado pelo parser em
   `admin-surface.test.ts`, visto reprovando sobre as três antes de ganharem o
   papel. O `admin:capture` fotografa as três abas e o **seed passou a popular
-  `ErrorEvent`, `AuditEvent` e `DailyUptime`**. **685 → 750 testes no web.**
+  `ErrorEvent`, `AuditEvent` e `DailyUptime`**. **685 → 754 testes no web.**
+
+  > **A captura achou três defeitos sem sintoma de código, na estreia da aba**
+  > — o padrão do item 50: legenda da rosquinha atravessando a página, oito
+  > categorias sobre cinco cores com Mundo e Saúde no mesmo vermelho (a
+  > repetição agora sai esmaecida), e a série por dia como um retângulo de
+  > largura inteira porque a API só devolve os dias com evento
+  > (`fillCalendarDays` preenche a janela). E os **13 PNGs do item 55 tinham
+  > chegado à `dev` pelo #200**, rastreados — desrastreados aqui.
 
   > **Duas coisas que a §9 pedia e o 5c decidiu diferente, com o motivo no
   > plano:** os "quatro cartões com variação" são três, porque `lastMonth` não
@@ -883,7 +894,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.849 em 153 suites (**1.099 API em 77** + **750 web em 76** — todos
+- **Testes:** 1.853 em 153 suites (**1.099 API em 77** + **754 web em 76** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

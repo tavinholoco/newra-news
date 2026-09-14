@@ -294,7 +294,15 @@ Regras que não são óbvias no código:
     `byDay`; o `CategoryBars` ordena por valor e é para isso que existe) e
     `dashboard/saturation-arc` (o arco de três quartos). As cinco cores vêm de
     `dashboard/chart-colors.ts`, nas duas formas (`bg-*` e `stroke-*`) — o
-    Tailwind só emite a utility que encontra escrita
+    Tailwind só emite a utility que encontra escrita. **Da sexta fatia em
+    diante a cor repete esmaecida** (`opacity-60`): são cinco cores para até
+    oito categorias, e a primeira captura pôs Mundo e Saúde no mesmo vermelho.
+    A legenda tem largura máxima, senão o valor vai parar a 1.600 px do rótulo
+  - **a série por dia preenche a janela** (`lib/series.ts`,
+    `fillCalendarDays`): a API só devolve os dias com evento, e um dia numa
+    janela de 30 virava uma barra de largura inteira — o eixo do tempo só
+    existe se cada dia de calendário tem o seu lugar, com zero onde não houve
+    nada
   - **`saturation.plan` nulo desenha "Indisponível", nunca zero.** É a única
     medida que sai do banco, e zero diria que o mês está folgado justamente
     quando não há como saber. O acento do arco segue `lib/saturation.ts`:

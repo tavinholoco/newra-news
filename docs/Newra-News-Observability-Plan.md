@@ -1369,9 +1369,24 @@ rotas" (a baseline) e "9 rotas públicas" (a API), que são outras coleções.
 escrevê-lo é a correção. O que informa — a matriz de estados — tem a
 contagem no próprio `toHaveLength(16)`.
 
+**11. A captura achou três defeitos sem sintoma de código, e é para isso que
+ela existe.** Build, lint, `tsc` e a suíte inteira passavam por cima dos
+três: a legenda da rosquinha atravessava a página (valor a 1.600 px do
+rótulo — `max-w-md`); oito categorias sobre cinco cores punham Mundo e Saúde
+no mesmo vermelho, lado a lado (a §4.3 avisava: da sexta fatia em diante a
+cor repete **esmaecida**, `opacity-60`, com teste); e a série por dia era um
+retângulo de largura inteira, porque a API só devolve os dias com evento e
+um dia numa janela de 30 virava uma barra que parecia dizer "o mês"
+(`fillCalendarDays` dá um lugar a cada dia UTC da janela, zero onde não houve
+nada). É o padrão do item 50: a única ferramenta que alcança esta área é a
+foto, e ela pagou na estreia da aba. **De quebra, os 13 PNGs de
+`.admin-captures/` do item 55 tinham chegado à `dev` pela sincronização do
+#200** — rastreados, e a captura marcava todos como modificados; foram
+desrastreados aqui, e a remoção viaja para a `main` na promoção.
+
 **Duas chaves de mensagem saíram** (`dashboard.pipelineDuration`,
 `dashboard.successRate`): a linha de KPI as substituiu, e o teste de i18n
-reprova chave que ninguém lê. **685 → 750 testes no web** (71 → 76 suítes);
+reprova chave que ninguém lê. **685 → 754 testes no web** (71 → 76 suítes);
 a API fica em 1.099. Sem migration, sem env nova, sem mudança na API.
 
 ---
