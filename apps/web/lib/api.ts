@@ -24,6 +24,10 @@ import type {
   PipelineRunDetail,
   PipelineRunStatus,
   PipelineRunsResponse,
+  HttpMetrics,
+  ErrorSummary,
+  ErrorSummaryWindow,
+  AuditTrail,
 } from '@newranews/types';
 import {
   API_TIMEOUT_MS,
@@ -509,6 +513,50 @@ export async function deleteNewsAdmin(id: string): Promise<DeleteNewsResult> {
   const res = await fetchWebApi<ApiResponse<DeleteNewsResult>>(
     `/api/admin/news/${id}`,
     { method: 'DELETE' },
+  );
+  return res.data;
+}
+
+// ── Observabilidade (admin) — Fase 5 do plano, PR 5c ─────────────────────
+// As três leituras que o 5b abriu na API e que, até aqui, não tinham leitor.
+
+/**
+ * Os quatro sinais de ouro — latência, tráfego, erro e saturação.
+ *
+ * Os três primeiros são **da janela do processo** que está no ar (`since`,
+ * `uptimeSeconds`): zeram a cada deploy e a cada hibernação. A saturação do
+ * plano é a exceção — vem do `DailyUptime` e fala do mês —, e **pode vir
+ * `null`** quando o banco não respondeu; a tela desenha "indisponível".
+ */
+export async function getHttpMetrics(): Promise<HttpMetrics> {
+  const res = await fetchWebApi<ApiResponse<HttpMetrics>>('/api/admin/http-metrics');
+  return res.data;
+}
+
+/** As falhas registradas na janela, agrupadas por fingerprint. */
+export async function getErrorSummary(window: ErrorSummaryWindow): Promise<ErrorSummary> {
+  const res = await fetchWebApi<ApiResponse<ErrorSummary>>(
+    `/api/admin/errors?window=${window}`,
+  );
+  return res.data;
+}
+
+/**
+ * A trilha de ação de admin, mais recente primeiro.
+ *
+ * `total` é a janela inteira; `events` é o que o `limit` cortou — os dois
+ * viajam juntos para a tela dizer "50 de 312", e não "50".
+ */
+export async function getAuditTrail(
+  params: { days?: number; limit?: number } = {},
+): Promise<AuditTrail> {
+  const search = new URLSearchParams();
+  if (params.days !== undefined) search.set('days', String(params.days));
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+
+  const query = search.toString();
+  const res = await fetchWebApi<ApiResponse<AuditTrail>>(
+    `/api/admin/audit${query ? `?${query}` : ''}`,
   );
   return res.data;
 }

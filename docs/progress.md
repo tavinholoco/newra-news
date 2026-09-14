@@ -6831,6 +6831,109 @@ lados já tinham o arquivo idêntico —, e está escrito nos dois lugares.
 
 **Sem mudança em `src/`**; contagem em **1.099 / 685**.
 
+### 67. Fase 5, PR 3 de 3 — o web: as três abas, o arco das horas, e a falha com cara ✅ 2026-09-14
+
+> **§9 do plano de observabilidade, o último dos três PRs — e o maior PR de
+> tela do plano, que é por isso que a migration (5a) e a API (5b) não viajaram
+> com ele.** O 5b deixou três leituras sem leitor: `GET /api/admin/errors`,
+> `GET /api/admin/audit` e a saturação em `GET /api/metrics/http`. Este PR é
+> quem as lê. **Fecha a Fase 5.**
+
+#### O que entrou
+
+- **A `/admin/security`** — a terceira aba do §4.1, a décima sexta página do
+  produto e a única que o plano inteiro abre. Quatro painéis na ordem em que se
+  lê um incidente: o resumo da janela (24 h / 7 d — total, falhas distintas,
+  WARN/ERROR/FATAL), a **rosquinha de erro por categoria** com as seis fatias
+  fixas na ordem da taxonomia, a **tabela de falhas** no formato da referência
+  (busca por código/rota/mensagem, filtro por severidade, filtro por
+  categoria, colunas ordenáveis com `aria-sort`, e o `lastRequestId` em
+  `<code class="select-all">` — é ele que torna um relato pesquisável no log),
+  e a **trilha de auditoria** (ator, ação, alvo, desfecho; só ids, nunca
+  e-mail; ação desconhecida sai como veio). O quinto, **invariantes**, é um
+  lugar vazio de propósito para a Fase 6. Sem `loading.tsx`/`error.tsx` de
+  rota: cada painel carrega em consulta própria e desenha o próprio esqueleto e
+  o próprio `role='alert'`.
+- **A saúde da API na `/admin`** (`ApiHealth`): o **arco das horas do plano**
+  que a §4.3 chama de o mais importante do plano inteiro em custo/benefício,
+  memória sobre 512 MB, atraso do event loop, e a instância ("de pé há 3 h 12
+  min: 1.284 requisições, 0,08% com erro — a janela zera a cada acordada").
+- **Os quatro sinais na `/admin/metrics`** (`GoldenSignals`): requisições,
+  latência p95 (com p50 e máximo), erros do servidor e do cliente, a
+  saturação compacta e a **latência por rota** em tabela.
+- **A linha de KPI com variação** no topo das métricas: notícias de hoje vs.
+  média 7 d, duração de hoje vs. média 7 d (subir é pior — vermelho com seta
+  para cima), média 7 d vs. 30 d, e a taxa de sucesso **sem chip**.
+- **Rosquinhas** para categoria (8), provider de IA (2, com os dias no Groq no
+  meio — o gatilho dos três dias de fallback, visível), **ingestão por fonte**
+  (NewsData/RSS: as duas colunas gravadas desde a V1 e serializadas desde o
+  5b) e o cartão de **linhas apagadas** (`cleanupCount`, a terceira órfã).
+- **`SeriesBars`** para o `byDay` do produto, que voltava desde a Fase 8 e
+  nenhum componente desenhava; **`WindowSelector`** extraído do
+  `product-metrics-client` (três donos agora); **`DonutChart`** e
+  **`SaturationArc`** em SVG inline; `chart-colors.ts` com as cinco cores em
+  `bg-*` e `stroke-*`.
+- **Três rotas no BFF** (`/api/admin/errors`, `/audit`, `/http-metrics`), todas
+  por `proxyToApi` com `requireRole: 'ADMIN'`; três fetchers em `lib/api.ts`,
+  três hooks em `lib/queries.ts` sob `observabilityKeys`, sem `refetchInterval`.
+- **`admin-surface.test.ts`**, pelo parser: todo handler HTTP exportado sob
+  `app/api/admin/**` chama `proxyToApi` com o literal `requireRole: 'ADMIN'`;
+  exceção é mapa com motivo, `run-pipeline` a única entrada, e um segundo
+  teste cobra que a exceção confere sessão e papel à mão. **Vista reprovando**
+  sobre as três rotas novas escritas sem o papel — nomeou os três handlers.
+- **`admin:capture` com a `/admin/security`**, e o **seed populando
+  `ErrorEvent`, `AuditEvent` e `DailyUptime`** — a decisão que o 5a e o 5b
+  deixaram para cá.
+- **`state-matrix` a 16**, a faixa com três abas (guarda de ordem), o mapa de
+  rotas com a página nova, a lista de 401 do smoke com as três rotas.
+
+#### O que o plano pedia e o dado não sustentava
+
+**"Quatro cartões com variação" são três.** `lastMonth` não devolve quantos
+dias têm linha, e derivar a taxa de sucesso de 30 dias de `failureDays / 30`
+mentiria para o otimista em todo mês com dia sem `DailyMetric` — 29 a 31/08,
+com a API suspensa, são três. `kpiDelta` devolve `null` sem linha de base
+honesta, e `null` é cartão sem chip, nunca `+∞%`. O limiar de "estável" é o
+do arredondamento do texto (0,05%): a primeira versão usava 0,5% e imprimia
+`+0,3%` com seta neutra — a contradição oposta a `0%` com seta para cima, e
+apareceu escrevendo o teste.
+
+**"Tabela de eventos de segurança" e "lista de erros por fingerprint" são
+uma tabela só.** Os eventos da §3.2 nascem como `AppError` com categoria
+`authorization` (Fase 3) e vivem no `ErrorEvent` (Fase 4); não há segunda
+tabela de onde ler. Duas sobre as mesmas linhas seriam as duas caixas
+vermelhas sobre o mesmo run (item 49) em outra forma.
+
+#### O que o plano não tinha, e a tela precisava
+
+**O ritmo do mês.** `hoursUsed / limitHours` no dia 10 diz 32% com a API
+ligada 24/7 — o ritmo que esgota as 750 h no dia 31, e foi assim que 29/08
+chegou sem aviso. `planPace` projeta `hoursUsed / horas de calendário
+decorridas × horas do mês` e escreve sob o arco: *"no ritmo atual, 678 h no
+fim do mês (90% do plano)"*. **Antes de 24 h de amostra ela se cala e diz
+que se calou** — no primeiro minuto do mês um processo acordado projeta 24/7
+(armadilha 24, num gráfico). O acento é o da §4.2: neutro até 80%, laranja de
+atenção até o teto, vermelho depois. `plan: null` desenha "Indisponível"
+sobre o trilho vazio, nunca zero, com memória e event loop intactos — é a
+herança da verificação pós-merge do 5b, com teste.
+
+**O `byDay` é dia UTC.** `date` vem de `toISOString().slice(0, 10)`;
+`new Date('2026-09-01')` lido no fuso do navegador vira 31/08 em qualquer
+fuso negativo, e a série inteira deslocaria um dia para trás em silêncio — a
+armadilha do `Article.date`, em outro campo. `formatCalendarDay` lê em UTC.
+
+**A contagem de rotas em prosa parou de ser escrita.** "15 rotas/páginas"
+estava em dois `CLAUDE.md` e quatro comentários de teste; um regex de
+contagem reprovaria também sobre "12 rotas" (a baseline) e "9 rotas públicas"
+(a API). É a lição do `e2e-flows.test.ts`: onde o número não informa, deixar
+de escrevê-lo é a correção. A matriz de estados tem a contagem no
+`toHaveLength(16)`, que é onde ela reprova.
+
+**Duas chaves de mensagem saíram** (`dashboard.pipelineDuration`,
+`dashboard.successRate`), substituídas pela linha de KPI — o teste de i18n
+reprova chave que ninguém lê. **685 → 750 testes no web** (71 → 76 suítes);
+a API fica em 1.099. Sem migration, sem env nova, sem mudança na API.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -204,7 +204,7 @@ describe('superfície do navegador', () => {
     /**
      * As **8 advisories *high* do `next@14`** só têm correção em `15.x`, e o
      * salto arrasta `next-intl` 3 → 4 (que exige Next 15) e a mudança de
-     * `params` para assíncrono nas 15 páginas. A dívida está registrada com o
+     * `params` para assíncrono em todas as páginas. A dívida está registrada com o
      * gatilho — **o que a torna aceitável hoje é que nenhuma das oito alcança
      * esta aplicação**, e cada "nenhuma" é uma afirmação sobre a configuração:
      *

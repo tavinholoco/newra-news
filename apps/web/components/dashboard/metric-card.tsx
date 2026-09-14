@@ -1,12 +1,40 @@
+import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import type { KpiDelta } from '@/lib/kpi';
+import { cn } from '@/lib/utils';
 
 interface MetricCardProps {
   label: string;
   value: string | number;
   hint?: string;
+  /**
+   * A variação (§4.2 do plano de observabilidade). `null` é cartão sem chip —
+   * o caso em que não há linha de base honesta —, e é decisão do chamador,
+   * via `kpiDelta`.
+   */
+  delta?: KpiDelta | null;
 }
 
-export function MetricCard({ label, value, hint }: MetricCardProps) {
+const DELTA_ICON = {
+  up: ArrowUpRight,
+  down: ArrowDownRight,
+  flat: Minus,
+} as const;
+
+/**
+ * A cor diz se a direção é boa, não para onde ela aponta: duração do pipeline
+ * subindo é vermelho com seta para cima. `neutral` fica no texto secundário
+ * pela mesma razão do `RUNNING` do `StatusPill` — verde afirmaria melhora.
+ */
+const DELTA_TONE = {
+  better: 'text-success',
+  worse: 'text-danger',
+  neutral: 'text-ink-secondary',
+} as const;
+
+export function MetricCard({ label, value, hint, delta }: MetricCardProps) {
+  const Icon = delta ? DELTA_ICON[delta.direction] : null;
+
   return (
     <Card className='h-full gap-2'>
       <CardContent>
@@ -16,6 +44,20 @@ export function MetricCard({ label, value, hint }: MetricCardProps) {
         <p className='font-display mt-1 text-2xl font-bold text-foreground sm:text-3xl'>
           {value}
         </p>
+        {delta && Icon && (
+          <p className='mt-1 flex flex-wrap items-center gap-x-1 text-xs'>
+            <span
+              className={cn(
+                'inline-flex items-center gap-0.5 font-semibold tabular-nums',
+                DELTA_TONE[delta.tone],
+              )}
+            >
+              <Icon aria-hidden='true' className='h-3 w-3' />
+              {delta.text}
+            </span>
+            <span className='text-muted-foreground'>{delta.period}</span>
+          </p>
+        )}
         {hint && <p className='mt-1 text-xs text-muted-foreground'>{hint}</p>}
       </CardContent>
     </Card>

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useProductMetrics } from '@/lib/queries';
-import { formatCount, formatPercent } from '@/lib/format';
+import { formatCalendarDay, formatCount, formatPercent } from '@/lib/format';
+import { toDateFormatLocale } from '@/lib/i18n';
 import { MetricCard } from './metric-card';
 import { CategoryBars } from './category-bars';
+import { SeriesBars } from './series-bars';
+import { WindowSelector } from './window-selector';
 import { DashboardSkeleton } from './dashboard-skeleton';
-import { cn } from '@/lib/utils';
 
 /** As janelas oferecidas. 90 é a retenção do evento cru — pedir mais é vazio. */
 const WINDOWS = [7, 30, 90] as const;
@@ -36,6 +38,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export function ProductMetricsClient() {
   const t = useTranslations('productMetrics');
   const tCategories = useTranslations('categories');
+  const locale = toDateFormatLocale(useLocale());
   const [days, setDays] = useState<number>(30);
 
   const { data, isFetching, isError } = useProductMetrics(days);
@@ -56,24 +59,13 @@ export function ProductMetricsClient() {
 
   return (
     <section aria-busy={isFetching} className='flex flex-col gap-8'>
-      <div className='flex flex-wrap items-center gap-2'>
-        {WINDOWS.map((janela) => (
-          <button
-            key={janela}
-            type='button'
-            onClick={() => setDays(janela)}
-            aria-pressed={days === janela}
-            className={cn(
-              'rounded-full border px-3 py-1 text-sm transition-colors duration-fast',
-              days === janela
-                ? 'border-line-strong bg-surface-accent font-semibold text-link'
-                : 'border-line text-ink-secondary hover:text-link',
-            )}
-          >
-            {t('windowDays', { days: janela })}
-          </button>
-        ))}
-      </div>
+      <WindowSelector
+        options={WINDOWS}
+        value={days}
+        onChange={setDays}
+        optionLabel={(janela) => t('windowDays', { days: janela })}
+        label={t('windowLabel')}
+      />
 
       <div>
         <SectionTitle>{t('audienceTitle')}</SectionTitle>
@@ -96,6 +88,25 @@ export function ProductMetricsClient() {
             hint={t('sessionsHint')}
           />
         </div>
+      </div>
+
+      <div>
+        <SectionTitle>{t('byDayTitle')}</SectionTitle>
+        <p className='mb-3 max-w-prose text-sm text-muted-foreground'>{t('byDayHint')}</p>
+        {/**
+          * `byDay` voltava desde a Fase 8 e nenhum componente o desenhava. É
+          * série temporal — barra na ordem da data, nunca rosquinha nem o
+          * `CategoryBars`, que reordena por valor (§4.3 do plano de
+          * observabilidade).
+          */}
+        <SeriesBars
+          label={t('byDayTitle')}
+          points={data.byDay.map((day) => ({
+            key: day.date,
+            label: formatCalendarDay(day.date, locale),
+            value: day.sessions,
+          }))}
+        />
       </div>
 
       <div>

@@ -69,7 +69,8 @@
     "nav": {
       "label": "Panel navigation",
       "metrics": "Metrics",
-      "panel": "Panel"
+      "panel": "Panel",
+      "security": "Logs & security"
     },
     "title": "Admin Panel",
     "restrictedTitle": "Restricted access",
@@ -112,6 +113,64 @@
       "eventsEmpty": "This run recorded no events.",
       "eventsError": "Could not load the events for this run.",
       "errorOrigin": "Source: {origin}"
+    },
+    "overview": {
+      "title": "API health right now",
+      "description": "Plan hours are the ceiling that suspended the API on 29/08 — the arc is what was missing to see it coming. Memory and event loop are of this instance.",
+      "loadError": "Could not load the API health.",
+      "instance": "This instance has been up for {uptime}: {requests} requests, {errorRate} with a server error. The window resets on every wake-up."
+    },
+    "security": {
+      "title": "Logs & security",
+      "pageDescription": "What broke, where it came from, and who did what in the panel.",
+      "window24h": "Last 24 h",
+      "window7d": "Last 7 days",
+      "windowDays": "{days} days",
+      "errors": {
+        "title": "Recorded failures",
+        "description": "Each row is a distinct failure in the window — its occurrences summed, with the latest time and the request id that finds it in the log.",
+        "windowLabel": "Failures window",
+        "loadError": "Could not load the recorded failures.",
+        "total": "Occurrences",
+        "sinceHint": "since {since}",
+        "distinct": "Distinct failures",
+        "distinctHint": "Different fingerprints in the window",
+        "truncated": "The read hit the row ceiling and this cut is incomplete — the totals are a floor, not the number.",
+        "byCategory": "Errors by category",
+        "centerCaption": "occurrences",
+        "byOrigin": "Errors by origin",
+        "tableTitle": "All failures",
+        "empty": "No failure recorded in the window.",
+        "search": "Search",
+        "searchPlaceholder": "Code, route or message",
+        "severity": "Severity",
+        "category": "Category",
+        "all": "All",
+        "colSeverity": "Severity",
+        "colFailure": "Failure",
+        "colRoute": "Route or stage",
+        "colCount": "Occurrences",
+        "colHours": "Hours",
+        "colLastSeen": "Last seen",
+        "noMatch": "No failure matches the filters.",
+        "requestId": "Request id:"
+      },
+      "invariants": {
+        "title": "Invariants",
+        "empty": "No invariant measured yet — it is the inconsistencies axis, and it lands in Phase 6 of the observability plan."
+      },
+      "audit": {
+        "title": "Admin action audit",
+        "description": "Who triggered the pipeline, who deleted what — most recent first. Only the id of who acted, never the e-mail.",
+        "windowLabel": "Audit window",
+        "loadError": "Could not load the audit trail.",
+        "empty": "No admin action recorded in the window.",
+        "actor": "actor",
+        "target": "target",
+        "shown": "{shown} of {total} in the window",
+        "actionPipelineTriggered": "Pipeline triggered",
+        "actionNewsDeleted": "News deleted"
+      }
     }
   },
   "article": {
@@ -189,21 +248,66 @@
     "publishedHint": "Published on the home page and in the archive",
     "runsAt": "The pipeline runs daily at 8am (BRT)",
     "aiUsed": "AI used",
-    "pipelineDuration": "Pipeline duration",
     "pipelineErrors": "Pipeline errors",
     "notRunYet": "The pipeline hasn't run today yet. Check back after the daily run (8am, Brasília time).",
     "last7Days": "Last 7 days",
     "avgNewsPerDay": "Average news/day",
     "articlesGenerated": "Articles generated",
     "daysWithData": "{count, plural, one {# day with data} other {# days with data}}",
-    "successRate": "Success rate",
     "avgDuration": "Average duration",
     "newsByCategory": "News by category (7 days)",
     "aiUsage": "AI usage (7 days)",
     "last30Days": "Last 30 days",
     "failureDays": "Failed days",
     "loadError": "Couldn't load the metrics. Please try again.",
-    "noData": "No data for this period."
+    "noData": "No data for this period.",
+    "kpi": {
+      "label": "Key indicators",
+      "vsWeekAverage": "vs. 7-day average",
+      "vsMonthAverage": "vs. 30-day average",
+      "newsToday": "News collected today",
+      "durationToday": "Pipeline duration today",
+      "avgNewsWeek": "Average news/day (7 d)",
+      "successRateWeek": "Success rate (7 d)"
+    },
+    "cleanupCount": "Rows deleted",
+    "cleanupHint": "By stage 8 in today’s run",
+    "ingestionBySource": "Ingestion by source",
+    "sourceNewsApi": "NewsData",
+    "sourceRss": "RSS",
+    "centerNews": "news",
+    "centerFallbacks": "days on Groq",
+    "signals": {
+      "title": "The API’s four signals",
+      "description": "Latency, traffic and errors of this instance since it woke up; saturation of memory, event loop and plan hours. The window resets on every deploy and every hibernation.",
+      "loadError": "Could not load the API signals.",
+      "requests": "Requests",
+      "since": "since {since}",
+      "latencyP95": "Latency p95",
+      "latencyHint": "p50 {p50} · max {max}",
+      "errorRate": "Server errors",
+      "clientErrorRate": "Client errors",
+      "ofRequests": "Over the window’s requests",
+      "saturationTitle": "Saturation",
+      "planHours": "Plan hours",
+      "planValue": "{used} / {limit}",
+      "planUnavailable": "Unavailable",
+      "planUnavailableHint": "The database did not answer — it is the only measure that comes from it.",
+      "pace": "At the current pace, {hours} by the end of the month ({ratio} of the plan).",
+      "paceTooEarly": "The month’s pace is only projected with 24 h of sample.",
+      "memory": "Memory",
+      "memoryValue": "{used} / {limit}",
+      "eventLoop": "Event loop lag (p95)",
+      "eventLoopHint": "max {max} · {samples} samples · beyond the timer’s {resolution}",
+      "routesTitle": "Latency by route",
+      "routesEmpty": "No request in the window yet.",
+      "colRoute": "Route",
+      "colCount": "Requests",
+      "colP95": "p95",
+      "colAvg": "avg",
+      "colMax": "max",
+      "colErrorRate": "error"
+    }
   },
   "editorial": {
     "readingTime": "{minutes} min read",
@@ -302,6 +406,9 @@
     },
     "newsletterSettings": {
       "title": "Newsletter"
+    },
+    "security": {
+      "title": "Logs & security"
     }
   },
   "nav": {
@@ -416,15 +523,17 @@
     "accountsHint": "Signed-in readers return by definition",
     "audienceTitle": "Audience",
     "byCategoryTitle": "Categories opened",
+    "byDayHint": "One bar per day of the window, in calendar order.",
+    "byDayTitle": "Sessions per day",
     "bySourceTitle": "Clicks by source",
     "eventsTitle": "Events by type",
     "loadError": "Could not load product metrics.",
     "noSearchGaps": "No empty searches in this window.",
     "opened": "Opens",
     "pageDescription": "How people use the site — the panel beside it measures the pipeline.",
+    "readingTitle": "Reading",
     "readRate": "Read through",
     "readRateHint": "90% of the text over opens",
-    "readingTitle": "Reading",
     "scroll25": "25% of the text",
     "scroll50": "50% of the text",
     "searchGapsHint": "What people looked for and the archive did not have.",
@@ -434,7 +543,8 @@
     "subscribers": "Subscribers",
     "subscribersHint": "The number a sponsor asks for",
     "title": "Product",
-    "windowDays": "{days} days"
+    "windowDays": "{days} days",
+    "windowLabel": "Product metrics window"
   },
   "shell": {
     "breadcrumb": "Breadcrumb",

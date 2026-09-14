@@ -57,6 +57,10 @@ test.describe('BFF sem sessão', () => {
     // ficam pulados —, então rota de admin nova entra aqui no mesmo PR.
     '/api/admin/pipeline/runs',
     '/api/admin/pipeline/runs/aaaaaaaa-0000-0000-0000-000000000001',
+    // Fase 5 (PR 5c): as três leituras da aba de segurança e dos sinais.
+    '/api/admin/errors',
+    '/api/admin/audit',
+    '/api/admin/http-metrics',
   ]) {
     test(`${route} responde 401 com o corpo de erro do produto`, async ({ request }) => {
       const response = await request.get(route);

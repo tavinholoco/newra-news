@@ -17,18 +17,20 @@ beforeEach(() => {
 });
 
 describe('AdminNav', () => {
-  it('should link the two screens of the admin area', () => {
+  it('should link the three screens of the admin area, in the order of §4.1', () => {
+    // As três abas do §4.1 do plano de observabilidade: "está tudo de pé?",
+    // "como o produto vai?", "o que quebrou e quem tentou o quê?". A ordem é
+    // a das perguntas, e uma quarta aba tem gatilho, não opinião.
     usePathnameMock.mockReturnValue('/admin');
     renderWithIntl(<AdminNav />);
 
-    expect(screen.getByRole('link', { name: 'Painel' })).toHaveAttribute(
-      'href',
-      '/pt-BR/admin',
-    );
-    expect(screen.getByRole('link', { name: 'Métricas' })).toHaveAttribute(
-      'href',
-      '/pt-BR/admin/metrics',
-    );
+    expect(
+      screen.getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')]),
+    ).toEqual([
+      ['Painel', '/pt-BR/admin'],
+      ['Métricas', '/pt-BR/admin/metrics'],
+      ['Logs e segurança', '/pt-BR/admin/security'],
+    ]);
   });
 
   it('should mark the current screen', () => {

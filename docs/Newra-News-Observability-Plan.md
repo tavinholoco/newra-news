@@ -883,7 +883,7 @@ contexto sozinho.
 
 ---
 
-## §9 Fase 5 — As telas: Métricas e Segurança — 5a ✅ 2026-09-12 · 5b ✅ 2026-09-12 · 5c
+## §9 Fase 5 — As telas: Métricas e Segurança — 5a ✅ 2026-09-12 · 5b ✅ 2026-09-12 · 5c ✅ 2026-09-14
 
 **Fecha:** quatro números calculados todo dia e jogados fora na serialização; um
 endpoint ADMIN inteiro sem leitor; e nenhuma tela que responda "a API está
@@ -1263,6 +1263,116 @@ por `JOB_SECRET`, sem ator — entra no tuple de auditoria quando ganhar BFF.
 > tela desenha "indisponível", nunca zero; e o **seed não popula `AuditEvent`
 > nem `DailyUptime`** — a captura vai fotografar arco em zero e trilha vazia,
 > e é no 5c que se decide se o seed as semeia.
+
+### O que o PR do web decidiu — 14/09/2026 (5c ✅)
+
+Item **67** do `docs/progress.md`. Tudo o que a linha 7c do §19 lista — a
+`/admin/security`, as três abas, `series-bars`, rosquinhas, KPI com variação,
+`admin-surface.test.ts` e o `admin:capture` cobrindo a tela nova —, mais o
+que o plano deixava em aberto e o que ele pedia e o dado não sustentava.
+
+**1. Três dos quatro cartões de KPI têm variação; o quarto não, e é
+decisão.** A §9 pedia *"linha de KPI com variação, quatro cartões"*, escrita a
+partir da referência e não do contrato. O `DashboardMetrics` sustenta três
+pares honestos — notícias de hoje contra a média de 7 dias, duração de hoje
+contra a média de 7 dias (subir é pior, e a cor diz), média de 7 dias contra a
+de 30 — e **nenhum para a taxa de sucesso**: `lastMonth` não devolve quantos
+dias têm linha, e derivar a taxa de 30 dias de `failureDays / 30` mentiria
+para o otimista em todo mês com dia sem `DailyMetric` (29 a 31/08, com a API
+suspensa, são três). `kpiDelta` devolve `null` sem linha de base, e `null` é
+cartão sem chip — nunca `+∞%`. A regra do limiar de "estável" é a do
+arredondamento do texto (0,05%): `+0,3%` com seta neutra seria a contradição
+oposta a `0%` com seta para cima.
+
+**2. A tabela de eventos de segurança e a lista de erros por fingerprint são
+uma tabela só.** A §9 as listava como dois painéis; o dado é o mesmo. Os
+eventos da §3.2 (`authz_fail`, `authn_token_reuse`, `excess_rate_limit_exceeded`…)
+nascem como `AppError` com categoria `authorization` desde a Fase 3 e vivem no
+`ErrorEvent` desde a 4 — não há segunda tabela de onde uma "tabela de eventos
+de segurança" pudesse ler. Duas tabelas sobre as mesmas linhas seriam as duas
+caixas vermelhas sobre o mesmo run da Fase 2, em outra forma. O que a §4.2
+pedia da referência está nela: busca, filtro por severidade, filtro por
+categoria, colunas ordenáveis com `aria-sort`, severidade por linha, e o
+`lastRequestId` em `<code class="select-all">`.
+
+**3. O arco das horas do plano ganhou o ritmo do mês, e ele se cala sem
+amostra.** `hoursUsed / limitHours` é o retrato de hoje: no dia 10 diz 32%
+mesmo com a API ligada 24/7, que é o ritmo que esgota as 750 h no dia 31 — foi
+assim que 29/08 chegou sem aviso. `planPace` (`lib/saturation.ts`) projeta
+`hoursUsed / horas de calendário decorridas × horas do mês`, e a linha sob o
+arco diz *"no ritmo atual, 678 h no fim do mês (90% do plano)"*. Antes de
+**24 h de amostra** a projeção é ruído (no primeiro minuto do mês um processo
+acordado projeta 24/7) e a linha diz que se calou — armadilha 24 do §17, num
+gráfico. O acento segue a §4.2: neutro até 80%, laranja de atenção até o
+teto, vermelho de estado depois; e `plan: null` desenha **"Indisponível"**
+sobre o trilho vazio, nunca zero, com os outros dois sinais intactos.
+
+**4. O arco mora na visão geral e o painel de sinais na de métricas, sobre a
+mesma consulta.** A §4.3 põe o arco único na `/admin` e a §9 põe a saturação
+inteira na `/admin/metrics`; as duas leem `useHttpMetrics` com **uma** chave,
+então abrir as duas abas é uma requisição. O `ApiHealth` da visão geral é a
+linha de KPI da §4.1 ("está tudo de pé agora?"): arco grande, memória, event
+loop e a instância — *"de pé há 3 h 12 min: 1.284 requisições, 0,08% com
+erro"*, com a janela dita, porque ela zera a cada acordada. O `GoldenSignals`
+da aba de métricas traz os quatro sinais com a latência por rota em tabela —
+grandeza independente, que a §4.3 diz não ser rosquinha.
+
+**5. Sem biblioteca de gráfico, como a §4.3 manda — e as cores nas duas
+formas.** `DonutChart` é um `<circle>` por fatia com `stroke-dasharray`,
+`role='img'` no `<svg>` e o dado na legenda (valor e porcentagem ao lado de
+cada fatia); a fatia única em 100% é um círculo sem recorte (armadilha 15);
+`keepOrder` mantém a cor de cada categoria de erro estável entre janelas —
+`upstream` é sempre a primeira cor, mesmo no dia em que tudo foi
+`authorization`. `SeriesBars` é o irmão do `CategoryBars` que preserva a
+ordem, e o `byDay` do produto — que voltava desde a Fase 8 sem ninguém o
+desenhar — é o primeiro consumidor. As cinco cores saíram do `BAR_COLORS` para
+`chart-colors.ts`, em `bg-*` **e** `stroke-*`: o Tailwind só emite a utility
+que encontra escrita, e a rosquinha pinta por `stroke`.
+
+**6. O seletor de janela virou componente, porque passou a ter três donos.**
+A §4.2 (item 2) o previa; ele morava solto no `product-metrics-client` desde
+a Fase 8, e a aba de segurança precisava de dois — 24 h / 7 d para os erros,
+dias para a auditoria. `WindowSelector`, pílulas com `aria-pressed` e
+`role='group'`.
+
+**7. O `byDay` é dia UTC, e a série lia no fuso local.** `date` vem de
+`toISOString().slice(0, 10)`; `new Date('2026-09-01')` lido no fuso do
+navegador vira 31/08 em qualquer fuso negativo, e a série inteira deslocaria
+um dia para trás em silêncio — a armadilha do `Article.date`, em outro
+campo. `formatCalendarDay` lê em UTC, com teste.
+
+**8. O seed popula as três tabelas.** A herança do 5b deixava a decisão para
+cá, e a resposta é sim: `ErrorEvent` (quatro falhas distintas nas últimas
+24 h, com baldes por hora), `AuditEvent` (três ações do id sintético que o
+`admin:capture` usa na sessão forjada — a trilha mostra "você") e
+`DailyUptime` (o mês corrente, ~9 h por dia). Sem elas a captura fotografa o
+arco em zero, a rosquinha vazia e a trilha sem linha — o estado que ninguém
+precisa ver. Determinístico e idempotente como o resto.
+
+**9. A guarda do BFF é pelo parser, e foi vista reprovando sobre as três
+rotas novas.** `admin-surface.test.ts` percorre todo `route.ts` sob
+`app/api/admin/**`, e para cada handler HTTP exportado cobra uma chamada a
+`proxyToApi` cujo quarto argumento é um objeto literal com `requireRole:
+'ADMIN'` — a pergunta é sobre gramática (armadilha 27), e uma varredura de
+texto passaria verde num arquivo com dois handlers e uma checagem. A exceção
+é mapa com motivo, e o `run-pipeline` é a única entrada; um segundo teste
+cobra que a exceção confere sessão e papel à mão, para ela não virar buraco.
+As três rotas (`errors`, `audit`, `http-metrics`) foram escritas **sem** o
+papel primeiro: a guarda nomeou os três handlers, e só então ganharam o
+argumento.
+
+**10. A contagem de rotas em prosa parou de ser escrita, em vez de ganhar
+guarda.** "15 rotas/páginas/telas" estava em dois `CLAUDE.md` e quatro
+comentários de teste; um regex de contagem reprovaria também sobre "12
+rotas" (a baseline) e "9 rotas públicas" (a API), que são outras coleções.
+É a lição do `e2e-flows.test.ts`: onde o número não informa, deixar de
+escrevê-lo é a correção. O que informa — a matriz de estados — tem a
+contagem no próprio `toHaveLength(16)`.
+
+**Duas chaves de mensagem saíram** (`dashboard.pipelineDuration`,
+`dashboard.successRate`): a linha de KPI as substituiu, e o teste de i18n
+reprova chave que ninguém lê. **685 → 750 testes no web** (71 → 76 suítes);
+a API fica em 1.099. Sem migration, sem env nova, sem mudança na API.
 
 ---
 
@@ -2248,9 +2358,9 @@ aplica as duas migrations juntas na promoção.**
 | ~~6b~~ ✅ | **§8 — Fase 4, o código** — **entregue em 10/09/2026** | `recordError` (síncrona, coalescente, nunca lança), o buffer com flush de 30 s e no `onClose`, e a retenção de 14 dias na etapa 8. Item **60** |
 | ~~7a~~ ✅ | **§9 — Fase 5, a migration** — **entregue em 12/09/2026** | PR só de schema. `AuditEvent` (a auditoria de admin virou tabela), `DailyUptime` (as horas do plano viraram acumulador — `process.uptime()` não sabe dar desde que a API dorme), e o `aiTokensUsed` fora. Nasceram as duas guardas de **coluna**: o replay estático do `migrations.test.ts` e o ER coluna a coluna. Item **62** do `docs/progress.md` |
 | ~~7b~~ ✅ | **§9 — Fase 5, a API** — **entregue em 12/09/2026** | `GET /api/admin/errors` **e `/audit`** (a leitura da auditoria não estava listada — tabela sem leitor), saturação no `/api/metrics/http`, as três colunas no `dashboardMetricsSchema`, o `response-schema-contract` no `DailyMetric`, o ator atravessando BFF → cron → API por `x-actor-id`, e o heartbeat do `DailyUptime` — **no `server.ts`**, não no `buildApp`. Item **64** do `docs/progress.md` |
-| **7c ← próxima** | **§9 — Fase 5, o web** | Aqui a `/admin/security` nasce e o `toHaveLength` vai a 16. As três abas, `series-bars`, rosquinhas, KPI com variação, `admin-surface.test.ts`, e o `admin:capture` cobrindo a tela nova. O maior PR de tela do plano — e é por isso que a migration não viajou com ele. Os contratos estão em `packages/types/src/observability.ts`; o que herda do 5b está no fim da §9 |
+| ~~7c~~ ✅ | **§9 — Fase 5, o web** — **entregue em 14/09/2026** | A `/admin/security` nasceu e o `toHaveLength` foi a 16. As três abas, `series-bars`, rosquinhas, o arco das horas com o ritmo do mês, KPI com variação (três de quatro — o quarto não tem par honesto no contrato), `admin-surface.test.ts` pelo parser, e o `admin:capture` cobrindo a tela nova, com o seed populando as três tabelas. **Fecha a Fase 5.** Item **67** do `docs/progress.md` |
 
-**Bloco 3 — depois da espinha, em qualquer ordem.**
+**Bloco 3 — depois da espinha, em qualquer ordem. ← próximo**
 
 - **§12 — Fase 8 (log de sucesso).** A mais barata das quatro: função pura, sem
   migration, e resolve "o dia deu certo?".

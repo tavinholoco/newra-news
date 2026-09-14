@@ -61,6 +61,7 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - DailyUptime.date é @unique — o heartbeat usa upsert com `increment`, nunca create
 - NewsletterLog.date é @unique — apenas um envio registrado por dia
 - Seed deve criar dados realistas para todas as categorias
+- **O seed também popula `ErrorEvent`, `AuditEvent` e `DailyUptime`** (decidido no PR 5c, 14/09/2026): são as três tabelas que o `admin:capture` fotografa na `/admin` e na `/admin/security`, e sem elas a captura sai com o arco das horas em zero, a rosquinha de erro vazia e a trilha sem linha. Determinístico e idempotente como o resto — `upsert` pela chave natural ou por id fixo; o ator da trilha é o id sintético da sessão forjada pelo script
 
 ## Padrão de Export
 O PrismaClient é exportado como singleton:
