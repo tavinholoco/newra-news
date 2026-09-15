@@ -309,9 +309,12 @@ a suíte de unidade, que roda sem rede.
   PRs**; e a **5 fechou em 14/09, em três PRs** — o **5a (a migration) e o 5b
   (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha.** Continuam
   abertas **quatro fases inteiras** (6, 8, 9 e 11) e as subfases **7b e 7c**,
-  e o bloco 3 do §19 vai em qualquer ordem — a 8 (log de sucesso) é a mais
-  barata, a 11 (saúde por fonte) responde à troca de provedor, a 6
-  (invariantes) depende de 4 e 5 no ar, e a **9 vai por último, e é decisão**.
+  e o bloco 3 do §19 vai em qualquer ordem — **a próxima é a 8 (log de
+  sucesso)**, decidida em 15/09: a mais barata, função pura, sem migration, com
+  o inventário reconferido no fim da §12 (branch
+  `observability/fase-8-success-log`); a 11 (saúde por fonte) responde à troca
+  de provedor, a 6 (invariantes) depende de 4 e 5 no ar, e a **9 vai por
+  último, e é decisão**.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
