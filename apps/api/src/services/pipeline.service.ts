@@ -7,6 +7,7 @@ import { deleteExpiredProductEvents } from './product-event.service';
 import { deleteExpiredErrorEvents } from './error-event.service';
 import { deleteExpiredAuditEvents } from './audit.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
+import { isDegradingFetchWarning } from './run-outcome';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
 import type { PipelineTrigger } from '@newranews/types';
@@ -249,6 +250,23 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     pipelineErrors: 0,
   };
 
+  // **As etapas que engoliram a própria falha, na ordem em que aconteceu.**
+  // (Fase 8) É o que o evento final da etapa 9 escreve em `degradedBy`, e o
+  // que faz o `SUCCESS_DEGRADED` dizer *qual* etapa. A API deriva o mesmo
+  // campo dos eventos gravados (`run-outcome.ts`), e há teste cobrando que as
+  // duas contas batam — um `WARN` novo que não entre aqui aparece na
+  // listagem e não no resumo, e é assim que se descobre.
+  const degradedBy: number[] = [];
+
+  // O que as etapas não-críticas devolvem sobe de escopo para chegar ao
+  // resumo: o resultado da newsletter vive dentro do `try` da 7.5 e o da
+  // renormalização dentro do da 8.5. `'failed'` é o valor quando a etapa
+  // lançou — o service da newsletter não distingue "pulado por idempotência"
+  // de "zero assinantes" (devolve os números do log do dia nos dois casos),
+  // então "devolveu" e "lançou" é a única distinção que a etapa sabe fazer.
+  let newsletterSummary: { total: number; sent: number; failed: number } | 'failed' = 'failed';
+  let renormalized: { scanned: number; changed: number } | 'failed' = 'failed';
+
   try {
     // Stage 1: Collect news (NewsData.io + RSS) — `currentStage` já é 1.
     const { newsDataItems, rssItems, allItems, warnings } = await fetchAll();
@@ -275,10 +293,14 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // aprende a ignorar. Ele é gravado no evento assim mesmo, porque a fonte
     // que morreu de vez só aparece na sequência de dias vazios (foi como a
     // `Reuters` passou despercebida).
+    //
+    // A linha entre os dois mora em `isDegradingFetchWarning`, junto do
+    // desfecho da Fase 8 — a mesma função conta o erro aqui e decide se o dia
+    // saiu `SUCCESS_DEGRADED` lá.
     if (warnings.length > 0) {
-      metrics.pipelineErrors += warnings.filter(
-        (warning) => warning.kind !== 'feed-empty',
-      ).length;
+      const degrading = warnings.filter(isDegradingFetchWarning).length;
+      metrics.pipelineErrors += degrading;
+      if (degrading > 0) degradedBy.push(1);
       await logPipelineEvent(pipelineLogId, 1, 'WARN', 'Collection degraded', {
         warnings,
       });
@@ -333,6 +355,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // (três dias seguidos). **Não conta em `pipelineErrors`**: o briefing saiu,
     // e "sucesso degradado" é função sobre eventos que a Fase 8 define.
     if (primaryError !== undefined) {
+      degradedBy.push(6);
       await logPipelineEvent(pipelineLogId, 6, 'WARN', 'Primary provider failed, fallback served', {
         ...extractErrorDetail(primaryError),
         fallbackProvider: provider,
@@ -396,12 +419,18 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     try {
       currentStage = 7.5;
       const newsletter = await sendDailyNewsletter();
+      newsletterSummary = {
+        total: newsletter.total,
+        sent: newsletter.sent,
+        failed: newsletter.failed,
+      };
       await logPipelineEvent(pipelineLogId, 7.5, 'INFO', 'Daily newsletter sent', {
         total: newsletter.total,
         sent: newsletter.sent,
         failed: newsletter.failed,
       });
     } catch (newsletterErr) {
+      degradedBy.push(7.5);
       await logPipelineEvent(pipelineLogId, 7.5, 'WARN', 'Newsletter failed (non-critical)', {
         ...extractErrorDetail(newsletterErr),
       });
@@ -464,6 +493,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       });
     } catch (cleanupErr) {
       metrics.pipelineErrors += 1;
+      degradedBy.push(8);
       await logPipelineEvent(pipelineLogId, 8, 'WARN', 'Cleanup failed (non-critical)', {
         ...extractErrorDetail(cleanupErr),
       });
@@ -489,16 +519,21 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // `CategoryMode`.
     try {
       currentStage = 8.5;
-      const renormalized = await renormalizeStoredNews({ dryRun: false });
+      const report = await renormalizeStoredNews({ dryRun: false });
+      renormalized = {
+        scanned: report.scanned,
+        changed: report.textChanged + report.imageRecovered + report.categoryChanged,
+      };
       await logPipelineEvent(pipelineLogId, 8.5, 'INFO', 'Stored news renormalized', {
-        scanned: renormalized.scanned,
-        textChanged: renormalized.textChanged,
-        imageRecovered: renormalized.imageRecovered,
-        categoryChanged: renormalized.categoryChanged,
-        categorySkipped: renormalized.categorySkipped,
+        scanned: report.scanned,
+        textChanged: report.textChanged,
+        imageRecovered: report.imageRecovered,
+        categoryChanged: report.categoryChanged,
+        categorySkipped: report.categorySkipped,
       });
     } catch (renormalizeErr) {
       metrics.pipelineErrors += 1;
+      degradedBy.push(8.5);
       await logPipelineEvent(
         pipelineLogId,
         8.5,
@@ -542,6 +577,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
         durationMs: pipelineDuration,
       });
     } catch (metricsErr) {
+      degradedBy.push(9);
       await logPipelineEvent(pipelineLogId, 9, 'WARN', 'Metrics recording failed (non-critical)', {
         ...extractErrorDetail(metricsErr),
       });
@@ -553,7 +589,30 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       where: { id: pipelineLogId },
       data: { status: 'SUCCESS', completedAt: new Date() },
     });
+
+    // **O resumo do que deu certo, e não só do que deu errado.** (Fase 8, §12)
+    //
+    // O evento final carregava só `durationMs`; o que uma pessoa quer saber ao
+    // abrir a tela de manhã — quantas notícias, de quantas fontes, qual modelo
+    // escreveu, quantos assinantes receberam, e qual etapa engoliu a falha —
+    // estava espalhado por ~15 eventos ou não estava em lugar nenhum. É um
+    // evento `INFO`, então não vira `ErrorEvent`; é a linha que o detalhe de um
+    // run abre primeiro.
     await logPipelineEvent(pipelineLogId, 9, 'INFO', 'Pipeline completed successfully', {
+      collected: allItems.length,
+      sources: new Set(deduplicated.map((item) => item.source)).size,
+      deduped: deduplicated.length,
+      persisted: persisted.count,
+      selected: selected.length,
+      provider,
+      model: modelVersion,
+      promptVersion: ARTICLE_PROMPT_VERSION,
+      briefingId: savedArticle.id,
+      briefingChars: article.content.length,
+      sourcesCited: sourcesSaved,
+      newsletter: newsletterSummary,
+      renormalized,
+      degradedBy,
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {

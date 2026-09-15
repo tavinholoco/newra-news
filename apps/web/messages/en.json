@@ -112,7 +112,16 @@
       "contextLabel": "Context",
       "eventsEmpty": "This run recorded no events.",
       "eventsError": "Could not load the events for this run.",
-      "errorOrigin": "Source: {origin}"
+      "errorOrigin": "Source: {origin}",
+      "statusDegraded": "Degraded success",
+      "statusNeverRan": "Did not run",
+      "degradedBy": "Degraded by {count, plural, one {stage} other {stages}} {stages}",
+      "stripTitle": "Last {days} days",
+      "stripLabel": "Pipeline outcome per day, last {days} days",
+      "dayOutcome": "{date}: {outcome}",
+      "lastBriefing": "Last briefing {age} ago",
+      "lastBriefingOverdue": "Last briefing {age} ago, overdue",
+      "lastBriefingNone": "No briefing in the last {days} days."
     },
     "overview": {
       "title": "API health right now",

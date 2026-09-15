@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { triggerPipeline } from '../../src/services/pipeline.service';
 import { ARTICLE_PROMPT_VERSION } from '../../src/config/ai-prompts';
+import { degradedStages } from '../../src/services/run-outcome';
 
 vi.mock('@newranews/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@newranews/database')>();
@@ -172,6 +173,7 @@ beforeEach(() => {
     dryRun: false,
     scanned: 0,
     textChanged: 0,
+    imageRecovered: 0,
     categoryChanged: 0,
     categorySkipped: 0,
     transitions: [],
@@ -408,6 +410,7 @@ describe('PipelineService', () => {
     dryRun: false,
     scanned: 0,
     textChanged: 0,
+    imageRecovered: 0,
     categoryChanged: 0,
     categorySkipped: 0,
     transitions: [],
@@ -838,5 +841,115 @@ describe('PipelineService — renormalização do acervo (etapa 8.5)', () => {
       );
       expect(successUpdate).toBeDefined();
     });
+  });
+});
+
+/**
+ * **Fase 8 — o resumo do que deu certo, e não só do que deu errado.**
+ *
+ * O evento final da etapa 9 carregava só `durationMs`. O que uma pessoa quer
+ * saber ao abrir a tela de manhã — quantas notícias, de quantas fontes, qual
+ * modelo escreveu, quantos assinantes receberam, e **qual etapa engoliu a
+ * própria falha** — estava espalhado por ~15 eventos ou não estava em lugar
+ * nenhum. §12 do plano de observabilidade.
+ */
+describe('Fase 8 — o evento final da etapa 9 resume o run', () => {
+  const finalEvent = () =>
+    vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) =>
+        (call[0] as { data: { message: string } }).data.message ===
+        'Pipeline completed successfully',
+    )?.[0] as { data: { context: Record<string, unknown> } } | undefined;
+
+  it('carries the harvest, the model, the briefing, the newsletter and the duration', async () => {
+    vi.mocked(sendDailyNewsletter).mockResolvedValue({ total: 12, sent: 11, failed: 1 });
+    vi.mocked(renormalizeStoredNews).mockResolvedValue({
+      dryRun: false,
+      scanned: 8190,
+      textChanged: 3,
+      imageRecovered: 1,
+      categoryChanged: 2,
+      categorySkipped: 0,
+      transitions: [],
+      sample: [],
+    } as never);
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    expect(finalEvent()?.data.context).toEqual({
+      collected: 2,
+      sources: 2,
+      deduped: 2,
+      persisted: 2,
+      selected: 2,
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      promptVersion: ARTICLE_PROMPT_VERSION,
+      briefingId: 'article-uuid-123',
+      briefingChars: 'Conteúdo completo.'.length,
+      sourcesCited: 2,
+      newsletter: { total: 12, sent: 11, failed: 1 },
+      renormalized: { scanned: 8190, changed: 6 },
+      degradedBy: [],
+      durationMs: expect.any(Number),
+    });
+  });
+
+  it('names the stages that swallowed their failure, and only those', async () => {
+    // O cenário composto: Gemini caiu (Groq entregou), a newsletter lançou, e a
+    // etapa 1 avisou **só** feeds vazios — que não degradam. `degradedBy` é o
+    // que faz o `SUCCESS_DEGRADED` ser acionável em vez de decorativo.
+    vi.mocked(fetchAll).mockResolvedValue({
+      ...mockFetchResult,
+      warnings: [{ kind: 'feed-empty', source: 'Veja Saúde' }],
+    });
+    vi.mocked(generateArticle).mockResolvedValueOnce({
+      ...mockGeneratedArticle,
+      provider: 'groq',
+      modelVersion: 'openai/gpt-oss-20b',
+      primaryError: new Error('Gemini API error 503: UNAVAILABLE'),
+    });
+    vi.mocked(sendDailyNewsletter).mockRejectedValue(new Error('Resend down'));
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    expect(finalEvent()?.data.context).toMatchObject({
+      provider: 'groq',
+      model: 'openai/gpt-oss-20b',
+      newsletter: 'failed',
+      degradedBy: [6, 7.5],
+    });
+  });
+
+  it('agrees with the pure derivation over the events it wrote — one line, not two', async () => {
+    // O pipeline monta `degradedBy` enquanto corre; a API deriva o mesmo campo
+    // dos eventos gravados, depois. Se as duas regras divergirem, a tela mostra
+    // um número e o diário mostra outro — e este é o teste que reprova.
+    vi.mocked(fetchAll).mockResolvedValue({
+      ...mockFetchResult,
+      warnings: [
+        { kind: 'feed-empty', source: 'Veja Saúde' },
+        { kind: 'feed-failed', source: 'Superinteressante', detail: 'ETIMEDOUT' },
+      ],
+    });
+    vi.mocked(renormalizeStoredNews).mockRejectedValue(new Error('db down'));
+    vi.mocked(prisma.dailyMetric.upsert).mockRejectedValue(new Error('db down'));
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    const written = vi.mocked(prisma.pipelineEvent.create).mock.calls.map(
+      (call) =>
+        (call[0] as { data: { stage: number; level: 'INFO' | 'WARN' | 'ERROR'; context?: Record<string, unknown> } })
+          .data,
+    );
+    const derived = degradedStages(
+      written.map((event) => ({ stage: event.stage, level: event.level, context: event.context ?? null })),
+    );
+
+    expect(derived).toEqual([1, 8.5, 9]);
+    expect(finalEvent()?.data.context.degradedBy).toEqual(derived);
   });
 });

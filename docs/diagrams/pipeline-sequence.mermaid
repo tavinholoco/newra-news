@@ -45,4 +45,4 @@ sequenceDiagram
     API->>DB: 8.5 · renormaliza o acervo com as regras de ingestão atuais
     API->>DB: 9 · dailyMetric.upsert
 
-    Note over API,DB: Toda etapa grava um PipelineEvent (INFO · WARN · ERROR).<br/>A falha grava errorStage e errorDetail no PipelineLog.
+    Note over API,DB: Toda etapa grava um PipelineEvent (INFO · WARN · ERROR).<br/>A falha grava errorStage e errorDetail no PipelineLog.<br/>O evento final da 9 resume o run (colheita, modelo, briefing,<br/>newsletter, degradedBy) — o desfecho é derivado dos WARN na leitura.

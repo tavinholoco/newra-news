@@ -307,14 +307,13 @@ a suíte de unidade, que roda sem rede.
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
   09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
   PRs**; e a **5 fechou em 14/09, em três PRs** — o **5a (a migration) e o 5b
-  (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha.** Continuam
-  abertas **quatro fases inteiras** (6, 8, 9 e 11) e as subfases **7b e 7c**,
-  e o bloco 3 do §19 vai em qualquer ordem — **a próxima é a 8 (log de
-  sucesso)**, decidida em 15/09: a mais barata, função pura, sem migration, com
-  o inventário reconferido no fim da §12 (branch
-  `observability/fase-8-success-log`); a 11 (saúde por fonte) responde à troca
-  de provedor, a 6 (invariantes) depende de 4 e 5 no ar, e a **9 vai por
-  último, e é decisão**.
+  (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha; e a **8 (o
+  log de sucesso) fechou em 15/09**, abrindo o bloco 3.** Continuam abertas
+  **três fases inteiras** (6, 9 e 11) e as subfases **7b e 7c**, e o bloco 3
+  do §19 vai em qualquer ordem — a 11 (saúde por fonte) responde à troca de
+  provedor, a 6 (invariantes) depende de 4 e 5 no ar, e a **9 vai por último,
+  e é decisão** (das três coisas que ela exige no ar, com a 8 entregue só
+  falta a promoção).
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -332,6 +331,38 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-15): a Fase 8 fechou — `SUCCESS` deixou
+  de mentir, e o dia que não rodou virou estado.** §12, item **69**. O
+  `PipelineLog.status` é binário e o pipeline não é: quatro etapas engolem a
+  própria falha com `WARN` e o run segue `SUCCESS`, o fallback para o Groq é
+  `WARN` da etapa 6, a colheita degradada é `WARN` da etapa 1 — seis coisas
+  erradas cabiam num "Sucesso". Entrou o **`outcome` derivado** (`SUCCESS` ·
+  `SUCCESS_DEGRADED` · `FAILED`, `null` em `RUNNING`) com **`degradedBy`** (as
+  etapas), função pura em `services/run-outcome.ts` sobre o run e seus `WARN`
+  — **sem coluna, sem migration, sem rota nova** —, nas duas portas da
+  listagem; o **resumo no evento final da etapa 9** (colheita, modelo,
+  briefing, newsletter, `degradedBy`, duração); a **faixa de 30 dias** na
+  `/admin`, com o **`NEVER_RAN` vazado** derivado no web pela ausência de run
+  num dia UTC; e o **batimento** "Último briefing há 3 h 12 min", medido do
+  último run que produziu briefing, "atrasado" acima de 24 h. O seed semeia
+  27 runs em 30 dias, com o buraco de 29–31/08. **1.103 → 1.129 na API, 762 →
+  781 no web.**
+
+  > **A linha `feed-empty` mora num lugar só** (`isDegradingFetchWarning`):
+  > o `pipelineErrors` da etapa 1 e o desfecho a chamam. Com "zero `WARN`",
+  > como a §12 escrevia em 23/08, o fim de semana de um feed de saúde seria
+  > dia degradado e o estado deixaria de informar. E o `degradedBy` tem
+  > **duas contas que têm de bater** — o pipeline o monta enquanto corre, a
+  > API o deriva dos eventos gravados —, com teste cobrando a concordância.
+  >
+  > **A captura pagou na estreia, pela segunda fase seguida:** no tema
+  > escuro o laranja do degradado e o vermelho do falhou eram a mesma cor a
+  > olho num quadrado de 20 px. O degradado é contorno com miolo fraco — a
+  > forma carrega o estado (armadilha 35). **`pii-in-logs` reprovou uma
+  > renomeação inocente**, e está certo em fixar a forma literal do contexto
+  > da 7.5. **Gatilho que nasce, agora medível:** três dias seguidos de
+  > `SUCCESS_DEGRADED` pelo mesmo `degradedBy`.
 
 - **Verificação pós-merge do 5c (2026-09-15): nada ligava o caminho que o
   BFF repassa à rota que a API registra.** Item **68**. Web e API eram
@@ -912,7 +943,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.865 em 155 suites (**1.103 API em 78** + **762 web em 77** — todos
+- **Testes:** 1.910 em 157 suites (**1.129 API em 79** + **781 web em 78** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

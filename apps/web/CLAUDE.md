@@ -247,8 +247,10 @@ Regras que não são óbvias no código:
     todo o segmento; `/favorites` é a exceção fora dele, com o guard próprio
 - /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) — a
   **saúde da API agora** (`admin/api-health`: o arco das horas do plano, memória
-  e event loop), o disparo do pipeline, **os três painéis de execução**
-  (`admin/pipeline-runs`) e a lista de notícias
+  e event loop), o disparo do pipeline, **a faixa de desfechos de 30 dias com o
+  batimento "último briefing há N h"** (`admin/outcome-strip`, Fase 8 do plano
+  de observabilidade), **os três painéis de execução** (`admin/pipeline-runs`)
+  e a lista de notícias
 - /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`):
   a linha de KPI com variação, rosquinhas de categoria, provider e ingestão,
   as métricas de produto com a série por dia, e **os quatro sinais da API**
@@ -283,6 +285,33 @@ Regras que não são óbvias no código:
     milissegundo.** Passar um pelo outro renderiza "45 ms" para um run de 45 s,
     sem erro de tipo e sem aviso. Quem formata o run é `formatRunDuration`, e há
     asserção sobre isso em `tests/components/pipeline-runs.test.tsx`
+  - **a tela fala em desfecho, não em `status`** (Fase 8): `outcome` é o que a
+    API deriva dos `WARN` do run (`SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`,
+    `null` em `RUNNING`), e `degradedBy` diz qual etapa — "Degradado pelas
+    etapas 6 e 7.5" (`formatList`, `Intl.ListFormat`, que pediu `ES2021.Intl`
+    no `lib` do tsconfig). As chaves de mensagem por desfecho estão por extenso
+    em `OUTCOME_MESSAGE_KEY` (`admin/outcome-strip`), porque chave montada em
+    runtime parece órfã
+  - **`NEVER_RAN` é derivado aqui, não na API** (`lib/outcome-days.ts`,
+    `outcomeByDay`): a API lista o que existe e não sabe emitir ausência. Um
+    quadrado por dia **UTC** (`startedAt.slice(0, 10)`, nunca o fuso do
+    navegador — a armadilha do `Article.date`), o último run a começar
+    representa o dia, e `fillCalendarDays` põe o vazado onde não houve run. A
+    consulta pede `since: 30, limit: 100` (`usePipelineRuns`) para a faixa e a
+    lista saírem de **uma** requisição; a lista corta em 20
+    (`PIPELINE_RUNS_SHOWN`, **no componente** — no `queries.ts` seria mais uma
+    chave que o `vi.mock('@/lib/queries')` das suítes esquece)
+  - **o batimento mede do último run que produziu briefing** (`lastBriefingRun`),
+    não de `runs[0]`: se o de hoje falhou, o briefing no ar é o de ontem.
+    Acima de `BRIEFING_OVERDUE_MS` (24 h) ganha "atrasado" e tom de perigo. O
+    relógio é lido no render pela regra do `PlanPaceLine` — client component
+    sobre dado de consulta, sem HTML de servidor com que divergir
+  - **na faixa, a forma carrega o estado junto com a cor**: o degradado é
+    contorno laranja com miolo fraco, não laranja cheio — no tema escuro
+    `ember-500` e `danger-400` eram a mesma cor a olho num quadrado de 20 px,
+    e só a captura no escuro viu (armadilha 35 do plano). Verde cheio é
+    sucesso, vermelho cheio é falha, vazado neutro é "não rodou", cinza cheio
+    é "rodando"
   - **sem `refetchInterval` nesta área.** Aba de admin com polling é tráfego
     constante contra um plano que cobra tempo ligado — o free do Render dá
     750 h/mês, e a API já foi suspensa uma vez por isso. O pipeline roda uma vez

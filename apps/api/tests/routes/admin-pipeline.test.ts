@@ -58,6 +58,8 @@ const summary = {
   completedAt: '2026-09-06T11:00:45.000Z',
   durationSeconds: 45,
   eventCount: 19,
+  outcome: 'SUCCESS' as const,
+  degradedBy: [],
 };
 
 const failed = {
@@ -73,6 +75,8 @@ const failed = {
   },
   completedAt: null,
   durationSeconds: null,
+  outcome: 'FAILED' as const,
+  degradedBy: [],
 };
 
 const detail = {

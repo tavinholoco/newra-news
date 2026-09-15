@@ -8,6 +8,9 @@ import { assertContract } from '../../utils/contract';
 
 export const pipelineEventLevelSchema = z.enum(['INFO', 'WARN', 'ERROR']);
 
+/** O desfecho derivado (Fase 8). Espelha `RunOutcome` de `packages/types`. */
+export const runOutcomeSchema = z.enum(['SUCCESS', 'SUCCESS_DEGRADED', 'FAILED']);
+
 export const pipelineErrorDetailSchema = z.object({
   message: z.string(),
   provider: z.string().optional(),
@@ -26,6 +29,9 @@ export const devLogSummarySchema = z.object({
   completedAt: z.string().nullable(),
   durationSeconds: z.number().nullable(),
   eventCount: z.number().int(),
+  // Fase 8: derivados na leitura, nas duas portas — o schema é um só.
+  outcome: runOutcomeSchema.nullable(),
+  degradedBy: z.array(z.number()),
 });
 
 export const devLogsResponseSchema = z.object({

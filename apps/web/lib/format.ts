@@ -144,6 +144,18 @@ export function formatCount(value: number, locale = 'pt-BR'): string {
   return value.toLocaleString(locale);
 }
 
+/**
+ * Uma lista em prosa, com a conjunção do locale: `6 e 7.5`, `6, 7.5 e 8.5`
+ * (`6 and 7.5` em inglês).
+ *
+ * Para o `degradedBy` de um run (Fase 8): as etapas são identificadores, não
+ * quantidades — `7.5` é "a newsletter" e fica escrito assim nos dois idiomas,
+ * então quem chama passa a lista já em texto.
+ */
+export function formatList(items: string[], locale = 'pt-BR'): string {
+  return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(items);
+}
+
 /** 'gemini' → 'Gemini' (primeira letra maiúscula, resto intacto). */
 export function formatProviderName(provider: string | null | undefined): string {
   if (!provider) return '—';

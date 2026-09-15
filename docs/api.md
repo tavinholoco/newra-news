@@ -1219,7 +1219,9 @@ dias e briefing aos 90 — não há job manual a disparar.
         "startedAt": "ISO string",
         "completedAt": "ISO string | null",
         "durationSeconds": 90,
-        "eventCount": 5
+        "eventCount": 5,
+        "outcome": "SUCCESS | SUCCESS_DEGRADED | FAILED | null",
+        "degradedBy": [6, 7.5]
       }
     ],
     "recentErrors": [ "...runs com status FAILED" ]
@@ -1227,6 +1229,33 @@ dias e briefing aos 90 — não há job manual a disparar.
   "meta": { "total": 31 }
 }
 ```
+
+**`outcome` e `degradedBy` são derivados na leitura, não colunas** (Fase 8 do
+plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
+pipeline não é: quatro etapas engolem a própria falha com `WARN` e o run segue
+`SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas), o
+fallback para o Groq é um `WARN` da etapa 6 e a colheita degradada é um `WARN`
+da etapa 1. A regra:
+
+| `outcome` | Quando |
+|---|---|
+| `SUCCESS` | `status: SUCCESS` e nenhum `WARN` que conte |
+| `SUCCESS_DEGRADED` | `status: SUCCESS` e pelo menos um `WARN` que conte |
+| `FAILED` | `status: FAILED` |
+| `null` | `status: RUNNING` — ainda não há desfecho |
+
+**Todo `WARN` conta, com uma exceção:** o da etapa 1 (`Collection degraded`)
+carrega `warnings[]`, e só conta se algum aviso for mais que `feed-empty` —
+um feed que publicou nada num dia é a classe "publicou devagar", e marcá-la
+como degradação faria `SUCCESS_DEGRADED` virar o estado normal. `degradedBy` é
+a lista das etapas cujo `WARN` contou, em ordem e sem repetição (vazia quando
+não houve; preenchida também num run `FAILED`, porque a colheita degradada
+antes da falha continua verdade). A listagem lê os `WARN` dos runs da página
+numa consulta só; o detalhe deriva dos eventos que já traz.
+
+**O dia em que nada rodou não está aqui.** A API lista o que existe; quem
+deriva `NEVER_RAN` é a faixa de 30 dias da `/admin`, pela ausência de run num
+dia UTC.
 
 `recentErrors` **não** é um recorte de `runs`: é o mesmo filtro com
 `status: 'FAILED'`, então uma falha de três dias atrás aparece ali mesmo quando
@@ -1244,6 +1273,26 @@ recorte inteiro sem filtrar por status.
 
 Detalhe de um run: o resumo mais os **eventos por etapa** (Stage 1–9, nível
 INFO/WARN/ERROR, mensagem e contexto JSON).
+
+**O evento final da etapa 9 (`Pipeline completed successfully`) resume o run**
+(Fase 8) — é a linha que o detalhe abre primeiro:
+
+```json
+{
+  "collected": 389, "sources": 45, "deduped": 377, "persisted": 349, "selected": 15,
+  "provider": "gemini", "model": "gemini-2.5-flash", "promptVersion": "v2",
+  "briefingId": "uuid", "briefingChars": 6412, "sourcesCited": 15,
+  "newsletter": { "total": 3, "sent": 3, "failed": 0 },
+  "renormalized": { "scanned": 8190, "changed": 0 },
+  "degradedBy": [],
+  "durationMs": 24815
+}
+```
+
+`newsletter` e `renormalized` valem `"failed"` quando a etapa lançou — o
+service da newsletter não distingue "pulado por idempotência" de "zero
+assinantes" (devolve os números do log do dia nos dois casos), então
+"devolveu" e "lançou" é a única distinção que a etapa sabe fazer.
 
 **Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
 **Rate limit:** o global, 100 req/min
@@ -1427,7 +1476,9 @@ sem `role: ADMIN`
         "startedAt": "ISO string",
         "completedAt": "ISO string | null",
         "durationSeconds": 90,
-        "eventCount": 5
+        "eventCount": 5,
+        "outcome": "SUCCESS | SUCCESS_DEGRADED | FAILED | null",
+        "degradedBy": [6, 7.5]
       }
     ],
     "recentErrors": [ ...runs com status FAILED ]
@@ -1435,6 +1486,9 @@ sem `role: ADMIN`
   "meta": { "total": 31 }
 }
 ```
+
+`outcome` e `degradedBy` são os da Fase 8, derivados na leitura — a regra está
+em `GET /api/admin/pipeline/runs`, que compartilha o schema com esta porta.
 
 ### GET /api/dev/logs/:pipelineId
 

@@ -1537,7 +1537,7 @@ sem instrumentação nova.
 
 ---
 
-## §12 Fase 8 — O log de sucesso, e por que `SUCCESS` mente hoje
+## §12 Fase 8 — O log de sucesso, e por que `SUCCESS` mente hoje ✅ 2026-09-15
 
 **Fecha:** não existe registro de que o dia deu certo que alguém consiga ler — e
 o `SUCCESS` que existe **esconde quatro modos de falha por construção**.
@@ -1709,6 +1709,86 @@ decide se ele semeia.
 #201 (a `dev` daquele momento). O passo 1 do ritual a realinha depois de o
 #202 (pós-merge do 5c) mergear — conferir com `git merge-base --is-ancestor`
 que #201 **e** #202 estão na `dev`.
+
+### O que o PR decidiu — 15/09/2026 ✅
+
+Sobre a `dev` em `1c6857c` (#202 mergeado; `dev..main` = 0). Item **69** do
+`docs/progress.md`. O que a seção acima pedia e saiu diferente, com o motivo:
+
+- **`RunOutcome` tem três valores, e `NEVER_RAN` é valor de dia, não de run.**
+  A tabela dos quatro estava certa sobre o que a tela mostra e errada sobre
+  onde cada um nasce: a API deriva o desfecho de cada run que existe
+  (`services/run-outcome.ts`, `deriveRunOutcome` + `degradedStages`), e uma
+  função sobre um run não sabe dizer que o run não existe. `NEVER_RAN` é
+  ausência num dia UTC, derivada pelo **calendário do web**
+  (`lib/outcome-days.ts`, `outcomeByDay`) sobre a listagem dos últimos 30
+  dias. Pôr os quatro no tipo compartilhado seria declarar um valor que a API
+  nunca emite. `outcome: null` é o `RUNNING`.
+- **A regra do desfecho lê `context.warnings`, como o inventário mandou — e a
+  linha mora num lugar só.** `isDegradingFetchWarning` vive em
+  `run-outcome.ts` (puro, sem import de runtime, para não arrastar os
+  providers para o grafo e para o automock do `news-fetcher.service` nas
+  suítes do pipeline não a transformar em `vi.fn()` que devolve `undefined`);
+  o `pipelineErrors` da etapa 1 e o desfecho a chamam. Um aviso sem `kind`
+  legível **conta** — o que não se sabe classificar não é benigno.
+- **`degradedBy` é `number[]` (as etapas), preenchido também em run `FAILED`**
+  — a colheita degradada antes da falha continua verdade —, e o pipeline o
+  monta enquanto corre para escrevê-lo no resumo. São duas contas do mesmo
+  campo (o runtime e a derivação sobre os eventos gravados), e há teste
+  cobrando que batam: um `WARN` novo que não entre na lista do pipeline
+  aparece na listagem e não no resumo.
+- **`newsletter: 'failed'`, não `'skipped'`.** O `sendDailyNewsletter` não
+  distingue "pulado por idempotência" de "zero assinantes" — devolve os
+  números do `NewsletterLog` do dia nos dois casos —, então "devolveu" e
+  "lançou" é a única distinção que a etapa sabe fazer. `renormalized` entrou
+  pelo mesmo desenho (`{ scanned, changed } | 'failed'`), e `cleanup` ficou de
+  fora: é housekeeping, e `degradedBy` já diz quando falhou.
+- **A listagem lê os `WARN` de todos os runs da página numa consulta**
+  (`warnEventsByRun`, sobre `runs ∪ recentErrors`), e o detalhe deriva dos
+  eventos que já traz. O schema é um só, então o campo entrou nas duas portas —
+  e as fixtures de `dev.test.ts` e `admin-pipeline.test.ts` avisaram com
+  **500**: o serializer do type provider recusa um resumo sem os dois campos.
+- **A faixa pede a janela inteira numa requisição.** `usePipelineRuns` passou
+  a `since: 30, limit: 100`; a lista mostra as últimas 20 (`PIPELINE_RUNS_SHOWN`,
+  no componente — no `queries.ts` ela viraria mais uma chave que o mock
+  parcial das suítes de componente esquece), e a faixa lê todas. **O último run
+  a começar representa o dia**, escolhido pelo instante e não pela posição.
+- **O batimento positivo mede do último run que produziu briefing, não de
+  `runs[0]`** (`lastBriefingRun`): se o de hoje falhou, o briefing no ar é o
+  de ontem. Acima de 24 h (`BRIEFING_OVERDUE_MS`) a linha ganha a palavra
+  "atrasado" e o tom de perigo — é o 01/09 virando observável. Fica na seção
+  do pipeline, junto da faixa, e não no cartão de "Saúde da API agora": é a
+  mesma pergunta e o mesmo dado, e o relógio é lido no render pela regra do
+  `PlanPaceLine`.
+- **O seed semeia 27 runs em 30 dias**, com os eventos de que o desfecho
+  precisa: fallback a cada cinco dias (o mesmo ritmo do `aiProvider` das
+  métricas), uma newsletter falhada, um `FAILED` na etapa 6 e **três dias sem
+  run** — o buraco de 29–31/08 — para a faixa ter o que o `NEVER_RAN` existe
+  para mostrar. O run de hoje é o `...c001` que a trilha de auditoria já
+  referenciava. Rodado contra o banco local: idempotente.
+- **A captura pagou na estreia, de novo:** no tema escuro, o laranja do
+  degradado (`ember-500`) e o vermelho do falhou (`danger-400`) eram a mesma
+  cor a olho num quadrado de 20 px. O degradado virou **contorno laranja com
+  miolo fraco** — a forma carrega o estado junto com a cor. Armadilha 35.
+- **`Intl.ListFormat` não compilava**: o `lib` do `tsconfig` do web era
+  `ES2017`, e a API é ES2021. Entrou `ES2021.Intl` em
+  `packages/tsconfig/next.json`; o runtime (Node 18+, todo navegador desde
+  2020) já a tinha. Armadilha 36.
+
+**Guardas que nasceram:** `run-outcome.test.ts` (a tabela, os três avisos
+que contam e o `feed-empty` que não conta, a ordem e a deduplicação de
+`degradedBy`); no `pipeline.test.ts`, o resumo da etapa 9 campo a campo e a
+**concordância** entre o `degradedBy` do runtime e o derivado; no
+`pipeline-event.test.ts`, a consulta única de `WARN` e o desfecho nas duas
+leituras; no web, `outcome-days.test.ts` (o `NEVER_RAN` por ausência, o dia
+UTC, o último run como representante, o `lastBriefingRun`) e nove casos em
+`pipeline-runs.test.tsx` (a pílula e o cartão dizendo "degradado", a frase
+das etapas no singular e no plural, os 30 quadrados com o dia sem run, o
+batimento com e sem atraso, e a lista em 20 sobre uma janela de 25).
+
+**Gatilho numérico que a fase criou, agora medível:** três dias seguidos de
+`SUCCESS_DEGRADED` pelo mesmo `degradedBy` — na faixa, três contornos laranja
+seguidos; no detalhe, a mesma etapa três vezes.
 
 ---
 
@@ -2253,6 +2333,20 @@ Não-objetivos declarados como número, nunca como item de lista.
     o número quebravam o regex de `failed`, e o CRLF do `server.ts` fez a
     mutação não acontecer. Sétima ocorrência da família "a guarda vê caractere,
     não intenção" — desta vez na ferramenta que confere as guardas.
+35. **Dois estados em cores quentes vizinhas são um estado só no tema
+    escuro.** O laranja do degradado (`ember-500`) e o vermelho do falhou
+    (`danger-400`) eram indistinguíveis num quadrado de 20 px da faixa de
+    desfechos — a mesma família do "Mundo e Saúde no mesmo vermelho" da
+    rosquinha do 5c. Cor sozinha não carrega estado: a forma tem de carregar
+    junto (contorno com miolo fraco para o degradado, cheio para o falhou,
+    vazado para o que não rodou). E só a captura no escuro vê isso — o claro
+    passava.
+36. **O `lib` do `tsconfig` do web é `ES2017`, e a API de `Intl` parou
+    lá.** `Intl.ListFormat` (ES2021) não compila até `ES2021.Intl` entrar na
+    lista de `packages/tsconfig/next.json`; o runtime já a tinha. O erro é do
+    `tsc`, não do navegador — e a tentação é reescrever a função à mão com um
+    mapa de conjunções por idioma, que é o segundo lugar que o `Intl` existe
+    para evitar.
 
 ---
 
@@ -2276,6 +2370,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
 | **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); e `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke |
 | **Página nova sob `app/[locale]/admin`** | `hand-written-lists.test.ts` — o `ALL_ROUTES` do `capture-admin.mjs` tem de fotografá-la; mais as três guardas de "Página nova no web" acima |
+| **Campo novo no `devLogSummarySchema`** (a listagem de runs) | `assertContract` em `routes/dev/schemas.ts` (tipo em `packages/types`); e **toda fixture de rota que devolve o resumo responde 500** — `dev.test.ts` e `admin-pipeline.test.ts` — porque o serializer do type provider recusa o objeto incompleto (Fase 8). E `pii-in-logs.test.ts` fixa a **forma literal** do contexto da etapa 7.5: renomear a variável `newsletter` reprova, e é o certo |
 
 ---
 
@@ -2476,16 +2571,17 @@ aplica as duas migrations juntas na promoção.**
 
 **Bloco 3 — depois da espinha, em qualquer ordem. ← próximo**
 
-- **§12 — Fase 8 (log de sucesso). ← próxima, decidido em 15/09/2026.** A mais
-  barata das quatro: função pura, sem migration, e resolve "o dia deu certo?".
-  O inventário dela foi reconferido no fim da sessão do pós-merge do 5c (fim
-  da §12) — **a regra "zero `WARN`" está errada para a etapa 1**, e a listagem
-  não traz os eventos.
-- **§15 — Fase 11 (saúde por fonte).** Migration + etapa 1 + painel. É a que
-  responde à pergunta de trocar provedor, então adiante-a se essa decisão
-  estiver perto.
+- ~~**§12 — Fase 8 (log de sucesso).**~~ ✅ **Entregue em 15/09/2026.** O
+  desfecho derivado (`SUCCESS_DEGRADED` com `degradedBy`), o resumo no evento
+  final da etapa 9, a faixa de 30 dias com o `NEVER_RAN` vazado e o batimento
+  "último briefing há N h". Sem migration, sem rota nova. Item **69** do
+  `docs/progress.md`; as decisões no fim da §12.
+- **§15 — Fase 11 (saúde por fonte). ← próxima.** Migration + etapa 1 +
+  painel. É a que responde à pergunta de trocar provedor, então adiante-a se
+  essa decisão estiver perto.
 - **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
-- **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.**
+- **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
+  entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 
 ### Por que a Fase 9 vai por último
 

@@ -20,6 +20,33 @@ export type PipelineRunStatus = 'RUNNING' | 'SUCCESS' | 'FAILED';
 export type PipelineRunEventLevel = 'INFO' | 'WARN' | 'ERROR';
 
 /**
+ * O desfecho de um run fechado — o que o `status` não sabe dizer. (§12 do
+ * plano de observabilidade, Fase 8)
+ *
+ * **`SUCCESS` é binário e o pipeline não é.** Quatro etapas engolem a própria
+ * falha de propósito para o run terminar (7.5 newsletter, 8 expurgo, 8.5
+ * renormalização, 9 métricas), o fallback para o Groq é um `WARN` da etapa 6 e
+ * a colheita degradada é um `WARN` da etapa 1 — um run pode ter seis coisas
+ * erradas e reportar `SUCCESS`. `SUCCESS_DEGRADED` é o valor que carrega toda
+ * essa informação, e `degradedBy` diz **qual** etapa.
+ *
+ * **Não é coluna**: é função pura da API sobre o run e seus eventos
+ * (`services/run-outcome.ts`), derivada na leitura. Coluna pediria migration e
+ * ficaria dessincronizada do que os eventos dizem (§17.19).
+ *
+ * O quarto estado do plano, `NEVER_RAN`, **não está aqui de propósito**: é a
+ * ausência de run num dia de calendário, e a API não emite ausência — quem a
+ * deriva é a faixa de 30 dias do web, sobre a listagem. Ver `outcomeByDay`.
+ */
+export type RunOutcome =
+  /** Briefing gerado, nenhum `WARN` que conte, provider primário. */
+  | 'SUCCESS'
+  /** Briefing gerado, mas pelo menos uma etapa engoliu a própria falha. */
+  | 'SUCCESS_DEGRADED'
+  /** Sem briefing. */
+  | 'FAILED';
+
+/**
  * Um run, resumido.
  *
  * ⚠️ **`durationSeconds` é segundo, e o `formatPipelineDuration` do web recebe
@@ -43,6 +70,15 @@ export interface PipelineRunSummary {
   /** **Segundos.** `null` enquanto o run não fechou. */
   durationSeconds: number | null;
   eventCount: number;
+  /** O desfecho derivado dos eventos. `null` enquanto `RUNNING`. */
+  outcome: RunOutcome | null;
+  /**
+   * As etapas cujo `WARN` contou como degradação, em ordem e sem repetição —
+   * `7.5` é a newsletter, `6` o fallback de IA, `1` a colheita (só quando há
+   * aviso além de `feed-empty`). Vazio quando não houve. Preenchido também num
+   * run `FAILED`: a colheita degradada antes da falha continua verdade.
+   */
+  degradedBy: number[];
 }
 
 /** Uma linha do diário de um run: etapa, nível, mensagem e contexto. */

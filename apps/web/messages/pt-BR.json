@@ -112,7 +112,16 @@
       "contextLabel": "Contexto",
       "eventsEmpty": "Esta execução não registrou nenhum evento.",
       "eventsError": "Não foi possível carregar os eventos desta execução.",
-      "errorOrigin": "Origem: {origin}"
+      "errorOrigin": "Origem: {origin}",
+      "statusDegraded": "Sucesso degradado",
+      "statusNeverRan": "Não rodou",
+      "degradedBy": "Degradado {count, plural, one {pela etapa} other {pelas etapas}} {stages}",
+      "stripTitle": "Últimos {days} dias",
+      "stripLabel": "Desfecho do pipeline por dia, últimos {days} dias",
+      "dayOutcome": "{date}: {outcome}",
+      "lastBriefing": "Último briefing há {age}",
+      "lastBriefingOverdue": "Último briefing há {age}, atrasado",
+      "lastBriefingNone": "Nenhum briefing nos últimos {days} dias."
     },
     "overview": {
       "title": "Saúde da API agora",

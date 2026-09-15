@@ -39,6 +39,7 @@ import {
   getErrorSummary,
   getAuditTrail,
 } from '@/lib/api';
+import { OUTCOME_WINDOW_DAYS } from '@/lib/outcome-days';
 
 // ── Query Key Factories ──────────────────────────────────────────────
 
@@ -350,11 +351,22 @@ export function useDeleteNews() {
   });
 }
 
-/** Quantos runs a lista da `/admin` mostra. §6.2 do plano de observabilidade. */
-export const PIPELINE_RUNS_LIMIT = 20;
+/**
+ * Quantos runs a consulta pede: a janela da faixa de desfechos inteira, com
+ * folga para mais de um run por dia (o cron e um disparo manual). É o teto do
+ * `limit` da rota, e cabe: a etapa 8 apaga `PipelineLog` aos 30 dias, então a
+ * tabela inteira raramente passa de ~40 linhas.
+ */
+export const PIPELINE_RUNS_LIMIT = 100;
 
 /**
- * Os últimos runs do pipeline, mais os que falharam.
+ * Os últimos runs do pipeline, mais os que falharam — **a janela de 30 dias
+ * inteira, numa requisição** (Fase 8).
+ *
+ * A lista mostra as últimas 20 (`PIPELINE_RUNS_SHOWN`, no componente); a faixa de desfechos precisa
+ * de todos os runs da janela para dizer qual dia não rodou. Uma consulta serve
+ * as duas leituras, e é o `OUTCOME_WINDOW_DAYS` que define o `since`: a faixa
+ * e a listagem falam do mesmo recorte por construção.
  *
  * **Sem `refetchInterval`, e é decisão medida.** Aba de admin deixada aberta
  * com polling é tráfego constante contra um plano que cobra tempo ligado: o
@@ -367,7 +379,7 @@ export const PIPELINE_RUNS_LIMIT = 20;
 export function usePipelineRuns(limit = PIPELINE_RUNS_LIMIT) {
   return useQuery({
     queryKey: pipelineKeys.runs(limit),
-    queryFn: () => getPipelineRuns({ limit }),
+    queryFn: () => getPipelineRuns({ since: OUTCOME_WINDOW_DAYS, limit }),
   });
 }
 

@@ -1,4 +1,11 @@
-import { PrismaClient, Category, ErrorOrigin, ErrorSeverity } from '@prisma/client';
+import {
+  PrismaClient,
+  Category,
+  ErrorOrigin,
+  ErrorSeverity,
+  PipelineEventLevel,
+  PipelineStatus,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -318,6 +325,142 @@ async function main() {
     auditCreated++;
   }
   console.log(`  AuditEvent: ${auditCreated} created (${auditEvents.length - auditCreated} already existed)`);
+
+  // ── Pipeline (Fase 8 do plano) ──────────────────────────────────────────
+  // Os runs dos últimos 30 dias, com os eventos de que o desfecho precisa.
+  // Sem eles a faixa de desfechos da `/admin` fotografa 30 quadrados vazados
+  // — o estado que ninguém precisa ver —, e a lista de execuções sai vazia.
+  // O retrato é o do produto medido: quase todo dia `SUCCESS`; a cada cinco
+  // dias o Gemini caiu e o Groq entregou (o mesmo ritmo do `aiProvider` das
+  // métricas acima, para as duas telas contarem a mesma história); um dia em
+  // que a newsletter falhou; um dia `FAILED` na etapa 6; e **três dias sem
+  // run** (17–19 dias atrás), que é o buraco de 29–31/08/2026 — a API suspensa
+  // por horas do plano —, para a faixa ter o que o `NEVER_RAN` existe para
+  // mostrar. Determinístico e idempotente: id fixo por dia, `create` só quando
+  // não existe.
+  //
+  // O run de hoje é o `...c001` que a trilha de auditoria acima referencia —
+  // é o que faz o link "run existente" da trilha resolver.
+  const runId = (daysAgo: number) =>
+    `00000000-0000-4000-8000-00000000c0${(daysAgo + 1).toString(16).padStart(2, '0')}`;
+  const eventId = (daysAgo: number, index: number) =>
+    `00000000-0000-4000-8000-0000000e${(daysAgo + 1).toString(16).padStart(2, '0')}${index.toString(16).padStart(2, '0')}`;
+  const NEVER_RAN_DAYS = new Set([17, 18, 19]);
+  // O briefing de hoje existe (criado acima); os dos outros dias não, e o
+  // resumo diz isso com `null` em vez de inventar um id.
+  const todayArticle = await prisma.article.findUnique({ where: { date: today } });
+  const FAILED_DAY = 8;
+  const NEWSLETTER_FAILED_DAY = 3;
+
+  let runsCreated = 0;
+  for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+    if (NEVER_RAN_DAYS.has(daysAgo)) continue;
+
+    const id = runId(daysAgo);
+    const existing = await prisma.pipelineLog.findUnique({ where: { id } });
+    if (existing) continue;
+
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - daysAgo);
+    // O cron das 11:00 UTC; o de hoje às 11:05, que é quando a trilha diz que
+    // alguém o disparou.
+    const startedAt = new Date(day.getTime() + 11 * 3_600_000 + (daysAgo === 0 ? 5 * 60_000 : 10_000));
+    const at = (seconds: number) => new Date(startedAt.getTime() + seconds * 1000);
+    const failed = daysAgo === FAILED_DAY;
+    const fallback = !failed && daysAgo % 5 === 0;
+    const newsletterFailed = daysAgo === NEWSLETTER_FAILED_DAY;
+    const collected = 320 + ((daysAgo * 14) % 120) + 60 + ((daysAgo * 3) % 20);
+    const durationMs = 24_000 + ((daysAgo * 1300) % 12_000);
+
+    type SeedEvent = { stage: number; level: PipelineEventLevel; message: string; context: object; at: Date };
+    const events: SeedEvent[] = [
+      { stage: 1, level: PipelineEventLevel.INFO, message: 'News collected', context: { newsDataCount: 60, rssCount: collected - 60, total: collected }, at: at(4) },
+      { stage: 3, level: PipelineEventLevel.INFO, message: 'News deduplicated', context: { before: collected, after: collected - 12 }, at: at(5) },
+      { stage: 4, level: PipelineEventLevel.INFO, message: 'News persisted', context: { count: collected - 40, skipped: 28 }, at: at(6) },
+      { stage: 5, level: PipelineEventLevel.INFO, message: 'Top items selected for AI', context: { count: 15 }, at: at(6) },
+    ];
+
+    if (failed) {
+      events.push(
+        { stage: 6, level: PipelineEventLevel.WARN, message: 'Primary provider failed before fallback', context: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503 }, at: at(20) },
+        { stage: 6, level: PipelineEventLevel.ERROR, message: 'Groq API error: 404 Not Found', context: { message: 'Groq API error: 404 Not Found', provider: 'groq', statusCode: 404 }, at: at(22) },
+      );
+    } else {
+      if (fallback) {
+        events.push({ stage: 6, level: PipelineEventLevel.WARN, message: 'Primary provider failed, fallback served', context: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503, fallbackProvider: 'groq' }, at: at(18) });
+      }
+      events.push(
+        { stage: 6, level: PipelineEventLevel.INFO, message: 'Article generated', context: { provider: fallback ? 'groq' : 'gemini', modelVersion: fallback ? 'openai/gpt-oss-20b' : 'gemini-2.5-flash', promptVersion: 'v2' }, at: at(19) },
+        { stage: 7, level: PipelineEventLevel.INFO, message: 'Article persisted', context: { sources: 15 }, at: at(20) },
+        newsletterFailed
+          ? { stage: 7.5, level: PipelineEventLevel.WARN, message: 'Newsletter failed (non-critical)', context: { message: 'Resend API error 500: internal error', provider: 'resend', statusCode: 500 }, at: at(21) }
+          : { stage: 7.5, level: PipelineEventLevel.INFO, message: 'Daily newsletter sent', context: { total: 3, sent: 3, failed: 0 }, at: at(21) },
+        { stage: 8, level: PipelineEventLevel.INFO, message: 'Cleanup completed', context: { deleted: (daysAgo * 7) % 40, productEvents: 0, errorEvents: 0, auditEvents: 0 }, at: at(22) },
+        { stage: 8.5, level: PipelineEventLevel.INFO, message: 'Stored news renormalized', context: { scanned: 8190, textChanged: 0, imageRecovered: 0, categoryChanged: 0, categorySkipped: 0 }, at: at(23) },
+        { stage: 9, level: PipelineEventLevel.INFO, message: 'Daily metrics recorded', context: { durationMs }, at: at(24) },
+        {
+          stage: 9,
+          level: PipelineEventLevel.INFO,
+          message: 'Pipeline completed successfully',
+          context: {
+            collected,
+            sources: 45,
+            deduped: collected - 12,
+            persisted: collected - 40,
+            selected: 15,
+            provider: fallback ? 'groq' : 'gemini',
+            model: fallback ? 'openai/gpt-oss-20b' : 'gemini-2.5-flash',
+            promptVersion: 'v2',
+            briefingId: daysAgo === 0 ? (todayArticle?.id ?? null) : null,
+            briefingChars: 6_200 + ((daysAgo * 173) % 900),
+            sourcesCited: 15,
+            newsletter: newsletterFailed ? 'failed' : { total: 3, sent: 3, failed: 0 },
+            renormalized: { scanned: 8190, changed: 0 },
+            degradedBy: [...(fallback ? [6] : []), ...(newsletterFailed ? [7.5] : [])],
+            durationMs,
+          },
+          at: at(24),
+        },
+      );
+    }
+
+    await prisma.pipelineLog.create({
+      data: {
+        id,
+        status: failed ? PipelineStatus.FAILED : PipelineStatus.SUCCESS,
+        // O `newsCount` e o `articleId` só são gravados na etapa 7: o run que
+        // falhou na 6 fica com os dois vazios, como em produção.
+        newsCount: failed ? 0 : collected - 12,
+        articleId: daysAgo === 0 ? (todayArticle?.id ?? null) : null,
+        startedAt,
+        completedAt: at(failed ? 22 : Math.round(durationMs / 1000)),
+        ...(failed
+          ? {
+              error: 'Groq API error: 404 Not Found',
+              errorStage: 6,
+              errorDetail: {
+                message: 'Groq API error: 404 Not Found',
+                provider: 'groq',
+                statusCode: 404,
+                primaryError: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503 },
+              },
+            }
+          : {}),
+        events: {
+          create: events.map((event, index) => ({
+            id: eventId(daysAgo, index),
+            stage: event.stage,
+            level: event.level,
+            message: event.message,
+            context: event.context,
+            createdAt: event.at,
+          })),
+        },
+      },
+    });
+    runsCreated++;
+  }
+  console.log(`  PipelineLog: ${runsCreated} created (${30 - NEVER_RAN_DAYS.size - runsCreated} already existed)`);
 
   console.log('Seed completed successfully.');
 }
