@@ -7207,6 +7207,99 @@ branch `observability/fase-11-source-health` cortada do #203.
 **1.129 → 1.141 na API** (79 → 80 suítes), **781 → 792 no web**. Sem
 migration, sem env nova, sem rota nova.
 
+### 71. Fase 11, PR 1 de 3 — a migration: `SourceHealth`, a memória que a etapa 1 não tinha ✅ 2026-09-15
+
+> **§15 do plano de observabilidade, primeiro dos três PRs.** Este é *só*
+> schema, pela regra da §19 (schema não se reverte com `git revert`): a
+> tabela que responde "há quantos dias a Superinteressante está fora?" e
+> "esta fonte entrega menos do que entregava?". Quem a escreve — o provider
+> cronometrando, a etapa 4 contando o que entrou no acervo, a etapa 8
+> expurgando — é o 11b; a tela é o 11c.
+
+#### O que o inventário mandou decidir, e como saiu
+
+O inventário reconferido no fim da §15 (item 70) achou quatro números do
+modelo que não existiam no código e deixou o modelo com um desenho a ajustar.
+As decisões que são schema foram tomadas aqui:
+
+- **`SourceOutcome` tem três valores, não quatro.** O plano desenhava
+  `NOT_ATTEMPTED` como valor gravado — para a fonte removida de
+  `rss-sources.ts` e para o run que morreu antes da etapa 1. Mas a escrita
+  acontece **depois da etapa 4** (é lá que `kept` existe), então o run que
+  morre antes não grava linha nenhuma, e a fonte removida da lista não é
+  vista pelo pipeline: **o pipeline nunca emitiria o valor.** É a lição do
+  `NEVER_RAN` da Fase 8 — valor que a API nunca emite não entra no tipo; o
+  web deriva "não tentada" pela ausência de linha num dia em que outras
+  fontes têm linha. Um enum com valor morto custaria cor, forma e chave de
+  mensagem para um estado que só existe por ausência.
+- **`kept` é "entrou no acervo naquele dia", e não "sobreviveu ao dedup".** O
+  dedup da etapa 3 é por URL, e dois veículos com a mesma pauta têm URLs
+  diferentes — a fonte que republica o que o G1 já deu não cai ali. O que
+  responde "acrescentou ao acervo" é o `skipDuplicates` da etapa 4, e por
+  fonte pede um `findMany` das URLs antes do `createMany`. **"Naquele dia" em
+  vez de "antes deste run" é o que salva o re-disparo:** o `triggerPipeline`
+  só aceita um segundo run depois de um `FAILED`, e um `FAILED` na etapa 6 já
+  escreveu as fontes com números honestos — um segundo run que contasse "novo
+  para o acervo" acharia tudo gravado e sobrescreveria com zeros. Contando a
+  URL que entrou hoje, o segundo run recomputa os mesmos números mais o que
+  chegou, e "o último run representa o dia" continua certo sem merge.
+- **Sem `@@index([source, day])`.** O `@@unique([source, day])` já serve a
+  busca por fonte — é a armadilha 12 do próprio plano, escrita para o
+  `ErrorEvent` e ignorada no desenho desta tabela.
+- **`pipelineLogId` entrou**, sem FK como no `ErrorEvent`: o run que
+  escreveu a linha é o link da tabela para o detalhe da falha (o `feed-failed`
+  daquele run continua no `PipelineEvent`), e dentro da janela de 30 dias da
+  tela o ponteiro está sempre vivo. Sem FK porque a linha vive 90 dias e o run
+  30 — o ponteiro sobrevive a quem aponta.
+- **`kind` ficou** (`RSS` · `AGGREGATOR`): derivável de `source === 'newsdata'`
+  hoje, mas é o que faz o limite honesto da §15 — a NewsData é um balde que
+  agrega dezenas de veículos — ser visível na linha em vez de conhecimento
+  tácito.
+
+#### O que saiu por replay, e o que o seed conta
+
+O SQL saiu de `prisma migrate diff --from-schema-datamodel <dev>
+--to-schema-datamodel <novo> --script` — **sem banco**, e é o mesmo que
+`--from-empty` daria só para o que mudou. Aplicado no Postgres local por
+`migrate deploy`; `migrate diff --from-url` contra o schema devolve só o
+`News_sourceUrl_key` de sempre. O `prisma generate` rodou sem o dev server no
+ar (a DLL do query engine, item 69).
+
+**O seed semeia 27 dias × 13 fontes = 351 linhas**, nos mesmos dias dos runs
+da Fase 8: os três dias sem run não têm linha (o pipeline não escreveu), e o
+dia `FAILED` na etapa 6 **tem** — a distinção que a tela precisa mostrar.
+Estão lá as duas histórias que os gatilhos da §15 existem para pegar, medidas
+sobre o banco depois do seed: a **Superinteressante em `FAILED` há 3 dias**
+(`ETIMEDOUT`, latência de 30 s — o timeout do feed), mais o episódio de 03/09
+com a Veja Saúde e o Drauzio 12–13 dias atrás; e a **Trivela definhando** —
+`kept` médio de 7 dias em **2,0** contra **8,0** em 30 (25 %, abaixo dos
+30 %), sem falhar nunca. Os dois feeds de saúde ficam `EMPTY` no fim de
+semana, que é o normal que não pode acender luz. `kept ≤ fetched` em todas as
+351. Idempotente por `createMany` + `skipDuplicates` sobre `(source, day)`.
+
+#### Guardas
+
+Nenhuma nova: as derivadas do schema fizeram o trabalho, e foram vistas
+reprovando antes de migration, ER e `CLAUDE.md` existirem — **nove
+reprovações** em `migrations.test.ts` (tabela, dois tipos, dois índices, dez
+colunas), `diagram-drift` (entidade, colunas, dois enums) e
+`schema-docs-drift` (model e dois enums). O `response-schema-contract` só
+alcança model com rota, e a rota é do 11b — é lá que `SourceHealth` entra na
+lista.
+
+**O que o 11b herda, escrito para não ser redescoberto:** `latencyMs` pede
+cronômetro no `fetchSource` e no provider da NewsData; `fetched` por feed pede
+o provider devolver um desfecho por fonte configurada (e é isso que faz
+`fetchAll` derivar os `warnings` em vez de reconstruí-los); a escrita é
+`deleteMany({ day })` + `createMany` numa transação, **uma por run, depois da
+etapa 4**, e nunca aborta o run (princípio 1 — `WARN` da etapa 4 com
+`degradedBy.push(4)`, que o `run-outcome-wiring` cobra); e a retenção de 90
+dias entra na etapa 8 com a constante no service, a frase dos diagramas e a
+linha do cleanup do `packages/database/CLAUDE.md` — que hoje diz "a escrita e
+o expurgo entram no PR 11b" de propósito.
+
+**1.141 na API, 792 no web** — nenhuma mudança em `src/`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

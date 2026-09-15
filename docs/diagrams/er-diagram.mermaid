@@ -1,11 +1,12 @@
 %% Diagrama Entidade-Relacionamento — Newra News
 %% ---
-%% Atualizado em 12/09/2026: **todas** as tabelas do `schema.prisma` — o de
+%% Atualizado em 15/09/2026: **todas** as tabelas do `schema.prisma` — o de
 %% 16/08 documentava quatro, e o de 01/09 ganhou as oito que faltavam. A
 %% ERROR_EVENT entrou com a Fase 4 do plano de observabilidade; AUDIT_EVENT e
 %% DAILY_UPTIME com a Fase 5, que também tirou o `aiTokensUsed` de
 %% DAILY_METRIC — e a guarda passou a comparar **coluna a coluna**, porque a
-%% comparação por entidade deixava a coluna morta no desenho.
+%% comparação por entidade deixava a coluna morta no desenho. SOURCE_HEALTH
+%% entrou com a Fase 11 (PR 11a).
 %% ---
 %% A contagem saiu daqui de propósito: número que descreve uma coleção apodrece
 %% no primeiro `model` novo, e quem garante que este desenho está completo é o
@@ -23,7 +24,9 @@
 %% (INFO · WARN · ERROR) · SubscriberStatus (ACTIVE · UNSUBSCRIBED) ·
 %% UserRole (USER · ADMIN) · FavoriteItemType (NEWS · ARTICLE) ·
 %% ThemePreference (LIGHT · DARK · SYSTEM) · ErrorOrigin (API · PIPELINE ·
-%% WEB · INVARIANT) · ErrorSeverity (WARN · ERROR · FATAL).
+%% WEB · INVARIANT) · ErrorSeverity (WARN · ERROR · FATAL) · SourceKind
+%% (RSS · AGGREGATOR) · SourceOutcome (OK · EMPTY · FAILED — "não tentada" é
+%% ausência de linha, derivada no web como o NEVER_RAN do run).
 erDiagram
     NEWS {
         string id PK "uuid"
@@ -199,12 +202,26 @@ erDiagram
         datetime updatedAt
     }
 
+    SOURCE_HEALTH {
+        string id PK "uuid"
+        string source "name de rss-sources.ts ou newsdata — texto, sem FK: a fonte removida continua na série"
+        SourceKind kind "RSS · AGGREGATOR"
+        datetime day "dia UTC — 1 linha por (fonte, dia), e o último run do dia representa o dia"
+        int fetched "itens que a fonte trouxe no run"
+        int kept "dos fetched, quantos entraram no acervo naquele dia — a coluna que decide trocar provedor"
+        SourceOutcome outcome "OK · EMPTY · FAILED"
+        string failureReason "redigida e truncada, nullable"
+        int latencyMs "do fetch ao parse, nullable"
+        string pipelineLogId "o run que escreveu a linha — sem FK, nullable"
+    }
+
     ARTICLE ||--o{ BRIEFING_SOURCE : "sources — FK, cascade"
     PIPELINE_LOG ||--o{ PIPELINE_EVENT : "events — FK, cascade"
 
     BRIEFING_SOURCE }o--o| NEWS : "sourceUrl (lógica)"
     PIPELINE_LOG }o--o| ARTICLE : "articleId (lógica)"
     ERROR_EVENT }o--o| PIPELINE_LOG : "pipelineLogId — último visto, sem FK"
+    SOURCE_HEALTH }o--o| PIPELINE_LOG : "pipelineLogId — o run que escreveu a linha, sem FK"
     NEWSLETTER_LOG }o--o| ARTICLE : "articleId (lógica)"
     ARTICLE ||--o| DAILY_METRIC : "1 briefing por dia ↔ 1 métrica por dia"
 
