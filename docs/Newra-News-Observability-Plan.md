@@ -1389,6 +1389,27 @@ desrastreados aqui, e a remoção viaja para a `main` na promoção.
 reprova chave que ninguém lê. **685 → 754 testes no web** (71 → 76 suítes);
 a API fica em 1.099. Sem migration, sem env nova, sem mudança na API.
 
+### O que a verificação pós-merge do 5c achou — 15/09/2026
+
+Item **68** do `docs/progress.md`. Três achados, e o maior não era do 5c —
+era de toda rota que o BFF já repassava:
+
+- **Nada ligava o caminho que o `proxyToApi` repassa à rota que a API
+  registra.** Web e API eram autoconsistentes e nenhum lia o outro; um
+  `'/admin/error'` só falharia em produção, com 404. Entrou
+  `bff-route-seam.test.ts` na API, pelo desenho do `x-actor-id`: lê os
+  `route.ts` do web com o parser, extrai caminho (como padrão) e método de
+  cada chamada, e cobra uma linha do roteador para cada par. Vista
+  reprovando com um caractere trocado no BFF real.
+- **As duas listas escritas à mão** — a de 401 do smoke e o `ALL_ROUTES` do
+  `admin:capture` — estavam certas e não tinham guarda.
+  `hand-written-lists.test.ts` deriva as duas do `app/`, nas duas direções.
+- **Quatro campos atravessavam a rede para serem descartados** (a família do
+  `errorDetail` da Fase 2): `firstSeenAt` e `pipelineLogId` na tabela de
+  falhas, `requestId` e o run do `context` na trilha. Hoje aparecem.
+
+**1.099 → 1.103 na API, 754 → 762 no web.**
+
 ---
 
 ## §10 Fase 6 — Invariantes (o eixo das inconsistências)
@@ -1612,6 +1633,82 @@ sobre fixture, sem banco — cabe no `turbo test`.
 **Gatilho numérico que a fase cria:** três dias seguidos de `SUCCESS_DEGRADED`
 pelo mesmo `degradedBy`. É a versão medida do gatilho que hoje está escrito em
 prosa no `CLAUDE.md` sobre o fallback do Groq.
+
+### Inventário reconferido antes de abrir — 15/09/2026
+
+O inventário acima é de 23/08, e a regra é medi-lo antes de começar. Medido
+contra a `dev` em `1e596d6` (o 5c mergeado), no fim da sessão do pós-merge,
+para a sessão que abrir a fase não redescobrir:
+
+**O que continua verdade:** as quatro etapas engolem a falha com `WARN` e o
+run segue `SUCCESS` (7.5 em `pipeline.service.ts:405`, 8 em `:467`, 8.5 em
+`:502`, 9 em `:545`); o fallback para o Groq é `WARN` da etapa 6 desde o
+item 61 (`:336`, *"Primary provider failed, fallback served"*, com
+`fallbackProvider` no contexto); o evento final da etapa 9 (`:556`) carrega
+**só `durationMs`**; não existe `run-outcome.ts`, `outcome-strip.tsx` nem
+`RunOutcome` em `packages/types`; e a ausência de run continua sem
+representação em lugar nenhum.
+
+**O que derivou, ou estava impreciso — e muda a regra:**
+
+- **"Zero `WARN`" marcaria como degradado todo dia em que um feed publicou
+  nada.** O `WARN` da etapa 1 (*"Collection degraded"*, `:282`) dispara para
+  **qualquer** `warning`, e `feed-empty` está entre eles — a classe de
+  "publicou devagar" que o item 46 tirou de `pipelineErrors` de propósito
+  (fim de semana de um feed de saúde é `feed-empty`). A regra do desfecho tem
+  de ler o `context.warnings` desse evento e contar só `kind !== 'feed-empty'`
+  (`provider-failed`, `provider-empty`, `feed-failed`) — a mesma linha que
+  `pipelineErrors` já traça em `:279`. Sem isso, `SUCCESS_DEGRADED` vira o
+  estado normal e deixa de informar.
+- **A listagem não traz os eventos.** `getDevLogs`
+  (`pipeline-event.service.ts:287`) inclui `_count.events` e nada mais; o
+  desfecho é função sobre `PipelineLog` + eventos, então **calculá-lo na
+  resposta do `/admin/pipeline/runs` pede uma leitura a mais** — um
+  `findMany` de `PipelineEvent` com `level: 'WARN'` sobre os ids da página
+  (uma consulta, não uma por run), ou um `groupBy` por `pipelineLogId`. A
+  função pura continua pura; quem a alimenta é o service. E as duas portas
+  (`/api/dev/logs` e `/api/admin/pipeline/runs`) compartilham o schema, com
+  teste comparando os corpos — o campo entra nas duas.
+- **O tipo mora em `pipeline.ts`, não em `admin.ts`.** A tabela de arquivos
+  diz `packages/types/src/admin.ts — RunOutcome`; o `PipelineRunSummary` que
+  ganharia `outcome` e `degradedBy` está em `packages/types/src/pipeline.ts`
+  desde a Fase 2, e `admin.ts` guarda o disparo. Não abrir um segundo lugar.
+- **O que a etapa 9 tem na mão para o resumo**, medido no escopo do
+  `runPipeline`: `metrics` (`newsCollected`, `newsApiCount`, `rssCount`,
+  `cleanupCount`, `pipelineErrors`), `deduplicated.length`, `persisted.count`
+  (etapa 4), `selected.length`, `provider`, `modelVersion` e
+  `ARTICLE_PROMPT_VERSION` (etapa 6), `savedArticle.id` (etapa 7). **O
+  resultado da newsletter vive dentro do `try` da 7.5** e o
+  `renormalized` dentro do da 8.5 — os dois precisam subir de escopo para
+  chegar ao contexto final, e `sourcesCited` é o tamanho da lista que
+  `persistBriefingSources` recebe. `briefingChars` é `article.content.length`.
+- **`NEVER_RAN` é derivado de datas, e a listagem é por `startedAt`**: a
+  faixa de 30 dias pede os runs dos últimos 30 dias (`since: 30`, `limit`
+  até 100 — pode haver mais de um run por dia, disparo manual + cron) e um
+  desfecho **por dia UTC**, com a regra de qual run representa o dia (o
+  último a começar é o candidato honesto: é o que o painel já chama de
+  "último"). Decidir na fase, e escrever.
+- **O "batimento positivo" não pede rota nova.** `runs[0].completedAt` já
+  chega à `/admin` pelo `usePipelineRuns`; "último briefing: há 4 h" é
+  `formatUptime`-like sobre a diferença, no cliente, depois de o dado chegar
+  — a regra do relógio no render vale (é client component com dado de
+  consulta, como o `PlanPaceLine` do 5c).
+
+**O que muda de custo desde 23/08:** o §18 ganhou linhas. Campo novo no
+schema da listagem cobra `shared-type-contract` (tipo em `packages/types`) e
+`api-docs-drift` (linha na `docs/api.md`); **rota nova no BFF, se houver,
+cobra o `bff-route-seam` da API e a lista de 401 do smoke
+(`hand-written-lists`)** — os dois do pós-merge do 5c. E toda mudança de tela
+de admin se olha pelo `admin:capture` **mais o recorte por elemento**, que
+foi o que achou os três defeitos do 5c; o seed já dá dado às três tabelas
+de observabilidade, mas **não cria `PipelineLog`** — a faixa de 30 dias vai
+fotografar 30 quadrados vazados até o seed semear runs, e é na fase que se
+decide se ele semeia.
+
+**Branch:** `observability/fase-8-success-log`, cortada em 15/09 do topo do
+#201 (a `dev` daquele momento). O passo 1 do ritual a realinha depois de o
+#202 (pós-merge do 5c) mergear — conferir com `git merge-base --is-ancestor`
+que #201 **e** #202 estão na `dev`.
 
 ---
 
@@ -2177,6 +2274,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`code` novo, ou subclasse nova de `AppError`** | `error-taxonomy.test.ts` (Fase 3) — literal do tuple, e nenhum código sem quem o lance; a família é derivada do arquivo, então a subclasse entra na varredura sozinha |
 | **Retenção nova na etapa 8, ou número de retenção alterado** | `retention-drift.test.ts` (Fase 5) — a prosa dos dois diagramas, dos dois `CLAUDE.md` e dos dois READMEs contra as constantes dos services, nas duas direções |
 | **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
+| **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); e `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke |
+| **Página nova sob `app/[locale]/admin`** | `hand-written-lists.test.ts` — o `ALL_ROUTES` do `capture-admin.mjs` tem de fotografá-la; mais as três guardas de "Página nova no web" acima |
 
 ---
 
@@ -2377,8 +2476,11 @@ aplica as duas migrations juntas na promoção.**
 
 **Bloco 3 — depois da espinha, em qualquer ordem. ← próximo**
 
-- **§12 — Fase 8 (log de sucesso).** A mais barata das quatro: função pura, sem
-  migration, e resolve "o dia deu certo?".
+- **§12 — Fase 8 (log de sucesso). ← próxima, decidido em 15/09/2026.** A mais
+  barata das quatro: função pura, sem migration, e resolve "o dia deu certo?".
+  O inventário dela foi reconferido no fim da sessão do pós-merge do 5c (fim
+  da §12) — **a regra "zero `WARN`" está errada para a etapa 1**, e a listagem
+  não traz os eventos.
 - **§15 — Fase 11 (saúde por fonte).** Migration + etapa 1 + painel. É a que
   responde à pergunta de trocar provedor, então adiante-a se essa decisão
   estiver perto.

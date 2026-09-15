@@ -235,6 +235,17 @@ export function ErrorGroupsTable({ groups, categories }: ErrorGroupsTableProps) 
                   </td>
                   <td className='px-3 py-2 font-mono text-xs text-ink-secondary'>
                     {group.route ?? '—'}
+                    {/**
+                      * O run em que a etapa falhou por último — é o que leva
+                      * da falha ao diário do run na `/admin`. Vinha na
+                      * resposta desde o 5b e a tela descartava (pós-merge, item 68).
+                      */}
+                    {group.pipelineLogId && (
+                      <p className='mt-0.5 text-ink-muted'>
+                        <span className='sr-only'>{t('security.errors.runId')} </span>
+                        <code className='select-all'>{group.pipelineLogId}</code>
+                      </p>
+                    )}
                   </td>
                   <td className='px-3 py-2 text-right tabular-nums text-ink'>
                     {formatCount(group.count, locale)}
@@ -246,6 +257,17 @@ export function ErrorGroupsTable({ groups, categories }: ErrorGroupsTableProps) 
                     <p className='whitespace-nowrap tabular-nums text-ink'>
                       {formatDateTime(group.lastSeenAt, locale)}
                     </p>
+                    {/**
+                      * "Desde quando" só na falha que atravessou mais de uma
+                      * hora: é o que separa um pico de uma falha crônica sem
+                      * ler a coluna de horas. Num balde só, primeira e última
+                      * diferem por minutos e a linha seria ruído.
+                      */}
+                    {group.hours > 1 && (
+                      <p className='mt-0.5 whitespace-nowrap text-xs tabular-nums text-ink-secondary'>
+                        {t('security.errors.sinceHint', { since: formatDateTime(group.firstSeenAt, locale) })}
+                      </p>
+                    )}
                     {group.lastRequestId && (
                       <p className='mt-0.5 text-xs text-ink-muted'>
                         <span className='sr-only'>{t('security.errors.requestId')} </span>

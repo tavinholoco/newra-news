@@ -91,6 +91,26 @@ describe('SecurityClient — as falhas registradas', () => {
     expect(requestId.className).toContain('select-all');
   });
 
+  it('shows when a failure started and which run it came from — fields the API sent and the first cut dropped', () => {
+    renderWithIntl(<SecurityClient />);
+    const table = screen.getByRole('table');
+
+    // AUTH_TOKEN_INVALID: 3 horas, começou às 08:00 UTC — "desde" ao lado do
+    // "visto por último". INTERNAL: 1 hora, primeira e última iguais — sem "desde".
+    const rows = within(table).getAllByRole('row').slice(1);
+    const auth = rows.find((row) => row.textContent?.includes('AUTH_TOKEN_INVALID'))!;
+    const internal = rows.find((row) => row.textContent?.includes('INTERNAL'))!;
+    expect(within(auth).getByText(/^desde /)).toBeInTheDocument();
+    expect(within(internal).queryByText(/^desde /)).toBeNull();
+
+    // A falha de etapa aponta o run; a de rota não tem run para apontar.
+    const stage = rows.find((row) => row.textContent?.includes('feed-failed'))!;
+    const runId = within(stage).getByText('run-1');
+    expect(runId.tagName).toBe('CODE');
+    expect(runId.className).toContain('select-all');
+    expect(within(auth).queryByText('run-1')).toBeNull();
+  });
+
   it('filters by severity, by category and by text', async () => {
     renderWithIntl(<SecurityClient />);
     const table = screen.getByRole('table');
@@ -190,9 +210,40 @@ describe('SecurityClient — a trilha de auditoria', () => {
     expect(items[0]).toHaveTextContent('user-admin-1');
     expect(items[0]).toHaveTextContent('run-1');
     expect(items[1]).toHaveTextContent('Notícia apagada');
+    // O id da requisição acha a linha de log da ação — selecionável, como na
+    // tabela de falhas. E o disparo sem alvo (`already-*`) nomeia o run que
+    // já existia, que vem no `context`.
+    expect(within(items[0]!).getByText('req-1').className).toContain('select-all');
+    expect(items[0]).not.toHaveTextContent('run existente');
     // Uma ação que a tela ainda não conhece sai como veio, em vez de sumir.
     expect(items[2]).toHaveTextContent('news.renormalized');
     expect(screen.getByText('3 de 3 na janela')).toBeInTheDocument();
+  });
+
+  it('names the existing run when the trigger did not start one', () => {
+    mockQueries({
+      audit: {
+        data: {
+          ...auditTrail,
+          events: [
+            {
+              ...auditTrail.events[0]!,
+              targetId: null,
+              outcome: 'already-succeeded-today',
+              context: { pipelineId: 'run-existing' },
+            },
+          ],
+        },
+        isFetching: false,
+        isError: false,
+      },
+    });
+    renderWithIntl(<SecurityClient />);
+
+    // O rótulo divide o `<span>` com outros nós de texto: casamento por regex.
+    expect(screen.getByText(/run existente/)).toBeInTheDocument();
+    expect(screen.getByText('run-existing').className).toContain('select-all');
+    expect(screen.queryByText(/alvo/)).toBeNull();
   });
 
   it('never shows an e-mail — only ids come through', () => {

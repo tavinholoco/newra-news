@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { SignJWT } from 'jose';
 import { buildTestApp } from '../helpers/test-server';
+import { registeredRoutes } from '../helpers/registered-routes';
 
 /**
  * **Quem pode o quê** — a tabela que não existia.
@@ -284,43 +285,10 @@ describe('9.T — a matriz de autorização', () => {
   });
 });
 
-/**
- * As rotas que o roteador de fato registrou, na forma `GET /api/news/:id`.
- *
- * O `printRoutes` desenha a árvore; o parse reconstrói o caminho a partir da
- * indentação, que é como a árvore codifica a hierarquia. Mora numa função
- * porque **duas** asserções desta suíte perguntam sobre a mesma superfície —
- * a exaustividade da matriz e o prefixo `/api/admin` —, e um segundo parser
- * seria um segundo lugar para quebrar em silêncio.
- */
-function registeredRoutes(instance: FastifyInstance): string[] {
-  const registered: string[] = [];
-  const stack: Array<{ depth: number; segment: string }> = [];
-
-  for (const line of instance.printRoutes({ commonPrefix: false }).split('\n')) {
-    if (line.trim().length === 0) continue;
-    const depth = (line.match(/^[│\s]*[└├]??─*\s?/)?.[0] ?? '').length;
-    const content = line.replace(/^[│\s]*[└├]?─*\s?/, '');
-    const [segment, methodsPart] = content.split(' (');
-
-    while (stack.length > 0 && (stack[stack.length - 1]?.depth ?? 0) >= depth) {
-      stack.pop();
-    }
-    stack.push({ depth, segment: segment ?? '' });
-    if (!methodsPart) continue;
-
-    const path = stack.map((entry) => entry.segment).join('');
-    const normalized = path.length > 1 ? path.replace(/\/$/, '') : path;
-    for (const method of methodsPart.replace(')', '').split(', ')) {
-      if (method === 'HEAD' || method === 'OPTIONS') continue;
-      registered.push(
-        `${method} ${normalized.startsWith('/') ? normalized : `/${normalized}`}`,
-      );
-    }
-  }
-
-  return [...new Set(registered)];
-}
+// `registeredRoutes` mora em `tests/helpers/registered-routes.ts` desde o
+// pós-merge do 5c: a costura com o BFF (`bff-route-seam.test.ts`) pergunta
+// sobre a mesma superfície, e um segundo parser seria um segundo lugar para
+// quebrar em silêncio.
 
 describe('9.T — a matriz é exaustiva sobre o roteador', () => {
   /**

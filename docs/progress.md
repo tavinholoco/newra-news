@@ -6971,6 +6971,77 @@ remoção viaja para a `main` na promoção como qualquer outro commit.
 **685 → 754 testes no web** (71 → 76 suítes); a API fica em 1.099. Sem
 migration, sem env nova, sem mudança na API.
 
+### 68. A verificação pós-merge do 5c: nada ligava o caminho que o BFF repassa à rota que a API registra ✅ 2026-09-15
+
+> Sobre a árvore mergeada (`1e596d6`, #201), a pergunta dos itens 39, 52,
+> 57, 61, 63 e 65 — *o que ficou de fora?* — feita a um PR que abriu três
+> rotas no BFF, uma página e uma ferramenta. O método é enumerar, não reler
+> o diff.
+
+**O que foi conferido e está em ordem:** #201 mergeado na `dev` com os sete
+checks verdes; CodeQL e Gitleaks verdes no push do merge — o Gitleaks com
+**`0 commits scanned`**, sexta medição do buraco do §16; a `dev` a 0 da `main`
+e 40 à frente; `git ls-tree origin/dev | check-ignore` **vazio** (os 13 PNGs
+saíram de verdade, e nenhum outro artefato ignorado entrou pelo mesmo
+caminho); as **8 rotas GET do BFF atrás de sessão** estão todas na lista de
+401 do smoke, e as **três abas** estão no `admin:capture`.
+
+#### O achado: os dois lados do BFF eram autoconsistentes, e nenhum lia o outro
+
+**Todo `proxyToApi` repassa um caminho escrito como literal, e nenhuma guarda
+de nenhum dos dois apps o comparava com o que a API registra.** Um
+`'/admin/error'` passaria no web (o `fetch` é mockado em toda suíte de rota),
+passaria na API (que não sabe do web), e falharia **só em produção**, com um
+404 que a tela desenharia como "não foi possível carregar" — a classe de
+defeito que só o smoke E2E media, e o smoke roda só na `main`, depois da
+promoção. O 5c acabara de acrescentar três desses literais.
+
+**`apps/api/tests/security/bff-route-seam.test.ts`**, pelo desenho do
+`x-actor-id` (item 64): a suíte da API lê os `route.ts` do web com
+`ts.createSourceFile`, extrai o segundo argumento de cada `proxyToApi` como
+**padrão** (`${params.id}` → `:param`; `.join(` → catch-all) e o método, e
+cobra que cada par case com uma linha do `registeredRoutes(app)`. Caminho
+que o parser não consegue ler (variável, concatenação) reprova — o que o BFF
+repassa tem de ser legível no arquivo. O `registeredRoutes` saiu de dentro
+da `authorization-matrix` para `tests/helpers/registered-routes.ts`: duas
+suítes perguntando sobre a mesma superfície, e um segundo parser seria um
+segundo lugar para quebrar em silêncio. **Vista reprovando** com o
+`'/admin/errors'` trocado por `'/admin/error'` no BFF real: nomeou
+`app/api/admin/errors/route.ts#GET → GET /api/admin/error`.
+
+#### Duas listas escritas à mão, e o que cada uma cobre
+
+A lista de 401 do smoke dizia, em comentário, *"rota de admin nova entra
+aqui no mesmo PR"*; o `admin:capture` tem `ALL_ROUTES` digitado. As duas
+estavam certas hoje — e são a família do `13` dos feeds: a lista continua
+verde quando alguém esquece. **`apps/web/tests/lib/hand-written-lists.test.ts`**
+deriva as duas do `app/`: toda rota do BFF com `GET` que passa pelo
+`proxyToApi` tem de estar na primeira (com `[param]` casando um segmento e
+`[...path]` casando o resto), toda `page.tsx` sob `app/[locale]/admin` tem de
+estar na segunda — e nas duas direções, para entrada órfã reprovar também.
+Vista reprovando com uma rota tirada de cada lista.
+
+#### O que a API mandava e a tela descartava
+
+A família do `errorDetail` do item 49. `ErrorGroup.firstSeenAt` e
+`pipelineLogId`, `AuditEventRecord.requestId` e `context` atravessavam a rede
+para serem ignorados. Hoje a tabela de falhas diz **"desde {hora}"** sob o
+"visto por último" quando a falha atravessou mais de uma hora (é o que
+separa um pico de uma falha crônica sem ler a coluna de horas — num balde
+só, primeira e última diferem por minutos e a linha seria ruído) e o **run**
+da falha de etapa como `<code>` selecionável; a trilha mostra o
+**`requestId`** (a mesma razão de ele existir na tabela de falhas) e, no
+disparo sem alvo, o **run existente** que vem no `context` — é ele que
+responde "então qual?". Conferido no navegador real com o seed.
+
+**Uma nota de ferramenta:** `preview_stop` mata o dev server sem rodar o
+`stop` do `dev-with-db`, e o `newranews-db` fica de pé — é o caso do kill
+forçado que o vigia cobre em 5 min; `docker compose stop postgres` ao
+fechar.
+
+**1.099 → 1.103 na API** (77 → 78 suítes), **754 → 762 no web** (76 → 77).
+Sem migration, sem env nova, sem mudança na API além de teste.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

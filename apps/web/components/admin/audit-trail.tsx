@@ -98,6 +98,27 @@ export function AuditTrail() {
                         <code className='select-all font-mono text-ink-secondary'>{event.targetId}</code>
                       </>
                     )}
+                    {/**
+                      * Sem alvo, o disparo devolveu `already-*`: o run que já
+                      * existia vai no `context`, e é ele que responde "então
+                      * qual?". E o `requestId` acha a linha de log da ação —
+                      * a mesma razão de ele existir na tabela de falhas. Os
+                      * dois vinham na resposta e a tela descartava (item 68).
+                      */}
+                    {!event.targetId && typeof event.context?.pipelineId === 'string' && (
+                      <>
+                        {' · '}
+                        {t('security.audit.existingRun')}{' '}
+                        <code className='select-all font-mono text-ink-secondary'>{event.context.pipelineId}</code>
+                      </>
+                    )}
+                    {event.requestId && (
+                      <>
+                        {' · '}
+                        <span className='sr-only'>{t('security.errors.requestId')} </span>
+                        <code className='select-all font-mono'>{event.requestId}</code>
+                      </>
+                    )}
                   </span>
                 </li>
               );

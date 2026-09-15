@@ -153,7 +153,8 @@
         "colHours": "Horas",
         "colLastSeen": "Visto por último",
         "noMatch": "Nenhuma falha corresponde aos filtros.",
-        "requestId": "Id da requisição:"
+        "requestId": "Id da requisição:",
+        "runId": "Run:"
       },
       "invariants": {
         "title": "Invariantes",
@@ -169,7 +170,8 @@
         "target": "alvo",
         "shown": "{shown} de {total} na janela",
         "actionPipelineTriggered": "Pipeline disparado",
-        "actionNewsDeleted": "Notícia apagada"
+        "actionNewsDeleted": "Notícia apagada",
+        "existingRun": "run existente"
       }
     }
   },
