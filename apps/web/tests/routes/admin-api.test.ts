@@ -3,6 +3,9 @@ import { POST } from '@/app/api/admin/run-pipeline/route';
 import { DELETE } from '@/app/api/admin/news/[id]/route';
 import { GET as pipelineRunsGet } from '@/app/api/admin/pipeline/runs/route';
 import { GET as pipelineRunGet } from '@/app/api/admin/pipeline/runs/[pipelineId]/route';
+import { GET as errorsGet } from '@/app/api/admin/errors/route';
+import { GET as auditGet } from '@/app/api/admin/audit/route';
+import { GET as httpMetricsGet } from '@/app/api/admin/http-metrics/route';
 import { GET as cronGet } from '@/app/api/cron/daily-news/route';
 import { NextResponse } from 'next/server';
 
@@ -318,5 +321,75 @@ describe('GET /api/admin/pipeline/runs/:pipelineId', () => {
     );
 
     expect(res.status).toBe(400);
+  });
+});
+
+/**
+ * **As três portas do 5c** (§9 do plano de observabilidade): a leitura dos
+ * erros, a trilha de auditoria e os quatro sinais. O que se guarda é o mesmo
+ * da Fase 2 — cada uma passou pelo `proxyToApi` com `requireRole`, a query
+ * atravessa intocada (a API é o único validador), e o caminho da API é o
+ * certo. A guarda exaustiva é `tests/lib/admin-surface.test.ts`; esta é a do
+ * comportamento.
+ */
+describe.each([
+  {
+    name: 'GET /api/admin/errors',
+    handler: errorsGet,
+    url: 'http://localhost:3000/api/admin/errors?window=7d',
+    upstream: '/admin/errors?window=7d',
+    payload: { data: { window: { key: '7d' }, total: 0, groups: [] } },
+  },
+  {
+    name: 'GET /api/admin/audit',
+    handler: auditGet,
+    url: 'http://localhost:3000/api/admin/audit?days=90&limit=100',
+    upstream: '/admin/audit?days=90&limit=100',
+    payload: { data: { window: { days: 90 }, total: 0, events: [] } },
+  },
+  {
+    name: 'GET /api/admin/http-metrics',
+    handler: httpMetricsGet,
+    url: 'http://localhost:3000/api/admin/http-metrics',
+    upstream: '/metrics/http',
+    payload: { data: { totalRequests: 0, routes: [], saturation: { plan: null } } },
+  },
+])('$name', ({ handler, url, upstream, payload }) => {
+  it('answers 401 without a session, without calling the API', async () => {
+    getServerSessionMock.mockResolvedValue(null);
+    vi.stubGlobal('fetch', vi.fn());
+
+    const res = await handler(new Request(url));
+
+    expect(res.status).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('answers 403 for a non-admin user, without calling the API', async () => {
+    getServerSessionMock.mockResolvedValue(userSession);
+    vi.stubGlobal('fetch', vi.fn());
+
+    const res = await handler(new Request(url));
+
+    expect(res.status).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('forwards the query untouched to the right API path, with the role signed', async () => {
+    getServerSessionMock.mockResolvedValue(adminSession);
+    mockFetchOk(payload);
+
+    const res = await handler(new Request(url));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(payload);
+    const [calledUrl, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(calledUrl.endsWith(upstream)).toBe(true);
+    expect(init.method).toBe('GET');
+    expect(signAuthJwtMock).toHaveBeenCalledWith({
+      sub: 'admin-1',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
   });
 });

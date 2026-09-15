@@ -44,6 +44,9 @@ vi.mock('@/lib/api', () => ({
   deleteNewsAdmin: vi.fn(),
   getPipelineRuns: vi.fn(),
   getPipelineRunDetail: vi.fn(),
+  getHttpMetrics: vi.fn(),
+  getErrorSummary: vi.fn(),
+  getAuditTrail: vi.fn(),
 }));
 
 function harness() {

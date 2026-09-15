@@ -9,6 +9,7 @@ const useDeleteNewsMock = vi.fn();
 const useNewsListMock = vi.fn();
 const usePipelineRunsMock = vi.fn();
 const usePipelineRunDetailMock = vi.fn();
+const useHttpMetricsMock = vi.fn();
 
 /**
  * **Mock parcial de `@/lib/queries` mente por omissão**, e esta suíte pagou por
@@ -23,6 +24,7 @@ vi.mock('@/lib/queries', () => ({
   useNewsList: () => useNewsListMock(),
   usePipelineRuns: () => usePipelineRunsMock(),
   usePipelineRunDetail: () => usePipelineRunDetailMock(),
+  useHttpMetrics: () => useHttpMetricsMock(),
 }));
 
 const mockNews = {
@@ -73,6 +75,9 @@ function mockQueries(overrides: {
   // só precisa não explodir.
   usePipelineRunsMock.mockReturnValue({ data: undefined, isError: false });
   usePipelineRunDetailMock.mockReturnValue({ data: undefined, isError: false });
+  // O mesmo vale para a saúde da API (Fase 5 do plano de observabilidade):
+  // suíte própria em `api-health.test.tsx`; aqui só o esqueleto.
+  useHttpMetricsMock.mockReturnValue({ data: undefined, isError: false });
 }
 
 beforeEach(() => {

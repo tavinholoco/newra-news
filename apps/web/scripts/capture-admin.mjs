@@ -1,5 +1,6 @@
 // Captura as telas de **admin**, que exigem sessão — e por isso nunca estiveram
-// na baseline visual.
+// na baseline visual. São as três abas (`/admin`, `/admin/metrics`,
+// `/admin/security`), a primeira também com um run expandido.
 //
 //   pnpm --filter @newranews/web admin:capture
 //
@@ -81,6 +82,10 @@ const ALL_ROUTES = [
   { slug: 'admin', url: '/pt-BR/admin' },
   { slug: 'admin-expanded', url: '/pt-BR/admin', expand: true },
   { slug: 'admin-metrics', url: '/pt-BR/admin/metrics' },
+  // A terceira aba (Fase 5 do plano de observabilidade, PR 5c). É a única
+  // ferramenta que alcança tela de admin, então a tela nova entra aqui no
+  // mesmo PR — senão a aba nasce sem foto.
+  { slug: 'admin-security', url: '/pt-BR/admin/security' },
   { slug: 'admin-en', url: '/en/admin', expand: true, widths: ['1440'], themes: ['light'] },
 ];
 const ROUTES = process.env.ROUTES

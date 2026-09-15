@@ -1,4 +1,4 @@
-import { PrismaClient, Category } from '@prisma/client';
+import { PrismaClient, Category, ErrorOrigin, ErrorSeverity } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -167,6 +167,157 @@ async function main() {
     metricsCreated++;
   }
   console.log(`  DailyMetric: ${metricsCreated} created (${30 - metricsCreated} already existed)`);
+
+  // ── Observabilidade (Fase 5 do plano, PR 5c) ────────────────────────────
+  // As três tabelas que o `admin:capture` fotografa na `/admin` e na
+  // `/admin/security`. O 5a e o 5b deixaram a decisão para cá, e ela é sim:
+  // sem elas a captura sai com o arco das horas em zero, a rosquinha de erro
+  // vazia e a trilha sem linha — e é justamente o estado que ninguém precisa
+  // fotografar. Determinístico e idempotente, como o resto: `upsert` pela
+  // chave natural (data, `(fingerprint, hora)`) ou por id fixo.
+
+  // DailyUptime: o mês corrente até hoje, ~9 h ligada por dia — o retrato de
+  // uma API que dorme e acorda (desde 01/09 não há keep-alive). Hoje é parcial.
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const secondsToday = Math.floor((now.getTime() - today.getTime()) / 1000);
+  let uptimeCreated = 0;
+  for (let date = new Date(monthStart); date <= today; date.setUTCDate(date.getUTCDate() + 1)) {
+    const isToday = date.getTime() === today.getTime();
+    const seconds = isToday ? Math.min(32_400, secondsToday) : 32_400;
+    const existing = await prisma.dailyUptime.findUnique({ where: { date: new Date(date) } });
+    if (existing) continue;
+    await prisma.dailyUptime.create({ data: { date: new Date(date), seconds } });
+    uptimeCreated++;
+  }
+  console.log(`  DailyUptime: ${uptimeCreated} created`);
+
+  // ErrorEvent: quatro falhas distintas nas últimas 24 h, com baldes por hora
+  // — o suficiente para a rosquinha ter três fatias e a tabela ter o que
+  // ordenar. Os códigos são os da taxonomia da API (`utils/errors.ts`).
+  const thisHour = new Date(now);
+  thisHour.setUTCMinutes(0, 0, 0);
+  const hoursAgo = (hours: number) => new Date(thisHour.getTime() - hours * 3_600_000);
+  const errorEvents = [
+    ...[
+      [1, 12],
+      [2, 7],
+      [5, 3],
+    ].map(([hours, count]) => ({
+      fingerprint: 'API:WARN:AUTH_TOKEN_INVALID:/api/account',
+      windowStart: hoursAgo(hours!),
+      origin: ErrorOrigin.API,
+      severity: ErrorSeverity.WARN,
+      code: 'AUTH_TOKEN_INVALID',
+      category: 'authorization',
+      count: count!,
+      route: '/api/account',
+      statusCode: 401,
+      message: 'Invalid or missing token',
+      firstRequestId: `seed-${hours}-first`,
+      lastRequestId: `seed-${hours}-last`,
+    })),
+    {
+      fingerprint: 'API:WARN:NOT_FOUND:unmatched',
+      windowStart: hoursAgo(3),
+      origin: ErrorOrigin.API,
+      severity: ErrorSeverity.WARN,
+      code: 'NOT_FOUND',
+      category: 'validation',
+      count: 25,
+      route: 'unmatched',
+      statusCode: 404,
+      message: 'Route not found',
+      firstRequestId: 'seed-404-first',
+      lastRequestId: 'seed-404-last',
+    },
+    {
+      fingerprint: 'PIPELINE:WARN:feed-failed:stage-1',
+      windowStart: hoursAgo(now.getUTCHours() >= 11 ? now.getUTCHours() - 11 : 13),
+      origin: ErrorOrigin.PIPELINE,
+      severity: ErrorSeverity.WARN,
+      code: 'feed-failed',
+      category: 'upstream',
+      count: 3,
+      route: 'stage-1',
+      statusCode: null,
+      message: 'Feed Veja Saúde: ETIMEDOUT',
+      firstRequestId: null,
+      lastRequestId: null,
+    },
+    {
+      fingerprint: 'API:ERROR:INTERNAL:/api/news/:id',
+      windowStart: hoursAgo(8),
+      origin: ErrorOrigin.API,
+      severity: ErrorSeverity.ERROR,
+      code: 'INTERNAL',
+      category: 'internal',
+      count: 1,
+      route: '/api/news/:id',
+      statusCode: 500,
+      message: 'Unexpected error',
+      firstRequestId: 'seed-500',
+      lastRequestId: 'seed-500',
+    },
+  ];
+  let errorsCreated = 0;
+  for (const event of errorEvents) {
+    const existing = await prisma.errorEvent.findUnique({
+      where: { fingerprint_windowStart: { fingerprint: event.fingerprint, windowStart: event.windowStart } },
+    });
+    if (existing) continue;
+    await prisma.errorEvent.create({
+      data: { ...event, firstSeenAt: event.windowStart, lastSeenAt: new Date(event.windowStart.getTime() + 35 * 60_000) },
+    });
+    errorsCreated++;
+  }
+  console.log(`  ErrorEvent: ${errorsCreated} created (${errorEvents.length - errorsCreated} already existed)`);
+
+  // AuditEvent: três ações do mesmo ator — o id sintético que o
+  // `admin:capture` usa na sessão forjada, para a trilha mostrar "você".
+  const actorId = '00000000-0000-4000-8000-000000000000';
+  const auditEvents = [
+    {
+      id: '00000000-0000-4000-8000-00000000a001',
+      actorId,
+      action: 'pipeline.triggered',
+      targetId: '00000000-0000-4000-8000-00000000c001',
+      outcome: 'started',
+      requestId: 'seed-audit-1',
+      context: { pipelineId: '00000000-0000-4000-8000-00000000c001' },
+      createdAt: new Date(today.getTime() + 11 * 3_600_000 + 5 * 60_000),
+    },
+    {
+      id: '00000000-0000-4000-8000-00000000a002',
+      actorId,
+      action: 'pipeline.triggered',
+      targetId: null,
+      outcome: 'already-succeeded-today',
+      requestId: 'seed-audit-2',
+      context: { pipelineId: '00000000-0000-4000-8000-00000000c001' },
+      createdAt: new Date(today.getTime() + 16 * 3_600_000 + 25 * 60_000),
+    },
+    {
+      id: '00000000-0000-4000-8000-00000000a003',
+      actorId,
+      action: 'news.deleted',
+      targetId: '00000000-0000-4000-8000-00000000d001',
+      outcome: 'deleted',
+      requestId: 'seed-audit-3',
+      context: null,
+      createdAt: new Date(today.getTime() - 2 * 24 * 3_600_000 + 14 * 3_600_000),
+    },
+  ];
+  let auditCreated = 0;
+  for (const event of auditEvents) {
+    const existing = await prisma.auditEvent.findUnique({ where: { id: event.id } });
+    if (existing) continue;
+    await prisma.auditEvent.create({
+      data: { ...event, context: event.context ?? undefined },
+    });
+    auditCreated++;
+  }
+  console.log(`  AuditEvent: ${auditCreated} created (${auditEvents.length - auditCreated} already existed)`);
 
   console.log('Seed completed successfully.');
 }

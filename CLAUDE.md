@@ -18,8 +18,9 @@
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
 - `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`. **O conjunto versionado é capturado de produção**, não do local — ver "Fechar uma fase" abaixo
 - `pnpm --filter @newranews/web admin:capture` — fotografa as telas de **admin**
-  (`/admin`, com um run expandido, e `/admin/metrics`) em 375 e 1440, claro e
-  escuro, com uma sessão forjada localmente. A baseline visual exclui essa área
+  (as três abas — `/admin`, com um run expandido, `/admin/metrics` e
+  `/admin/security`) em 375 e 1440, claro e escuro, com uma sessão forjada
+  localmente. A baseline visual exclui essa área
   porque exige sessão, então até 07/09 ela **nunca esteve em captura nenhuma** —
   e é onde as fases 5, 6, 8, 9 e 11 do plano de observabilidade trabalham. Só
   aceita localhost, e exige `NEXTAUTH_SECRET` local diferente do de produção.
@@ -129,11 +130,14 @@ que não precisa ir a produção fase a fase.
   (3,5 MB)** de `apps/web/.admin-captures/`, um caminho que a `dev` ignora desde
   o PR #158 e que o `capture-admin.mjs` declara não versionar. Item **55**.
 
-> ⚠️ **Ao promover, `.gitignore` não desversiona o que já está versionado.** Os
-> 13 arquivos acima **continuam rastreados** depois do merge; a promoção precisa
-> de um `git rm --cached -r apps/web/.admin-captures` explícito. Confira também
-> se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho:
-> `git ls-tree -r --name-only origin/main | git check-ignore --stdin`.
+> ⚠️ **`.gitignore` não desversiona o que já está versionado — e a
+> sincronização `main → dev` do #200 trouxe os 13 PNGs para a `dev`, ainda
+> rastreados.** O `git rm --cached -r apps/web/.admin-captures` que este aviso
+> pedia para a promoção **foi feito no PR 5c (14/09)**, quando a captura os
+> marcou todos como modificados; a remoção viaja para a `main` na promoção
+> como qualquer outro commit. O que continua valendo é a conferência: antes de
+> promover, `git ls-tree -r --name-only origin/main | git check-ignore --stdin`
+> diz se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho.
 
 > ⚠️ **O gatilho para promover antes do fim é a Fase 9.** Ela é a única que pode
 > **deixar o site sem briefing** (§13: portão de saída que bloqueia e não cai
@@ -302,14 +306,13 @@ a suíte de unidade, que roda sem rede.
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
   09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
-  PRs**; e a **5 está em curso, em três PRs** — o **5a (a migration) e o 5b (a
-  API) fecharam em 12/09**.** Continuam abertas **quatro fases inteiras** (6, 8,
-  9 e 11), o **5c** e as subfases **7b e 7c**. A próxima é o **5c** (o web da
-  Fase 5): a `/admin/security`, as três abas, `series-bars`, rosquinhas, KPI
-  com variação, `admin-surface.test.ts` e o `admin:capture` cobrindo a tela
-  nova; os contratos que ele consome estão em
-  `packages/types/src/observability.ts` e o que herda está no fim da §9. O
-  **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
+  PRs**; e a **5 fechou em 14/09, em três PRs** — o **5a (a migration) e o 5b
+  (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha.** Continuam
+  abertas **quatro fases inteiras** (6, 8, 9 e 11) e as subfases **7b e 7c**,
+  e o bloco 3 do §19 vai em qualquer ordem — a 8 (log de sucesso) é a mais
+  barata, a 11 (saúde por fonte) responde à troca de provedor, a 6
+  (invariantes) depende de 4 e 5 no ar, e a **9 vai por último, e é decisão**.
+  O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
   SRE, dimensões de qualidade de dado)
@@ -326,6 +329,47 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-14): a Fase 5 fechou — PR 5c, o web.**
+  §9, item **67**. A `/admin/security` nasceu (a décima sexta página, e a única
+  que o plano inteiro abre) e a faixa passou a ter as **três abas do §4.1**.
+  Entraram: o **arco das horas do plano** na `/admin` — o medidor que faltava
+  em 29/08 —, com o **ritmo do mês** projetado (`hoursUsed / horas decorridas ×
+  horas do mês`, calado antes de 24 h de amostra) e `plan: null` desenhando
+  "Indisponível", nunca zero; **os quatro sinais** na `/admin/metrics`, com
+  latência por rota em tabela; a **linha de KPI com variação** (três chips de
+  quatro — a taxa de sucesso não tem par honesto no contrato de 30 dias, e um
+  cartão sem chip é melhor que um chip inventado); **rosquinhas** em SVG para
+  categoria, provider, ingestão por fonte (as duas colunas gravadas desde a V1
+  e nunca desenhadas) e erro por categoria com seis fatias fixas; o
+  `series-bars` para o `byDay` que voltava desde a Fase 8 sem leitor; a
+  **tabela de falhas** com busca, filtros, colunas ordenáveis e o
+  `lastRequestId` selecionável; a **trilha de auditoria**; e o lugar das
+  invariantes, vazio até a Fase 6. Três rotas novas no BFF, todas por
+  `proxyToApi` com `requireRole: 'ADMIN'` — cobrado pelo parser em
+  `admin-surface.test.ts`, visto reprovando sobre as três antes de ganharem o
+  papel. O `admin:capture` fotografa as três abas e o **seed passou a popular
+  `ErrorEvent`, `AuditEvent` e `DailyUptime`**. **685 → 754 testes no web.**
+
+  > **A captura achou três defeitos sem sintoma de código, na estreia da aba**
+  > — o padrão do item 50: legenda da rosquinha atravessando a página, oito
+  > categorias sobre cinco cores com Mundo e Saúde no mesmo vermelho (a
+  > repetição agora sai esmaecida), e a série por dia como um retângulo de
+  > largura inteira porque a API só devolve os dias com evento
+  > (`fillCalendarDays` preenche a janela). E os **13 PNGs do item 55 tinham
+  > chegado à `dev` pelo #200**, rastreados — desrastreados aqui.
+
+  > **Duas coisas que a §9 pedia e o 5c decidiu diferente, com o motivo no
+  > plano:** os "quatro cartões com variação" são três, porque `lastMonth` não
+  > diz quantos dias têm linha e `failureDays / 30` mentiria para o otimista
+  > nos meses com dia sem `DailyMetric`; e a "tabela de eventos de segurança"
+  > e a "lista de erros por fingerprint" são **uma** tabela, porque os eventos
+  > da §3.2 vivem no `ErrorEvent` e não há segunda tabela de onde ler.
+  >
+  > **O `byDay` é dia UTC, e a série teria lido no fuso local** —
+  > `2026-09-01` viraria 31/08 no Brasil, a série inteira um dia para trás. É
+  > a armadilha do `Article.date` em outro campo; `formatCalendarDay` lê em
+  > UTC, com teste.
 
 - 🟡 **A cota de otimização de imagem da Vercel estourou em 09/09/2026, e o
   corte que a faz caber já entrou — falta o mês virar.** Confirmado no painel:
@@ -850,7 +894,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.784 em 148 suites (**1.099 API em 77** + **685 web em 71** — todos
+- **Testes:** 1.853 em 153 suites (**1.099 API em 77** + **754 web em 76** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

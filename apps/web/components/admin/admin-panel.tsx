@@ -6,6 +6,7 @@ import { useDeleteNews, useNewsList, useRunPipeline } from '@/lib/queries';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toDateFormatLocale } from '@/lib/i18n';
+import { ApiHealth } from './api-health';
 import { PipelineRuns } from './pipeline-runs';
 import type { RunPipelineResult } from '@newranews/types';
 
@@ -75,6 +76,13 @@ export function AdminPanel() {
 
   return (
     <div className='space-y-10'>
+      {/**
+        * **A linha de KPI da visão geral vem antes do disparo** (§4.1 do plano
+        * de observabilidade): "está tudo de pé agora?" se responde olhando o
+        * arco das horas do plano e a memória antes de clicar em qualquer coisa.
+        */}
+      <ApiHealth />
+
       <section className='rounded-lg border border-border bg-card p-6'>
         <h2 className='font-display mb-1 text-lg font-semibold text-foreground'>
           {t('runPipeline')}

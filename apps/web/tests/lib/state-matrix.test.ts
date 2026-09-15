@@ -6,9 +6,9 @@ import path from 'node:path';
  * **A matriz de estado da §10.4, como guarda e não como tabela.**
  *
  * A pergunta que abriu o eixo era simples e ninguém sabia responder sem abrir o
- * componente: *o que cada uma das 15 telas mostra enquanto carrega, quando
+ * componente: *o que cada uma das telas mostra enquanto carrega, quando
  * falha, quando não há nada, e quando o endereço não existe?* Seis rotas têm
- * `loading.tsx`/`error.tsx` e nove não têm — e **a ausência pode estar certa**:
+ * `loading.tsx`/`error.tsx` e as outras não têm — e **a ausência pode estar certa**:
  * se o componente desenha o próprio esqueleto e o próprio erro, a fronteira de
  * rota seria redundante.
  *
@@ -38,8 +38,12 @@ interface Linha {
 }
 
 /**
- * As quinze rotas. **A ordem das colunas é a da §10.4**: carregando, erro,
- * vazio, não encontrado.
+ * Todas as rotas — **a contagem mora no `toHaveLength` abaixo, e só lá.** A
+ * ordem das colunas é a da §10.4: carregando, erro, vazio, não encontrado.
+ *
+ * Eram quinze até a Fase 5 do plano de observabilidade; a `/admin/security` é
+ * a décima sexta, e a única página nova que o plano inteiro abre (§4.1: três
+ * abas de admin, e a terceira não existia).
  */
 const MATRIZ: Linha[] = [
   {
@@ -131,6 +135,14 @@ const MATRIZ: Linha[] = [
     nota: 'dashboard-client e product-metrics-client desenham DashboardSkeleton e role=alert por conta própria',
   },
   {
+    segmento: 'admin/security',
+    carregando: 'componente',
+    erro: 'componente',
+    vazio: 'componente',
+    naoEncontrado: 'n/a',
+    nota: 'security-client: Skeleton e role=alert por painel; janela sem falha nenhuma é estado normal e tem texto próprio; não há id para não encontrar',
+  },
+  {
     segmento: 'newsletter',
     carregando: 'n/a',
     erro: 'componente',
@@ -188,7 +200,7 @@ describe('a matriz de estado das rotas', () => {
     // O modo de falha de uma matriz é envelhecer: rota nova que ninguém
     // acrescenta aqui é justamente a que não teve o estado decidido.
     expect(SEGMENTOS.sort()).toEqual(MATRIZ.map((l) => l.segmento).sort());
-    expect(MATRIZ).toHaveLength(15);
+    expect(MATRIZ).toHaveLength(16);
   });
 
   it('toda linha que diz `n/a` explica por quê', () => {
@@ -235,6 +247,10 @@ describe('a matriz de estado das rotas', () => {
       'admin/metrics': [
         'components/dashboard/dashboard-client.tsx',
         'components/dashboard/product-metrics-client.tsx',
+      ],
+      'admin/security': [
+        'components/admin/security-client.tsx',
+        'components/admin/audit-trail.tsx',
       ],
       news: ['components/news/news-page-client.tsx'],
       article: ['components/article/article-page-client.tsx'],

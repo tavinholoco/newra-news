@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 const ITEMS = [
   { href: '/admin', key: 'nav.panel' },
   { href: '/admin/metrics', key: 'nav.metrics' },
+  { href: '/admin/security', key: 'nav.security' },
 ] as const;
 
 /**
@@ -22,6 +23,11 @@ const ITEMS = [
  * telas se citavam sem nunca formarem uma. Com a faixa aqui, a área tem uma
  * casca só e uma tela nova entra como aba em vez de nascer com o seu próprio
  * link no canto.
+ *
+ * **As três abas do §4.1 do plano de observabilidade**, na ordem das perguntas
+ * que respondem: "está tudo de pé agora?", "como o produto vai?", "o que
+ * quebrou e quem tentou o quê?". A terceira nasceu na Fase 5 daquele plano; uma
+ * quarta tem gatilho (a `/admin/security` passar de ~6 painéis), não opinião.
  *
  * Mesmo padrão do `AccountNav`, incluindo `inline-flex` e `shrink-0`, e pela
  * mesma razão: `inline-block` está sombreado pelo token `--spacing-block` e

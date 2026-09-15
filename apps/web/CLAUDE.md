@@ -245,10 +245,19 @@ Regras que não são óbvias no código:
 - /[locale]/favorites → Salvos: notícias e briefings numa lista só
   - o guard de sessão vive em `app/[locale]/account/layout.tsx` e vale para
     todo o segmento; `/favorites` é a exceção fora dele, com o guard próprio
-- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) —
-  disparo do pipeline, **os três painéis de execução** (`admin/pipeline-runs`) e
-  a lista de notícias
-- /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)
+- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) — a
+  **saúde da API agora** (`admin/api-health`: o arco das horas do plano, memória
+  e event loop), o disparo do pipeline, **os três painéis de execução**
+  (`admin/pipeline-runs`) e a lista de notícias
+- /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`):
+  a linha de KPI com variação, rosquinhas de categoria, provider e ingestão,
+  as métricas de produto com a série por dia, e **os quatro sinais da API**
+  (`dashboard/golden-signals`, via `/api/admin/http-metrics`)
+- /[locale]/admin/security → **Logs e segurança** (Fase 5 do plano de
+  observabilidade, PR 5c): as falhas registradas por fingerprint com busca,
+  filtros e colunas ordenáveis (`/api/admin/errors`), a rosquinha de erro por
+  categoria, a trilha de auditoria (`/api/admin/audit`) e o lugar das
+  invariantes, vazio até a Fase 6
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
   - **a casca do painel vive no mesmo layout**: contêiner e faixa de abas
@@ -263,7 +272,9 @@ Regras que não são óbvias no código:
     e não lista uma quarta; a `/admin` já é a aba "está tudo de pé agora?", e
     "o run de ontem falhou?" é exatamente essa pergunta. Rota nova custaria
     linha na matriz de estados, chave nos **dois** arquivos de mensagem e
-    `alternatesFor` — o `toHaveLength(15)` de `state-matrix.test.ts` fica em 15
+    `alternatesFor` — o `toHaveLength` de `state-matrix.test.ts` não se moveu
+    naquela fase; **quem o moveu, de 15 para 16, foi a `/admin/security` da
+    Fase 5**, a única página que o plano inteiro abre
   - **o detalhe de um run é linha expansível, pelo mesmo motivo**: uma `/[id]`
     pediria `loading.tsx`, `error.tsx` e `not-found.tsx`, e a matriz cobraria os
     três. A consulta de eventos só existe para o run que alguém abriu — a linha
@@ -276,6 +287,43 @@ Regras que não são óbvias no código:
     constante contra um plano que cobra tempo ligado — o free do Render dá
     750 h/mês, e a API já foi suspensa uma vez por isso. O pipeline roda uma vez
     por dia; recarregar a página é o gesto certo
+  - **os gráficos são SVG inline, sem biblioteca** (§4.3 do plano de
+    observabilidade): `dashboard/donut-chart` (rosquinha, `stroke-dasharray`
+    num `<circle>`, fatia única em 100% desenhada como círculo sem recorte —
+    armadilha 15), `dashboard/series-bars` (barras **na ordem dada**, para o
+    `byDay`; o `CategoryBars` ordena por valor e é para isso que existe) e
+    `dashboard/saturation-arc` (o arco de três quartos). As cinco cores vêm de
+    `dashboard/chart-colors.ts`, nas duas formas (`bg-*` e `stroke-*`) — o
+    Tailwind só emite a utility que encontra escrita. **Da sexta fatia em
+    diante a cor repete esmaecida** (`opacity-60`): são cinco cores para até
+    oito categorias, e a primeira captura pôs Mundo e Saúde no mesmo vermelho.
+    A legenda tem largura máxima, senão o valor vai parar a 1.600 px do rótulo
+  - **a série por dia preenche a janela** (`lib/series.ts`,
+    `fillCalendarDays`): a API só devolve os dias com evento, e um dia numa
+    janela de 30 virava uma barra de largura inteira — o eixo do tempo só
+    existe se cada dia de calendário tem o seu lugar, com zero onde não houve
+    nada
+  - **`saturation.plan` nulo desenha "Indisponível", nunca zero.** É a única
+    medida que sai do banco, e zero diria que o mês está folgado justamente
+    quando não há como saber. O acento do arco segue `lib/saturation.ts`:
+    neutro até 80%, laranja de atenção até o teto, vermelho de estado depois —
+    e a linha do **ritmo do mês** (`planPace`) é o número que teria avisado
+    antes de 29/08: `hoursUsed / horas decorridas × horas do mês`, calada
+    antes de 24 h de amostra (armadilha 24)
+  - **a variação do KPI é de `lib/kpi.ts`, e `null` é cartão sem chip.**
+    `kpiDelta` só responde com linha de base honesta; a taxa de sucesso de 7 d
+    não tem par no contrato de 30 d (`lastMonth` não diz quantos dias têm
+    linha), e por isso é o único dos quatro cartões sem chip — decidido no 5c
+    contra o que a §9 pedia, com o motivo no cabeçalho do `dashboard-client`
+  - **a tabela de eventos de segurança e a lista de erros por fingerprint são
+    uma tabela só** (`admin/error-groups-table`): o dado é o mesmo — os
+    eventos da §3.2 nascem como `AppError` com categoria `authorization` e
+    vivem no `ErrorEvent`. Duas tabelas sobre as mesmas linhas seriam as duas
+    caixas vermelhas da Fase 2 em outra forma; o filtro por categoria é o que
+    separa uma leitura da outra
+  - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
+    handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
+    que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)
   - **as telas de admin se fotografam com `pnpm --filter @newranews/web
     admin:capture`** (`scripts/capture-admin.mjs`). A baseline visual da §30
     exclui `/admin` porque exige sessão, então **esta área nunca esteve em
@@ -285,7 +333,9 @@ Regras que não são óbvias no código:
     `NEXTAUTH_SECRET` local **diferente do de produção**: com o mesmo valor dos
     dois lados, o token forjado aqui vale lá. Nada disso mora no app — apagar o
     arquivo deixa o produto bit a bit igual, e é isso que separa a ferramenta de
-    um atalho de autenticação (OWASP M10 / CWE-489)
+    um atalho de autenticação (OWASP M10 / CWE-489). Desde o 5c ele fotografa
+    as três abas, e o seed popula `ErrorEvent`, `AuditEvent` e `DailyUptime`
+    para a foto não sair com arco em zero e trilha vazia
 
 ## SEO (Fase 7)
 
@@ -423,7 +473,7 @@ Regras que não são óbvias no código:
 | `lib/api.ts` → `nullIfNotFound` | o que separa "não encontrada" de "deu erro" |
 | `lib/use-results-focus.ts` | foco + rolagem ao virar página, respeitando `prefers-reduced-motion` |
 | `tests/security/` | três suítes: cabeçalhos, superfície do navegador, otimizador de imagem |
-| `tests/lib/state-matrix.test.ts` | a matriz de 15 rotas × 4 estados, como asserção |
+| `tests/lib/state-matrix.test.ts` | a matriz de todas as rotas × 4 estados, como asserção — a contagem mora no `toHaveLength` dela |
 
 Regras que não são óbvias no código:
 
@@ -459,8 +509,8 @@ Regras que não são óbvias no código:
   aparece duas vezes na mesma página.
 - **A CSP carrega `'unsafe-inline'` no `script-src`, e está escrito por quê.** A
   Home tem 63 scripts inline, 61 deles chunks de Flight que mudam por rota e por
-  regeneração. Nonce exigiria cabeçalho por requisição e tornaria as 15 páginas
-  dinâmicas.
+  regeneração. Nonce exigiria cabeçalho por requisição e tornaria todas as
+  páginas dinâmicas.
 - **`connect-src` precisa da origem da API.** O navegador fala com ela direto
   (`lib/api.ts`); só o que passa pelo BFF é same-origin. Sem isso, a tela trava
   no esqueleto — em produção e só lá.
@@ -667,7 +717,7 @@ Quatro telas atrás de sessão — `/account`, `/account/preferences`,
 | Peça | Papel |
 |---|---|
 | `account/account-nav` | as quatro abas; `/favorites` entra como a quarta |
-| `admin/admin-nav` | as duas abas do painel: Painel e Métricas |
+| `admin/admin-nav` | as três abas do painel: Painel, Métricas e Logs e segurança (§4.1 do plano de observabilidade) |
 | `account/profile-card` | identidade, quanto foi salvo, e a saída |
 | `account/preferences-form` | assuntos e tema |
 | `account/newsletter-settings` | inscrição no briefing diário |

@@ -15,7 +15,7 @@ import {
  * `x-frame-options`, sem `referrer-policy`, sem `cross-origin-opener-policy` e
  * sem CSP — medido em produção em 23/08/2026, enquanto a API tinha o conjunto
  * inteiro. O que torna esse defeito reincidente é que **nada acusa**: sem
- * `headers()` o build passa, o lint passa, a suíte passa e as 15 páginas
+ * `headers()` o build passa, o lint passa, a suíte passa e todas as páginas
  * renderizam igual. Só um `curl -I` conta.
  *
  * Por isso a asserção é sobre a **presença de cada diretiva**, e não sobre a

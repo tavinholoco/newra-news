@@ -69,7 +69,8 @@
     "nav": {
       "label": "Navegação do painel",
       "metrics": "Métricas",
-      "panel": "Painel"
+      "panel": "Painel",
+      "security": "Logs e segurança"
     },
     "title": "Painel Admin",
     "restrictedTitle": "Acesso restrito",
@@ -112,6 +113,64 @@
       "eventsEmpty": "Esta execução não registrou nenhum evento.",
       "eventsError": "Não foi possível carregar os eventos desta execução.",
       "errorOrigin": "Origem: {origin}"
+    },
+    "overview": {
+      "title": "Saúde da API agora",
+      "description": "As horas do plano são o teto que suspendeu a API em 29/08 — o arco é o que faltava para ver isso chegando. Memória e event loop são desta instância.",
+      "loadError": "Não foi possível carregar a saúde da API.",
+      "instance": "Esta instância está de pé há {uptime}: {requests} requisições, {errorRate} com erro do servidor. A janela zera a cada acordada."
+    },
+    "security": {
+      "title": "Logs e segurança",
+      "pageDescription": "O que quebrou, de onde veio, e quem fez o quê no painel.",
+      "window24h": "Últimas 24 h",
+      "window7d": "Últimos 7 dias",
+      "windowDays": "{days} dias",
+      "errors": {
+        "title": "Falhas registradas",
+        "description": "Cada linha é uma falha distinta na janela — as ocorrências da mesma falha somadas, com a hora mais recente e o id de requisição que a acha no log.",
+        "windowLabel": "Janela das falhas",
+        "loadError": "Não foi possível carregar as falhas registradas.",
+        "total": "Ocorrências",
+        "sinceHint": "desde {since}",
+        "distinct": "Falhas distintas",
+        "distinctHint": "Fingerprints diferentes na janela",
+        "truncated": "A leitura bateu no teto de linhas e este recorte está incompleto — os totais são um piso, não o número.",
+        "byCategory": "Erros por categoria",
+        "centerCaption": "ocorrências",
+        "byOrigin": "Erros por origem",
+        "tableTitle": "Todas as falhas",
+        "empty": "Nenhuma falha registrada na janela.",
+        "search": "Buscar",
+        "searchPlaceholder": "Código, rota ou mensagem",
+        "severity": "Severidade",
+        "category": "Categoria",
+        "all": "Todas",
+        "colSeverity": "Severidade",
+        "colFailure": "Falha",
+        "colRoute": "Rota ou etapa",
+        "colCount": "Ocorrências",
+        "colHours": "Horas",
+        "colLastSeen": "Visto por último",
+        "noMatch": "Nenhuma falha corresponde aos filtros.",
+        "requestId": "Id da requisição:"
+      },
+      "invariants": {
+        "title": "Invariantes",
+        "empty": "Nenhuma invariante medida ainda — é o eixo das inconsistências, e entra na Fase 6 do plano de observabilidade."
+      },
+      "audit": {
+        "title": "Auditoria de ações de admin",
+        "description": "Quem disparou o pipeline, quem apagou o quê — mais recente primeiro. Só o id de quem agiu, nunca o e-mail.",
+        "windowLabel": "Janela da auditoria",
+        "loadError": "Não foi possível carregar a trilha de auditoria.",
+        "empty": "Nenhuma ação de admin registrada na janela.",
+        "actor": "ator",
+        "target": "alvo",
+        "shown": "{shown} de {total} na janela",
+        "actionPipelineTriggered": "Pipeline disparado",
+        "actionNewsDeleted": "Notícia apagada"
+      }
     }
   },
   "article": {
@@ -189,21 +248,66 @@
     "publishedHint": "Publicado na home e no histórico",
     "runsAt": "O pipeline roda diariamente às 8h (BRT)",
     "aiUsed": "IA utilizada",
-    "pipelineDuration": "Duração do pipeline",
     "pipelineErrors": "Erros no pipeline",
     "notRunYet": "O pipeline ainda não rodou hoje. Acompanhe após a execução diária (8h, horário de Brasília).",
     "last7Days": "Últimos 7 dias",
     "avgNewsPerDay": "Média de notícias/dia",
     "articlesGenerated": "Artigos gerados",
     "daysWithData": "{count, plural, one {# dia com dados} other {# dias com dados}}",
-    "successRate": "Taxa de sucesso",
     "avgDuration": "Duração média",
     "newsByCategory": "Notícias por categoria (7 dias)",
     "aiUsage": "IA utilizada (7 dias)",
     "last30Days": "Últimos 30 dias",
     "failureDays": "Dias com falha",
     "loadError": "Não foi possível carregar as métricas. Tente novamente.",
-    "noData": "Sem dados no período."
+    "noData": "Sem dados no período.",
+    "kpi": {
+      "label": "Indicadores principais",
+      "vsWeekAverage": "vs. média 7 d",
+      "vsMonthAverage": "vs. média 30 d",
+      "newsToday": "Notícias coletadas hoje",
+      "durationToday": "Duração do pipeline hoje",
+      "avgNewsWeek": "Média de notícias/dia (7 d)",
+      "successRateWeek": "Taxa de sucesso (7 d)"
+    },
+    "cleanupCount": "Linhas apagadas",
+    "cleanupHint": "Pela etapa 8 no run do dia",
+    "ingestionBySource": "Ingestão por fonte",
+    "sourceNewsApi": "NewsData",
+    "sourceRss": "RSS",
+    "centerNews": "notícias",
+    "centerFallbacks": "dias no Groq",
+    "signals": {
+      "title": "Os quatro sinais da API",
+      "description": "Latência, tráfego e erro desta instância desde que acordou; a saturação de memória, event loop e horas do plano. A janela zera a cada deploy e a cada hibernação.",
+      "loadError": "Não foi possível carregar os sinais da API.",
+      "requests": "Requisições",
+      "since": "desde {since}",
+      "latencyP95": "Latência p95",
+      "latencyHint": "p50 {p50} · máx. {max}",
+      "errorRate": "Erros do servidor",
+      "clientErrorRate": "Erros do cliente",
+      "ofRequests": "Sobre as requisições da janela",
+      "saturationTitle": "Saturação",
+      "planHours": "Horas do plano",
+      "planValue": "{used} / {limit}",
+      "planUnavailable": "Indisponível",
+      "planUnavailableHint": "O banco não respondeu — é a única medida que sai dele.",
+      "pace": "No ritmo atual, {hours} no fim do mês ({ratio} do plano).",
+      "paceTooEarly": "O ritmo do mês só é projetado com 24 h de amostra.",
+      "memory": "Memória",
+      "memoryValue": "{used} / {limit}",
+      "eventLoop": "Atraso do event loop (p95)",
+      "eventLoopHint": "máx. {max} · {samples} amostras · além dos {resolution} do timer",
+      "routesTitle": "Latência por rota",
+      "routesEmpty": "Nenhuma requisição na janela ainda.",
+      "colRoute": "Rota",
+      "colCount": "Requisições",
+      "colP95": "p95",
+      "colAvg": "média",
+      "colMax": "máx.",
+      "colErrorRate": "erro"
+    }
   },
   "editorial": {
     "readingTime": "{minutes} min de leitura",
@@ -302,6 +406,9 @@
     },
     "newsletterSettings": {
       "title": "Newsletter"
+    },
+    "security": {
+      "title": "Logs e segurança"
     }
   },
   "nav": {
@@ -416,15 +523,17 @@
     "accountsHint": "Quem loga volta por definição",
     "audienceTitle": "Audiência",
     "byCategoryTitle": "Categorias abertas",
+    "byDayHint": "Uma barra por dia da janela, na ordem do calendário.",
+    "byDayTitle": "Sessões por dia",
     "bySourceTitle": "Cliques por origem",
     "eventsTitle": "Eventos por tipo",
     "loadError": "Não foi possível carregar as métricas de produto.",
     "noSearchGaps": "Nenhuma busca sem resultado na janela.",
     "opened": "Aberturas",
     "pageDescription": "Como as pessoas usam o site — o painel ao lado mede o pipeline.",
+    "readingTitle": "Leitura",
     "readRate": "Leitura completa",
     "readRateHint": "90% do texto sobre as aberturas",
-    "readingTitle": "Leitura",
     "scroll25": "25% do texto",
     "scroll50": "50% do texto",
     "searchGapsHint": "O que as pessoas procuraram e o acervo não tinha.",
@@ -434,7 +543,8 @@
     "subscribers": "Assinantes",
     "subscribersHint": "É o número que um patrocinador pede",
     "title": "Produto",
-    "windowDays": "{days} dias"
+    "windowDays": "{days} dias",
+    "windowLabel": "Janela das métricas de produto"
   },
   "shell": {
     "breadcrumb": "Trilha de navegação",

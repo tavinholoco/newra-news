@@ -14,6 +14,7 @@ import type {
   NewsFacets,
   NewsletterStatus,
   UserPreferences,
+  ErrorSummaryWindow,
 } from '@newranews/types';
 import {
   getNews,
@@ -34,6 +35,9 @@ import {
   deleteNewsAdmin,
   getPipelineRuns,
   getPipelineRunDetail,
+  getHttpMetrics,
+  getErrorSummary,
+  getAuditTrail,
 } from '@/lib/api';
 
 // ── Query Key Factories ──────────────────────────────────────────────
@@ -108,6 +112,21 @@ export const pipelineKeys = {
   runs: (limit: number) => [...pipelineKeys.all, 'runs', limit] as const,
   detail: (pipelineId: string) =>
     [...pipelineKeys.all, 'detail', pipelineId] as const,
+};
+
+/**
+ * As três leituras de observabilidade da Fase 5 (PR 5c), cada uma na sua
+ * subárvore de `['admin']` — pelo mesmo motivo de `pipelineKeys`: invalidar
+ * uma não recarrega as outras.
+ *
+ * A janela entra na chave onde há janela (`errors`, `audit`), senão trocar de
+ * 24 h para 7 d mostraria a contagem anterior enquanto a nova não chega — e
+ * quem lê concluiria que a semana teve os mesmos erros que o dia.
+ */
+export const observabilityKeys = {
+  http: () => [...adminKeys.all, 'http-metrics'] as const,
+  errors: (window: ErrorSummaryWindow) => [...adminKeys.all, 'errors', window] as const,
+  audit: (days: number) => [...adminKeys.all, 'audit', days] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -365,6 +384,47 @@ export function usePipelineRunDetail(pipelineId: string) {
   return useQuery({
     queryKey: pipelineKeys.detail(pipelineId),
     queryFn: () => getPipelineRunDetail(pipelineId),
+  });
+}
+
+// ── Observabilidade (Fase 5 do plano, PR 5c) ──────────────────────────────
+// **Nenhum dos três tem `refetchInterval`**, e é a mesma decisão medida do
+// `usePipelineRuns`: aba de admin aberta com polling é tráfego constante contra
+// um plano que cobra tempo ligado (armadilha 3 do §17). Recarregar a página é o
+// gesto — e é o único que existe, de propósito.
+
+/**
+ * Os quatro sinais de ouro. A mesma chave serve o arco da `/admin` e o painel
+ * de sinais da `/admin/metrics`: quem abrir as duas abas na mesma sessão faz
+ * uma requisição, não duas.
+ */
+export function useHttpMetrics() {
+  return useQuery({
+    queryKey: observabilityKeys.http(),
+    queryFn: () => getHttpMetrics(),
+  });
+}
+
+/** As falhas registradas na janela, agrupadas por fingerprint. */
+export function useErrorSummary(window: ErrorSummaryWindow) {
+  return useQuery({
+    queryKey: observabilityKeys.errors(window),
+    queryFn: () => getErrorSummary(window),
+    // Trocar a janela mantém a tabela anterior no lugar enquanto a nova chega —
+    // sem isto ela pisca para o esqueleto e volta, e os filtros perdem o foco.
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Quantas linhas da trilha a tela pede. Abaixo do teto da API (200). */
+export const AUDIT_TRAIL_LIMIT = 100;
+
+/** A trilha de ação de admin na janela, mais recente primeiro. */
+export function useAuditTrail(days: number) {
+  return useQuery({
+    queryKey: observabilityKeys.audit(days),
+    queryFn: () => getAuditTrail({ days, limit: AUDIT_TRAIL_LIMIT }),
+    placeholderData: keepPreviousData,
   });
 }
 
