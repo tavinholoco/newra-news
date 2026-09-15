@@ -332,6 +332,24 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Verificação pós-merge da Fase 8 (2026-09-15): a linha `feed-empty` tinha
+  um terceiro consumidor, e o preview lia uma API que não sabe o desfecho.**
+  Item **70**. Três enumerações sobre a árvore mergeada. **O `ErrorEvent`
+  gravava todo `WARN` como `PIPELINE_STAGE_DEGRADED`**, inclusive o da etapa
+  1 só com feeds vazios — a tabela de falhas dizia "degradado" no domingo de
+  um feed de saúde enquanto o desfecho do mesmo run dizia `SUCCESS`; hoje os
+  três consumidores chamam `isDegradingWarn`. **O `/dev/dashboard` ainda
+  imprimia `SUCCESS`** (segunda porta, mesmo contrato). **O preview da `dev`
+  quebrava a `/admin`**: o web da `dev` lê a API de **produção**, que não tem
+  `outcome`/`degradedBy`, e `run.degradedBy.length` morria — `withOutcome`
+  em `lib/api.ts` preenche na fronteira, e a lição virou a armadilha 37 do
+  plano (vale para toda fase que acrescentar campo que o web lê). Duas
+  guardas novas — `janela ≤ retenção` no `retention-drift`, e a fiação do
+  `degradedBy` pelo parser — e o **gatilho da fase medido**: "Degradado pela
+  etapa 6 há 3 execuções seguidas" (`degradedStreak`). **1.129 → 1.141 na
+  API, 781 → 792 no web.** O terreno da **Fase 11** está no fim da §15 — a
+  fase com mais desvio do inventário até aqui.
+
 - **Fora da linha das fases (2026-09-15): a Fase 8 fechou — `SUCCESS` deixou
   de mentir, e o dia que não rodou virou estado.** §12, item **69**. O
   `PipelineLog.status` é binário e o pipeline não é: quatro etapas engolem a
@@ -864,7 +882,9 @@ a suíte de unidade, que roda sem rede.
   > classificou certo, `withRetry` tentou três vezes com backoff, e o fallback
   > para o Groq entregou o briefing sem perda. **Gatilho para agir:** três dias
   > seguidos de fallback (hoje são dois, medidos por
-  > `aiProviderUsage.groq` em `/api/metrics/weekly`).
+  > `aiProviderUsage.groq` em `/api/metrics/weekly`). **Desde a Fase 8 a
+  > `/admin` mede isso sozinha:** "Degradado pela etapa 6 há 3 execuções
+  > seguidas" aparece na faixa de desfechos quando o gatilho dispara.
 
 - **Fora da linha das fases (2026-09-01): os seis diagramas passaram a
   descrever o sistema que existe.** Item **adiantado da Fase 13.5**. Os quatro
@@ -943,7 +963,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.910 em 157 suites (**1.129 API em 79** + **781 web em 78** — todos
+- **Testes:** 1.933 em 158 suites (**1.141 API em 80** + **792 web em 78** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

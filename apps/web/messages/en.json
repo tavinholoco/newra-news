@@ -121,7 +121,8 @@
       "dayOutcome": "{date}: {outcome}",
       "lastBriefing": "Last briefing {age} ago",
       "lastBriefingOverdue": "Last briefing {age} ago, overdue",
-      "lastBriefingNone": "No briefing in the last {days} days."
+      "lastBriefingNone": "No briefing in the last {days} days.",
+      "degradedStreak": "Degraded by stage {stage} for {count} runs in a row"
     },
     "overview": {
       "title": "API health right now",

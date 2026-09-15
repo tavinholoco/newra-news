@@ -40,13 +40,26 @@ function statusBadge(status: string): string {
   return `<span class="badge" style="background:${color}">${escapeHtml(status)}</span>`;
 }
 
+/**
+ * O desfecho, não o `status` (pós-merge da Fase 8). Esta página é a segunda
+ * porta do mesmo contrato: ganhou `outcome` e `degradedBy` no JSON e
+ * continuava imprimindo "SUCCESS" sobre um run que saiu pelo Groq com a
+ * newsletter falhada. `SUCCESS_DEGRADED` cai na cor de aviso do `statusBadge`
+ * por não ser nem `SUCCESS` nem `FAILED`, e as etapas vão ao lado.
+ */
+function outcomeCell(run: DevLogSummary): string {
+  const badge = statusBadge(run.outcome ?? run.status);
+  if (run.degradedBy.length === 0) return badge;
+  return `${badge} <span class="muted mono">${escapeHtml(run.degradedBy.join(', '))}</span>`;
+}
+
 function runRow(run: DevLogSummary): string {
   const errorCell = run.error
     ? `<details><summary>ver erro</summary><pre>${escapeHtml(run.error)}</pre></details>`
     : '<span class="muted">—</span>';
   return `<tr>
     <td class="mono">${escapeHtml(formatUtc(run.startedAt))}</td>
-    <td>${statusBadge(run.status)}</td>
+    <td>${outcomeCell(run)}</td>
     <td class="num">${run.newsCount}</td>
     <td class="num">${run.durationSeconds !== null ? `${run.durationSeconds}s` : '—'}</td>
     <td class="num">${run.eventCount}</td>
@@ -123,7 +136,7 @@ export function renderDashboardHtml(
   <h2>Últimos runs (${logs.runs.length})</h2>
   <div class="table-wrap"><table>
     <thead><tr>
-      <th>Início (UTC)</th><th>Status</th><th class="num">Notícias</th>
+      <th>Início (UTC)</th><th>Desfecho</th><th class="num">Notícias</th>
       <th class="num">Duração</th><th class="num">Eventos</th>
       <th class="num">Falha etapa</th><th>Erro</th>
     </tr></thead>
@@ -133,7 +146,7 @@ export function renderDashboardHtml(
   <h2>Erros recentes (${logs.recentErrors.length})</h2>
   <div class="table-wrap"><table>
     <thead><tr>
-      <th>Início (UTC)</th><th>Status</th><th class="num">Notícias</th>
+      <th>Início (UTC)</th><th>Desfecho</th><th class="num">Notícias</th>
       <th class="num">Duração</th><th class="num">Eventos</th>
       <th class="num">Falha etapa</th><th>Erro</th>
     </tr></thead>

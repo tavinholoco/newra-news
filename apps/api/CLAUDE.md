@@ -70,7 +70,8 @@
   primeiro (`days` ≤ 365, `limit` ≤ 200). Só o `actorId`, nunca e-mail. Fase 5
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
-- GET /dev/dashboard — página HTML dev-only: runs, erros e status dos providers.
+- GET /dev/dashboard — página HTML dev-only: runs (com o **desfecho** da Fase 8,
+  não o `status`), erros e status dos providers.
   **`?secret=` saiu na Fase 9** — segredo em query string entra em log de acesso,
   histórico e `Referer`. Entra por `Authorization: Bearer` (curl) ou por
   `POST /dev/dashboard/session` (o formulário da página), que devolve um cookie
@@ -195,13 +196,20 @@ pediria migration e divergiria dos eventos no primeiro `catch` esquecido
 (§17.19). Regras que não são óbvias:
 
 - **Todo `WARN` conta, menos o `feed-empty` da etapa 1.** A linha mora em
-  `isDegradingFetchWarning`, e o `pipelineErrors` da etapa 1 a chama também —
-  um lugar só. Com "zero `WARN`", o fim de semana de um feed de saúde seria dia
-  degradado e o estado deixaria de informar.
+  `run-outcome.ts` (`isDegradingFetchWarning` sobre um aviso, `isDegradingWarn`
+  sobre um evento) e tem **três consumidores**: o `pipelineErrors` da etapa 1,
+  o desfecho, e o `ErrorEvent` que `logPipelineEvent` grava — este era o
+  único fora dela até o pós-merge da Fase 8, e chamava de
+  `PIPELINE_STAGE_DEGRADED` o domingo de um feed de saúde. Com "zero `WARN`",
+  o fim de semana de um feed de saúde seria dia degradado e o estado deixaria
+  de informar.
 - **`degradedBy` tem duas contas que têm de bater:** o pipeline o monta
   enquanto corre (é o que o evento final da etapa 9 grava) e a API o deriva dos
-  eventos na leitura. Há teste cobrando a concordância — um `WARN` novo que não
-  entre na lista do pipeline aparece na listagem e não no resumo.
+  eventos na leitura. Há teste cobrando a concordância por cenário, e
+  `tests/services/run-outcome-wiring.test.ts` cobra a **fiação** pelo parser:
+  todo `logPipelineEvent(…, 'WARN', …)` dentro do run tem o `degradedBy.push`
+  da mesma etapa no mesmo bloco — a etapa nova da Fase 9 que escrever o aviso
+  e esquecer o `push` reprova aqui.
 - **O evento final da etapa 9 resume o run** (`collected`, `sources`, `deduped`,
   `persisted`, `selected`, `provider`, `model`, `promptVersion`, `briefingId`,
   `briefingChars`, `sourcesCited`, `newsletter`, `renormalized`, `degradedBy`,
@@ -623,6 +631,10 @@ Regras que não são óbvias no código:
   cada fase seguinte do plano acrescenta pelo menos um.
 - **`origin: WEB` e `origin: INVARIANT` ainda não têm produtor** — são das
   Fases 7b/7c e 6. O enum descreve o desenho; a coluna aceita o que existe hoje.
+- **O `WARN` que não degrada não vira `ErrorEvent`** (pós-merge da Fase 8):
+  `recordPipelineEvent` pergunta a `isDegradingWarn` antes de gravar, então o
+  aviso da etapa 1 só com `feed-empty` fica no `PipelineEvent` e fora da
+  tabela de falhas. É a mesma linha do desfecho e do `pipelineErrors`.
 - **`pipelineLogId` vem do `AsyncLocalStorage`** que o `runPipeline` abre, e é o
   **último visto** dentro da janela. Por isso não é chave estrangeira: uma FK
   afirmaria um vínculo que o coalescimento torna falso, e impediria o expurgo do

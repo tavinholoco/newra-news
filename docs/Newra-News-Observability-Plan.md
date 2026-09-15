@@ -1790,6 +1790,61 @@ batimento com e sem atraso, e a lista em 20 sobre uma janela de 25).
 `SUCCESS_DEGRADED` pelo mesmo `degradedBy` — na faixa, três contornos laranja
 seguidos; no detalhe, a mesma etapa três vezes.
 
+### O que a verificação pós-merge achou — 15/09/2026
+
+Sobre a `dev` em `441b8a6` (#203 mergeado; `dev..main` = 0; nenhum artefato
+ignorado rastreado). Item **70** do `docs/progress.md`. A pergunta dos itens
+39, 52, 57, 61, 63, 65 e 68 — *o que ficou de fora?* — feita por três
+enumerações, e não relendo o diff: **quem consome o `status` de um run**,
+**quem traça a linha `feed-empty`**, e **o que a janela da faixa assume**.
+
+- **O `ErrorEvent` traçava a linha diferente do desfecho.** Três consumidores
+  da linha `feed-empty`: o `pipelineErrors` da etapa 1, o desfecho, e o
+  `recordPipelineEvent` que grava todo `WARN` como `PIPELINE_STAGE_DEGRADED` —
+  e este era o único fora dela. A tabela de falhas da `/admin/security` dizia
+  `stage-1 · upstream` no domingo de um feed de saúde enquanto o desfecho do
+  mesmo run dizia `SUCCESS`. Hoje `isDegradingWarn` é exportada de
+  `run-outcome.ts` e os três a chamam; o `PipelineEvent` continua sendo
+  escrito (é o rastro que a Fase 11 lê). Visto reprovando.
+- **O `/dev/dashboard` ainda imprimia `SUCCESS`.** É a segunda porta do mesmo
+  contrato: ganhou `outcome` no JSON e a página HTML lia `status`. Hoje a
+  coluna é "Desfecho", `SUCCESS_DEGRADED` cai na cor de aviso e as etapas vão
+  ao lado.
+- **O preview da `dev` e a janela da promoção quebravam a `/admin`.** O web
+  da `dev` na Vercel fala com a API de **produção**, que só ganha a Fase 8 na
+  promoção; e na promoção o web pode subir antes da API. Nos dois casos todo
+  run chega sem `outcome`/`degradedBy` e a faixa morria num
+  `undefined.length` na primeira renderização — o contrato é da versão que
+  ainda não está no ar. `withOutcome` em `lib/api.ts` preenche na fronteira
+  (o `status` como desfecho, não `null`, que a faixa leria como `RUNNING`),
+  uma vez só. Armadilha 37: **vale para toda fase que acrescentar campo que o
+  web lê**.
+- **Nada ligava a janela da faixa à retenção.** `OUTCOME_WINDOW_DAYS` (web)
+  e `PIPELINE_LOG_RETENTION_DAYS` (API) são dois 30 em apps diferentes;
+  abaixar a retenção mostraria como "não rodou" o dia cujo run foi apagado.
+  `retention-drift.test.ts` lê o fonte do web e cobra `janela ≤ retenção` —
+  visto reprovando com 31.
+- **O gatilho da fase era visível e não era medido.** Contar contornos
+  laranja na faixa não é medir. `degradedStreak` (`lib/outcome-days.ts`)
+  conta **runs** seguidos degradados pela mesma etapa — um dia sem run não
+  quebra a sequência, porque não diz que o provedor voltou; o run de hoje
+  ainda `RUNNING` não conta — e a tela escreve "Degradado pela etapa 6 há 3
+  execuções seguidas" a partir de `DEGRADED_STREAK_TRIGGER`. Abaixo disso a
+  linha não existe.
+- **A fiação do `degradedBy` ganhou guarda pelo parser**
+  (`run-outcome-wiring.test.ts`): todo `logPipelineEvent(…, 'WARN', …)`
+  dentro do run tem `degradedBy.push` da mesma etapa no mesmo bloco — o caso
+  que ela pega é a etapa 5.5/6.5 da Fase 9 escrevendo o aviso e esquecendo o
+  `push`. Vista reprovando com o `push(8)` removido.
+
+**O que foi conferido e está em ordem:** as seis emissões de `WARN` do run
+têm o `push`; nenhum outro service chama `logPipelineEvent`; a lista de 401
+do smoke e o `ALL_ROUTES` não mudam (rota nenhuma); `docs/api.md` já descreve
+os dois campos nas duas portas; o seed gera um run `FAILED` com
+`degradedBy: [6]`, que é o que a regra diz.
+
+**1.129 → 1.141 na API** (79 → 80 suítes), **781 → 792 no web**.
+
 ---
 
 ## §13 Fase 9 — Os dois portões: antes da IA e depois dela
@@ -2177,6 +2232,117 @@ problema que este projeto já conhece.
 de 7 dias abaixo de **30%** do de 30 dias. O primeiro é a Superinteressante de
 03/09; o segundo é a fonte que definha, que hoje ninguém veria.
 
+### Inventário reconferido antes de abrir — 15/09/2026
+
+O inventário acima é de 23/08. Medido contra a `dev` em `441b8a6` (a Fase 8
+mergeada), no fim da sessão do pós-merge da 8, para a sessão que abrir a fase
+não redescobrir. **Esta é a fase com mais desvio entre o que o plano assume e
+o que o código tem** — quatro dos números do modelo não existem hoje.
+
+**O que continua verdade:** `FetchWarningKind` com as quatro classes
+(`news-fetcher.service.ts:28`); `fetchFromRssWithFailures` devolve `failures`
+por fonte com `source` e `detail` (`rss.provider.ts:33`); `rssSources` tem
+**12** entradas em `config/rss-sources.ts` (12 + `newsdata` = as 13 fontes);
+`RawNewsItem.source` é o `name` da fonte para o RSS (`rss.provider.ts:177`) e
+o **nome do veículo** para a NewsData (`newsdata.provider.ts:148`); o aviso
+da etapa 1 continua sendo o único registro por fonte, e morre com o run.
+
+**O que o modelo assume e não existe:**
+
+- **`latencyMs` não é medido em lugar nenhum.** `fetchSource` não cronometra
+  e o `allSettled` descarta o tempo. Entra na fase, no provider — e pede
+  mudar o retorno de `fetchFromRssWithFailures`.
+- **`fetched` por feed não sai do provider.** Ele conta `result.value.length`
+  por feed só para o `warn` do log e devolve `items` achatado. Sai agrupando
+  `rssItems` por `source` (o nome bate com `rss-sources.ts`); o balde
+  `newsdata` é `newsDataItems.length`. **Decisão para a fase:** o provider
+  devolver `outcomes: { source, fetched, latencyMs, failure? }[]` — uma
+  entrada por fonte configurada — faz `fetchAll` derivar os `warnings` daí em
+  vez de reconstruí-los, e é o que dá `NOT_ATTEMPTED` de graça (fonte
+  configurada sem entrada).
+- **`kept` como "sobreviveu à deduplicação" mede quase nada.** O dedup da
+  etapa 3 é **por `sourceUrl`**; dois veículos com a mesma pauta têm URLs
+  diferentes e os dois sobrevivem — a fonte "que republica o que o G1 já deu"
+  não cai aí. O que existe e responde "acrescentou ao acervo" é o
+  `skipDuplicates` da etapa 4, que é **agregado** (`persisted.count`). Por
+  fonte pede um `findMany` das URLs já gravadas **antes** do `createMany` — o
+  padrão que `persistBriefingSources` já usa. **Decisão para a fase:** `kept`
+  = itens novos para o acervo (URL inexistente antes do run); é o número que
+  separa o feed que re-serve os mesmos 20 itens do feed que publica.
+- **A escrita não cabe na etapa 1, se `kept` for isso.** `fetched` e o
+  desfecho existem na 1; `kept` só existe depois da 4. **Uma escrita por
+  run** (§15 "Onde a etapa entra") continua certa — depois da 4, com os
+  números das duas. O run que morre na 3 não grava linha de fonte, e é
+  aceitável: o dia já sai `FAILED` no desfecho da Fase 8, e o `feed-failed`
+  daquele run continua no `PipelineEvent`.
+- **`createMany` + `skipDuplicates` faz o primeiro run do dia vencer; a Fase
+  8 decidiu que o último representa o dia.** Um disparo manual às 16:25
+  depois do cron das 11:00 gravaria as fontes das 11:00. `deleteMany({ day })`
+  + `createMany` numa transação (duas instruções, o padrão do
+  `persistBriefingSources`) faz o último vencer sem os treze `upsert`.
+  Decidir na fase, e escrever.
+- **A "faixa de 30 dias por fonte, mesmo componente da Fase 8" não é o mesmo
+  componente sem refatorar.** `OutcomeStrip` é tipada em `DayOutcome`
+  (`SUCCESS` · `SUCCESS_DEGRADED` · `FAILED` · `RUNNING` · `NEVER_RAN`), com
+  `OUTCOME_FILL` e `OUTCOME_MESSAGE_KEY` por valor. O desfecho de fonte é
+  outro conjunto (`OK` · `EMPTY` · `FAILED` · `NOT_ATTEMPTED`). O que se reusa
+  é a **casca** — trinta `<li>` de largura fluida, `sr-only` + `title`, rótulo
+  das pontas, legenda —; a fase extrai um `DayStrip` genérico que recebe
+  `{ date, fill, label }[]` e os dois chamadores mapeiam. E a lição da
+  armadilha 35 vale de saída: `EMPTY` e `NOT_ATTEMPTED` **não** podem ser dois
+  tons de cinza.
+- **A rosquinha de contribuição e a tabela ordenável já têm peça**:
+  `dashboard/donut-chart` e as colunas ordenáveis de `error-groups-table`
+  (5c). A tabela por fonte é a segunda tabela ordenável do admin — vale
+  extrair o cabeçalho ordenável antes de copiá-lo.
+- **A retenção de 90 dias entra na frase dos diagramas.** `retention-drift`
+  cobra `artigos e eventos >90d` nos dois `.mermaid` e as linhas do
+  `packages/database/CLAUDE.md`; a constante nova (`SOURCE_HEALTH_RETENTION_DAYS`
+  no service da fase) entra na etapa 8 e na guarda, e a frase vira "artigos,
+  eventos e fontes" — o teste que afirma `ARTICLE === PRODUCT_EVENT` ganha
+  um terceiro igual.
+
+**O que a fase paga em guarda (§18), medido:** é **model novo** (dois enums,
+cinco índices/unique) — `migrations.test.ts` derivado do schema, coluna a
+coluna; `schema-docs-drift` (as listas do `packages/database/CLAUDE.md`);
+`diagram-drift` (a entidade no ER, coluna a coluna); `response-schema-contract`
+(toda coluna do `SourceHealth` num schema de resposta ou exceção escrita);
+`retention-drift`. É **rota nova na API** (`GET /api/admin/sources?days=30`)
+— `authorization-matrix`, `api-docs-drift`, `shared-type-contract`. É **rota
+nova no BFF** — `bff-route-seam`, `admin-surface` (`requireRole: 'ADMIN'`) e
+`hand-written-lists` (a lista de 401 do smoke). **Não é página nova**: o painel
+entra na `/admin/metrics`, que o `admin:capture` já fotografa — mas é
+`dashboard-client.tsx` que compõe a aba, e ele já tem os quatro painéis do 5c.
+`i18n-messages` (chaves nos dois idiomas, por extenso) e `design-tokens` para
+o componente. **Dois PRs, migration primeiro** (§19: schema não se reverte
+com `git revert`) — o SQL sai de `prisma migrate diff --from-empty
+--to-schema-datamodel`, sem banco, e o replay real é contra o Postgres local
+(que está pronto: `migrate status` limpo até a do 5a).
+
+**Duas armadilhas que já morderam e se aplicam aqui:** o `seed.ts` é tipado
+(`tsconfig.typecheck.json`), então coluna nova sem seed compila e coluna
+removida com seed reprova — o seed **deve** semear 30 dias × 13 fontes, senão
+a faixa por fonte fotografa vazio (a lição da Fase 8, decidida igual); e o
+`tsx` do seed não valida FK — `source` é texto, não FK, de propósito (a fonte
+removida de `rss-sources.ts` continua na série como `NOT_ATTEMPTED`).
+
+**O que a Fase 8 deixou pronto para esta:** o `PipelineEvent` da etapa 1
+continua sendo escrito para todo aviso, inclusive `feed-empty` (o pós-merge da
+8 tirou só o `ErrorEvent` desse caso, de propósito — este rastro é o que a
+fase lê para reconstruir os dias anteriores à migration, se quiser); a
+derivação por dia UTC e o `fillCalendarDays` (`lib/series.ts`,
+`lib/outcome-days.ts`); o `degradedStreak` como modelo do gatilho "3 dias
+seguidos de `FAILED`" por fonte — a mesma função sobre outra série; e a
+lição do `withOutcome` (armadilha 37): **a resposta nova vai chegar ao web da
+`dev` vinda da API de produção, que não a tem** — a tela de fontes tem de
+desenhar "indisponível" sobre 404, não quebrar.
+
+**Branch:** `observability/fase-11-source-health`, cortada em 15/09 do topo do
+#203 (a `dev` daquele momento). O passo 1 do ritual a realinha depois de o
+#204 (pós-merge da 8) mergear — conferir com `git merge-base --is-ancestor`
+que #203 **e** #204 estão na `dev`, e `rev-list --count origin/dev..origin/main`
+= 0.
+
 ---
 
 ## §16 Dívidas com gatilho numérico
@@ -2347,6 +2513,16 @@ Não-objetivos declarados como número, nunca como item de lista.
     `tsc`, não do navegador — e a tentação é reescrever a função à mão com um
     mapa de conjunções por idioma, que é o segundo lugar que o `Intl` existe
     para evitar.
+37. **Campo novo no contrato da API chega ao web da `dev` vindo da API de
+    produção, que não o tem.** O preview da `dev` na Vercel fala com a API
+    de **produção** (a `main`), e com a promoção pausada até o fim do plano
+    isso dura semanas; na promoção, o web pode subir antes da API. Um
+    `run.degradedBy.length` na tela quebrou a `/admin` do preview no dia em
+    que a Fase 8 mergeou. O `assertContract` não vê — o contrato é da versão
+    que ainda não está no ar. Toda fase que acrescentar campo que o web
+    **lê** preenche na fronteira (`withOutcome` em `lib/api.ts`) ou desenha
+    "indisponível" sobre a ausência; rota nova já vem coberta pelo `catch`
+    do `proxyToApi` (404 → "não foi possível carregar").
 
 ---
 
@@ -2371,6 +2547,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); e `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke |
 | **Página nova sob `app/[locale]/admin`** | `hand-written-lists.test.ts` — o `ALL_ROUTES` do `capture-admin.mjs` tem de fotografá-la; mais as três guardas de "Página nova no web" acima |
 | **Campo novo no `devLogSummarySchema`** (a listagem de runs) | `assertContract` em `routes/dev/schemas.ts` (tipo em `packages/types`); e **toda fixture de rota que devolve o resumo responde 500** — `dev.test.ts` e `admin-pipeline.test.ts` — porque o serializer do type provider recusa o objeto incompleto (Fase 8). E `pii-in-logs.test.ts` fixa a **forma literal** do contexto da etapa 7.5: renomear a variável `newsletter` reprova, e é o certo |
+| **Campo novo que o web lê de uma resposta existente** | Nenhuma guarda reprova, e é por isso que está aqui: o preview da `dev` lê a API de produção, que não tem o campo (armadilha 37). Preencher na fronteira (`lib/api.ts`, como `withOutcome`) com teste da forma antiga — pós-merge da Fase 8 |
+| **`WARN` novo numa etapa do pipeline** | `run-outcome-wiring.test.ts` (pós-merge da Fase 8) — o `degradedBy.push` da mesma etapa tem de estar no mesmo bloco, pelo parser |
 
 ---
 
@@ -2575,10 +2753,14 @@ aplica as duas migrations juntas na promoção.**
   desfecho derivado (`SUCCESS_DEGRADED` com `degradedBy`), o resumo no evento
   final da etapa 9, a faixa de 30 dias com o `NEVER_RAN` vazado e o batimento
   "último briefing há N h". Sem migration, sem rota nova. Item **69** do
-  `docs/progress.md`; as decisões no fim da §12.
-- **§15 — Fase 11 (saúde por fonte). ← próxima.** Migration + etapa 1 +
-  painel. É a que responde à pergunta de trocar provedor, então adiante-a se
-  essa decisão estiver perto.
+  `docs/progress.md`; as decisões no fim da §12, e o pós-merge (item **70**)
+  logo abaixo delas.
+- **§15 — Fase 11 (saúde por fonte). ← próxima, decidida em 15/09/2026.**
+  Migration + etapa 1 + painel, em **dois PRs**. É a que responde à pergunta
+  de trocar provedor. **O inventário foi reconferido no fim da §15** — e é a
+  fase com mais desvio: `latencyMs` não é medido, `fetched` por feed não sai
+  do provider, `kept` por dedup mede quase nada (o dedup é por URL), a escrita
+  não cabe na etapa 1, e a faixa da Fase 8 é tipada no desfecho do run.
 - **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.

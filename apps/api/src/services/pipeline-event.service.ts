@@ -8,7 +8,12 @@ import {
 import type { ErrorCategory } from '../utils/errors';
 import { baseLogger } from '../utils/logger';
 import type { RunOutcome } from '@newranews/types';
-import { degradedStages, deriveRunOutcome, type OutcomeEvent } from './run-outcome';
+import {
+  degradedStages,
+  deriveRunOutcome,
+  isDegradingWarn,
+  type OutcomeEvent,
+} from './run-outcome';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -157,6 +162,15 @@ function categoryForStageFailure(context?: Record<string, unknown>): ErrorCatego
  * natureza: `ERROR` aborta o run e `WARN` é etapa não-crítica que falhou
  * sozinha (a newsletter, o cleanup, a renormalização). São os dois estados que
  * pedem ações diferentes de quem lê a tela.
+ *
+ * **O `WARN` que não degrada não vira falha** (pós-merge da Fase 8). O da
+ * etapa 1 dispara para qualquer aviso de colheita, e `feed-empty` está entre
+ * eles — a classe "publicou devagar", que o item 46 tirou de `pipelineErrors`
+ * e a Fase 8 tirou do desfecho. Este era o terceiro consumidor da linha e o
+ * único a gravar todo `WARN`: a tabela de falhas da `/admin/security` dizia
+ * `PIPELINE_STAGE_DEGRADED · stage-1` no domingo de um feed de saúde, com o
+ * desfecho do mesmo run em `SUCCESS`. O `PipelineEvent` continua sendo escrito
+ * — é o rastro da sequência de dias vazios, que a Fase 11 lê.
  */
 function recordPipelineEvent(
   pipelineLogId: string,
@@ -166,6 +180,7 @@ function recordPipelineEvent(
   context?: Record<string, unknown>,
 ): void {
   if (level === 'INFO') return;
+  if (level === 'WARN' && !isDegradingWarn({ stage, level, context: context ?? null })) return;
 
   recordError({
     origin: 'PIPELINE',

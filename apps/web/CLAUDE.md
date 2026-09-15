@@ -312,6 +312,18 @@ Regras que não são óbvias no código:
     e só a captura no escuro viu (armadilha 35 do plano). Verde cheio é
     sucesso, vermelho cheio é falha, vazado neutro é "não rodou", cinza cheio
     é "rodando"
+  - **o gatilho da §12 é medido, não contado** (`degradedStreak`, pós-merge da
+    Fase 8): runs seguidos degradados pela mesma etapa — um dia sem run não
+    quebra a sequência (não diz que o provedor voltou), o run de hoje ainda
+    `RUNNING` não conta. A linha "Degradado pela etapa 6 há 3 execuções
+    seguidas" só existe a partir de `DEGRADED_STREAK_TRIGGER`
+  - **`withOutcome` em `lib/api.ts` preenche `outcome`/`degradedBy` quando a
+    API não os manda** — o preview da `dev` fala com a API de **produção**,
+    que só ganha a Fase 8 na promoção, e na promoção o web pode subir antes
+    da API; sem o fill, `run.degradedBy.length` derrubava a `/admin` do
+    preview (armadilha 37 do plano). O `status` vira o desfecho, e não `null`,
+    que a faixa leria como `RUNNING`. **Toda fase que acrescentar campo que a
+    tela lê passa por aqui, ou desenha "indisponível" sobre a ausência**
   - **sem `refetchInterval` nesta área.** Aba de admin com polling é tráfego
     constante contra um plano que cobra tempo ligado — o free do Render dá
     750 h/mês, e a API já foi suspensa uma vez por isso. O pipeline roda uma vez

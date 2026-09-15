@@ -435,6 +435,37 @@ describe('§8 — o evento de etapa também vira registro durável', () => {
     expect(event?.route).toBe('stage-0');
   });
 
+  it('não grava o `WARN` da etapa 1 quando os avisos são só feeds vazios (pós-merge da Fase 8)', async () => {
+    // A linha `feed-empty` tem três consumidores — o `pipelineErrors` da
+    // etapa 1, o desfecho da Fase 8 e este registro —, e este era o único que
+    // a traçava diferente: gravava todo `WARN` como `PIPELINE_STAGE_DEGRADED`,
+    // então o domingo de um feed de saúde virava linha na tabela de falhas
+    // da `/admin/security` enquanto o desfecho do mesmo run dizia `SUCCESS`.
+    // O `PipelineEvent` continua sendo escrito (é o rastro da sequência de
+    // dias vazios, que a Fase 11 lê); o que não entra é o `ErrorEvent`.
+    await logPipelineEvent('run-1', 1, 'WARN', 'Collection degraded', {
+      warnings: [
+        { kind: 'feed-empty', source: 'Veja Saúde' },
+        { kind: 'feed-empty', source: 'Drauzio Varella' },
+      ],
+    });
+
+    expect(pendingErrorEvents()).toEqual([]);
+    expect(prisma.pipelineEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('grava o `WARN` da etapa 1 quando um dos avisos é mais que feed vazio', async () => {
+    await logPipelineEvent('run-1', 1, 'WARN', 'Collection degraded', {
+      warnings: [
+        { kind: 'feed-empty', source: 'Veja Saúde' },
+        { kind: 'provider-failed', source: 'newsdata', detail: 'ETIMEDOUT' },
+      ],
+    });
+
+    expect(pendingErrorEvents()).toHaveLength(1);
+    expect(pendingErrorEvents()[0]?.code).toBe('PIPELINE_STAGE_DEGRADED');
+  });
+
   it('classifica a coleta degradada como `upstream` — o provider mora dentro de cada warning', async () => {
     // O `context` da etapa 1 é `{ warnings: FetchWarning[] }`, sem `provider` no
     // topo. A primeira inferência lia só o topo e chamava um feed em `ETIMEDOUT`

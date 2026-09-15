@@ -71,8 +71,15 @@ export function isDegradingFetchWarning(warning: { kind?: unknown }): boolean {
  * algum deles for mais que `feed-empty`. A forma (`warnings` é array) é o que
  * identifica o evento, e não o número da etapa, para a regra continuar certa
  * se a coleta um dia mudar de etapa.
+ *
+ * **Exportada porque tem três consumidores, e o terceiro traçava a linha
+ * diferente** (pós-merge da Fase 8): o desfecho aqui, o `pipelineErrors` da
+ * etapa 1 (via `isDegradingFetchWarning`) e o `ErrorEvent` que
+ * `logPipelineEvent` grava para todo `WARN` — que chamava de
+ * `PIPELINE_STAGE_DEGRADED` o domingo de um feed de saúde, enquanto o desfecho
+ * do mesmo run dizia `SUCCESS`.
  */
-function warnCounts(event: OutcomeEvent): boolean {
+export function isDegradingWarn(event: OutcomeEvent): boolean {
   const context = event.context;
   if (context === null || typeof context !== 'object') return true;
 
@@ -98,7 +105,7 @@ function warnCounts(event: OutcomeEvent): boolean {
 export function degradedStages(events: OutcomeEvent[]): number[] {
   const stages = new Set<number>();
   for (const event of events) {
-    if (event.level === 'WARN' && warnCounts(event)) stages.add(event.stage);
+    if (event.level === 'WARN' && isDegradingWarn(event)) stages.add(event.stage);
   }
   return [...stages].sort((a, b) => a - b);
 }

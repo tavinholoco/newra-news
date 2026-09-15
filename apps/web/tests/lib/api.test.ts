@@ -16,6 +16,8 @@ import {
   deleteNewsAdmin,
   getHome,
   getTrending,
+  getPipelineRuns,
+  getPipelineRunDetail,
 } from '@/lib/api';
 
 const mockNews = {
@@ -44,6 +46,75 @@ function mockFetchJson(payload: unknown) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+/**
+ * **A janela entre os dois deploys, e o preview da `dev`** (pós-merge da
+ * Fase 8). O preview do web na `dev` fala com a API de produção, que só ganha
+ * `outcome`/`degradedBy` na promoção; na promoção, o web pode subir antes da
+ * API. Nos dois casos todo run chega sem os dois campos, e a faixa de
+ * desfechos morreria num `undefined.length`. A fronteira preenche: o `status`
+ * é o que a API antiga sabia — e não `null`, que a faixa leria como `RUNNING`.
+ */
+describe('getPipelineRuns — a API que ainda não sabe o desfecho', () => {
+  const legacyRun = {
+    id: 'aaaaaaaa-0000-0000-0000-000000000001',
+    status: 'SUCCESS',
+    newsCount: 377,
+    articleId: null,
+    error: null,
+    errorStage: null,
+    errorDetail: null,
+    startedAt: '2026-09-06T11:00:00.000Z',
+    completedAt: '2026-09-06T11:00:45.000Z',
+    durationSeconds: 45,
+    eventCount: 19,
+  };
+
+  it('fills outcome from the status and degradedBy with an empty list', async () => {
+    mockFetchJson({
+      data: {
+        runs: [legacyRun, { ...legacyRun, id: 'b', status: 'FAILED' }, { ...legacyRun, id: 'c', status: 'RUNNING' }],
+        recentErrors: [{ ...legacyRun, id: 'b', status: 'FAILED' }],
+      },
+      meta: { total: 3 },
+    });
+
+    const res = await getPipelineRuns();
+
+    expect(res.data.runs.map((run) => [run.outcome, run.degradedBy])).toEqual([
+      ['SUCCESS', []],
+      ['FAILED', []],
+      [null, []],
+    ]);
+    expect(res.data.recentErrors[0]?.outcome).toBe('FAILED');
+    expect(res.meta.total).toBe(3);
+  });
+
+  it('leaves what the API said untouched when it does know the outcome', async () => {
+    mockFetchJson({
+      data: {
+        runs: [{ ...legacyRun, outcome: 'SUCCESS_DEGRADED', degradedBy: [6, 7.5] }],
+        recentErrors: [],
+      },
+      meta: { total: 1 },
+    });
+
+    const res = await getPipelineRuns();
+
+    expect(res.data.runs[0]?.outcome).toBe('SUCCESS_DEGRADED');
+    expect(res.data.runs[0]?.degradedBy).toEqual([6, 7.5]);
+  });
+
+  it('applies the same fill to the detail', async () => {
+    mockFetchJson({ data: { log: legacyRun, events: [] } });
+
+    const detail = await getPipelineRunDetail(legacyRun.id);
+
+    expect(detail.log.outcome).toBe('SUCCESS');
+    expect(detail.log.degradedBy).toEqual([]);
+    expect(detail.events).toEqual([]);
+  });
 });
 
 describe('getNews', () => {
