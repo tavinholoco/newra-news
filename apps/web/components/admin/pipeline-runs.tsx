@@ -5,21 +5,30 @@ import { useLocale, useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
 import type {
   PipelineRunEvent,
-  PipelineRunStatus,
   PipelineRunSummary,
+  RunOutcome,
 } from '@newranews/types';
 import { usePipelineRunDetail, usePipelineRuns } from '@/lib/queries';
 import {
   formatCount,
   formatDateTime,
   formatEventTime,
+  formatList,
   formatProviderName,
   formatRunDuration,
+  formatUptime,
 } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
+import {
+  BRIEFING_OVERDUE_MS,
+  lastBriefingRun,
+  outcomeByDay,
+  OUTCOME_WINDOW_DAYS,
+} from '@/lib/outcome-days';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { OutcomeStrip, OUTCOME_MESSAGE_KEY } from './outcome-strip';
 
 /**
  * O pipeline diário, visível para quem consegue entrar. (§6.2 do plano de
@@ -41,24 +50,40 @@ import { cn } from '@/lib/utils';
  * **O detalhe de um run é linha expansível pelo mesmo motivo.** Uma `/[id]`
  * pediria `loading.tsx`, `error.tsx` e `not-found.tsx`, e a matriz de estados
  * cobraria os três.
+ *
+ * **Desde a Fase 8 a tela fala em desfecho, não em status.** `SUCCESS` é
+ * binário e o pipeline não é: um run pode sair pelo Groq com a newsletter
+ * falhada e reportar sucesso. O `outcome` da API separa o `SUCCESS_DEGRADED`,
+ * `degradedBy` diz qual etapa, e a faixa de 30 dias no topo mostra o que
+ * nenhum run consegue dizer — o dia em que nada rodou.
  */
 
-const STATUS_KEY = {
-  RUNNING: 'pipeline.statusRunning',
-  SUCCESS: 'pipeline.statusSuccess',
-  FAILED: 'pipeline.statusFailed',
-} as const;
+/**
+ * Quantos runs a lista mostra (§6.2). A consulta traz mais — a janela de 30
+ * dias inteira, para a faixa de desfechos —, e a lista corta aqui.
+ */
+const PIPELINE_RUNS_SHOWN = 20;
+
+/** O estado de um run como a tela o nomeia: o desfecho, ou `RUNNING` enquanto não há. */
+type RunState = RunOutcome | 'RUNNING';
+
+function runStateOf(run: PipelineRunSummary): RunState {
+  return run.outcome ?? 'RUNNING';
+}
 
 /**
  * A cor do estado, e ela é semântica dos dois lados.
  *
  * `RUNNING` fica no texto secundário de propósito: verde afirmaria que deu
  * certo, e o run ainda não terminou — a mesma distinção que o `TriggerOutcome`
- * faz logo acima nesta tela.
+ * faz logo acima nesta tela. `SUCCESS_DEGRADED` é `text-link`, o laranja que
+ * vai em texto — a mesma regra do `WARN` na lista de eventos, porque é o mesmo
+ * estado visto de longe.
  */
-const STATUS_TONE: Record<PipelineRunStatus, string> = {
+const STATE_TONE: Record<RunState, string> = {
   RUNNING: 'border-line-strong text-ink-secondary',
   SUCCESS: 'border-success/40 text-success',
+  SUCCESS_DEGRADED: 'border-link/40 text-link',
   FAILED: 'border-danger/40 text-danger',
 };
 
@@ -69,18 +94,80 @@ const LEVEL_TONE: Record<PipelineRunEvent['level'], string> = {
   ERROR: 'text-danger',
 };
 
-function StatusPill({ status }: { status: PipelineRunStatus }) {
+function OutcomePill({ state }: { state: RunState }) {
   const t = useTranslations('admin');
 
   return (
     <span
       className={cn(
         'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider',
-        STATUS_TONE[status],
+        STATE_TONE[state],
       )}
     >
-      {t(STATUS_KEY[status])}
+      {t(OUTCOME_MESSAGE_KEY[state])}
     </span>
+  );
+}
+
+/**
+ * As etapas que engoliram a própria falha, em prosa: "Degradado pelas etapas
+ * 6 e 7.5". É o que faz o `SUCCESS_DEGRADED` ser acionável — o diário do run,
+ * uma linha abaixo, diz o que cada uma engoliu.
+ */
+function DegradedBy({ stages }: { stages: number[] }) {
+  const t = useTranslations('admin');
+  const locale = toDateFormatLocale(useLocale());
+
+  if (stages.length === 0) return null;
+
+  return (
+    <p className='text-body-sm text-link'>
+      {t('pipeline.degradedBy', {
+        count: stages.length,
+        stages: formatList(stages.map(String), locale),
+      })}
+    </p>
+  );
+}
+
+/**
+ * O batimento positivo (§12.3): "último briefing há 4 h".
+ *
+ * Mede do último run que **produziu briefing**, e não do último run — se o de
+ * hoje falhou, o briefing no ar é o de ontem, e é dessa idade que se fala.
+ * Acima de `BRIEFING_OVERDUE_MS` a linha muda de tom e ganha a palavra: é o
+ * 01/09/2026 virando observável antes de alguém abrir a Home.
+ *
+ * O relógio é lido no render de propósito: isto é client component sobre dado
+ * de consulta, sem HTML de servidor com que divergir — a regra do
+ * `PlanPaceLine`.
+ */
+function LastBriefing({ runs }: { runs: PipelineRunSummary[] }) {
+  const t = useTranslations('admin');
+  const locale = toDateFormatLocale(useLocale());
+  const last = lastBriefingRun(runs);
+
+  if (!last || last.completedAt === null) {
+    return (
+      <p className='text-body-sm text-danger'>
+        {t('pipeline.lastBriefingNone', { days: OUTCOME_WINDOW_DAYS })}
+      </p>
+    );
+  }
+
+  const ageMs = Date.now() - new Date(last.completedAt).getTime();
+  const overdue = ageMs >= BRIEFING_OVERDUE_MS;
+  const age = formatUptime(ageMs / 1000, locale);
+
+  return (
+    <p className='text-body-sm'>
+      <span className={overdue ? 'font-semibold text-danger' : 'text-ink'}>
+        {overdue
+          ? t('pipeline.lastBriefingOverdue', { age })
+          : t('pipeline.lastBriefing', { age })}
+      </span>{' '}
+      <span className='text-ink-muted'>· {formatDateTime(last.completedAt, locale)}</span>
+    </p>
   );
 }
 
@@ -206,7 +293,9 @@ function LastRun({ run }: { run: PipelineRunSummary }) {
       <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
         <MetricCard
           label={t('pipeline.status')}
-          value={t(STATUS_KEY[run.status])}
+          // O desfecho, não o `status`: "Sucesso" sobre um run que saiu pelo
+          // Groq com a newsletter falhada é o que a Fase 8 existe para corrigir.
+          value={t(OUTCOME_MESSAGE_KEY[runStateOf(run)])}
           hint={formatDateTime(run.startedAt, dateLocale)}
         />
         <MetricCard
@@ -244,6 +333,12 @@ function LastRun({ run }: { run: PipelineRunSummary }) {
               {t('pipeline.errorOrigin', { origin })}
             </p>
           )}
+        </div>
+      )}
+
+      {run.degradedBy.length > 0 && (
+        <div className='mt-4 rounded-md border border-link/40 px-4 py-3'>
+          <DegradedBy stages={run.degradedBy} />
         </div>
       )}
     </div>
@@ -287,6 +382,10 @@ export function PipelineRuns() {
 
   const { runs, recentErrors } = data.data;
   const lastRun = runs[0];
+  // A consulta traz a janela inteira (até 100 runs); a lista mostra as últimas
+  // 20, e a faixa lê todas — é ela que precisa saber qual dia não rodou.
+  const listed = runs.slice(0, PIPELINE_RUNS_SHOWN);
+  const days = outcomeByDay(runs, new Date());
 
   /**
    * **A falha que os cartões já mostram não conta de novo aqui.**
@@ -317,6 +416,22 @@ export function PipelineRuns() {
         <p className='text-sm text-muted-foreground'>{t('pipeline.empty')}</p>
       ) : (
         <>
+          {/**
+           * **A faixa vem antes dos cartões** (§12.4): três semanas de saúde
+           * do produto num relance, e só depois o detalhe do último run. O
+           * batimento positivo abre a seção porque é a pergunta mais barata —
+           * "tem briefing de hoje?" — respondida antes de qualquer gráfico.
+           */}
+          <div className='mb-8'>
+            <h3 className='font-display mb-2 text-base font-semibold text-foreground'>
+              {t('pipeline.stripTitle', { days: OUTCOME_WINDOW_DAYS })}
+            </h3>
+            <div className='mb-3'>
+              <LastBriefing runs={runs} />
+            </div>
+            <OutcomeStrip days={days} />
+          </div>
+
           <LastRun run={lastRun} />
 
           {/**
@@ -344,13 +459,13 @@ export function PipelineRuns() {
           </h3>
 
           <ul className='divide-y divide-border overflow-hidden rounded-lg border border-border bg-card'>
-            {runs.map((run) => {
+            {listed.map((run) => {
               const isOpen = openRunId === run.id;
 
               return (
                 <li key={run.id}>
                   <div className='flex flex-wrap items-center gap-3 px-4 py-3'>
-                    <StatusPill status={run.status} />
+                    <OutcomePill state={runStateOf(run)} />
                     <span className='text-sm text-foreground'>
                       {formatDateTime(run.startedAt, dateLocale)}
                     </span>

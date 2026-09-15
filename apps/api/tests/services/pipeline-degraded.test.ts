@@ -112,6 +112,7 @@ beforeEach(() => {
     dryRun: false,
     scanned: 0,
     textChanged: 0,
+    imageRecovered: 0,
     categoryChanged: 0,
     categorySkipped: 0,
     transitions: [],

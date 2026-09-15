@@ -7,6 +7,8 @@ import {
 } from './error-event.service';
 import type { ErrorCategory } from '../utils/errors';
 import { baseLogger } from '../utils/logger';
+import type { RunOutcome } from '@newranews/types';
+import { degradedStages, deriveRunOutcome, type OutcomeEvent } from './run-outcome';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +41,10 @@ export interface DevLogSummary {
   completedAt: string | null;
   durationSeconds: number | null;
   eventCount: number;
+  /** Fase 8: o desfecho derivado dos `WARN` do run. `null` enquanto `RUNNING`. */
+  outcome: RunOutcome | null;
+  /** Fase 8: as etapas cujo `WARN` contou, em ordem. Ver `run-outcome.ts`. */
+  degradedBy: number[];
 }
 
 export interface DevLogsResult {
@@ -183,6 +189,14 @@ function toJsonRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+/**
+ * O resumo de um run, com o desfecho. (Fase 8)
+ *
+ * `events` são os eventos que a derivação precisa — os `WARN` do run bastam,
+ * mas a lista inteira também serve, porque `degradedStages` filtra por nível.
+ * A listagem passa os `WARN` que leu numa consulta só; o detalhe passa os
+ * eventos que já traz.
+ */
 function toSummary(
   log: {
     id: string;
@@ -196,6 +210,7 @@ function toSummary(
     completedAt: Date | null;
     _count: { events: number };
   },
+  events: OutcomeEvent[],
 ): DevLogSummary {
   return {
     id: log.id,
@@ -213,7 +228,35 @@ function toSummary(
         )
       : null,
     eventCount: log._count.events,
+    outcome: deriveRunOutcome(log, events),
+    degradedBy: degradedStages(events),
   };
+}
+
+/**
+ * Os `WARN` dos runs de uma página, agrupados por run — **uma consulta, não uma
+ * por run.**
+ *
+ * A listagem trazia `_count.events` e nada mais, e o desfecho é função sobre o
+ * run **e** seus avisos. Só o `WARN` interessa: o `INFO` é o caminho feliz (a
+ * maioria das ~15 linhas de um run) e o `ERROR` já está no `status`. Com o
+ * pipeline rodando uma vez por dia, são poucas linhas por página — o índice
+ * `(pipelineLogId, createdAt)` do `PipelineEvent` é o que a serve.
+ */
+async function warnEventsByRun(ids: string[]): Promise<Map<string, OutcomeEvent[]>> {
+  const byRun = new Map<string, OutcomeEvent[]>();
+  if (ids.length === 0) return byRun;
+
+  const events = await prisma.pipelineEvent.findMany({
+    where: { pipelineLogId: { in: ids }, level: 'WARN' },
+    select: { pipelineLogId: true, stage: true, level: true, context: true },
+  });
+  for (const event of events) {
+    const list = byRun.get(event.pipelineLogId) ?? [];
+    list.push({ stage: event.stage, level: event.level, context: event.context });
+    byRun.set(event.pipelineLogId, list);
+  }
+  return byRun;
 }
 
 // ── Escrita (pipeline) ──────────────────────────────────────────────────────
@@ -299,9 +342,17 @@ export async function getDevLogs(
     prisma.pipelineLog.count({ where }),
   ]);
 
+  // Os avisos de todos os runs das duas listas, de uma vez: o run que está em
+  // `recentErrors` também precisa do seu `degradedBy`.
+  const warnings = await warnEventsByRun([
+    ...new Set([...runs, ...recentErrors].map((run) => run.id)),
+  ]);
+  const summarize = (run: (typeof runs)[number]): DevLogSummary =>
+    toSummary(run, warnings.get(run.id) ?? []);
+
   return {
-    runs: runs.map(toSummary),
-    recentErrors: recentErrors.map(toSummary),
+    runs: runs.map(summarize),
+    recentErrors: recentErrors.map(summarize),
     total,
   };
 }
@@ -321,7 +372,9 @@ export async function getDevLogDetail(
 
   const { events, ...rest } = log;
   return {
-    log: toSummary({ ...rest, _count: { events: events.length } }),
+    // O detalhe já carrega todos os eventos: o desfecho sai deles, sem segunda
+    // consulta.
+    log: toSummary({ ...rest, _count: { events: events.length } }, events),
     events: events.map((event) => ({
       id: event.id,
       stage: event.stage,

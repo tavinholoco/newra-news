@@ -185,6 +185,36 @@ Vem **depois** do cleanup de propósito: renormalizar linha que acabou de ser
 apagada é trabalho jogado fora. É idempotente, então em regime ela varre e não
 escreve nada.
 
+**O desfecho de um run não é o `status` — é derivado dos eventos** (Fase 8 do
+plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
+pipeline não é: 7.5, 8, 8.5 e 9 falham com `WARN` e o run segue `SUCCESS`, o
+fallback para o Groq é `WARN` da etapa 6, a colheita degradada é `WARN` da
+etapa 1. `deriveRunOutcome` devolve `SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`
+(`null` em `RUNNING`) e `degradedStages` lista as etapas — **sem coluna**: coluna
+pediria migration e divergiria dos eventos no primeiro `catch` esquecido
+(§17.19). Regras que não são óbvias:
+
+- **Todo `WARN` conta, menos o `feed-empty` da etapa 1.** A linha mora em
+  `isDegradingFetchWarning`, e o `pipelineErrors` da etapa 1 a chama também —
+  um lugar só. Com "zero `WARN`", o fim de semana de um feed de saúde seria dia
+  degradado e o estado deixaria de informar.
+- **`degradedBy` tem duas contas que têm de bater:** o pipeline o monta
+  enquanto corre (é o que o evento final da etapa 9 grava) e a API o deriva dos
+  eventos na leitura. Há teste cobrando a concordância — um `WARN` novo que não
+  entre na lista do pipeline aparece na listagem e não no resumo.
+- **O evento final da etapa 9 resume o run** (`collected`, `sources`, `deduped`,
+  `persisted`, `selected`, `provider`, `model`, `promptVersion`, `briefingId`,
+  `briefingChars`, `sourcesCited`, `newsletter`, `renormalized`, `degradedBy`,
+  `durationMs`). `newsletter` e `renormalized` valem `'failed'` quando a etapa
+  lançou: o service da newsletter não distingue "pulado" de "zero assinantes".
+- **A listagem lê os `WARN` dos runs da página numa consulta** (`warnEventsByRun`),
+  e o detalhe deriva dos eventos que já traz. O schema é um só nas duas portas.
+- **`NEVER_RAN` não existe aqui.** A API lista o que existe; quem deriva o dia
+  sem run é a faixa de 30 dias do web, pela ausência num dia UTC.
+- **`run-outcome.ts` não importa nada de runtime**, de propósito: importável
+  pelo pipeline sem arrastar os providers, e imune ao automock do
+  `news-fetcher.service` nas suítes do pipeline.
+
 ## Ingestão: higiene de texto e categoria
 
 Regras que não são óbvias no código, e que custaram uma Home errada em produção
@@ -615,7 +645,7 @@ Regras que não são óbvias no código:
   `ErrorEvent`; havia seis cópias, e a guarda reprova a sétima.
 - **Três falhas que não tinham registro, e agora têm:** o Gemini falhando com
   o Groq entregando (`WARN` da etapa 6 — o run continua `SUCCESS` e
-  `pipelineErrors` não muda; "sucesso degradado" é da Fase 8); o `catch` final
+  `pipelineErrors` não muda; é o que a Fase 8 lê como `SUCCESS_DEGRADED`); o `catch` final
   do pipeline quando o próprio `update` para `FAILED` falha (o evento vai para o
   buffer **antes** da ida ao banco); e o disparo interno do cron falhando antes
   de existir run (`stage-0`, a convenção para "o run inteiro").

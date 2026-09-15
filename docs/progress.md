@@ -7042,6 +7042,96 @@ fechar.
 **1.099 → 1.103 na API** (77 → 78 suítes), **754 → 762 no web** (76 → 77).
 Sem migration, sem env nova, sem mudança na API além de teste.
 
+### 69. Fase 8 — o log de sucesso: `SUCCESS` deixou de mentir, e o dia que não rodou virou estado ✅ 2026-09-15
+
+> §12 do plano de observabilidade, sobre a `dev` em `1c6857c` (#202
+> mergeado; `dev..main` = 0). A mais barata do bloco 3: função pura, sem
+> migration, sem rota nova — e a que a Fase 9 exige no ar antes de ligar o
+> bloqueio, porque sem ela um dia bloqueado é indistinguível de um dia que
+> não rodou.
+
+**O problema, medido antes de abrir:** `PipelineLog.status` é binário e o
+pipeline não é. Quatro etapas engolem a própria falha com `WARN` e o run
+segue `SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas),
+o fallback para o Groq é um `WARN` da etapa 6 desde o item 61, e a colheita
+degradada é um `WARN` da etapa 1 — um run podia ter **seis coisas erradas**
+e reportar sucesso. E havia um terceiro estado que não existia em lugar
+nenhum: **o dia em que nada rodou** (01/09, o cron estourando o prazo, o
+único sinal sendo o briefing ausente na Home).
+
+#### O que entrou
+
+- **`RunOutcome`** (`packages/types/src/pipeline.ts`): `SUCCESS` ·
+  `SUCCESS_DEGRADED` · `FAILED`, e `outcome: RunOutcome | null` +
+  `degradedBy: number[]` no `PipelineRunSummary`. **Derivado na leitura, não
+  coluna** (§17.19): `services/run-outcome.ts` é função pura sobre o run e
+  seus `WARN`, e a listagem lê os `WARN` dos runs da página numa consulta só
+  (`warnEventsByRun`); o detalhe deriva dos eventos que já traz. As duas
+  portas compartilham o schema, então o campo entrou nas duas.
+- **A regra lê `context.warnings`, como o inventário de 15/09 mandou:** só
+  `feed-empty` não conta — e a linha mora num lugar só,
+  `isDegradingFetchWarning`, chamada pelo `pipelineErrors` da etapa 1 e pelo
+  desfecho. Sem isso `SUCCESS_DEGRADED` seria o estado normal (fim de semana
+  de um feed de saúde) e deixaria de informar.
+- **O resumo no evento final da etapa 9**: `collected`, `sources`,
+  `deduped`, `persisted`, `selected`, `provider`, `model`, `promptVersion`,
+  `briefingId`, `briefingChars`, `sourcesCited`, `newsletter`,
+  `renormalized`, `degradedBy`, `durationMs`. O evento carregava só
+  `durationMs`. `newsletter` e `renormalized` valem `'failed'` quando a
+  etapa lançou — o service da newsletter não distingue "pulado" de "zero
+  assinantes", então "devolveu" e "lançou" é a única distinção honesta.
+- **A faixa de 30 dias** (`components/admin/outcome-strip.tsx`): um quadrado
+  por dia UTC, verde/contorno laranja/vermelho/vazado, com o `NEVER_RAN`
+  derivado **no web** (`lib/outcome-days.ts`) pela ausência de run — a API
+  lista o que existe e não sabe emitir ausência. O último run a começar
+  representa o dia. `usePipelineRuns` passou a pedir `since: 30, limit: 100`
+  (uma requisição para a tela inteira); a lista mostra as últimas 20.
+- **O batimento positivo**: "Último briefing há 3 h 12 min", medido do último
+  run que **produziu** briefing (não de `runs[0]`), e "atrasado" em tom de
+  perigo acima de 24 h.
+- **A tela fala em desfecho**: o cartão de status e a pílula da linha dizem
+  "Sucesso degradado", e uma caixa diz "Degradado pelas etapas 6 e 7.5"
+  (`Intl.ListFormat`, que pediu `ES2021.Intl` no `tsconfig` do web).
+- **O seed semeia 27 runs em 30 dias** com eventos: fallback a cada cinco
+  dias (o ritmo do `aiProvider` das métricas), uma newsletter falhada, um
+  `FAILED` na etapa 6 e **três dias sem run** — o buraco de 29–31/08. Rodado
+  contra o banco local, idempotente.
+
+#### Os achados
+
+- **A captura, de novo, na estreia:** no tema escuro o laranja do degradado
+  (`ember-500`) e o vermelho do falhou (`danger-400`) eram **a mesma cor a
+  olho** num quadrado de 20 px — a família do "Mundo e Saúde no mesmo
+  vermelho" do 5c. O degradado virou contorno com miolo fraco: a forma
+  carrega o estado. Armadilha 35.
+- **`pii-in-logs.test.ts` reprovou uma renomeação inocente** — ele fixa a
+  forma literal do contexto da 7.5 (`newsletter.total/sent/failed`), e eu
+  tinha hasteado a variável com o mesmo nome. O certo foi manter o nome e
+  chamar a cópia de `newsletterSummary`; a guarda está certa em ser
+  literal ali.
+- **`PIPELINE_RUNS_SHOWN` no `queries.ts` derrubou a suíte inteira do
+  componente**: o `vi.mock('@/lib/queries')` das suítes declara só os hooks,
+  e uma constante nova ali é o mock parcial mentindo por omissão (Fase 2, de
+  novo). A constante mora no componente.
+- **`Intl.ListFormat` não compilava** (`lib: ES2017`). Armadilha 36.
+- **CRLF:** o checkout tem `autocrlf=true`, e substituição de texto com `\n`
+  não casa nada em arquivo CRLF — e falha em silêncio se o script não conta
+  ocorrências. O helper de edição desta sessão normaliza e exige exatamente
+  uma.
+
+#### O que a §12 pedia e saiu diferente
+
+`NEVER_RAN` não está no `RunOutcome` (é valor de dia, no web); `newsletter:
+'failed'` em vez de `'skipped'`; o batimento fica junto da faixa, na seção do
+pipeline, e não no cartão de saúde da API. Os três motivos estão no fim da
+§12.
+
+**Gatilho numérico que nasce:** três dias seguidos de `SUCCESS_DEGRADED` pelo
+mesmo `degradedBy` — hoje visível na faixa e no detalhe.
+
+**1.103 → 1.129 na API** (78 → 79 suítes), **762 → 781 no web** (77 → 78).
+Sem migration, sem env nova, sem rota nova.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

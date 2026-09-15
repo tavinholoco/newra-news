@@ -19,6 +19,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
     prisma: {
       pipelineEvent: {
         create: vi.fn(),
+        findMany: vi.fn(),
       },
       pipelineLog: {
         findMany: vi.fn(),
@@ -54,6 +55,9 @@ const failedLog = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // A listagem passou a ler os `WARN` dos runs da página (Fase 8); sem
+  // evento nenhum, todo run fechado é `SUCCESS` limpo ou `FAILED`.
+  vi.mocked(prisma.pipelineEvent.findMany).mockResolvedValue([] as never);
 });
 
 describe('logPipelineEvent', () => {
@@ -162,12 +166,16 @@ describe('getDevLogs', () => {
         completedAt: '2026-08-16T08:01:30.000Z',
         durationSeconds: 90,
         eventCount: 5,
+        outcome: 'SUCCESS',
+        degradedBy: [],
       },
     ]);
     expect(result.recentErrors).toEqual([
       expect.objectContaining({
         id: failedLog.id,
         status: 'FAILED',
+        outcome: 'FAILED',
+        degradedBy: [],
         errorStage: 6,
         errorDetail: { message: 'Gemini API error 500: boom', provider: 'gemini', statusCode: 500 },
       }),
@@ -215,6 +223,79 @@ describe('getDevLogs', () => {
   });
 });
 
+/**
+ * **Fase 8 — a listagem diz o desfecho, e o desfecho pede os eventos.**
+ *
+ * `getDevLogs` trazia `_count.events` e nada mais; o desfecho é função sobre
+ * o run **e** seus `WARN`, então a listagem lê uma vez os `WARN` de todos os
+ * runs da página — uma consulta, não uma por run. A função continua pura; quem
+ * a alimenta é o service, e as duas portas (`/api/dev/logs` e
+ * `/api/admin/pipeline/runs`) compartilham o schema, então o campo entra nas
+ * duas.
+ */
+describe('getDevLogs — o desfecho (Fase 8)', () => {
+  const degradedId = 'dddddddd-0000-0000-0000-000000000004';
+  const degradedLog = { ...baseLog, id: degradedId };
+
+  it('reads the WARN events of the page in one query, over every run listed', async () => {
+    vi.mocked(prisma.pipelineLog.findMany)
+      .mockResolvedValueOnce([baseLog, degradedLog] as never)
+      .mockResolvedValueOnce([failedLog] as never);
+    vi.mocked(prisma.pipelineLog.count).mockResolvedValue(3);
+
+    await getDevLogs();
+
+    expect(prisma.pipelineEvent.findMany).toHaveBeenCalledTimes(1);
+    const [args] = vi.mocked(prisma.pipelineEvent.findMany).mock.calls[0] as [
+      { where: { pipelineLogId: { in: string[] }; level: string } },
+    ];
+    expect(args.where.level).toBe('WARN');
+    expect([...args.where.pipelineLogId.in].sort()).toEqual(
+      [baseLog.id, degradedId, failedLog.id].sort(),
+    );
+  });
+
+  it('marks SUCCESS_DEGRADED the run whose newsletter failed, and says which stage', async () => {
+    vi.mocked(prisma.pipelineLog.findMany)
+      .mockResolvedValueOnce([baseLog, degradedLog] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.pipelineLog.count).mockResolvedValue(2);
+    vi.mocked(prisma.pipelineEvent.findMany).mockResolvedValue([
+      { pipelineLogId: degradedId, stage: 7.5, level: 'WARN', context: { message: 'Resend down' } },
+      { pipelineLogId: degradedId, stage: 6, level: 'WARN', context: { fallbackProvider: 'groq' } },
+    ] as never);
+
+    const result = await getDevLogs();
+
+    expect(result.runs.map((run) => [run.id, run.outcome, run.degradedBy])).toEqual([
+      [baseLog.id, 'SUCCESS', []],
+      [degradedId, 'SUCCESS_DEGRADED', [6, 7.5]],
+    ]);
+  });
+
+  it('does not touch the events table when the page is empty', async () => {
+    vi.mocked(prisma.pipelineLog.findMany)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.pipelineLog.count).mockResolvedValue(0);
+
+    await getDevLogs();
+
+    expect(prisma.pipelineEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it('leaves outcome null for a run still RUNNING', async () => {
+    vi.mocked(prisma.pipelineLog.findMany)
+      .mockResolvedValueOnce([{ ...baseLog, status: 'RUNNING', completedAt: null }] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.pipelineLog.count).mockResolvedValue(1);
+
+    const result = await getDevLogs();
+
+    expect(result.runs[0]?.outcome).toBeNull();
+  });
+});
+
 describe('getDevLogDetail', () => {
   it('should return the log with its events in chronological order', async () => {
     vi.mocked(prisma.pipelineLog.findUnique).mockResolvedValue({
@@ -237,6 +318,10 @@ describe('getDevLogDetail', () => {
     expect(result).not.toBeNull();
     expect(result?.log.eventCount).toBe(1);
     expect(result?.log.status).toBe('FAILED');
+    // O detalhe já carrega todos os eventos: o desfecho sai deles, sem
+    // segunda consulta.
+    expect(result?.log.outcome).toBe('FAILED');
+    expect(prisma.pipelineEvent.findMany).not.toHaveBeenCalled();
     expect(result?.events).toEqual([
       {
         id: 'cccccccc-0000-0000-0000-000000000003',
@@ -259,6 +344,28 @@ describe('getDevLogDetail', () => {
     await expect(
       getDevLogDetail('ffffffff-ffff-ffff-ffff-ffffffffffff'),
     ).resolves.toBeNull();
+  });
+
+  it('derives SUCCESS_DEGRADED from the WARN it already carries (Fase 8)', async () => {
+    vi.mocked(prisma.pipelineLog.findUnique).mockResolvedValue({
+      ...baseLog,
+      _count: undefined,
+      events: [
+        {
+          id: 'eeeeeeee-0000-0000-0000-000000000005',
+          stage: 8.5,
+          level: 'WARN' as const,
+          message: 'Renormalization failed (non-critical)',
+          context: { message: 'db down' },
+          createdAt: new Date('2026-08-16T08:01:20Z'),
+        },
+      ],
+    } as never);
+
+    const result = await getDevLogDetail(baseLog.id);
+
+    expect(result?.log.outcome).toBe('SUCCESS_DEGRADED');
+    expect(result?.log.degradedBy).toEqual([8.5]);
   });
 });
 

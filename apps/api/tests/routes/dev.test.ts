@@ -54,12 +54,18 @@ const mockSummary = {
   completedAt: '2026-08-16T08:01:30.000Z',
   durationSeconds: 90,
   eventCount: 5,
+  // Fase 8: o schema é compartilhado com o `/api/admin/pipeline/runs`, e o
+  // serializer do type provider responde 500 a um resumo sem os dois campos —
+  // foi assim que esta fixture avisou.
+  outcome: 'SUCCESS',
+  degradedBy: [],
 };
 
 const mockFailedSummary = {
   ...mockSummary,
   id: 'bbbbbbbb-0000-0000-0000-000000000002',
   status: 'FAILED',
+  outcome: 'FAILED',
   error: 'Gemini API error 500: boom',
   errorStage: 6,
   errorDetail: { message: 'Gemini API error 500: boom', provider: 'gemini', statusCode: 500 },
