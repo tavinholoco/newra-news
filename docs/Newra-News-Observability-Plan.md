@@ -1389,6 +1389,27 @@ desrastreados aqui, e a remoção viaja para a `main` na promoção.
 reprova chave que ninguém lê. **685 → 754 testes no web** (71 → 76 suítes);
 a API fica em 1.099. Sem migration, sem env nova, sem mudança na API.
 
+### O que a verificação pós-merge do 5c achou — 15/09/2026
+
+Item **68** do `docs/progress.md`. Três achados, e o maior não era do 5c —
+era de toda rota que o BFF já repassava:
+
+- **Nada ligava o caminho que o `proxyToApi` repassa à rota que a API
+  registra.** Web e API eram autoconsistentes e nenhum lia o outro; um
+  `'/admin/error'` só falharia em produção, com 404. Entrou
+  `bff-route-seam.test.ts` na API, pelo desenho do `x-actor-id`: lê os
+  `route.ts` do web com o parser, extrai caminho (como padrão) e método de
+  cada chamada, e cobra uma linha do roteador para cada par. Vista
+  reprovando com um caractere trocado no BFF real.
+- **As duas listas escritas à mão** — a de 401 do smoke e o `ALL_ROUTES` do
+  `admin:capture` — estavam certas e não tinham guarda.
+  `hand-written-lists.test.ts` deriva as duas do `app/`, nas duas direções.
+- **Quatro campos atravessavam a rede para serem descartados** (a família do
+  `errorDetail` da Fase 2): `firstSeenAt` e `pipelineLogId` na tabela de
+  falhas, `requestId` e o run do `context` na trilha. Hoje aparecem.
+
+**1.099 → 1.103 na API, 754 → 762 no web.**
+
 ---
 
 ## §10 Fase 6 — Invariantes (o eixo das inconsistências)
@@ -2177,6 +2198,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`code` novo, ou subclasse nova de `AppError`** | `error-taxonomy.test.ts` (Fase 3) — literal do tuple, e nenhum código sem quem o lance; a família é derivada do arquivo, então a subclasse entra na varredura sozinha |
 | **Retenção nova na etapa 8, ou número de retenção alterado** | `retention-drift.test.ts` (Fase 5) — a prosa dos dois diagramas, dos dois `CLAUDE.md` e dos dois READMEs contra as constantes dos services, nas duas direções |
 | **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
+| **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); e `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke |
+| **Página nova sob `app/[locale]/admin`** | `hand-written-lists.test.ts` — o `ALL_ROUTES` do `capture-admin.mjs` tem de fotografá-la; mais as três guardas de "Página nova no web" acima |
 
 ---
 

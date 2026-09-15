@@ -153,7 +153,8 @@
         "colHours": "Hours",
         "colLastSeen": "Last seen",
         "noMatch": "No failure matches the filters.",
-        "requestId": "Request id:"
+        "requestId": "Request id:",
+        "runId": "Run:"
       },
       "invariants": {
         "title": "Invariants",
@@ -169,7 +170,8 @@
         "target": "target",
         "shown": "{shown} of {total} in the window",
         "actionPipelineTriggered": "Pipeline triggered",
-        "actionNewsDeleted": "News deleted"
+        "actionNewsDeleted": "News deleted",
+        "existingRun": "existing run"
       }
     }
   },

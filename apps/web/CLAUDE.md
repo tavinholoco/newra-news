@@ -324,6 +324,14 @@ Regras que não são óbvias no código:
   - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
     handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
     que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)
+  - **as duas listas escritas à mão desta área têm guarda derivada do `app/`**
+    (`tests/lib/hand-written-lists.test.ts`, pós-merge do 5c): toda rota do
+    BFF com `GET` atrás de sessão está na lista de 401 do smoke
+    (`e2e/authorization.spec.ts`), e toda `page.tsx` sob `app/[locale]/admin`
+    está no `ALL_ROUTES` do `capture-admin.mjs` — nas duas direções. E **o
+    caminho que cada `proxyToApi` repassa é conferido contra o roteador da
+    API** por `apps/api/tests/security/bff-route-seam.test.ts`: um literal
+    errado no BFF passava nos dois CIs e só falhava em produção
   - **as telas de admin se fotografam com `pnpm --filter @newranews/web
     admin:capture`** (`scripts/capture-admin.mjs`). A baseline visual da §30
     exclui `/admin` porque exige sessão, então **esta área nunca esteve em

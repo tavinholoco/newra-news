@@ -726,6 +726,7 @@ novo: **enumeram a superfície e exigem decisão para cada item.**
 | `tests/routes/response-schema-contract.test.ts` | as colunas do Prisma | campo no schema de resposta, ou motivo escrito |
 | `tests/security/authorization-matrix.test.ts` | as rotas do roteador | linha na matriz de autorização |
 | `tests/docs/retention-drift.test.ts` | as retenções da etapa 8 (constantes) | o número certo em cada frase que o repete |
+| `tests/security/bff-route-seam.test.ts` | os `proxyToApi` do BFF do web (pelo parser: caminho como padrão + método) | uma rota registrada para cada um — a costura que faltava, achada no pós-merge do 5c |
 
 **Cada uma tem uma asserção que segura as outras**: um parser que devolvesse
 lista vazia faria a guarda passar para sempre, então há um teste afirmando que a

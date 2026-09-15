@@ -330,6 +330,21 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Verificação pós-merge do 5c (2026-09-15): nada ligava o caminho que o
+  BFF repassa à rota que a API registra.** Item **68**. Web e API eram
+  autoconsistentes e nenhum lia o outro — um `'/admin/error'` passaria nos
+  dois CIs e falharia só em produção, com 404, na classe de defeito que só o
+  smoke da `main` mede. Entrou `bff-route-seam.test.ts` na API (lê os
+  `route.ts` do web pelo parser e cobra uma linha do roteador para cada
+  `proxyToApi`, caminho como padrão e método), vista reprovando com um
+  caractere trocado. Junto: as **duas listas escritas à mão** que o 5c
+  alimentou — a de 401 do smoke e o `ALL_ROUTES` do `admin:capture` —
+  ganharam guarda derivada do `app/` (`hand-written-lists.test.ts`); e
+  **quatro campos que a API mandava e a tela descartava** (`firstSeenAt`,
+  `pipelineLogId`, `requestId`, o run do `context`) passaram a aparecer.
+  Gitleaks em `0 commits scanned` no push do merge, sexta medição. **1.099 →
+  1.103 na API, 754 → 762 no web.**
+
 - **Fora da linha das fases (2026-09-14): a Fase 5 fechou — PR 5c, o web.**
   §9, item **67**. A `/admin/security` nasceu (a décima sexta página, e a única
   que o plano inteiro abre) e a faixa passou a ter as **três abas do §4.1**.
@@ -894,7 +909,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.853 em 153 suites (**1.099 API em 77** + **754 web em 76** — todos
+- **Testes:** 1.865 em 155 suites (**1.103 API em 78** + **762 web em 77** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
