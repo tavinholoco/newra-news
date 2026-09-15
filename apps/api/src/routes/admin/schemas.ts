@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import type { ApiResponse, AuditTrail, ErrorSummary } from '@newranews/types';
+import type { ApiResponse, AuditTrail, ErrorSummary, SourceHealthReport } from '@newranews/types';
 import { assertContract } from '../../utils/contract';
 import { AUDIT_LIST_DEFAULT, AUDIT_LIST_MAX } from '../../services/audit.service';
+import {
+  SOURCE_HEALTH_WINDOW_DEFAULT_DAYS,
+  SOURCE_HEALTH_WINDOW_MAX_DAYS,
+} from '../../services/source-health.service';
 
 /**
  * As duas leituras da aba de segurança (§9 do plano de observabilidade, 5b).
@@ -81,7 +85,50 @@ export const auditTrailSchema = z.object({
 
 export const auditTrailResponseSchema = z.object({ data: auditTrailSchema });
 
+/**
+ * A saúde por fonte (§15 do plano de observabilidade, Fase 11 — PR 11b).
+ *
+ * O enum tem **três** valores, e o web deriva "não tentada" pela ausência de
+ * linha num dia — o schema não declara um quarto valor que a API nunca emite.
+ */
+export const sourceHealthQuerySchema = z.object({
+  // O teto é a retenção: pedir mais devolveria dias que o expurgo já esvaziou.
+  days: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(SOURCE_HEALTH_WINDOW_MAX_DAYS)
+    .default(SOURCE_HEALTH_WINDOW_DEFAULT_DAYS),
+});
+
+const sourceKindSchema = z.enum(['RSS', 'AGGREGATOR']);
+const sourceOutcomeSchema = z.enum(['OK', 'EMPTY', 'FAILED']);
+
+export const sourceDaySchema = z.object({
+  day: z.string(),
+  outcome: sourceOutcomeSchema,
+  fetched: z.number().int(),
+  kept: z.number().int(),
+  latencyMs: z.number().int().nullable(),
+  failureReason: z.string().nullable(),
+  pipelineLogId: z.string().nullable(),
+});
+
+export const sourceSeriesSchema = z.object({
+  source: z.string(),
+  kind: sourceKindSchema,
+  days: z.array(sourceDaySchema),
+});
+
+export const sourceHealthReportSchema = z.object({
+  window: z.object({ days: z.number().int(), since: z.string(), until: z.string() }),
+  sources: z.array(sourceSeriesSchema),
+});
+
+export const sourceHealthResponseSchema = z.object({ data: sourceHealthReportSchema });
+
 assertContract<typeof errorSummaryResponseSchema, ApiResponse<ErrorSummary>>(true);
 assertContract<typeof auditTrailResponseSchema, ApiResponse<AuditTrail>>(true);
+assertContract<typeof sourceHealthResponseSchema, ApiResponse<SourceHealthReport>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

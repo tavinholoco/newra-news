@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { fetchFromRss } from '../../src/providers/news/rss.provider';
+import { fetchFromRss, fetchFromRssWithFailures } from '../../src/providers/news/rss.provider';
 import type { RssSource } from '../../src/config/rss-sources';
 import { baseLogger } from '../../src/utils/logger';
 
@@ -216,6 +216,113 @@ describe('fetchFromRss', () => {
     const result = await fetchFromRss([sourceWithCategory]);
 
     expect(result[0].sourceUrl).toBe('https://techcrunch.com/feed/');
+  });
+});
+
+/**
+ * **Um desfecho por feed, com o relógio ao lado.** (Fase 11 do plano de
+ * observabilidade)
+ *
+ * Até aqui o provider devolvia só as falhas, e `fetchAll` descobria o feed
+ * vazio por subtração. `fetched` e `latencyMs` não existiam em lugar nenhum —
+ * a `SourceHealth` os grava, e "a Superinteressante demora 28 s" é o dia
+ * anterior ao `ETIMEDOUT`, visível só se alguém medir.
+ */
+describe('fetchFromRssWithFailures — o desfecho por feed', () => {
+  it('reports one outcome per source, in the order given, with the item count', async () => {
+    mockParseString
+      .mockResolvedValueOnce({ title: 'A', items: [mockItem, mockItem] })
+      .mockResolvedValueOnce({ title: 'B', items: [] });
+
+    const { items, outcomes } = await fetchFromRssWithFailures([
+      sourceWithCategory,
+      sourceWithoutCategory,
+    ]);
+
+    expect(items).toHaveLength(2);
+    expect(outcomes).toEqual([
+      { source: 'TechCrunch', fetched: 2, latencyMs: expect.any(Number) },
+      { source: 'G1', fetched: 0, latencyMs: expect.any(Number) },
+    ]);
+    expect(outcomes.every((outcome) => !('failure' in outcome))).toBe(true);
+  });
+
+  it('carries the exception of the feed that threw, and zero items for it', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        arrayBuffer: () => Promise.reject(new Error('Network error')),
+        headers: new Headers({ 'content-type': 'text/xml' }),
+      })
+      .mockResolvedValueOnce({
+        arrayBuffer: () => Promise.resolve(new TextEncoder().encode('').buffer),
+        headers: new Headers({ 'content-type': 'application/xml; charset=UTF-8' }),
+      });
+
+    const { outcomes } = await fetchFromRssWithFailures([sourceWithCategory, sourceWithoutCategory]);
+
+    expect(outcomes[0]).toEqual({
+      source: 'TechCrunch',
+      fetched: 0,
+      latencyMs: expect.any(Number),
+      failure: 'Network error',
+    });
+    expect(outcomes[1]).toMatchObject({ source: 'G1', fetched: 1 });
+  });
+
+  it('counts the items after the title/content filter, not the raw feed entries', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'Test Feed',
+      items: [mockItem, { ...mockItem, title: undefined }, { ...mockItem, contentSnippet: undefined, content: undefined }],
+    });
+
+    const { outcomes } = await fetchFromRssWithFailures([sourceWithCategory]);
+
+    expect(outcomes[0]?.fetched).toBe(1);
+  });
+
+  it('measures each feed from fetch to parse — including the one that timed out', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetch
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) =>
+              setTimeout(
+                () =>
+                  resolve({
+                    arrayBuffer: () => Promise.resolve(new TextEncoder().encode('').buffer),
+                    headers: new Headers({ 'content-type': 'application/xml; charset=UTF-8' }),
+                  }),
+                400,
+              ),
+            ),
+        )
+        .mockImplementationOnce(
+          () => new Promise((_, reject) => setTimeout(() => reject(new Error('ETIMEDOUT')), 30_000)),
+        );
+
+      const pending = fetchFromRssWithFailures([sourceWithCategory, sourceWithoutCategory]);
+      await vi.advanceTimersByTimeAsync(30_000);
+      const { outcomes } = await pending;
+
+      expect(outcomes[0]?.latencyMs).toBe(400);
+      expect(outcomes[1]).toMatchObject({ latencyMs: 30_000, failure: 'ETIMEDOUT' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('logs the latency next to the feed warning, so the slow feed is visible before it times out', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => baseLogger);
+    mockParseString.mockResolvedValue({ title: 'Test Feed', items: [] });
+
+    await fetchFromRssWithFailures([sourceWithCategory]);
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ feed: 'TechCrunch', latencyMs: expect.any(Number) }),
+      '[rss] feed rendeu zero itens',
+    );
+    warn.mockRestore();
   });
 });
 

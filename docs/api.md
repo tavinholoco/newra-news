@@ -1234,8 +1234,9 @@ dias e briefing aos 90 — não há job manual a disparar.
 plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
 pipeline não é: quatro etapas engolem a própria falha com `WARN` e o run segue
 `SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas), o
-fallback para o Groq é um `WARN` da etapa 6 e a colheita degradada é um `WARN`
-da etapa 1. A regra:
+fallback para o Groq é um `WARN` da etapa 6, a colheita degradada é um `WARN`
+da etapa 1 e, desde a Fase 11, a escrita da saúde por fonte que falhou é um
+`WARN` da etapa 4. A regra:
 
 | `outcome` | Quando |
 |---|---|
@@ -1437,6 +1438,70 @@ disparo; `targetId` só quando `started`) e `news.deleted` (`outcome` =
 
 **Erros:** `400` `days`/`limit` fora do intervalo · `401` sem sessão · `403`
 sem `role: ADMIN`
+
+---
+
+### GET /api/admin/sources
+
+A saúde de cada fonte de notícia, um dia de cada vez — a série de `fetched`,
+`kept`, desfecho e latência por fonte na janela (§15 do plano de
+observabilidade, Fase 11). É o que responde "há quantos dias a
+Superinteressante está fora?", "esta fonte entrega menos do que entregava?" e
+"vale a pena trocar este provedor?".
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query:** `days` (1 a 90, padrão 30 — o teto é a retenção)
+
+**Resposta 200:** tipada como `ApiResponse<SourceHealthReport>`.
+
+```json
+{
+  "data": {
+    "window": { "days": 30, "since": "ISO string", "until": "ISO string" },
+    "sources": [
+      {
+        "source": "Superinteressante",
+        "kind": "RSS",
+        "days": [
+          {
+            "day": "2026-09-15T00:00:00.000Z",
+            "outcome": "FAILED",
+            "fetched": 0,
+            "kept": 0,
+            "latencyMs": 30000,
+            "failureReason": "fetch failed: ETIMEDOUT",
+            "pipelineLogId": "uuid"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Uma linha por `(source, dia)`, escrita depois da etapa 4 do pipeline; o
+último run do dia representa o dia.** `source` é o `name` de
+`rss-sources.ts` ou `newsdata` (`kind: AGGREGATOR` — a NewsData entra como
+**uma** fonte e agrega dezenas de veículos); `fetched` é o que a fonte trouxe
+no run; **`kept` é quantos desses entraram no acervo naquele dia** — a coluna
+que decide trocar provedor, e nunca maior que `fetched`; `outcome` é `OK` ·
+`EMPTY` (respondeu e não tinha nada — o normal de feed especializado, não
+degrada o run) · `FAILED` (lançou, ou o provider caiu por cima dela);
+`failureReason` só em `FAILED`, redigida; `pipelineLogId` é o run que
+escreveu a linha, sem FK.
+
+**Só os dias com linha saem.** "Não tentada" — a fonte removida da lista, o
+dia sem run, o run que morreu antes da etapa 4 — é a **ausência** de linha,
+derivada no web como o `NEVER_RAN` do run; a API não emite um quarto valor.
+Toda fonte com linha na janela aparece, inclusive a que saiu de
+`rss-sources.ts` no meio dela: a série termina no dia da remoção. `since` e
+`until` são meia-noite UTC do primeiro e do último dia, inclusive; `day`
+lê-se em UTC, como `Article.date`. Médias, variação e sequência de falhas
+são derivadas no web.
+
+**Erros:** `400` `days` fora do intervalo · `401` sem sessão · `403` sem
+`role: ADMIN`
 
 ---
 

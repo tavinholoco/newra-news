@@ -68,6 +68,10 @@
   primeira leitura da tabela da Fase 4. Fase 5
 - GET /api/admin/audit — **admin**: a trilha de ação de admin, mais recente
   primeiro (`days` ≤ 365, `limit` ≤ 200). Só o `actorId`, nunca e-mail. Fase 5
+- GET /api/admin/sources — **admin**: a saúde de cada fonte, um dia de cada
+  vez — a série de `fetched`, `kept`, desfecho e latência por fonte na janela
+  (`days` ≤ 90, o teto é a retenção). Só os dias com linha; "não tentada" é
+  ausência, derivada no web. Fase 11
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only: runs (com o **desfecho** da Fase 8,
@@ -167,9 +171,10 @@ Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup �
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias,
 **ProductEvents >90 dias** (por `occurredAt`), **ErrorEvents >14 dias** (por
-`windowStart`) e **AuditEvents >365 dias** (por `createdAt` — mais que
+`windowStart`), **AuditEvents >365 dias** (por `createdAt` — mais que
 qualquer outra tabela, porque log de segurança responde pergunta feita meses
-depois)
+depois) e **SourceHealth >90 dias** (por `day` — como o Article, para cruzar
+"o briefing daquele dia" com "quem o alimentou")
 
 > **Cada um desses números está escrito em prosa em quatro documentos que a
 > etapa não abre**, e há guarda: `tests/docs/retention-drift.test.ts` compara
@@ -756,6 +761,62 @@ Regras que não são óbvias no código:
   `ARTICLE_RETENTION_DAYS`), e a prosa que as repete tem guarda —
   `tests/docs/retention-drift.test.ts`, sobre os dois diagramas e os dois
   `CLAUDE.md`.
+
+## A saúde por fonte (Fase 11 do plano de observabilidade)
+
+`services/source-health.service.ts`, o `model SourceHealth` (PR 11a) e
+`GET /api/admin/sources`. Fecha: o pipeline sabia hoje qual fonte falhou e
+esquecia amanhã — o aviso por fonte da etapa 1 morria com o run —, e a fonte
+que definha (entregava 20, passou a entregar 2) não falha nunca, então não
+deixava aviso nenhum. **Uma linha por `(source, dia)`**: `fetched`, `kept`,
+desfecho, `failureReason`, `latencyMs`, e o run que a escreveu.
+
+| Peça | Papel |
+|---|---|
+| `providers/news/rss.provider.ts` | `outcomes` — um desfecho por feed configurado, com `fetched` e `latencyMs` (o `failures` de 03/09 virou isto) |
+| `services/news-fetcher.service.ts` | `sources: SourceFetch[]` — os 12 feeds mais o balde `newsdata`; **os `warnings` são derivados daqui**, e `FETCH_WARNING_KINDS` virou tuple |
+| `services/source-health.service.ts` | `outcomeForSource`, `countKeptBySource`, `buildSourceHealthRows`, a escrita numa transação, o expurgo de 90 d e a leitura |
+| `services/pipeline.service.ts` | a escrita **depois da etapa 4**, num `try` cujo `catch` é `WARN` da 4 |
+
+Regras que não são óbvias no código:
+
+- **`kept` é "a URL entrou em `News` naquele dia"**, e não "sobreviveu ao
+  dedup" (o dedup da etapa 3 é por URL; dois veículos com a mesma pauta têm
+  URLs diferentes) nem "novo antes deste run" (o segundo run do dia só existe
+  depois de um `FAILED`, e um `FAILED` na 6 já escreveu as fontes com números
+  honestos — contar "novo antes do run" no segundo zeraria tudo e o
+  `deleteMany` + `createMany` gravaria isso por cima). Uma consulta pelas URLs
+  do run lendo o `createdAt`, **depois** do `createMany`.
+- **A atribuição é por identidade do objeto, nunca por `source`.** O
+  `RawNewsItem.source` de um item da NewsData é o nome do veículo, que pode
+  ser "G1" — e o dedup fica com a **primeira** ocorrência de uma URL, com a
+  NewsData antes do RSS em `allItems`. Uma matéria do G1 que a NewsData
+  também trouxe conta para `newsdata`: é a contribuição *marginal* de cada
+  fonte dada a ordem em que o pipeline as consome, e é o número que responde
+  "de que eu realmente dependo". O limite honesto está escrito no service.
+- **A escrita é depois da etapa 4, não na 1**, porque `kept` só existe ali; e
+  **não aborta o run** — o `catch` é `WARN` da etapa 4 com `degradedBy.push(4)`
+  (o `run-outcome-wiring` cobra), e a tabela de fontes ficar sem o dia é
+  informação, não falha. Zero fontes não toca no banco: um `deleteMany`
+  seguido de nada apagaria o dia que um run anterior escreveu.
+- **`SourceOutcome` tem três valores, e "não tentada" é ausência de linha**
+  — a fonte removida de `rss-sources.ts`, o dia sem run, o run que morreu
+  antes da 4. O web deriva, como faz com o `NEVER_RAN`; a API não emite um
+  quarto valor. A tabela aviso → desfecho (`provider-failed`/`feed-failed` →
+  `FAILED`; `provider-empty`/`feed-empty` → `EMPTY`; sem aviso → `OK`) tem
+  guarda nos dois sentidos em `tests/services/source-health.test.ts`, e a
+  escrita tem guarda **pelo parser**: uma transação de duas instruções, sem
+  laço — treze `upsert` numa instância de 0.1 vCPU é a forma de problema de
+  03/09.
+- **O provider de RSS cronometra, inclusive a rejeição**: um timeout mede
+  30 s, e "a Superinteressante demora 28 s" é o dia anterior ao `ETIMEDOUT`.
+  Para a NewsData a latência é do provider inteiro (oito categorias em
+  paralelo).
+- **A leitura devolve o que a tabela tem** — só os dias com linha, agrupados
+  por fonte numa consulta. Médias, variação, sequência de falhas e o dia não
+  tentado são derivados no web (PR 11c), como o desfecho por dia da Fase 8.
+  `days` ≤ 90, que é a retenção: pedir mais devolveria dias que o expurgo já
+  esvaziou.
 
 ## As guardas que enumeram a superfície
 

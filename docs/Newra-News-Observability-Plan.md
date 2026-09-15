@@ -2098,7 +2098,7 @@ configuração. E ela **reprova hoje**, o que é o jeito certo de a fase começa
 
 ---
 
-## §15 Fase 11 — A saúde de cada fonte, uma por uma — 11a ✅ 2026-09-15
+## §15 Fase 11 — A saúde de cada fonte, uma por uma — 11a ✅ 2026-09-15 · 11b ✅ 2026-09-15
 
 **Fecha:** o pipeline sabe **hoje** qual fonte falhou, e esquece amanhã. Uma
 fonte que entregava 20 matérias por dia e passou a entregar 2 é **invisível** —
@@ -2389,6 +2389,83 @@ no service, na etapa 8, na frase dos diagramas ("artigos, eventos e
 fontes") e na linha do cleanup do `packages/database/CLAUDE.md`; e
 `SourceHealth` entra na lista do `response-schema-contract` com o schema da
 rota nova.
+
+### O que o PR da API decidiu — 15/09/2026 (11b ✅)
+
+Sobre o 11a (#205), aberto contra a `dev`. Item **72** do `docs/progress.md`.
+Tudo o que o parágrafo acima prometia entrou como estava escrito; o que a
+implementação decidiu além dele, com o motivo:
+
+- **`failures` deixou de existir no provider de RSS: virou `outcomes`, um por
+  feed configurado**, com `fetched`, `latencyMs` e `failure?`. Manter as duas
+  listas seria manter duas formas de dizer a mesma coisa; com uma entrada por
+  fonte, o feed vazio é `fetched: 0` sem `failure`, e `fetchAll` **lê** o
+  vazio em vez de descobri-lo por subtração ("quem não está nos itens nem
+  nas falhas") — a Reuters de 24/08 teria aparecido no primeiro dia.
+  `FETCH_WARNING_KINDS` virou tuple (o idioma do `AUDIT_ACTIONS`), para a
+  guarda enumerar as classes em tempo de execução.
+- **O relógio mede também a rejeição.** Um timeout de feed sai com
+  `latencyMs: 30000` — "a Superinteressante demora 28 s" é o dia anterior ao
+  `ETIMEDOUT`, e é a coluna que a tela de fontes vai usar para ver isso
+  chegando. Para a NewsData a latência é do provider inteiro (oito
+  categorias em paralelo), que é o que "a NewsData está lenta" significa.
+- **A atribuição de `kept` é por identidade do objeto, nunca por `source`.**
+  O `RawNewsItem.source` de um item da NewsData é o nome do veículo, que
+  pode ser "G1"; a `fetchAll` põe a NewsData antes do RSS em `allItems` e o
+  dedup da etapa 3 fica com a primeira ocorrência, então a matéria do G1 que
+  a NewsData também trouxe conta para `newsdata`. É a contribuição
+  **marginal** de cada fonte dada a ordem em que o pipeline as consome — o
+  limite honesto está escrito no cabeçalho do service. **A fixture do
+  `pipeline.test.ts` duplicava os literais** em vez de reusar os objetos, e
+  foi assim que a atribuição por identidade a expôs: a fixture passou a ser
+  como `fetchAll` é.
+- **`kept` não tem clamp.** A primeira versão fazia `Math.min(fetched, kept)`
+  "por construção"; um clamp ali esconderia justamente o erro de atribuição
+  que a guarda `kept ≤ fetched` existe para achar. A invariante é cobrada no
+  teste, não imposta no código.
+- **O `findMany` do `createdAt` é depois do `createMany`, e tudo mora num
+  `try`.** Ler antes obrigaria a distinguir "novo antes do run" de "entrou
+  hoje"; lendo depois, o item que acabou de entrar tem `createdAt` de agora e
+  o que um run anterior do dia gravou tem `createdAt` de hoje — a mesma
+  pergunta. O `try` cobre a leitura, a montagem e a transação: qualquer uma
+  das três falhando é `WARN` da etapa 4 com `degradedBy.push(4)`, o run
+  segue, e há teste de que a derivação sobre os eventos concorda com o
+  resumo. **Zero fontes não toca no banco** — um `deleteMany` seguido de um
+  `createMany` vazio apagaria o dia que um run anterior escreveu.
+- **A rota devolve a série crua, e o web deriva.** `GET /api/admin/sources`
+  responde `{ window, sources: [{ source, kind, days: [...] }] }` com só os
+  dias que têm linha, agrupados por fonte numa consulta; médias, variação,
+  sequência de falhas e o dia "não tentado" são do `lib/source-days.ts` do
+  11c, como o `outcome-days.ts` da Fase 8. `days ≤ 90` porque é a retenção;
+  `since`/`until` são meia-noite UTC do primeiro e do último dia, inclusive.
+  A fonte que saiu de `rss-sources.ts` no meio da janela aparece com a série
+  terminando no dia da remoção.
+- **A retenção entrou onde o 11a disse**: constante no service, sétimo
+  `deleteMany` da etapa 8 (e o total do cleanup), a frase dos dois diagramas
+  virou "artigos, eventos e fontes >90d", e o `retention-drift` ganhou as
+  quatro afirmações mais o terceiro igual (`SOURCE_HEALTH === ARTICLE`) —
+  visto reprovando nos quatro documentos antes de a prosa mudar.
+
+**Guardas que nasceram:** `source-health.test.ts` (a tabela aviso → desfecho
+nos dois sentidos, sobre `fetchAll` de verdade e não sobre a função de
+mapeamento — cada cenário produz exatamente uma classe; `EMPTY ≠ FAILED`;
+`kept` por identidade, por dia e nunca acima de `fetched`; a escrita como
+**uma transação de duas instruções, pelo parser** — um laço reprova; a
+retenção; a leitura), `admin-sources.test.ts` (porta e fio, o teto de 90 e o
+default de 30), o desfecho por fonte no `news-fetcher.test.ts` e os
+`outcomes` com relógio no `rss.provider.test.ts`, a fiação da etapa 4 e o
+expurgo no `pipeline.test.ts`, e `SourceHealth` no
+`response-schema-contract`. **Vistas reprovando:** as duas mutações do
+service (o laço, e `EMPTY` virando `FAILED`), as três guardas de superfície
+sobre a rota nova, o `retention-drift` sobre os quatro documentos, e a
+própria suíte do pipeline — pela **quarta** vez, um mock parcial de `prisma`
+sem a tabela nova fez a etapa lançar e o dia sair degradado.
+
+**Gatilho numérico que a fase criou, medível a partir do 11c:** fonte com
+**3 dias seguidos** de `FAILED`, ou `kept` médio de 7 dias abaixo de **30 %**
+do de 30 dias.
+
+**1.141 → 1.196 na API** (80 → 82 suítes), 792 no web.
 
 ---
 
@@ -2810,8 +2887,12 @@ aplica as duas migrations juntas na promoção.**
   tipada no desfecho do run. **11a (a migration) ✅ 15/09/2026**, item **71**
   — `SourceOutcome` com três valores (o `NOT_ATTEMPTED` é ausência, como o
   `NEVER_RAN`), `kept` = "entrou no acervo naquele dia", `pipelineLogId` sem
-  FK, e o seed com as duas histórias dos gatilhos. **11b (a API) e 11c (o
-  web)** seguem; as decisões de cada um, no fim da §15.
+  FK, e o seed com as duas histórias dos gatilhos. **11b (a API) ✅
+  15/09/2026**, item **72** — `outcomes` por feed com relógio no provider,
+  `sources` em `fetchAll` (os `warnings` derivados daí), a escrita depois da
+  etapa 4 numa transação de duas instruções (não crítica — `WARN` da 4), a
+  retenção de 90 d na 8, e `GET /api/admin/sources` devolvendo a série crua.
+  **11c (o web)** segue; as decisões de cada um, no fim da §15.
 - **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.

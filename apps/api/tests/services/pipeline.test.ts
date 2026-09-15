@@ -42,6 +42,14 @@ vi.mock('@newranews/database', async (importOriginal) => {
       auditEvent: {
         deleteMany: vi.fn(),
       },
+      // A `SourceHealth` da Fase 11: escrita depois da etapa 4 (duas
+      // instruções numa transação) e expurgo de 90 dias na 8 — quarta vez que
+      // este teste avisa pelo mesmo caminho: sem o mock, o bloco lança, o dia
+      // sai degradado pela etapa 4 e o resumo da Fase 8 muda.
+      sourceHealth: {
+        deleteMany: vi.fn(),
+        createMany: vi.fn(),
+      },
       briefingSource: {
         deleteMany: vi.fn(),
         createMany: vi.fn(),
@@ -76,54 +84,40 @@ import {
   resetErrorEventBuffer,
 } from '../../src/services/error-event.service';
 
+// A NewsData devolve o G1 **como veículo** — `source: 'G1'` num item que veio
+// do agregador. É o caso que a atribuição por fonte da Fase 11 existe para
+// acertar, e por isso `allItems` reusa os mesmos objetos que `newsDataItems`
+// e `rssItems`, como `fetchAll` faz: a atribuição é por identidade.
+const newsDataItem = {
+  title: 'NewsData Article',
+  description: 'Description',
+  content: null,
+  source: 'G1',
+  sourceUrl: 'https://g1.com/1',
+  imageUrl: null,
+  category: 'TECHNOLOGY' as const,
+  publishedAt: new Date('2024-01-01T10:00:00Z'),
+};
+const rssItem = {
+  title: 'RSS Article',
+  description: 'Description',
+  content: null,
+  source: 'BBC',
+  sourceUrl: 'https://bbc.com/1',
+  imageUrl: null,
+  category: 'WORLD' as const,
+  publishedAt: new Date('2024-01-01T09:00:00Z'),
+};
+
 const mockFetchResult = {
-  newsDataItems: [
-    {
-      title: 'NewsData Article',
-      description: 'Description',
-      content: null,
-      source: 'G1',
-      sourceUrl: 'https://g1.com/1',
-      imageUrl: null,
-      category: 'TECHNOLOGY' as const,
-      publishedAt: new Date('2024-01-01T10:00:00Z'),
-    },
-  ],
-  rssItems: [
-    {
-      title: 'RSS Article',
-      description: 'Description',
-      content: null,
-      source: 'BBC',
-      sourceUrl: 'https://bbc.com/1',
-      imageUrl: null,
-      category: 'WORLD' as const,
-      publishedAt: new Date('2024-01-01T09:00:00Z'),
-    },
-  ],
-  allItems: [
-    {
-      title: 'NewsData Article',
-      description: 'Description',
-      content: null,
-      source: 'G1',
-      sourceUrl: 'https://g1.com/1',
-      imageUrl: null,
-      category: 'TECHNOLOGY' as const,
-      publishedAt: new Date('2024-01-01T10:00:00Z'),
-    },
-    {
-      title: 'RSS Article',
-      description: 'Description',
-      content: null,
-      source: 'BBC',
-      sourceUrl: 'https://bbc.com/1',
-      imageUrl: null,
-      category: 'WORLD' as const,
-      publishedAt: new Date('2024-01-01T09:00:00Z'),
-    },
-  ],
+  newsDataItems: [newsDataItem],
+  rssItems: [rssItem],
+  allItems: [newsDataItem, rssItem],
   warnings: [],
+  sources: [
+    { source: 'newsdata', kind: 'AGGREGATOR' as const, fetched: 1, latencyMs: 700 },
+    { source: 'BBC', kind: 'RSS' as const, fetched: 1, latencyMs: 400 },
+  ],
 };
 
 const mockGeneratedArticle = {
@@ -161,6 +155,8 @@ beforeEach(() => {
   vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.errorEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.auditEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.sourceHealth.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.sourceHealth.createMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.pipelineEvent.create).mockResolvedValue({} as never);
   vi.mocked(prisma.news.findMany).mockResolvedValue([] as never);
@@ -731,8 +727,10 @@ describe('PipelineService', () => {
       where: { articleId: 'article-uuid-123' },
     });
     // As duas operações vão juntas numa transação para não existir um instante
-    // em que o briefing fique sem nenhuma fonte.
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    // em que o briefing fique sem nenhuma fonte. São **duas** transações no
+    // run desde a Fase 11: a outra é a SourceHealth do dia, pelo mesmo padrão
+    // (`deleteMany` + `createMany`), depois da etapa 4.
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -788,6 +786,30 @@ describe('PipelineService — retenção de eventos de produto (etapa 8)', () =>
     ];
     // 5 notícias + 0 logs + 0 artigos + 12 eventos + 0 erros + 3 auditorias
     expect(arg.create.cleanupCount).toBe(20);
+  });
+
+  it('should purge source health at 90 days, by day, and count it in the cleanup total', async () => {
+    // Fase 11: "esta fonte vale a pena?" é pergunta trimestral — 90, como o
+    // Article, para cruzar o briefing daquele dia com quem o alimentou.
+    vi.mocked(prisma.sourceHealth.deleteMany).mockResolvedValueOnce({ count: 0 }); // o do dia (etapa 4)
+    vi.mocked(prisma.sourceHealth.deleteMany).mockResolvedValueOnce({ count: 26 }); // o expurgo (etapa 8)
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
+
+    const purge = vi.mocked(prisma.sourceHealth.deleteMany).mock.calls.find(
+      (call) => 'lt' in ((call[0] as { where: { day: unknown } }).where.day as object),
+    )?.[0] as { where: { day: { lt: Date } } };
+    expect(purge).toBeDefined();
+    const expectedCutoff = new Date();
+    expectedCutoff.setDate(expectedCutoff.getDate() - 90);
+    expect(Math.abs(purge.where.day.lt.getTime() - expectedCutoff.getTime())).toBeLessThan(5_000);
+
+    const [arg] = vi.mocked(prisma.dailyMetric.upsert).mock.calls[0] as [
+      { create: { cleanupCount: number } },
+    ];
+    // 5 notícias + 26 linhas de fonte
+    expect(arg.create.cleanupCount).toBe(31);
   });
 
   /**
@@ -951,5 +973,110 @@ describe('Fase 8 — o evento final da etapa 9 resume o run', () => {
 
     expect(derived).toEqual([1, 8.5, 9]);
     expect(finalEvent()?.data.context.degradedBy).toEqual(derived);
+  });
+});
+
+/**
+ * **A saúde de cada fonte, gravada depois da etapa 4.** (Fase 11 do plano de
+ * observabilidade, §15)
+ *
+ * O que se mede aqui é a fiação: que o pipeline lê o `createdAt` das URLs
+ * **depois** do `createMany`, atribui `kept` por fonte, grava uma linha por
+ * fonte tentada com o id do run, e que a falha disso degrada o dia pela
+ * etapa 4 sem abortar nada. A aritmética em si está em
+ * `services/source-health.test.ts`.
+ */
+describe('Fase 11 — a saúde por fonte, depois da etapa 4', () => {
+  const healthEvent = (level: 'INFO' | 'WARN') =>
+    vi.mocked(prisma.pipelineEvent.create).mock.calls.find((call) => {
+      const data = (call[0] as { data: { stage: number; level: string; message: string } }).data;
+      return data.stage === 4 && data.level === level && data.message.startsWith('Source health');
+    })?.[0] as { data: { context: Record<string, unknown> } } | undefined;
+
+  it('writes one row per attempted source, with kept from the URLs that entered the archive today', async () => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    // O primeiro `findMany` de News é o da etapa 4 (as URLs do run, com o
+    // `createdAt`); o segundo é o do `persistBriefingSources`.
+    vi.mocked(prisma.news.findMany).mockResolvedValueOnce([
+      { sourceUrl: 'https://g1.com/1', createdAt: new Date(today.getTime() + 60_000) },
+      { sourceUrl: 'https://bbc.com/1', createdAt: new Date(today.getTime() - 86_400_000) },
+    ] as never);
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(healthEvent('INFO')).toBeDefined());
+
+    const write = vi.mocked(prisma.sourceHealth.createMany).mock.calls[0]?.[0] as {
+      data: Array<Record<string, unknown>>;
+    };
+    expect(write.data).toEqual([
+      expect.objectContaining({ source: 'newsdata', kind: 'AGGREGATOR', fetched: 1, kept: 1, outcome: 'OK', latencyMs: 700, pipelineLogId: 'log-uuid-456', day: today }),
+      expect.objectContaining({ source: 'BBC', kind: 'RSS', fetched: 1, kept: 0, outcome: 'OK', latencyMs: 400, pipelineLogId: 'log-uuid-456', day: today }),
+    ]);
+    expect(prisma.sourceHealth.deleteMany).toHaveBeenCalledWith({ where: { day: today } });
+    expect(healthEvent('INFO')?.data.context).toEqual({ sources: 2, ok: 2, empty: 0, failed: 0, kept: 1 });
+  });
+
+  it('reads the archive after persisting — the createdAt lookup follows news.createMany', async () => {
+    const order: string[] = [];
+    vi.mocked(prisma.news.createMany).mockImplementation(async () => {
+      order.push('createMany');
+      return { count: 2 };
+    });
+    vi.mocked(prisma.news.findMany).mockImplementation(async () => {
+      order.push('findMany');
+      return [] as never;
+    });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(healthEvent('INFO')).toBeDefined());
+
+    expect(order.slice(0, 2)).toEqual(['createMany', 'findMany']);
+  });
+
+  it('degrades the day by stage 4 when the write fails, and the run still succeeds', async () => {
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error('db down'));
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(healthEvent('WARN')).toBeDefined());
+
+    expect(healthEvent('WARN')?.data.context).toMatchObject({ message: 'db down' });
+    const successUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+      (call) => (call[0] as { data: { status?: string } }).data?.status === 'SUCCESS',
+    );
+    expect(successUpdate).toBeDefined();
+
+    const finalEvent = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) => (call[0] as { data: { message: string } }).data.message === 'Pipeline completed successfully',
+    )?.[0] as { data: { context: { degradedBy: number[] } } };
+    expect(finalEvent.data.context.degradedBy).toEqual([4]);
+    // E a derivação sobre os eventos gravados concorda — é o `degradedBy`
+    // da listagem, que tem de bater com o do resumo.
+    const written = vi.mocked(prisma.pipelineEvent.create).mock.calls.map(
+      (call) =>
+        (call[0] as { data: { stage: number; level: 'INFO' | 'WARN' | 'ERROR'; context?: Record<string, unknown> } })
+          .data,
+    );
+    expect(
+      degradedStages(written.map((e) => ({ stage: e.stage, level: e.level, context: e.context ?? null }))),
+    ).toEqual([4]);
+  });
+
+  it('writes nothing, and warns nothing, when the collection reported no source at all', async () => {
+    vi.mocked(fetchAll).mockResolvedValue({ ...mockFetchResult, sources: [] });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
+
+    // O `deleteMany` do dia não acontece — o da etapa 8 (o expurgo, por
+    // `lt`) continua acontecendo, e é outro.
+    expect(prisma.sourceHealth.createMany).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(prisma.sourceHealth.deleteMany).mock.calls.some(
+        (call) => (call[0] as { where: { day: unknown } }).where.day instanceof Date,
+      ),
+    ).toBe(false);
+    expect(healthEvent('WARN')).toBeUndefined();
+    expect(healthEvent('INFO')?.data.context).toMatchObject({ sources: 0 });
   });
 });

@@ -332,6 +332,25 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Fora da linha das fases (2026-09-15): a Fase 11 ganhou a API — PR 11b.**
+  §15, item **72**. Os quatro números que o inventário tinha medido como
+  inexistentes, cada um de um lugar decidido: **`latencyMs`** por feed e por
+  provider, medido também na rejeição (um timeout sai com 30 s — "demora
+  28 s" é o dia anterior ao `ETIMEDOUT`); **`fetched` por feed** porque o
+  provider de RSS passou a devolver `outcomes`, um por fonte configurada, e
+  `failures` deixou de existir — `fetchAll` devolve `sources` e **deriva os
+  `warnings` daí**; **`kept`** por um `findMany` do `createdAt` **depois** do
+  `createMany`, com atribuição **por identidade do objeto** (o `source` de um
+  item da NewsData é o nome do veículo, que pode ser "G1"); e **a escrita
+  depois da etapa 4**, uma transação de duas instruções num `try` cujo
+  `catch` é `WARN` da 4. Retenção de 90 d na etapa 8 e `GET
+  /api/admin/sources` devolvendo a série crua — médias, variação e o dia
+  "não tentado" são do web (11c). **Dois achados:** a fixture do
+  `pipeline.test.ts` duplicava os literais em vez de reusar os objetos, e a
+  atribuição por identidade a expôs; e o `Math.min(fetched, kept)` saiu,
+  porque um clamp esconderia o erro que a guarda `kept ≤ fetched` existe
+  para achar. **1.141 → 1.196 na API** (80 → 82 suítes).
+
 - **Fora da linha das fases (2026-09-15): a Fase 11 abriu pelo schema — PR
   11a.** §15, item **71**. `SourceHealth`: uma linha por `(source, dia)` com
   `fetched`, `kept`, `outcome`, `failureReason`, `latencyMs` e o
@@ -981,7 +1000,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.933 em 158 suites (**1.141 API em 80** + **792 web em 78** — todos
+- **Testes:** 1.988 em 160 suites (**1.196 API em 82** + **792 web em 78** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
