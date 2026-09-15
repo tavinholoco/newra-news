@@ -129,6 +129,20 @@ describe('a retenção escrita em prosa bate com as constantes da etapa 8', () =
     expect(divergencias).toEqual([]);
   });
 
+  it('a faixa de desfechos do web não pede mais dias do que a etapa 8 guarda', () => {
+    // Pós-merge da Fase 8. A faixa da `/admin` desenha um quadrado por dia
+    // da janela e chama de `NEVER_RAN` o dia sem run — mas a etapa 8 apaga
+    // `PipelineLog` por idade. Uma janela maior que a retenção mostraria como
+    // "não rodou" o dia cujo run foi apagado, e nada acusaria: os dois números
+    // moram em apps diferentes. Lido do fonte do web, como o `bff-route-seam`
+    // lê os `route.ts`.
+    const fonte = leia('apps/web/lib/outcome-days.ts');
+    const match = /export const OUTCOME_WINDOW_DAYS = (\d+);/.exec(fonte);
+
+    expect(match).not.toBeNull();
+    expect(Number(match?.[1])).toBeLessThanOrEqual(PIPELINE_LOG_RETENTION_DAYS);
+  });
+
   it('os dois diagramas dizem "artigos e eventos" porque os dois têm a mesma retenção', () => {
     // A frase junta as duas tabelas num número só. Se um dia divergirem, a
     // frase — e este teste — precisam se partir em duas.

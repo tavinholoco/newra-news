@@ -492,6 +492,34 @@ describe('PipelineRuns — o desfecho (Fase 8)', () => {
     expect(screen.getByText('Nenhum briefing nos últimos 30 dias.')).toBeInTheDocument();
   });
 
+  it('names the streak when three runs in a row were degraded by the same stage — the §12 trigger', () => {
+    // O gatilho que a fase criou, medido em vez de contado na faixa.
+    const degradedOn = (day: number) => ({
+      ...degradedRun,
+      id: `dddddddd-0000-0000-0000-0000000000${String(day).padStart(2, '0')}`,
+      startedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:00.000Z`,
+      completedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:45.000Z`,
+      degradedBy: [6],
+    });
+    mockRuns([degradedOn(6), degradedOn(5), degradedOn(4)], [], 3);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Degradado pela etapa 6 há 3 execuções seguidas')).toBeInTheDocument();
+  });
+
+  it('says nothing about a streak below the trigger', () => {
+    const degradedOn = (day: number) => ({
+      ...degradedRun,
+      id: `dddddddd-0000-0000-0000-0000000000${String(day).padStart(2, '0')}`,
+      startedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:00.000Z`,
+      degradedBy: [6],
+    });
+    mockRuns([degradedOn(6), degradedOn(5)], [], 2);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.queryByText(/execuções seguidas/)).not.toBeInTheDocument();
+  });
+
   it('keeps the visible list at 20 rows while the strip reads the whole window', () => {
     // A listagem pede a janela inteira (até 100 runs) para a faixa; a lista
     // continua mostrando as 20 últimas, e o total é o do recorte.

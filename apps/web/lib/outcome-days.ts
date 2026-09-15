@@ -101,6 +101,50 @@ export function lastBriefingRun(runs: PipelineRunSummary[]): PipelineRunSummary 
   return latest;
 }
 
+/** A sequência atual de runs degradados pela mesma etapa. */
+export interface DegradedStreak {
+  stage: number;
+  /** Quantos runs seguidos, contando do mais recente para trás. */
+  runs: number;
+}
+
+/**
+ * A partir de quantos runs seguidos a sequência vira gatilho — o número que o
+ * `CLAUDE.md` escrevia em prosa sobre o fallback do Groq ("três dias seguidos")
+ * e que a §12 chamou de o gatilho numérico da fase.
+ */
+export const DEGRADED_STREAK_TRIGGER = 3;
+
+/**
+ * O gatilho da §12, **medido** em vez de contado na faixa (pós-merge da Fase
+ * 8): quantos runs seguidos saíram `SUCCESS_DEGRADED` pela mesma etapa, do
+ * mais recente para trás.
+ *
+ * Conta **runs**, não dias: um dia sem run (`NEVER_RAN`) não diz que o
+ * provedor voltou, então não quebra a sequência — e o run de hoje ainda
+ * `RUNNING` também não conta, porque não tem desfecho. O que quebra é um run
+ * fechado que não foi degradado (`SUCCESS` ou `FAILED`). Entre as etapas do
+ * run mais recente, vence a que se repete por mais runs; em empate, a menor.
+ */
+export function degradedStreak(days: OutcomeDay[]): DegradedStreak | null {
+  const decided = days
+    .filter((day) => day.run !== null && day.outcome !== 'RUNNING')
+    .reverse();
+  const latest = decided[0];
+  if (!latest || latest.outcome !== 'SUCCESS_DEGRADED') return null;
+
+  let best: DegradedStreak | null = null;
+  for (const stage of [...latest.degradedBy].sort((a, b) => a - b)) {
+    let runs = 0;
+    for (const day of decided) {
+      if (day.outcome !== 'SUCCESS_DEGRADED' || !day.degradedBy.includes(stage)) break;
+      runs++;
+    }
+    if (!best || runs > best.runs) best = { stage, runs };
+  }
+  return best;
+}
+
 /**
  * A partir de quanto tempo sem briefing a idade vira alerta: um dia inteiro.
  *

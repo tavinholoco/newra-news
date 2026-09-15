@@ -7132,6 +7132,81 @@ mesmo `degradedBy` — hoje visível na faixa e no detalhe.
 **1.103 → 1.129 na API** (78 → 79 suítes), **762 → 781 no web** (77 → 78).
 Sem migration, sem env nova, sem rota nova.
 
+### 70. A verificação pós-merge da Fase 8: a linha `feed-empty` tinha um terceiro consumidor, e o preview lia uma API que não sabe o desfecho ✅ 2026-09-15
+
+> Sobre a árvore mergeada (`441b8a6`, #203), a pergunta dos itens 39, 52,
+> 57, 61, 63, 65 e 68 — *o que ficou de fora?* — por três enumerações, não
+> relendo o diff: **quem consome o `status` de um run**, **quem traça a
+> linha `feed-empty`**, e **o que a janela da faixa assume**.
+
+**O que foi conferido e está em ordem:** #203 mergeado na `dev` com os oito
+checks verdes; CodeQL e Gitleaks verdes no push do merge; a `dev` a 0 da
+`main` e 45 à frente; `git ls-tree origin/dev | check-ignore` vazio; as seis
+emissões de `WARN` do run têm o `degradedBy.push`; nenhum service fora do
+`pipeline.service` chama `logPipelineEvent`; rota nenhuma nova, então a lista
+de 401 do smoke e o `ALL_ROUTES` não mudam; a `docs/api.md` já descreve os
+dois campos nas duas portas.
+
+#### O terceiro consumidor da linha
+
+**`recordPipelineEvent` gravava todo `WARN` como `PIPELINE_STAGE_DEGRADED`
+no `ErrorEvent`** — inclusive o da etapa 1 quando só há feeds vazios. A Fase
+8 tinha posto a linha `feed-empty` num lugar só para o `pipelineErrors` e o
+desfecho; este era o terceiro consumidor, e o único fora dela: a tabela de
+falhas da `/admin/security` dizia `stage-1 · upstream` no domingo de um feed
+de saúde, enquanto o desfecho do mesmo run dizia `SUCCESS`. Hoje
+`isDegradingWarn` é exportada de `run-outcome.ts` e os três a chamam. O
+`PipelineEvent` continua sendo escrito para todo aviso — é o rastro da
+sequência de dias vazios, que a Fase 11 lê. Visto reprovando: o `WARN` com
+dois `feed-empty` produzia um `ErrorEvent`.
+
+#### A segunda porta e a janela dos dois deploys
+
+- **O `/dev/dashboard` ainda imprimia `SUCCESS`.** Ganhou `outcome` no JSON
+  (o schema é um só) e a página HTML lia `status`. A coluna virou "Desfecho",
+  `SUCCESS_DEGRADED` cai na cor de aviso e as etapas vão ao lado.
+- **O preview da `dev` quebrava a `/admin`, e a promoção quebraria por
+  minutos.** O web da `dev` na Vercel fala com a API de **produção** — a
+  `main`, sem a Fase 8 —, e todo run chegava sem `outcome`/`degradedBy`;
+  `run.degradedBy.length` morria na primeira renderização. Medido: a API de
+  produção responde, e é a de antes. `withOutcome` em `lib/api.ts` preenche
+  na fronteira — o `status` como desfecho, e não `null`, que a faixa leria
+  como `RUNNING` —, uma vez só, com teste da forma antiga. **Armadilha 37 do
+  plano: vale para toda fase que acrescentar campo que o web lê**, e com a
+  promoção pausada até o fim do plano isso dura semanas, não minutos.
+
+#### Duas guardas que faltavam, e o gatilho medido
+
+- **Nada ligava a janela da faixa à retenção.** `OUTCOME_WINDOW_DAYS` e
+  `PIPELINE_LOG_RETENTION_DAYS` são dois 30 em apps diferentes; abaixar a
+  retenção mostraria como "não rodou" o dia cujo run foi apagado.
+  `retention-drift.test.ts` lê o fonte do web (como o `bff-route-seam` lê os
+  `route.ts`) e cobra `janela ≤ retenção`. Vista reprovando com 31.
+- **A fiação do `degradedBy` só tinha guarda por cenário.**
+  `run-outcome-wiring.test.ts`, pelo parser: todo `logPipelineEvent(…,
+  'WARN', …)` dentro do run tem `degradedBy.push` da mesma etapa no mesmo
+  bloco — o caso é a etapa 5.5/6.5 da Fase 9 escrevendo o aviso e esquecendo
+  o `push`. Vista reprovando com o `push(8)` removido.
+- **O gatilho da fase era visível e não era medido.** `degradedStreak`
+  conta **runs** seguidos degradados pela mesma etapa (um dia sem run não
+  quebra — não diz que o provedor voltou; o de hoje ainda `RUNNING` não
+  conta), e a tela escreve "Degradado pela etapa 6 há 3 execuções seguidas"
+  a partir de `DEGRADED_STREAK_TRIGGER`. Abaixo disso a linha não existe —
+  linha que aparece a cada dia degradado ensina a ignorá-la.
+
+#### O terreno da Fase 11
+
+O inventário da §15 foi reconferido contra a árvore mergeada e é o de maior
+desvio até aqui: `latencyMs` não é medido; `fetched` por feed não sai do
+provider; `kept` como "sobreviveu ao dedup" mede quase nada (o dedup é por
+URL); a escrita não cabe na etapa 1 se `kept` for "novo para o acervo";
+`createMany` + `skipDuplicates` faz o primeiro run do dia vencer, contra a
+regra da Fase 8; e a `OutcomeStrip` é tipada no desfecho do run. Fim da §15;
+branch `observability/fase-11-source-health` cortada do #203.
+
+**1.129 → 1.141 na API** (79 → 80 suítes), **781 → 792 no web**. Sem
+migration, sem env nova, sem rota nova.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

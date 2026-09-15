@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { PipelineRunSummary } from '@newranews/types';
-import { lastBriefingRun, outcomeByDay, OUTCOME_WINDOW_DAYS } from '@/lib/outcome-days';
+import {
+  degradedStreak,
+  lastBriefingRun,
+  outcomeByDay,
+  OUTCOME_WINDOW_DAYS,
+} from '@/lib/outcome-days';
 
 /**
  * **Fase 8 — o dia que não rodou é um estado, e não é `FAILED`.**
@@ -141,5 +146,62 @@ describe('lastBriefingRun', () => {
 
     expect(lastBriefingRun([])).toBeNull();
     expect(lastBriefingRun([running])).toBeNull();
+  });
+});
+
+/**
+ * O gatilho numérico da §12, medido (pós-merge da Fase 8): três runs seguidos
+ * `SUCCESS_DEGRADED` pela mesma etapa. Antes era contar contornos laranja na
+ * faixa; o `CLAUDE.md` já o escrevia em prosa sobre o fallback do Groq.
+ */
+describe('degradedStreak', () => {
+  const degradedOn = (day: number, stages: number[]) =>
+    run({
+      id: `d-${day}`,
+      startedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:00.000Z`,
+      outcome: 'SUCCESS_DEGRADED',
+      degradedBy: stages,
+    });
+
+  it('counts the trailing runs degraded by the same stage', () => {
+    const days = outcomeByDay([degradedOn(13, [6]), degradedOn(14, [6]), degradedOn(15, [6])], NOW);
+
+    expect(degradedStreak(days)).toEqual({ stage: 6, runs: 3 });
+  });
+
+  it('picks the stage that repeats the longest, not the first one listed', () => {
+    // O run de hoje degradou por 6 e 7.5; só a 6 vem de trás.
+    const days = outcomeByDay([degradedOn(13, [6]), degradedOn(14, [6]), degradedOn(15, [6, 7.5])], NOW);
+
+    expect(degradedStreak(days)).toEqual({ stage: 6, runs: 3 });
+  });
+
+  it('a clean run in between breaks the streak', () => {
+    const clean = run({ id: 'ok', startedAt: '2026-09-14T11:00:00.000Z' });
+    const days = outcomeByDay([degradedOn(13, [6]), clean, degradedOn(15, [6])], NOW);
+
+    expect(degradedStreak(days)).toEqual({ stage: 6, runs: 1 });
+  });
+
+  it('a day without a run does not break it — it counts runs, not days', () => {
+    // 29–31/08: a API suspensa não diz nada sobre o provedor.
+    const days = outcomeByDay([degradedOn(12, [6]), degradedOn(15, [6])], NOW);
+
+    expect(degradedStreak(days)).toEqual({ stage: 6, runs: 2 });
+  });
+
+  it('skips the run of today while it is still RUNNING', () => {
+    const running = run({ startedAt: '2026-09-15T11:00:00.000Z', status: 'RUNNING', outcome: null, completedAt: null });
+    const days = outcomeByDay([degradedOn(13, [8.5]), degradedOn(14, [8.5]), running], NOW);
+
+    expect(degradedStreak(days)).toEqual({ stage: 8.5, runs: 2 });
+  });
+
+  it('is null when the latest decided run was not degraded', () => {
+    const failed = run({ id: 'f', startedAt: '2026-09-15T11:00:00.000Z', status: 'FAILED', outcome: 'FAILED', completedAt: null });
+    const days = outcomeByDay([degradedOn(13, [6]), degradedOn(14, [6]), failed], NOW);
+
+    expect(degradedStreak(days)).toBeNull();
+    expect(degradedStreak(outcomeByDay([], NOW))).toBeNull();
   });
 });

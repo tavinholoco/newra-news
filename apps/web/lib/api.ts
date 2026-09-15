@@ -23,6 +23,7 @@ import type {
   NewsFacets,
   PipelineRunDetail,
   PipelineRunStatus,
+  PipelineRunSummary,
   PipelineRunsResponse,
   HttpMetrics,
   ErrorSummary,
@@ -493,9 +494,47 @@ export async function getPipelineRuns(
   if (params.limit !== undefined) search.set('limit', String(params.limit));
 
   const query = search.toString();
-  return fetchWebApi<PipelineRunsResponse>(
+  const res = await fetchWebApi<PipelineRunsResponse>(
     `/api/admin/pipeline/runs${query ? `?${query}` : ''}`,
   );
+  return {
+    ...res,
+    data: {
+      runs: res.data.runs.map(withOutcome),
+      recentErrors: res.data.recentErrors.map(withOutcome),
+    },
+  };
+}
+
+/**
+ * O run como a tela o lê, mesmo vindo de uma API que ainda não sabe o desfecho.
+ *
+ * **A janela entre os dois deploys, e o preview da `dev`.** O web e a API
+ * publicam juntos na promoção e não terminam juntos; e o preview da `dev` na
+ * Vercel fala com a API de **produção**, que só ganha a Fase 8 na promoção —
+ * até lá, todo run chega sem `outcome` e sem `degradedBy`, e a faixa de
+ * desfechos morreria num `undefined.length` na primeira renderização. Achado
+ * do pós-merge da Fase 8: o contrato diz que os dois campos existem, e o
+ * contrato é da versão que ainda não está no ar.
+ *
+ * O fallback é o que a API antiga sabia dizer: o `status`, que para um run
+ * fechado é o desfecho sem a nuance do degradado — e não `null`, que a faixa
+ * leria como `RUNNING`. Uma vez só, na fronteira, para a tela não carregar
+ * `??` em cada leitura.
+ */
+function withOutcome(run: PipelineRunSummary): PipelineRunSummary {
+  const legacy = run as Partial<Pick<PipelineRunSummary, 'outcome' | 'degradedBy'>> &
+    Omit<PipelineRunSummary, 'outcome' | 'degradedBy'>;
+  return {
+    ...run,
+    outcome:
+      legacy.outcome !== undefined
+        ? legacy.outcome
+        : legacy.status === 'RUNNING'
+          ? null
+          : legacy.status,
+    degradedBy: legacy.degradedBy ?? [],
+  };
 }
 
 /** Detalhe de um run (admin): o resumo mais os eventos por etapa. */
@@ -505,7 +544,7 @@ export async function getPipelineRunDetail(
   const res = await fetchWebApi<ApiResponse<PipelineRunDetail>>(
     `/api/admin/pipeline/runs/${pipelineId}`,
   );
-  return res.data;
+  return { ...res.data, log: withOutcome(res.data.log) };
 }
 
 /** Remove uma notícia (admin). */

@@ -340,6 +340,27 @@ describe('GET /dev/dashboard', () => {
     expect(res.body).toContain('Gemini API error 500: boom');
   });
 
+  it('names a degraded run by its outcome, with the stages — not by its status (pós-merge da Fase 8)', async () => {
+    // As duas portas compartilham o schema, e esta página é a segunda porta:
+    // ela ganhou `outcome` no JSON e continuava imprimindo `status` — "SUCCESS"
+    // sobre um run que saiu pelo Groq com a newsletter falhada.
+    vi.mocked(getDevLogs).mockResolvedValueOnce({
+      runs: [{ ...mockSummary, outcome: 'SUCCESS_DEGRADED', degradedBy: [6, 7.5] }],
+      recentErrors: [],
+      total: 1,
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/dev/dashboard',
+      headers: { authorization: 'Bearer test-secret' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('SUCCESS_DEGRADED');
+    expect(res.body).toContain('6, 7.5');
+    expect(res.body).not.toMatch(/>SUCCESS</);
+  });
+
   it('should not issue a session cookie for a wrong secret', async () => {
     const res = await app.inject({
       method: 'POST',

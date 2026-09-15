@@ -21,9 +21,12 @@ import {
 import { toDateFormatLocale } from '@/lib/i18n';
 import {
   BRIEFING_OVERDUE_MS,
+  DEGRADED_STREAK_TRIGGER,
+  degradedStreak,
   lastBriefingRun,
   outcomeByDay,
   OUTCOME_WINDOW_DAYS,
+  type OutcomeDay,
 } from '@/lib/outcome-days';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -126,6 +129,26 @@ function DegradedBy({ stages }: { stages: number[] }) {
         count: stages.length,
         stages: formatList(stages.map(String), locale),
       })}
+    </p>
+  );
+}
+
+/**
+ * O gatilho numérico da §12, medido (pós-merge da Fase 8): três runs seguidos
+ * degradados pela mesma etapa. Antes era contar contornos laranja na faixa; o
+ * `CLAUDE.md` já escrevia em prosa "três dias seguidos de fallback" como o
+ * gatilho para agir sobre o Gemini. Abaixo do gatilho a linha não existe —
+ * uma linha que aparece a cada dia degradado ensina a ignorá-la.
+ */
+function DegradedStreakLine({ days }: { days: OutcomeDay[] }) {
+  const t = useTranslations('admin');
+  const streak = degradedStreak(days);
+
+  if (!streak || streak.runs < DEGRADED_STREAK_TRIGGER) return null;
+
+  return (
+    <p className='mt-2 text-body-sm font-semibold text-link'>
+      {t('pipeline.degradedStreak', { count: streak.runs, stage: String(streak.stage) })}
     </p>
   );
 }
@@ -430,6 +453,7 @@ export function PipelineRuns() {
               <LastBriefing runs={runs} />
             </div>
             <OutcomeStrip days={days} />
+            <DegradedStreakLine days={days} />
           </div>
 
           <LastRun run={lastRun} />
