@@ -332,6 +332,23 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Verificação pós-merge da Fase 11 (2026-09-16): a coleta real, o nome
+  que sobrou, e o terreno da 6.** Item **74**. Três enumerações e um ensaio
+  sobre a árvore mergeada (`4fb0127`, #205–#207). **A coleta de verdade**
+  contra os 12 feeds e a NewsData: 609 itens de 13 fontes em 2,3 s, todas
+  `OK`, latências de 1,2 a 2,0 s, `kept ≤ fetched` nas 13 e Σ`kept` =
+  deduplicados — e a **BBC traz 41 itens com 10 URLs repetidas no próprio
+  feed**, a primeira divergência entre `fetched` e `kept` por motivo interno
+  ao feed. **Dois achados de prosa:** `fetchFromRssWithFailures` mentia desde
+  o 11b (devolve `outcomes`) — hoje `fetchFromRssWithOutcomes`; e o
+  `apps/api/CLAUDE.md` dizia "10 etapas" listando 11 e "três subgrupos" com
+  quatro. Gitleaks em `0 commits scanned` no push do merge, sétima medição.
+  **O terreno da Fase 6 está no fim da §10**: as nove invariantes viraram
+  onze (o `AuditEvent` e a `SourceHealth` entraram no expurgo depois da
+  lista), `STALE_RUN_MS` e `yieldToEventLoop` não são exportados,
+  `metrics.day_recorded` não é agregado em Prisma, e "violação degrada o
+  run?" se decide antes do `WARN`. Branch `observability/fase-6-invariants`.
+
 - **Fora da linha das fases (2026-09-15): a Fase 11 fechou na `dev` — PR
   11c, o web.** §15, item **73**. O painel "Fontes" na `/admin/metrics`:
   a tabela por fonte (estado de hoje, novas/coletadas, médias de 7 e 30 dias,

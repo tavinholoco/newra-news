@@ -1412,7 +1412,7 @@ era de toda rota que o BFF já repassava:
 
 ---
 
-## §10 Fase 6 — Invariantes (o eixo das inconsistências)
+## §10 Fase 6 — Invariantes (o eixo das inconsistências) ← próxima
 
 **Fecha:** as etapas 7.5, 8, 8.5 e 9 engolem a própria falha de propósito, para
 o run terminar — e nada nunca pergunta "o que deveria ter acontecido
@@ -1468,6 +1468,109 @@ suíte de novo — atualizar a tela não pode disparar oito consultas agregadas 
 **Orçamento como número:** no máximo 10 consultas agregadas, abaixo de 2 s de
 relógio. Estourar significa que um invariante está varrendo — e o sintoma vai
 ser um `SIGTERM`, não um teste lento.
+
+### Inventário reconferido antes de abrir — 16/09/2026
+
+O inventário acima é de 23/08. Medido contra a `dev` em `4fb0127` (a Fase 11
+mergeada), no pós-merge da 11, para a sessão que abrir a fase não
+redescobrir.
+
+**O que continua verdade:** o `yieldToEventLoop` existe em
+`news-renormalizer.service.ts:174` e é o único; `STALE_RUN_MS` mora em
+`pipeline.service.ts:53`; `ErrorOrigin.INVARIANT` está no enum **sem
+produtor** (o `error-event.service.ts:119` diz de propósito que o código
+entra na união "quando nascer"); o `fingerprint` é
+`origin:severity:code:route`, então **`route: <id do invariante>` dá uma
+linha por invariante por hora**, como a §10 promete; o lugar na tela existe
+(`security-client.tsx:190`, `security.invariants.title/empty` nos dois
+idiomas) e o `byOrigin` do `/api/admin/errors` já tem a fatia `INVARIANT`
+fixa; e as onze consultas de retenção e contagem batem em coluna **com
+índice** (`News.createdAt`, `PipelineLog.status+startedAt`,
+`ProductEvent.occurredAt`, `ErrorEvent.windowStart`, `AuditEvent.createdAt`,
+`SourceHealth.day`, `Article.date`, `DailyMetric.date`, `NewsletterLog.date`,
+`Subscriber.status`).
+
+**O que o inventário assume e mudou:**
+
+- **As nove viraram onze.** `retention.auditEvent` (366 d, `createdAt`) e
+  `retention.sourceHealth` (91 d, `day`) entraram no expurgo depois de a
+  lista ser escrita — e o orçamento diz "no máximo 10 consultas". Os seis
+  `MIN(coluna)` de retenção são seis `aggregate` num índice cada, os mais
+  baratos da suíte; **decisão para a fase:** o orçamento vale por **tempo**
+  (< 2 s) e por **forma** (nenhuma carrega linha), e o número sobe para 12 —
+  ou as seis retenções viram uma consulta só com `$queryRaw` de seis
+  `MIN`. Escolher e escrever.
+- **`metrics.day_recorded` não é uma consulta agregada em Prisma.** Agrupar
+  `PipelineLog.startedAt` por dia pede `date_trunc` — `groupBy` do Prisma
+  agrupa pelo instante. As saídas honestas: `$queryRaw` com `date_trunc('day',
+  "startedAt")`, ou dois `findMany` **pequenos** (`select: { startedAt }` dos
+  `SUCCESS` de 30 dias, ≤ 31 linhas; `select: { date }` do `DailyMetric`,
+  idem) comparados em memória. As duas cabem no orçamento; a segunda é a que
+  a suíte sem banco testa, e "não carrega linha" continua verdade no sentido
+  que importa (≤ 62 linhas de uma coluna, sobre índice).
+- **Nem `STALE_RUN_MS` nem `yieldToEventLoop` são exportados.** O invariante
+  `pipeline.no_stale_running` precisa do primeiro, e a etapa 9.5 do segundo —
+  a §10 manda reusar, não copiar. Exportar os dois é o primeiro diff da fase.
+- **`RecordedErrorCode` é união fechada** (`error-event.service.ts:122`): o
+  `recordError({ origin: 'INVARIANT' })` não compila sem um
+  `INVARIANT_VIOLATED_CODE` na união — e a guarda do `error-event.test.ts`
+  enumera os call sites pelo parser. A `severity` é decisão: `WARN` (a
+  retenção parada é degradação, não quebra) parece a certa; `ERROR` faria a
+  tabela de falhas gritar por uma invariante que dura dias.
+- **A etapa 9.5 é etapa nova**, e o §18 já cobra: `diagram-drift` exige
+  `9.5 · ` nos dois diagramas do pipeline; se a etapa emitir `WARN`, o
+  `run-outcome-wiring` exige `degradedBy.push(9.5)` no mesmo bloco. **Decisão
+  antes de escrever:** violação degrada o run ou não? A §10 desenha **`INFO`
+  com o relatório no `context` + um `recordError` por violação** — o run não
+  é o que falhou; o que falhou é o que uma etapa anterior deveria ter feito.
+  Com `INFO`, o dia não sai `SUCCESS_DEGRADED` e a linha vermelha mora na
+  tabela de falhas (fingerprint por invariante) e no painel de invariantes.
+  Com `WARN`, sai — e o `ErrorEvent` do `WARN` (`stage-9.5`) seria uma
+  segunda linha ao lado das linhas por invariante. A recomendação é `INFO`
+  + `recordError`, como está escrito; o que não pode é os dois.
+- **Onde a 9.5 entra:** depois do `upsert` da etapa 9 e **antes** do
+  `update` para `SUCCESS` e do resumo final — dentro de um `try` cujo `catch`
+  não aborta (princípio 1), e com o relatório entrando no resumo da etapa 9
+  (`invariants: { checked, violated }`), que é a linha que a tela de um run
+  abre primeiro. O `pii-in-logs` fixa a forma literal só da 7.5; a 9 é
+  livre.
+- **`GET /api/admin/invariants` lê o último evento da etapa 9.5**
+  (`PipelineEvent` tem índice em `stage` e em `createdAt`; `findFirst` com
+  `where: { stage: 9.5 }`, `orderBy: { createdAt: 'desc' }`). Rota nova = as
+  três guardas do §18 + BFF (`app/api/admin/invariants/route.ts`,
+  `admin-surface`, `bff-route-seam`, a lista de 401 do smoke pela
+  `hand-written-lists`) + tipo em `packages/types`. **E a armadilha 37**: o
+  preview da `dev` lê a API de produção, que responde 404 — a seção desenha
+  "indisponível", como o painel de fontes.
+- **`briefing.one_per_day` sobre 7 dias reprova no dia em que a API foi
+  suspensa** (29–31/08 foram três) — o que é o certo, e é o motivo de ela
+  existir. Mas o seed local tem esse buraco de propósito (o `NEVER_RAN_DAYS`
+  da Fase 8), e **`retention.news` reprovaria no banco local**, cujo acervo
+  é anterior à migration e nunca passou pela etapa 8 de verdade. O ensaio
+  contra o real (armadilha 18) aqui é: **rodar as onze consultas contra o
+  banco local e contar quantas reprovam antes de ligar a etapa** — se uma
+  reprova por causa do seed, é o seed que se ajusta, não a invariante.
+- **Uma décima segunda candidata, com gatilho:** `sourceHealth.day_written`
+  — dias com run `SUCCESS` e sem linha de `SourceHealth` (a escrita da etapa
+  4 é não crítica, e a falha dela hoje é só um `degradedBy: [4]`). Entra se
+  a fase tiver folga no orçamento; o gatilho para entrar depois é o primeiro
+  dia sem linha em produção.
+
+**O que a fase paga em guarda (§18), medido:** etapa nova (dois diagramas);
+rota nova na API (matriz, `docs/api.md`, tipo compartilhado); rota nova no
+BFF (`admin-surface`, `bff-route-seam`, lista de 401); `code` novo na união
+do `ErrorEvent` (parser do `error-event.test.ts`); `i18n-messages` para o
+painel; **sem migration, sem env nova, sem página nova** — o painel entra na
+`/admin/security`, que o `admin:capture` já fotografa. Uma guarda própria
+que a §10 pede: a suíte de invariantes **cede o event loop entre checagens**
+(o teste do `yieldToEventLoop`, pelo mesmo desenho do renormalizador — em
+que ponto o loop girou, não se há `take`).
+
+**Branch:** `observability/fase-6-invariants`, cortada em 16/09 de `4fb0127`
+(a `dev` com a Fase 11). O passo 1 do ritual a realinha depois de o
+pós-merge da 11 mergear — conferir com `git merge-base --is-ancestor` que
+#207 **e** o PR do pós-merge estão na `dev`, e `rev-list --count
+origin/dev..origin/main` = 0.
 
 ---
 
@@ -2532,6 +2635,34 @@ A lista de 401 do smoke ganhou a rota (a `hand-written-lists` cobrou antes).
 
 **792 → 822 no web** (78 → 80 suítes), **1.196 → 1.197 na API** (a segunda `janela ≤ retenção`).
 
+### O que a verificação pós-merge achou — 16/09/2026
+
+Sobre a `dev` em `4fb0127` (#205, #206 e #207 mergeados em sequência;
+`dev..main` = 0; nenhum artefato ignorado rastreado). Item **74** do
+`docs/progress.md`. A pergunta dos itens anteriores — *o que ficou de fora?*
+— por três enumerações e um ensaio, e não relendo os diffs.
+
+- **A coleta real, sem IA nem newsletter.** `fetchAll()` contra os 12 feeds
+  e a NewsData: **609 itens de 13 fontes em 2,3 s**, todas `OK`, latências
+  de 1,2 s a 2,0 s, `kept ≤ fetched` nas 13 e **Σ`kept` = deduplicados**. O
+  que só o real mostra: a **BBC traz 41 itens com 10 URLs repetidas no
+  próprio feed** — a primeira divergência medida entre `fetched` e `kept`
+  por motivo interno ao feed, e a razão de as duas colunas existirem.
+- **`fetchFromRssWithFailures` mentia desde o 11b** (devolve `outcomes`;
+  `failures` não existe mais). Renomeada para `fetchFromRssWithOutcomes`.
+  Nome que descreve o que a função fazia é a família do `13` dos feeds.
+- **Duas contagens em prosa erradas no `apps/api/CLAUDE.md`**, que nenhuma
+  guarda alcança: "10 etapas" listando 11 (desde a 8.5), e "três subgrupos"
+  sob `/api/admin` com quatro. Corrigidas.
+- **Um único ponto de escrita e um de leitura** de `SourceHealth` (o
+  service; o seed fora); o web nomeia etapa por número, então
+  `degradedBy: [4]` não pede chave; o resumo da etapa 9 grava `sources: 45`
+  (veículos distintos) e a tabela tem 13 (fontes configuradas) — duas
+  contagens sob a mesma palavra, registradas para não virar "bug".
+- **Gitleaks em `0 commits scanned` no push do merge — sétima medição.**
+
+**1.197 na API, 822 no web** — sem teste novo.
+
 ---
 
 ## §16 Dívidas com gatilho numérico
@@ -2959,7 +3090,13 @@ aplica as duas migrations juntas na promoção.**
   derivação em `lib/source-days.ts`, o painel "Fontes" na `/admin/metrics`
   com os dois gatilhos como alerta e "indisponível" sobre 404. As decisões de
   cada um, no fim da §15.
-- **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
+- **§10 — Fase 6 (invariantes). ← próxima, decidida em 16/09/2026.** Etapa
+  9.5 + `GET /api/admin/invariants` + o painel na `/admin/security`, num PR
+  só (sem schema). **O inventário foi reconferido no fim da §10** — as nove
+  viraram onze (o `AuditEvent` e a `SourceHealth` entraram no expurgo depois
+  da lista), `STALE_RUN_MS` e `yieldToEventLoop` não são exportados,
+  `metrics.day_recorded` não é agregado em Prisma, `RecordedErrorCode` pede
+  o código novo, e "violação degrada o run?" se decide antes do `WARN`.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 

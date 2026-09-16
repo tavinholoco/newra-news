@@ -7490,8 +7490,82 @@ run, a legenda), e no `retention-drift` da API a segunda `janela ≤
 retenção`, sobre `SOURCE_WINDOW_DAYS`.
 
 **792 → 822 no web** (78 → 80 suítes), **1.196 → 1.197 na API** (a guarda
-nova do `retention-drift`). Uma rota nova no
-BFF, 32 chaves de mensagem nos dois idiomas, nenhuma página nova.
+nova do `retention-drift`). Uma rota nova no BFF, 32 chaves de mensagem nos
+dois idiomas, nenhuma página nova.
+
+### 74. A verificação pós-merge da Fase 11: a coleta real, o nome que sobrou, e o terreno da 6 ✅ 2026-09-16
+
+> Sobre a árvore mergeada (`4fb0127`, #207 — os três PRs em sequência, #205
+> às 17:03, #206 às 17:08, #207 às 17:12 UTC), a pergunta dos itens 39, 52,
+> 57, 61, 63, 65, 68 e 70 — *o que ficou de fora?* — por três enumerações e
+> um ensaio: **quem ainda fala em `failures`**, **quem escreve e quem lê
+> `SourceHealth`**, **o que a janela da tabela assume**, e **a coleta de
+> verdade** contra os 12 feeds e a NewsData.
+
+**O que foi conferido e está em ordem:** os três mergeados na `dev` com CI,
+CodeQL e Gitleaks verdes por PR; a `dev` a 0 da `main` e 53 à frente; `git
+ls-tree origin/dev | check-ignore` vazio; **um único ponto de escrita e um
+único de leitura** da tabela (`source-health.service.ts`; o seed fora); o
+web nomeia a etapa por número ("Etapa 4"), então o `degradedBy: [4]` novo
+não pede chave de mensagem; `warnings` continua com o consumidor de sempre
+(`categoryForStageFailure` lê `context.warnings`); a lista de 401 do smoke e
+o `ALL_ROUTES` já tinham o que precisavam. Gitleaks em **`0 commits
+scanned`** no push do merge — **sétima medição** do mesmo buraco
+(`--no-merges --first-parent`), dívida com gatilho no §16.
+
+#### O ensaio contra dado real — a coleta, sem IA nem newsletter
+
+Nenhum teste de unidade mede o provider contra um feed de verdade, e a lição
+da higiene de texto (item 38) é que correção de dado se ensaia contra o real.
+Um script temporário chamou `fetchAll()` e montou as linhas como a etapa 4
+faria: **609 itens de 13 fontes em 2,3 s** (68 da NewsData, 541 de RSS),
+todas `OK`, latências entre **1,2 s e 2,0 s** — a NewsData a mais lenta
+(1.982 ms, oito categorias em paralelo), a BBC a mais rápida (1.196 ms). Zero
+avisos. `kept ≤ fetched` nas 13, e **Σ`kept` = deduplicados (598)** — o
+cruzamento que o `persisted.count` faria em produção.
+
+**O que só o real mostrou:** a **BBC Brasil traz 41 itens com 10 URLs
+repetidas dentro do próprio feed** (a ESPN, 26 com 1). `fetched` conta o que
+o feed publicou e `kept` o que sobrou depois do dedup — a diferença de 10
+não é perda, é a razão de as duas colunas existirem, e é o primeiro caso
+medido em que elas divergem por motivo interno ao feed, e não por
+sobreposição com outra fonte.
+
+#### O que ficou de fora, e entrou aqui
+
+- **`fetchFromRssWithFailures` mentia desde o 11b.** A função devolve
+  `outcomes` e `failures` deixou de existir, mas o nome sobreviveu em 7
+  chamadas e 4 suítes — nome que descreve o que a função *fazia* é a família
+  do `13` dos feeds. Hoje é `fetchFromRssWithOutcomes`; `fetchFromRss` (o
+  atalho) continua.
+- **O `apps/api/CLAUDE.md` dizia "Pipeline Diário (10 etapas)" e listava
+  11** — desde a etapa 8.5 (item 38). E dizia "três subgrupos" sob
+  `/api/admin` com quatro registrados desde o 11b. Duas contagens em prosa
+  que nenhuma guarda alcança (o `diagram-drift` compara etapas nos
+  diagramas, não no `CLAUDE.md`); corrigidas.
+
+**Uma leitura que não é defeito, registrada para a próxima sessão não
+redescobrir:** o resumo da etapa 9 grava `sources: 45` (veículos distintos
+nos deduplicados — a NewsData agrega dezenas) enquanto a tabela nova tem 13
+linhas (fontes **configuradas**). São duas contagens de coisas diferentes
+sob a mesma palavra; a do resumo é a que a §15 chama de "limite honesto".
+
+#### O terreno da Fase 6 (invariantes), medido contra a árvore mergeada
+
+A próxima do bloco 3 é a 6 (§10); a 9 vai por último. O inventário da §10
+é de 23/08 e foi reconferido — o detalhe está no fim da §10. O que muda o
+desenho: **as nove viraram onze** (a `AuditEvent` do 5a e a `SourceHealth`
+do 11a entraram no expurgo depois de a lista ser escrita, e o orçamento diz
+"no máximo 10 consultas"); `STALE_RUN_MS` e `yieldToEventLoop` **não são
+exportados**; `metrics.day_recorded` não é uma consulta agregada em Prisma
+(agrupar `DateTime` por dia pede SQL cru ou dois `findMany` pequenos sobre
+índice); `RecordedErrorCode` é união fechada e precisa do
+`INVARIANT_VIOLATED_CODE`; a etapa 9.5 é **etapa nova** (dois diagramas pelo
+`diagram-drift`) e a decisão "violação degrada o run?" precisa ser tomada
+antes de escrever o `WARN` — o `run-outcome-wiring` cobra o `push`. Branch
+`observability/fase-6-invariants`, cortada da `dev` em `4fb0127`.
+
+**1.197 na API, 822 no web** — sem teste novo: renomeação e prosa.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

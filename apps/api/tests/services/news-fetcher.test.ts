@@ -6,7 +6,7 @@ vi.mock('../../src/providers/news/newsdata.provider');
 vi.mock('../../src/providers/news/rss.provider');
 
 import { fetchFromNewsData } from '../../src/providers/news/newsdata.provider';
-import { fetchFromRssWithFailures } from '../../src/providers/news/rss.provider';
+import { fetchFromRssWithOutcomes } from '../../src/providers/news/rss.provider';
 import type { RssFeedOutcome } from '../../src/providers/news/rss.provider';
 
 /** O par `{ source, detail }` que os cenários nomeiam; vira `failure` no desfecho. */
@@ -57,7 +57,7 @@ const feedsExcept = (...silent: string[]) =>
     }));
 
 /**
- * O que `fetchFromRssWithFailures` resolve: os itens e **um desfecho por feed
+ * O que `fetchFromRssWithOutcomes` resolve: os itens e **um desfecho por feed
  * configurado** — o que trouxe item conta os seus, o nomeado como falho leva
  * a exceção, e o resto respondeu vazio. A latência é fixa: o que se mede aqui
  * é a classificação, não o relógio.
@@ -85,7 +85,7 @@ beforeEach(() => {
 describe('NewsFetcherService', () => {
   it('should combine items from both sources', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(mockRssItems));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(mockRssItems));
 
     const result = await fetchAll();
 
@@ -97,7 +97,7 @@ describe('NewsFetcherService', () => {
 
   it('should return empty newsDataItems when NewsData fails', async () => {
     vi.mocked(fetchFromNewsData).mockRejectedValue(new Error('NewsData down'));
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(mockRssItems));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(mockRssItems));
 
     const result = await fetchAll();
 
@@ -108,7 +108,7 @@ describe('NewsFetcherService', () => {
 
   it('should return empty rssItems when RSS fails', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockRejectedValue(new Error('RSS down'));
+    vi.mocked(fetchFromRssWithOutcomes).mockRejectedValue(new Error('RSS down'));
 
     const result = await fetchAll();
 
@@ -119,7 +119,7 @@ describe('NewsFetcherService', () => {
 
   it('should return empty allItems when both sources fail', async () => {
     vi.mocked(fetchFromNewsData).mockRejectedValue(new Error('NewsData down'));
-    vi.mocked(fetchFromRssWithFailures).mockRejectedValue(new Error('RSS down'));
+    vi.mocked(fetchFromRssWithOutcomes).mockRejectedValue(new Error('RSS down'));
 
     const result = await fetchAll();
 
@@ -132,7 +132,7 @@ describe('NewsFetcherService', () => {
     // O desfecho por feed não é tudo-ou-nada: nove feeds podem responder
     // enquanto três estão fora, e os itens dos nove continuam valendo.
     vi.mocked(fetchFromNewsData).mockResolvedValue([]);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('Superinteressante', 'Veja Saúde', 'Drauzio Varella'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
         { source: 'Veja Saúde', detail: 'ETIMEDOUT' },
@@ -159,7 +159,7 @@ describe('NewsFetcherService', () => {
 describe('NewsFetcherService — o aviso de colheita degradada', () => {
   it('names the provider that failed, and why', async () => {
     vi.mocked(fetchFromNewsData).mockRejectedValue(new Error('socket hang up'));
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(feedsExcept()));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(feedsExcept()));
 
     const result = await fetchAll();
 
@@ -172,7 +172,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
     // O modo pior dos dois: lista vazia sem exceção é indistinguível de "não
     // houve notícia hoje", e não deixa nem a rejeição para o log.
     vi.mocked(fetchFromNewsData).mockResolvedValue([]);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(feedsExcept()));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(feedsExcept()));
 
     const result = await fetchAll();
 
@@ -181,7 +181,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
 
   it('stays quiet when every provider and every feed delivered', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(feedsExcept()));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(feedsExcept()));
 
     const result = await fetchAll();
 
@@ -194,7 +194,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
     // configurada — foi assim que a `Reuters` ficou com zero itens até
     // 24/08/2026 sem ninguém notar. Hoje o provider diz, uma entrada por feed.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('TechCrunch', 'Veja Saúde')),
     );
 
@@ -210,7 +210,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
     // O provider caído já tem o aviso dele; repetir doze `feed-empty` afogaria
     // justamente a linha que diz o que aconteceu.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockRejectedValue(new Error('RSS down'));
+    vi.mocked(fetchFromRssWithOutcomes).mockRejectedValue(new Error('RSS down'));
 
     const result = await fetchAll();
 
@@ -231,7 +231,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
    */
   it('classifies a feed whose fetch threw as feed-failed, not feed-empty', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('Superinteressante', 'Veja Saúde', 'Drauzio Varella'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
         { source: 'Veja Saúde', detail: 'ETIMEDOUT' },
@@ -254,7 +254,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
     // A fonte que falhou está "contabilizada" para o laço de feed-empty: ela
     // não deve aparecer duas vezes, uma por cada classificação.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('Superinteressante'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
       ]),
@@ -271,7 +271,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
   it('mixes feed-failed and feed-empty in the same run', async () => {
     // O caso real de 03/09/2026: alguns feeds fora do ar, outros só quietos.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('Superinteressante', 'TechCrunch'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
       ]),
@@ -290,7 +290,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
     // provider inteiro mudo, não doze fontes coincidentemente quietas — por
     // isso vira um aviso de provider, não doze feed-empty repetidos.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss([]));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss([]));
 
     const result = await fetchAll();
 
@@ -310,7 +310,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
 describe('NewsFetcherService — o desfecho por fonte', () => {
   it('reports one entry per configured source, the aggregator first', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(feedsExcept()));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(feedsExcept()));
 
     const { sources } = await fetchAll();
 
@@ -327,7 +327,7 @@ describe('NewsFetcherService — o desfecho por fonte', () => {
 
   it('carries the feed failure and the feed silence side by side', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('Superinteressante', 'TechCrunch'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
       ]),
@@ -356,7 +356,7 @@ describe('NewsFetcherService — o desfecho por fonte', () => {
     vi.mocked(fetchFromNewsData).mockRejectedValue(
       new Error('NEWSDATA_API_KEY is not configured'),
     );
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss(feedsExcept()));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss(feedsExcept()));
 
     const { sources } = await fetchAll();
 
@@ -372,7 +372,7 @@ describe('NewsFetcherService — o desfecho por fonte', () => {
     // e isso não é "respondeu vazio". O aviso continua um só (ver acima); o
     // desfecho por fonte é o que a SourceHealth grava, e ali cada uma é FAILED.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockRejectedValue(new Error('RSS down'));
+    vi.mocked(fetchFromRssWithOutcomes).mockRejectedValue(new Error('RSS down'));
 
     const { sources } = await fetchAll();
     const feeds = sources.filter((s) => s.kind === 'RSS');
@@ -385,7 +385,7 @@ describe('NewsFetcherService — o desfecho por fonte', () => {
     // O aviso agrega ("provider-empty"); o desfecho não — a série por fonte
     // precisa do dia vazio de cada uma para a faixa não ter buraco.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rss([]));
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss([]));
 
     const { sources, warnings } = await fetchAll();
     const feeds = sources.filter((s) => s.kind === 'RSS');
@@ -401,7 +401,7 @@ describe('NewsFetcherService — o desfecho por fonte', () => {
       vi.mocked(fetchFromNewsData).mockImplementation(
         () => new Promise((resolve) => setTimeout(() => resolve(mockNewsDataItems), 700)),
       );
-      vi.mocked(fetchFromRssWithFailures).mockImplementation(
+      vi.mocked(fetchFromRssWithOutcomes).mockImplementation(
         () => new Promise((_, reject) => setTimeout(() => reject(new Error('RSS down')), 1_200)),
       );
 
@@ -418,7 +418,7 @@ describe('NewsFetcherService — o desfecho por fonte', () => {
 
   it('derives the warnings from the same entries — a failed feed is exactly a failed entry', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
-    vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+    vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
       rss(feedsExcept('Superinteressante', 'Veja Saúde', 'TechCrunch'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
         { source: 'Veja Saúde', detail: 'ENOTFOUND' },

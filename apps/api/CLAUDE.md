@@ -84,8 +84,8 @@
 ## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
 
 **A garantia é do grupo, não da rota.** `routes/admin/index.ts` registra o
-`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os três subgrupos
-(`pipeline`, `errors`, `audit`) herdam o hook — hook de contexto pai vale para
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os quatro subgrupos
+(`pipeline`, `errors`, `audit`, `sources`) herdam o hook — hook de contexto pai vale para
 todo `register` abaixo dele. Toda rota do grupo nasce protegida sem ninguém
 lembrar de repetir a linha; **na Fase 2 as duas linhas moravam em
 `pipeline.ts`**, e subiram para o pai quando a Fase 5 pôs dois subgrupos ao
@@ -164,7 +164,7 @@ denunciava a divergência. Ao mexer no `select` de um serviço, confira o schema
 - Tem `Cache-Control` editorial: as facetas não mudam ao virar a página, então
   ficam fora da listagem para não recalcular dois `groupBy` a cada paginação.
 
-## Pipeline Diário (10 etapas)
+## Pipeline Diário (11 etapas)
 Coleta → Normalização → Deduplicação → Persistência →
 Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup →
 **Renormalização** → Métricas
@@ -701,7 +701,7 @@ do `ErrorEvent`, e o quarto sinal de ouro.
 | `plugins/uptime-heartbeat.ts` | o intervalo de 5 min e o `onClose` — **registrado no `server.ts`** |
 | `services/error-summary.service.ts` | a soma por fingerprint na janela — o **leitor** do `ErrorEvent`, separado do escritor |
 | `services/saturation.service.ts` | memória, event loop (`plugins/observability.ts`) e horas do plano, com teto e razão |
-| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos |
+| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos (quatro desde a Fase 11) |
 
 Regras que não são óbvias no código:
 

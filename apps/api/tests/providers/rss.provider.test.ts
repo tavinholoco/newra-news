@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { fetchFromRss, fetchFromRssWithFailures } from '../../src/providers/news/rss.provider';
+import { fetchFromRss, fetchFromRssWithOutcomes } from '../../src/providers/news/rss.provider';
 import type { RssSource } from '../../src/config/rss-sources';
 import { baseLogger } from '../../src/utils/logger';
 
@@ -228,13 +228,13 @@ describe('fetchFromRss', () => {
  * a `SourceHealth` os grava, e "a Superinteressante demora 28 s" é o dia
  * anterior ao `ETIMEDOUT`, visível só se alguém medir.
  */
-describe('fetchFromRssWithFailures — o desfecho por feed', () => {
+describe('fetchFromRssWithOutcomes — o desfecho por feed', () => {
   it('reports one outcome per source, in the order given, with the item count', async () => {
     mockParseString
       .mockResolvedValueOnce({ title: 'A', items: [mockItem, mockItem] })
       .mockResolvedValueOnce({ title: 'B', items: [] });
 
-    const { items, outcomes } = await fetchFromRssWithFailures([
+    const { items, outcomes } = await fetchFromRssWithOutcomes([
       sourceWithCategory,
       sourceWithoutCategory,
     ]);
@@ -258,7 +258,7 @@ describe('fetchFromRssWithFailures — o desfecho por feed', () => {
         headers: new Headers({ 'content-type': 'application/xml; charset=UTF-8' }),
       });
 
-    const { outcomes } = await fetchFromRssWithFailures([sourceWithCategory, sourceWithoutCategory]);
+    const { outcomes } = await fetchFromRssWithOutcomes([sourceWithCategory, sourceWithoutCategory]);
 
     expect(outcomes[0]).toEqual({
       source: 'TechCrunch',
@@ -275,7 +275,7 @@ describe('fetchFromRssWithFailures — o desfecho por feed', () => {
       items: [mockItem, { ...mockItem, title: undefined }, { ...mockItem, contentSnippet: undefined, content: undefined }],
     });
 
-    const { outcomes } = await fetchFromRssWithFailures([sourceWithCategory]);
+    const { outcomes } = await fetchFromRssWithOutcomes([sourceWithCategory]);
 
     expect(outcomes[0]?.fetched).toBe(1);
   });
@@ -301,7 +301,7 @@ describe('fetchFromRssWithFailures — o desfecho por feed', () => {
           () => new Promise((_, reject) => setTimeout(() => reject(new Error('ETIMEDOUT')), 30_000)),
         );
 
-      const pending = fetchFromRssWithFailures([sourceWithCategory, sourceWithoutCategory]);
+      const pending = fetchFromRssWithOutcomes([sourceWithCategory, sourceWithoutCategory]);
       await vi.advanceTimersByTimeAsync(30_000);
       const { outcomes } = await pending;
 
@@ -316,7 +316,7 @@ describe('fetchFromRssWithFailures — o desfecho por feed', () => {
     const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => baseLogger);
     mockParseString.mockResolvedValue({ title: 'Test Feed', items: [] });
 
-    await fetchFromRssWithFailures([sourceWithCategory]);
+    await fetchFromRssWithOutcomes([sourceWithCategory]);
 
     expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({ feed: 'TechCrunch', latencyMs: expect.any(Number) }),
