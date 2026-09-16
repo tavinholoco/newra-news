@@ -7655,6 +7655,77 @@ duas verdadeiras.
 **1.197 → 1.252 na API (82 → 84 suítes), 822 → 829 no web (80 → 81).** Depois
 da 6: a **9 por último** (promover antes dela); 7b e 7c continuam abertas.
 
+### 76. A verificação pós-merge da Fase 6: três frases que sobraram, a guarda de compilação vista reprovando, e o terreno da 7 ✅ 2026-09-16
+
+> Sobre a árvore mergeada (`1152ca0`, #209 — mergeado às 18:30 UTC, CI do PR
+> com os seis checks verdes), a pergunta dos itens 39, 52, 57, 61, 63, 65,
+> 68, 70 e 74 — *o que ficou de fora?* — por quatro enumerações: **quem lê
+> etapa por número** (o detalhe do run, o `/dev/dashboard`, a prosa),
+> **quem lê o `route` do `ErrorEvent`** (a tabela de falhas, a `docs/api.md`),
+> **quem lê o resumo da etapa 9 por nome** (ninguém no web — o `invariants`
+> novo não tem leitor a quebrar, e é o caso bom da armadilha 37), e **o que
+> a costura tipo ↔ schema garante** de verdade.
+
+**O que foi conferido e está em ordem:** `dev..main` = 0, 58 à frente; `git
+ls-tree origin/dev | check-ignore` vazio; o `/dev/dashboard` imprime
+`degradedBy.join(', ')` cru, então um dia degradado pela 9.5 sai "9.5" sem
+chave nova; o web nomeia a etapa por número ("Etapa 9.5") e o `context` do
+evento vai para um `<pre>`; o `route` da tabela de falhas é só exibido e
+buscado, então `retention.news` aparece como veio; `byOrigin` já tinha a fatia
+`INVARIANT` fixa desde o 5b. **Gitleaks em `0 commits scanned` no push do
+merge — oitava medição** (`--no-merges --first-parent`), dívida com gatilho
+no §16.
+
+**A guarda de compilação foi vista reprovando.** Tirei `newsletter.delivered`
+do `z.enum` do `invariantIdSchema` de propósito: o `tsc` acusou em dois
+lugares — o `assertContract` da rota ("o tipo compartilhado declara campo que
+o schema não produz") e o tipo do handler. `Widen<T>` mantém o literal, então
+um id que falte no enum não compila. É o inverso do que a armadilha 28 avisa:
+aqui a fiação estava guardada e a peça também. Restaurado com `git diff`
+limpo.
+
+#### O que ficou de fora, e entrou aqui
+
+- **"Stage 1–9" sobreviveu em três lugares** que a fase não abriu: a
+  `docs/api.md` nas duas portas de detalhe do run (`/api/admin/pipeline/runs/:id`
+  e `/api/dev/logs/:id`) e o JSDoc de `logPipelineEvent`. A frase era velha
+  desde a 7.5 (que já não cabia em "1–9") e ninguém a reabriu; hoje é "0 a
+  9.5", com a 0 explicada (o enterro do run morto) e a 9.5 nomeada. Nenhuma
+  guarda alcança — o `diagram-drift` compara etapas nos diagramas, não na
+  `docs/api.md`.
+- **A `docs/api.md` não dizia o que é o `route` de um `ErrorEvent`**, e desde
+  a Fase 6 ele tem **três formas**: o padrão da rota na API, a etapa
+  (`stage-8.5`) e o id da invariante. Entrou a frase na seção do
+  `GET /api/admin/errors`, com o porquê (as três são conjuntos finitos, e é
+  isso que dá teto à tabela).
+
+**Uma leitura que não é defeito:** o detalhe do run agrupa eventos
+consecutivos por etapa, e a ordem verdadeira desde a Fase 6 é "Etapa 9
+(métrica) · Etapa 9.5 (invariantes) · Etapa 9 (resumo)" — o resumo é escrito
+depois da 9.5 porque carrega o `invariants`. Três grupos com dois rótulos
+iguais; é a ordem em que aconteceu, e a alternativa (mover o resumo para a
+9.5) faria a linha que a tela abre primeiro trocar de etapa.
+
+#### O terreno da Fase 7 (7c e 7b), medido contra a árvore mergeada
+
+A 9 vai por último e exige promoção antes; sobram as subfases 7b e 7c, e **a
+ordem é 7c antes de 7b** — a §11.2 manda "renderizar o `digest` e
+reportá-lo", e o reporte é a §11.3. O inventário está no fim da §11. O que
+muda o desenho: **o "10/min" seria um balde único para o site inteiro**
+(o BFF de `/api/events` faz `fetch` cru sem repassar o IP do leitor, a mesma
+dívida medida do `/api/events`); **nada no web sabe o padrão da rota atual**
+num client component (o analytics manda `window.location.pathname` cru), e o
+`route` do fingerprint precisa de conjunto finito — a API normaliza, com
+guarda derivada de `apps/web/app/**/page.tsx`; **o BFF anônimo nasce fora do
+`bff-route-seam`**, que só vê `proxyToApi` (o `/api/events` já está fora);
+**o `digest` só existe em erro de servidor**; os quatro `error.tsx` declaram
+`error` e leem só `reset`, e usam o `max-w-7xl` da V1; e o `global-error.tsx`
+tem o `not-found.tsx` como modelo, com o par de asserções do `state-matrix` a
+copiar. Branch `observability/fase-7c-client-error-ingest`, cortada da `dev`
+em `1152ca0`.
+
+**1.252 na API, 829 no web** — sem teste novo: prosa.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
