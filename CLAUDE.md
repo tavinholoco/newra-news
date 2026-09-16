@@ -308,12 +308,12 @@ a suíte de unidade, que roda sem rede.
   09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
   PRs**; e a **5 fechou em 14/09, em três PRs** — o **5a (a migration) e o 5b
   (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha; e a **8 (o
-  log de sucesso) fechou em 15/09**, abrindo o bloco 3.** Continuam abertas
-  **três fases inteiras** (6, 9 e 11) e as subfases **7b e 7c**, e o bloco 3
-  do §19 vai em qualquer ordem — a 11 (saúde por fonte) responde à troca de
-  provedor, a 6 (invariantes) depende de 4 e 5 no ar, e a **9 vai por último,
-  e é decisão** (das três coisas que ela exige no ar, com a 8 entregue só
-  falta a promoção).
+  log de sucesso) fechou em 15/09**, abrindo o bloco 3; e a **11 (saúde por
+  fonte) fechou em 15/09, em três PRs** — 11a (migration), 11b (API) e 11c
+  (web).** Continuam abertas **duas fases inteiras** (6 e 9) e as subfases
+  **7b e 7c**, e o bloco 3 do §19 vai em qualquer ordem — a 6 (invariantes)
+  depende de 4 e 5 no ar, e a **9 vai por último, e é decisão** (das três
+  coisas que ela exige no ar, com a 8 entregue só falta a promoção).
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -331,6 +331,24 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-15): a Fase 11 fechou na `dev` — PR
+  11c, o web.** §15, item **73**. O painel "Fontes" na `/admin/metrics`:
+  a tabela por fonte (estado de hoje, novas/coletadas, médias de 7 e 30 dias,
+  variação, dias em falha, latência e a faixa de 30 dias por linha),
+  ordenável, os **dois gatilhos da §15 como alerta** ("Superinteressante está
+  em falha há 3 dias seguidos"; "Trivela está definhando: as novas por dia
+  dos últimos 7 dias são 25 % da média de 30") e a rosquinha de contribuição
+  por `kept`. **Tudo o que não é linha é derivado no web**
+  (`lib/source-days.ts`): o dia "não tentada" pela ausência, as médias
+  **sobre os dias tentados** (o dia sem run não penaliza a fonte), a
+  sequência de falhas que um dia sem linha não quebra. Duas peças extraídas
+  antes de copiar — `admin/day-strip` (a casca da faixa da Fase 8) e
+  `admin/sortable-header` (o cabeçalho da tabela do 5c). **A captura pagou
+  pela quarta fase seguida:** "Outras" saía em primeiro na rosquinha, e a
+  legenda do centro cortava no anel. "Indisponível" sobre 404 até a
+  promoção. **792 → 822 no web** (78 → 80 suítes), 1.197 na API. Continuam abertas **duas
+  fases inteiras** (6 e 9) e as subfases 7b e 7c.
 
 - **Fora da linha das fases (2026-09-15): a Fase 11 ganhou a API — PR 11b.**
   §15, item **72**. Os quatro números que o inventário tinha medido como
@@ -1000,7 +1018,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.988 em 160 suites (**1.196 API em 82** + **792 web em 78** — todos
+- **Testes:** 2.019 em 162 suites (**1.197 API em 82** + **822 web em 80** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

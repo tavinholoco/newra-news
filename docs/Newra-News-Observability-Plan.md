@@ -2098,7 +2098,7 @@ configuração. E ela **reprova hoje**, o que é o jeito certo de a fase começa
 
 ---
 
-## §15 Fase 11 — A saúde de cada fonte, uma por uma — 11a ✅ 2026-09-15 · 11b ✅ 2026-09-15
+## §15 Fase 11 — A saúde de cada fonte, uma por uma ✅ 2026-09-15 (11a · 11b · 11c)
 
 **Fecha:** o pipeline sabe **hoje** qual fonte falhou, e esquece amanhã. Uma
 fonte que entregava 20 matérias por dia e passou a entregar 2 é **invisível** —
@@ -2466,6 +2466,71 @@ sem a tabela nova fez a etapa lançar e o dia sair degradado.
 do de 30 dias.
 
 **1.141 → 1.196 na API** (80 → 82 suítes), 792 no web.
+
+### O que o PR do web decidiu — 15/09/2026 (11c ✅)
+
+Sobre o 11b (#206), aberto contra a `dev`. Item **73** do `docs/progress.md`.
+**Fecha a Fase 11 na `dev`** — o ritual contra produção é do lote, na
+promoção. O que a §15 pedia para a tela e saiu diferente, com o motivo:
+
+- **"Mesmo componente da Fase 8" virou a `DayStrip`, extraída.** A
+  `OutcomeStrip` era tipada em `DayOutcome`; a casca (trinta `<li>` de
+  largura fluida, `sr-only` + `title`, pontas, legenda) saiu para
+  `admin/day-strip`, com `{ key, fill, label }` por dia, e as duas séries
+  mapeiam o próprio conjunto de estados. A faixa por fonte é `compact` e a
+  legenda mora fora da tabela, uma vez — treze legendas seriam ruído. E a
+  forma carrega o estado (armadilha 35): `EMPTY` é **cinza cheio** (a fonte
+  foi perguntada e não tinha nada), `NOT_ATTEMPTED` é **vazado** (ninguém
+  perguntou) — dois cinzas, duas formas, e a captura no escuro confirma.
+- **A segunda tabela ordenável extraiu o cabeçalho** (`admin/sortable-header`:
+  `useSort`, `sortBy`, `SortableHeader`), e a tabela de falhas do 5c passou
+  a usá-lo — a §15 mandava extrair antes de copiar. `null` ("sem amostra")
+  ordena por último nas duas direções.
+- **Tudo o que não é linha é derivado no web** (`lib/source-days.ts`, o
+  `outcome-days.ts` desta série): o dia "não tentada" pela ausência; as
+  médias de 7 e 30 dias **sobre os dias tentados** — contar o dia em que o
+  pipeline não rodou como zero penalizaria a fonte pela falha da API (29–31/08
+  seriam três zeros em toda fonte) —, com `FAILED` e `EMPTY` valendo zero
+  porque ali a fonte foi perguntada; a sequência de falhas que **um dia sem
+  linha não quebra** (a regra do `degradedStreak`); e a variação pelo
+  `kpiDelta` de sempre, célula vazia sem linha de base. As médias se calam
+  abaixo de `MIN_RECENT_SAMPLE` (3) e `MIN_WINDOW_SAMPLE` (7) — armadilha 24.
+- **Os dois gatilhos da §15 são linha só quando disparam** (`sourceAlerts`):
+  "Superinteressante está em falha há 3 dias seguidos" e "Trivela está
+  definhando: as novas por dia dos últimos 7 dias são 25 % da média de 30".
+  A fonte em falha não ganha o segundo alerta — uma linha por causa. E é
+  `role='status'`, não `alert` (a lição da Fase 2).
+- **A rosquinha de contribuição dobra a cauda em "Outras" a partir da oitava
+  fonte** (o limite da §4.3), com `keepOrder` para "Outras" ficar por último
+  — **reordenada por valor, a cauda somada (22 %) saía em primeiro, acima da
+  própria NewsData.** E a legenda do centro é uma palavra: "novas em 30 d"
+  cortava nas bordas do anel. **Os dois achados da captura, sem sintoma de
+  código — quarta fase seguida.**
+- **"Indisponível" sobre 404** (armadilha 37): a rota é nova, o preview da
+  `dev` lê a API de produção, e até a promoção o painel desenha uma frase em
+  vez de quebrar a aba. O `DashboardClient` faz três consultas agora, e o
+  mock de `fetch` da suíte dele roteia pela URL — um corpo só para as três
+  derrubou a suíte lendo `sources.map` de um `DashboardMetrics`, antes da
+  linha existir.
+- **A coluna "Hoje" diz "Não tentada" até o cron das 11:00 UTC**, e é o
+  estado honesto: a captura de 23:32 locais (02:32 UTC do dia seguinte)
+  mostrou as treze assim, com o seed terminando na véspera. Antes do run do
+  dia não há linha, e a faixa do run faz o mesmo com o quadrado de hoje.
+
+**Guardas que nasceram:** `source-days.test.ts` (o calendário em UTC com o
+"não tentada" por ausência, a fonte que saiu no meio da janela, a sequência
+que o dia sem run não quebra e o `EMPTY` quebra, as médias sobre tentados e
+caladas sem amostra, os dois gatilhos e o "uma linha por causa"; vista
+reprovando com duas mutações), `source-health-panel.test.tsx` (os alertas, a
+tabela com o dia não tentado, a ordenação, a rosquinha com "Outras" por
+último, "indisponível" sobre 404 e o vazio antes do primeiro run), e no
+`retention-drift` a segunda `janela ≤ retenção`, sobre `SOURCE_WINDOW_DAYS`.
+A lista de 401 do smoke ganhou a rota (a `hand-written-lists` cobrou antes).
+
+**Gatilho numérico da fase, agora medível na tela:** 3 dias seguidos de
+`FAILED` numa fonte, ou `kept` de 7 dias abaixo de 30 % do de 30.
+
+**792 → 822 no web** (78 → 80 suítes), **1.196 → 1.197 na API** (a segunda `janela ≤ retenção`).
 
 ---
 
@@ -2879,20 +2944,21 @@ aplica as duas migrations juntas na promoção.**
   "último briefing há N h". Sem migration, sem rota nova. Item **69** do
   `docs/progress.md`; as decisões no fim da §12, e o pós-merge (item **70**)
   logo abaixo delas.
-- **§15 — Fase 11 (saúde por fonte). ← em curso, em três PRs.** É a que
-  responde à pergunta de trocar provedor. **O inventário foi reconferido no
-  fim da §15** — e é a fase com mais desvio: `latencyMs` não é medido,
-  `fetched` por feed não sai do provider, `kept` por dedup mede quase nada (o
-  dedup é por URL), a escrita não cabe na etapa 1, e a faixa da Fase 8 é
-  tipada no desfecho do run. **11a (a migration) ✅ 15/09/2026**, item **71**
-  — `SourceOutcome` com três valores (o `NOT_ATTEMPTED` é ausência, como o
-  `NEVER_RAN`), `kept` = "entrou no acervo naquele dia", `pipelineLogId` sem
-  FK, e o seed com as duas histórias dos gatilhos. **11b (a API) ✅
-  15/09/2026**, item **72** — `outcomes` por feed com relógio no provider,
-  `sources` em `fetchAll` (os `warnings` derivados daí), a escrita depois da
-  etapa 4 numa transação de duas instruções (não crítica — `WARN` da 4), a
-  retenção de 90 d na 8, e `GET /api/admin/sources` devolvendo a série crua.
-  **11c (o web)** segue; as decisões de cada um, no fim da §15.
+- ~~**§15 — Fase 11 (saúde por fonte).**~~ ✅ **Entregue em 15/09/2026, em
+  três PRs** — a fase com mais desvio do inventário: `latencyMs` não era
+  medido, `fetched` por feed não saía do provider, `kept` por dedup media
+  quase nada, a escrita não cabia na etapa 1, e a faixa da Fase 8 era tipada
+  no desfecho do run. **11a (a migration)**, item **71** — `SourceOutcome`
+  com três valores (o `NOT_ATTEMPTED` é ausência, como o `NEVER_RAN`), `kept`
+  = "entrou no acervo naquele dia", `pipelineLogId` sem FK, o seed com as
+  duas histórias dos gatilhos. **11b (a API)**, item **72** — `outcomes` por
+  feed com relógio, `sources` em `fetchAll` (os `warnings` derivados daí), a
+  escrita depois da etapa 4 numa transação de duas instruções (`WARN` da 4
+  se falhar), a retenção de 90 d, `GET /api/admin/sources` com a série crua.
+  **11c (o web)**, item **73** — `DayStrip` e `SortableHeader` extraídos, a
+  derivação em `lib/source-days.ts`, o painel "Fontes" na `/admin/metrics`
+  com os dois gatilhos como alerta e "indisponível" sobre 404. As decisões de
+  cada um, no fim da §15.
 - **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.

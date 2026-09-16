@@ -32,9 +32,31 @@ const DELTA_TONE = {
   neutral: 'text-ink-secondary',
 } as const;
 
-export function MetricCard({ label, value, hint, delta }: MetricCardProps) {
-  const Icon = delta ? DELTA_ICON[delta.direction] : null;
+/**
+ * O chip da variação, sozinho — seta e número no tom da direção. Extraído do
+ * cartão na Fase 11, quando a tabela de fontes passou a mostrar a mesma
+ * variação por linha; `period` é opcional porque numa coluna o cabeçalho já
+ * diz contra o quê.
+ */
+export function DeltaChip({ delta, withPeriod = true }: { delta: KpiDelta; withPeriod?: boolean }) {
+  const Icon = DELTA_ICON[delta.direction];
+  return (
+    <span className='inline-flex flex-wrap items-center gap-x-1 text-xs'>
+      <span
+        className={cn(
+          'inline-flex items-center gap-0.5 font-semibold tabular-nums',
+          DELTA_TONE[delta.tone],
+        )}
+      >
+        <Icon aria-hidden='true' className='h-3 w-3' />
+        {delta.text}
+      </span>
+      {withPeriod && <span className='text-muted-foreground'>{delta.period}</span>}
+    </span>
+  );
+}
 
+export function MetricCard({ label, value, hint, delta }: MetricCardProps) {
   return (
     <Card className='h-full gap-2'>
       <CardContent>
@@ -44,18 +66,9 @@ export function MetricCard({ label, value, hint, delta }: MetricCardProps) {
         <p className='font-display mt-1 text-2xl font-bold text-foreground sm:text-3xl'>
           {value}
         </p>
-        {delta && Icon && (
-          <p className='mt-1 flex flex-wrap items-center gap-x-1 text-xs'>
-            <span
-              className={cn(
-                'inline-flex items-center gap-0.5 font-semibold tabular-nums',
-                DELTA_TONE[delta.tone],
-              )}
-            >
-              <Icon aria-hidden='true' className='h-3 w-3' />
-              {delta.text}
-            </span>
-            <span className='text-muted-foreground'>{delta.period}</span>
+        {delta && (
+          <p className='mt-1'>
+            <DeltaChip delta={delta} />
           </p>
         )}
         {hint && <p className='mt-1 text-xs text-muted-foreground'>{hint}</p>}

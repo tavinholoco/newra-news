@@ -152,6 +152,17 @@ describe('a retenção escrita em prosa bate com as constantes da etapa 8', () =
     expect(Number(match?.[1])).toBeLessThanOrEqual(PIPELINE_LOG_RETENTION_DAYS);
   });
 
+  it('a faixa por fonte do web não pede mais dias do que a etapa 8 guarda', () => {
+    // Fase 11 (PR 11c), pela mesma razão: a tabela de fontes chama de "não
+    // tentada" o dia sem linha, e uma janela maior que a retenção da
+    // `SourceHealth` mostraria como não tentado o dia que o expurgo apagou.
+    const fonte = leia('apps/web/lib/source-days.ts');
+    const match = /export const SOURCE_WINDOW_DAYS = (\d+);/.exec(fonte);
+
+    expect(match).not.toBeNull();
+    expect(Number(match?.[1])).toBeLessThanOrEqual(SOURCE_HEALTH_RETENTION_DAYS);
+  });
+
   it('os dois diagramas dizem "artigos, eventos e fontes" porque os três têm a mesma retenção', () => {
     // A frase junta as três tabelas num número só. Se uma dia divergir, a
     // frase — e este teste — precisam se partir. A `SourceHealth` (Fase 11)

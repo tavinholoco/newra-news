@@ -29,6 +29,7 @@ import type {
   ErrorSummary,
   ErrorSummaryWindow,
   AuditTrail,
+  SourceHealthReport,
 } from '@newranews/types';
 import {
   API_TIMEOUT_MS,
@@ -596,6 +597,23 @@ export async function getAuditTrail(
   const query = search.toString();
   const res = await fetchWebApi<ApiResponse<AuditTrail>>(
     `/api/admin/audit${query ? `?${query}` : ''}`,
+  );
+  return res.data;
+}
+
+/**
+ * A saúde de cada fonte na janela — a série crua por fonte (§15 do plano de
+ * observabilidade, Fase 11). Só os dias com linha: o dia "não tentado", as
+ * médias e a sequência de falhas são derivados em `lib/source-days.ts`.
+ *
+ * **Rota nova, e o preview da `dev` fala com a API de produção** (armadilha
+ * 37): até a promoção ela responde 404, o `proxyToApi` repassa o status, e
+ * `fetchWebApi` lança — a tela desenha "indisponível" sobre o `isError`. Não
+ * há campo a preencher na fronteira porque a resposta inteira é nova.
+ */
+export async function getSourceHealth(days: number): Promise<SourceHealthReport> {
+  const res = await fetchWebApi<ApiResponse<SourceHealthReport>>(
+    `/api/admin/sources?days=${days}`,
   );
   return res.data;
 }

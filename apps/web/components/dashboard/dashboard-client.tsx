@@ -17,6 +17,7 @@ import { MetricCard } from './metric-card';
 import { DonutChart } from './donut-chart';
 import { DashboardSkeleton } from './dashboard-skeleton';
 import { GoldenSignals } from './golden-signals';
+import { SourceHealthPanel } from './source-health-panel';
 
 interface DashboardClientProps {
   initialData: DashboardMetrics | null;
@@ -254,6 +255,19 @@ export function DashboardClient({ initialData }: DashboardClientProps) {
             value={lastMonth.failureDays}
           />
         </div>
+      </section>
+
+      {/**
+        * A saúde por fonte (Fase 11 do plano) — consulta própria, esqueleto
+        * próprio, e "indisponível" sobre 404: o preview da `dev` lê a API de
+        * produção, que só ganha a rota na promoção (armadilha 37).
+        */}
+      <section>
+        <SectionTitle>{t('sources.title')}</SectionTitle>
+        <p className='mb-6 max-w-prose text-sm text-muted-foreground'>
+          {t('sources.description')}
+        </p>
+        <SourceHealthPanel />
       </section>
 
       {/* Os quatro sinais da API — consulta própria, esqueleto próprio */}

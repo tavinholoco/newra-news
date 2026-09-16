@@ -2,11 +2,11 @@
 
 import { useId, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronDown } from 'lucide-react';
 import type { ErrorGroup, ErrorSeverity } from '@newranews/types';
 import { formatCount, formatDateTime } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { SortableHeader, sortBy, useSort } from './sortable-header';
 
 /**
  * As três severidades do `ErrorSeverity`. Escritas aqui porque o tipo
@@ -23,7 +23,6 @@ const SEVERITY_TONE: Record<ErrorSeverity, string> = {
 };
 
 type SortKey = 'count' | 'hours' | 'lastSeenAt';
-type SortDirection = 'asc' | 'desc';
 
 const SORT_HEADER_KEY = {
   count: 'security.errors.colCount',
@@ -69,10 +68,7 @@ export function ErrorGroupsTable({ groups, categories }: ErrorGroupsTableProps) 
   const [search, setSearch] = useState('');
   const [severity, setSeverity] = useState<ErrorSeverity | ''>('');
   const [category, setCategory] = useState('');
-  const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
-    key: 'count',
-    direction: 'desc',
-  });
+  const { sort, toggle } = useSort<SortKey>({ key: 'count', direction: 'desc' });
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -85,47 +81,12 @@ export function ErrorGroupsTable({ groups, categories }: ErrorGroupsTableProps) 
         .toLowerCase()
         .includes(needle);
     });
-    const sign = sort.direction === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => sign * compare(a, b, sort.key));
+    return sortBy(filtered, sort, compare);
   }, [groups, search, severity, category, sort]);
 
-  const toggleSort = (key: SortKey) => {
-    setSort((current) =>
-      current.key === key
-        ? { key, direction: current.direction === 'desc' ? 'asc' : 'desc' }
-        : { key, direction: 'desc' },
-    );
-  };
-
-  const sortHeader = (key: SortKey) => {
-    const active = sort.key === key;
-    return (
-      <th
-        scope='col'
-        aria-sort={active ? (sort.direction === 'desc' ? 'descending' : 'ascending') : undefined}
-        className='px-3 py-2 text-right font-medium'
-      >
-        <button
-          type='button'
-          onClick={() => toggleSort(key)}
-          className={cn(
-            'inline-flex items-center gap-1 whitespace-nowrap uppercase tracking-wider transition-colors duration-base hover:text-link',
-            active && 'text-link',
-          )}
-        >
-          {t(SORT_HEADER_KEY[key])}
-          <ChevronDown
-            aria-hidden='true'
-            className={cn(
-              'h-3 w-3',
-              !active && 'opacity-40',
-              active && sort.direction === 'asc' && 'rotate-180',
-            )}
-          />
-        </button>
-      </th>
-    );
-  };
+  const sortHeader = (key: SortKey) => (
+    <SortableHeader sortKey={key} label={t(SORT_HEADER_KEY[key])} sort={sort} onToggle={toggle} />
+  );
 
   if (groups.length === 0) {
     return <p className='text-sm text-muted-foreground'>{t('security.errors.empty')}</p>;

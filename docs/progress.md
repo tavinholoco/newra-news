@@ -7397,6 +7397,102 @@ o Postgres local, sobre o seed do 11a, devolveu as 13 séries com 27 dias.
 **1.141 → 1.196 na API** (80 → 82 suítes), 792 no web. Sem migration, sem
 env nova; uma rota nova.
 
+### 73. Fase 11, PR 3 de 3 — o web: o painel "Fontes", e a fase fechada na `dev` ✅ 2026-09-15
+
+> **§15 do plano de observabilidade, último dos três PRs.** A tela que
+> responde às três perguntas da §15 — "há quantos dias a Superinteressante
+> está fora?", "esta fonte entrega menos do que entregava?", "vale a pena
+> trocar este provedor?" — sobre a série crua que o 11b serve. **Fecha a
+> Fase 11 na `dev`**; o ritual contra produção é do lote, na promoção.
+
+#### O que foi extraído antes de ser copiado
+
+A §15 tinha medido que "a faixa de 30 dias por fonte, mesmo componente da
+Fase 8" não era o mesmo componente: a `OutcomeStrip` era tipada em
+`DayOutcome`. Duas peças saíram para o admin reusar:
+
+- **`admin/day-strip`** — a casca da faixa (trinta `<li>` de largura fluida,
+  `sr-only` + `title`, pontas e legenda opcionais), com `{ key, fill, label }`
+  por dia. A `OutcomeStrip` virou o mapeamento do desfecho de run para cor,
+  forma e texto; o painel de fontes faz o mesmo com o seu conjunto, e a forma
+  carrega o estado (armadilha 35): `EMPTY` **cinza cheio** (a fonte foi
+  perguntada e não tinha nada), `NOT_ATTEMPTED` **vazado** (ninguém
+  perguntou). A faixa por linha é `compact`, e a legenda mora fora da tabela,
+  uma vez. Os nove testes da faixa do run continuaram verdes sem mudar.
+- **`admin/sortable-header`** — `useSort`, `sortBy`, `SortableHeader`. A
+  tabela de falhas do 5c passou a usá-lo (16 testes verdes sem mudar), e a
+  tabela de fontes nasceu sobre ele. `null` ("sem amostra") ordena por último
+  nas duas direções.
+
+#### O que é derivado, e por quê aqui
+
+`lib/source-days.ts` é o `outcome-days.ts` desta série. A API devolve, por
+fonte, **só os dias com linha**; tudo o mais nasce no web:
+
+- **o dia "não tentada" pela ausência** (`sourceCalendar`, sobre
+  `fillCalendarDays`) — a fonte removida de `rss-sources.ts` continua na
+  série com o resto vazado, e o dia sem run é vazado em toda fonte;
+- **as médias de 7 e 30 dias sobre os dias tentados** — contar o dia em que
+  o pipeline não rodou como zero penalizaria a fonte pela falha da API (o
+  buraco de 29–31/08 seriam três zeros em cada uma); `FAILED` e `EMPTY`
+  valem zero, porque ali a fonte foi perguntada. Caladas abaixo de
+  `MIN_RECENT_SAMPLE` (3) e `MIN_WINDOW_SAMPLE` (7): `NaN` compara `false`
+  em toda direção (armadilha 24);
+- **a sequência de falhas que um dia sem linha não quebra** (`failedStreak`)
+  — ninguém perguntou, então não diz que a fonte voltou; é a regra do
+  `degradedStreak`. `EMPTY` quebra: a fonte respondeu;
+- **os dois gatilhos da §15 como linha, só quando disparam**
+  (`sourceAlerts`): `FAILED_STREAK_TRIGGER` = 3 dias e `WITHERING_RATIO` =
+  `kept` de 7 d abaixo de 30 % do de 30. A fonte em falha não ganha o
+  segundo — uma linha por causa. `role='status'`, não `alert`.
+
+#### A tela
+
+`dashboard/source-health-panel`, na `/admin/metrics` antes dos quatro
+sinais: os alertas; a tabela por fonte (fonte e tipo, o estado de hoje,
+novas/coletadas hoje, média 7 d, média 30 d, a variação pelo `kpiDelta` de
+sempre — célula vazia sem linha de base —, dias em falha, latência do último
+dia tentado, e a faixa de 30 dias), ordenável por qualquer coluna, com média
+de 30 dias decrescente por padrão; a legenda e as pontas da janela; e a
+rosquinha de contribuição por `kept`, com a cauda dobrada em "Outras" a
+partir da oitava fonte (o limite da §4.3). **"Indisponível" sobre 404**
+(armadilha 37): a rota é nova e o preview da `dev` lê a API de produção.
+
+#### A captura pagou, pela quarta fase seguida
+
+Dois achados sem sintoma de código, sobre o seed do 11a nos dois temas e nas
+duas larguras:
+
+- **"Outras 6 fontes" saía em primeiro na rosquinha**, acima da própria
+  NewsData: a cauda somada (22 %) era a maior fatia, e a rosquinha reordena
+  por valor. `keepOrder`, com as fatias já por contribuição e "Outras" no fim.
+- **"novas em 30 d" cortava nas bordas do anel** — a legenda do centro é
+  7 px num `viewBox` de 100, e treze caracteres não cabem. Virou uma palavra;
+  o título já diz "30 dias".
+
+E uma leitura que **não** é defeito: às 23:32 locais (02:32 UTC do dia
+seguinte) a coluna "Hoje" mostrou as treze fontes em "Não tentada", com o
+seed terminando na véspera — antes do cron das 11:00 UTC não há linha, e a
+faixa do run faz o mesmo com o quadrado de hoje. A `hand-written-lists`
+cobrou a rota na lista de 401 do smoke antes de eu lembrar; e o mock de
+`fetch` da suíte do `DashboardClient` — que roteia pela URL desde o 5c —
+derrubou a suíte inteira lendo `sources.map` de um `DashboardMetrics`, até
+ganhar a terceira rota.
+
+#### Guardas
+
+`source-days.test.ts` (20 casos; vistas reprovando com duas mutações — o dia
+sem linha quebrando a sequência, e a média contando o calendário: 1 e 3
+falhas), `source-health-panel.test.tsx` (10 casos: os dois alertas e só eles,
+a tabela com o dia não tentado, a ordenação nas duas direções, a rosquinha
+com "Outras" por último, "indisponível" sobre 404, o vazio antes do primeiro
+run, a legenda), e no `retention-drift` da API a segunda `janela ≤
+retenção`, sobre `SOURCE_WINDOW_DAYS`.
+
+**792 → 822 no web** (78 → 80 suítes), **1.196 → 1.197 na API** (a guarda
+nova do `retention-drift`). Uma rota nova no
+BFF, 32 chaves de mensagem nos dois idiomas, nenhuma página nova.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
