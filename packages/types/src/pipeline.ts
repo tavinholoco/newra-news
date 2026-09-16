@@ -74,9 +74,10 @@ export interface PipelineRunSummary {
   outcome: RunOutcome | null;
   /**
    * As etapas cujo `WARN` contou como degradação, em ordem e sem repetição —
-   * `7.5` é a newsletter, `6` o fallback de IA, `1` a colheita (só quando há
-   * aviso além de `feed-empty`). Vazio quando não houve. Preenchido também num
-   * run `FAILED`: a colheita degradada antes da falha continua verdade.
+   * `7.5` é a newsletter, `6` o fallback de IA, `4` a escrita da saúde por
+   * fonte (Fase 11), `1` a colheita (só quando há aviso além de `feed-empty`).
+   * Vazio quando não houve. Preenchido também num run `FAILED`: a colheita
+   * degradada antes da falha continua verdade.
    */
   degradedBy: number[];
 }

@@ -7300,6 +7300,103 @@ o expurgo entram no PR 11b" de propósito.
 
 **1.141 na API, 792 no web** — nenhuma mudança em `src/`.
 
+### 72. Fase 11, PR 2 de 3 — a API: o provider cronometra, a etapa 4 conta, e a rota devolve a série ✅ 2026-09-15
+
+> **§15 do plano de observabilidade, segundo dos três PRs.** Quem escreve a
+> tabela do 11a — o provider de RSS devolvendo um desfecho por feed com o
+> relógio ao lado, `fetchAll` devolvendo um `SourceFetch` por fonte
+> configurada, a etapa 4 contando o que entrou no acervo, a etapa 8
+> expurgando aos 90 dias — e quem a lê: `GET /api/admin/sources`. A tela é o
+> 11c.
+
+#### Os quatro números que não existiam, e de onde saíram
+
+O inventário da §15 (item 70) tinha medido que **quatro números do modelo não
+existiam no código**. Cada um saiu de um lugar decidido:
+
+- **`latencyMs`** — o `allSettled` descartava o tempo. `timedSettled` (o
+  mesmo helper nos dois níveis) mede do `fetch` ao parse por feed, e o
+  provider inteiro para a NewsData (oito categorias em paralelo). **Mede a
+  rejeição também**: um timeout sai com 30.000, e "a Superinteressante demora
+  28 s" é o dia anterior ao `ETIMEDOUT`.
+- **`fetched` por feed** — o provider contava `result.value.length` só para o
+  `warn` e devolvia `items` achatado. Hoje `fetchFromRssWithFailures` devolve
+  `outcomes: { source, fetched, latencyMs, failure? }[]`, um por fonte
+  configurada, e **`failures` deixou de existir** — com uma entrada por
+  fonte, o feed vazio é `fetched: 0` sem `failure`, lido e não deduzido por
+  subtração. `fetchAll` devolve `sources: SourceFetch[]` (os 12 feeds mais o
+  balde `newsdata`) e **deriva os `warnings` daí**; `FETCH_WARNING_KINDS`
+  virou tuple para a guarda enumerar as classes.
+- **`kept`** — "a URL entrou em `News` naquele dia", como o 11a decidiu. Um
+  `findMany` pelas URLs do run lendo o `createdAt`, **depois** do
+  `createMany`: o item que acabou de entrar tem `createdAt` de agora e o que
+  um run anterior do dia gravou tem `createdAt` de hoje — a mesma pergunta,
+  e é o que faz o re-disparo recomputar números honestos em vez de zerá-los.
+  **A atribuição é por identidade do objeto, nunca por `source`**: o
+  `RawNewsItem.source` de um item da NewsData é o nome do veículo, que pode
+  ser "G1", e o dedup da etapa 3 fica com a primeira ocorrência de uma URL —
+  com a NewsData antes do RSS. A matéria do G1 que a NewsData também trouxe
+  conta para `newsdata`; é a contribuição **marginal** de cada fonte dada a
+  ordem em que o pipeline as consome, e o limite honesto está escrito no
+  cabeçalho do service.
+- **A escrita** — depois da etapa 4, num `try` que cobre a leitura, a
+  montagem e a transação de duas instruções (`deleteMany` do dia +
+  `createMany`); o `catch` é `WARN` da etapa 4 com `degradedBy.push(4)`, o
+  run segue, e há teste de que a derivação sobre os eventos concorda com o
+  resumo. Zero fontes não toca no banco — um `deleteMany` seguido de nada
+  apagaria o dia que um run anterior escreveu.
+
+#### Dois achados da implementação
+
+- **A fixture do `pipeline.test.ts` duplicava os literais** de `newsDataItems`
+  e `rssItems` dentro de `allItems`, em vez de reusar os objetos como
+  `fetchAll` faz. A atribuição por identidade a expôs no primeiro teste: o
+  item da NewsData (com `source: 'G1'`) caía no G1. A fixture passou a ser
+  como a função é — e é o cenário que a Fase 11 existe para acertar.
+- **O `Math.min(fetched, kept)` saiu.** A primeira versão o tinha "por
+  construção"; um clamp ali esconderia justamente o erro de atribuição que a
+  guarda `kept ≤ fetched` existe para achar. A invariante é cobrada no
+  teste, não imposta no código.
+
+#### A rota, e o que ela não faz
+
+`GET /api/admin/sources?days=30` (≤ 90, a retenção) devolve `{ window,
+sources: [{ source, kind, days }] }` — **só os dias com linha**, agrupados
+por fonte numa consulta ordenada por fonte e dia. Médias, variação,
+sequência de falhas e o dia "não tentado" são do web (11c), como o
+`outcome-days.ts` da Fase 8. A fonte que saiu de `rss-sources.ts` no meio da
+janela aparece com a série terminando no dia da remoção. Mesmo grupo
+`/api/admin`, mesma herança de `authPlugin` + `requireAdmin`; as três
+guardas de superfície (matriz, `docs/api.md`, contrato) vistas reprovando
+antes das três linhas. `SourceHealth` entrou no `response-schema-contract`
+com `id`, `source` e `kind` omitidos com motivo (a linha já vem dentro da
+fonte que a possui).
+
+#### Guardas
+
+`source-health.test.ts` — a tabela aviso → desfecho **nos dois sentidos**,
+sobre `fetchAll` de verdade e não sobre a função de mapeamento (cada cenário
+produz exatamente uma classe, e a `Record<FetchWarningKind, SourceOutcome>`
+faz o `tsc` reprovar a classe nova sem linha); `EMPTY ≠ FAILED` para a fonte
+sem aviso e sem item; `kept` por identidade, por dia, e nunca acima de
+`fetched`; a escrita como **uma transação de duas instruções, pelo parser**
+— um laço reprova; a retenção; a leitura. `admin-sources.test.ts` (porta e
+fio, o teto e o default). O desfecho por fonte no `news-fetcher.test.ts`, os
+`outcomes` com relógio no `rss.provider.test.ts` (fake timers, inclusive na
+rejeição), a fiação da etapa 4 e o expurgo no `pipeline.test.ts`, e as
+quatro afirmações novas mais o terceiro igual no `retention-drift`.
+
+**Vistas reprovando:** as duas mutações do service (o laço no lugar da
+transação: 2 falhas; `EMPTY` virando `FAILED`: 4); as três guardas de
+superfície sobre a rota nova; o `retention-drift` sobre os quatro documentos;
+e a própria suíte do pipeline — pela **quarta vez**, um mock parcial de
+`prisma` sem a tabela nova fez a etapa lançar e o dia sair degradado (11
+falhas, entre elas os três testes do resumo da Fase 8). A leitura real contra
+o Postgres local, sobre o seed do 11a, devolveu as 13 séries com 27 dias.
+
+**1.141 → 1.196 na API** (80 → 82 suítes), 792 no web. Sem migration, sem
+env nova; uma rota nova.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -138,3 +138,62 @@ export interface HttpMetrics {
   routes: HttpRouteMetrics[];
   saturation: Saturation;
 }
+
+/**
+ * A saúde de cada fonte, um dia de cada vez (§15 do plano de observabilidade,
+ * Fase 11). É o contrato de `GET /api/admin/sources`.
+ */
+
+/** Espelho do enum `SourceKind` do schema. `AGGREGATOR` é a NewsData — um balde que agrega dezenas de veículos. */
+export type SourceKind = 'RSS' | 'AGGREGATOR';
+
+/**
+ * Espelho do enum `SourceOutcome` do schema — **três valores**. "Não tentada"
+ * (a fonte removida de `rss-sources.ts`, o dia sem run, o run que morreu antes
+ * da etapa 4) é a **ausência** de linha num dia, derivada no web como o
+ * `NEVER_RAN` do run: a API não emite ausência. Ver `SourceDayOutcome` no web.
+ */
+export type SourceOutcome =
+  /** Trouxe item. */
+  | 'OK'
+  /** Respondeu e não tinha nada — o normal de feed especializado em dia comum; não degrada o run. */
+  | 'EMPTY'
+  /** Lançou (timeout, DNS, XML inválido), ou o provider caiu por cima dela. */
+  | 'FAILED';
+
+/** Uma linha de `SourceHealth`: o que a fonte rendeu naquele dia. */
+export interface SourceDay {
+  /** Dia de calendário à meia-noite UTC, ISO. Lê-se em UTC, como `Article.date`. */
+  day: string;
+  outcome: SourceOutcome;
+  /** Itens que a fonte trouxe no run, depois do filtro do provider. */
+  fetched: number;
+  /**
+   * Dos `fetched`, quantos entraram no acervo naquele dia — a coluna que
+   * decide trocar provedor. Nunca maior que `fetched`.
+   */
+  kept: number;
+  /** Do `fetch` ao parse; para o agregador, o provider inteiro. */
+  latencyMs: number | null;
+  /** Só em `FAILED`, já redigida e truncada. */
+  failureReason: string | null;
+  /** O run que escreveu a linha — o último do dia. */
+  pipelineLogId: string | null;
+}
+
+/** A série de uma fonte na janela, do dia mais antigo ao mais recente. */
+export interface SourceSeries {
+  /** `name` de `rss-sources.ts`, ou `newsdata`. */
+  source: string;
+  kind: SourceKind;
+  /** Só os dias com linha: o dia ausente é "não tentada". */
+  days: SourceDay[];
+}
+
+/** A resposta de `GET /api/admin/sources`. */
+export interface SourceHealthReport {
+  /** `since` e `until` são meia-noite UTC do primeiro e do último dia da janela, inclusive. */
+  window: { days: number; since: string; until: string };
+  /** Toda fonte com linha na janela, por nome — inclusive a que saiu da lista no meio dela. */
+  sources: SourceSeries[];
+}

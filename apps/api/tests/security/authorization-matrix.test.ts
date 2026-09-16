@@ -141,6 +141,8 @@ const MATRIX: Row[] = [
   // Ambas herdam a proteção do grupo em `routes/admin/index.ts`.
   { route: 'GET /api/admin/errors', access: 'admin' },
   { route: 'GET /api/admin/audit', access: 'admin' },
+  // Fase 11 (§15): a saúde por fonte. Mesmo grupo, mesma herança.
+  { route: 'GET /api/admin/sources', access: 'admin' },
 
   { route: 'GET /api/dev/logs', access: 'job' },
   { route: 'GET /api/dev/logs/:pipelineId', access: 'job' },

@@ -1,8 +1,9 @@
 %% Diagrama de Sequência do Pipeline Diário — Newra News
 %% ---
-%% Atualizado em 01/09/2026. São **11 etapas**: 1–7, 7.5 (newsletter), 8, 8.5
+%% Atualizado em 15/09/2026. São **11 etapas**: 1–7, 7.5 (newsletter), 8, 8.5
 %% (renormalização) e 9. As três não críticas — 7.5, 8 e 8.5 — falham sem
-%% abortar o pipeline.
+%% abortar o pipeline; desde a Fase 11 do plano de observabilidade a escrita
+%% da SourceHealth, no fim da 4, também não aborta (WARN da etapa 4).
 sequenceDiagram
     autonumber
     actor VC as Vercel Cron
@@ -35,13 +36,13 @@ sequenceDiagram
 
     API->>API: 2 · normalização — higiene de texto, dek e corpo separados
     API->>API: 3 · deduplicação por sourceUrl
-    API->>DB: 4 · news.createMany (skipDuplicates)
+    API->>DB: 4 · news.createMany (skipDuplicates) + SourceHealth do dia (deleteMany + createMany)
     API->>API: 5 · seleção das 15 notícias mais recentes
     API->>IA: 6 · prompt estruturado (Gemini, com fallback Groq)
     IA-->>API: título, dek e corpo do briefing em Markdown
     API->>DB: 7 · article.upsert por data + auditoria + BriefingSource
     API->>RES: 7.5 · newsletter do dia (idempotente por data)
-    API->>DB: 8 · expurgo — news >30d · logs >30d · artigos e eventos >90d · erros >14d · auditoria >365d
+    API->>DB: 8 · expurgo — news >30d · logs >30d · artigos, eventos e fontes >90d · erros >14d · auditoria >365d
     API->>DB: 8.5 · renormaliza o acervo com as regras de ingestão atuais
     API->>DB: 9 · dailyMetric.upsert
 

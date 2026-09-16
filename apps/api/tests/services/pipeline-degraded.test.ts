@@ -34,6 +34,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
       productEvent: { deleteMany: vi.fn() },
       errorEvent: { deleteMany: vi.fn(), upsert: vi.fn() },
       auditEvent: { deleteMany: vi.fn() },
+      sourceHealth: { deleteMany: vi.fn(), createMany: vi.fn() },
       briefingSource: { deleteMany: vi.fn(), createMany: vi.fn() },
       dailyMetric: { upsert: vi.fn() },
       pipelineEvent: { create: vi.fn() },
@@ -73,6 +74,7 @@ const fetchResult = {
   rssItems: [item('https://bbc.com/1')],
   allItems: [item('https://g1.com/1'), item('https://bbc.com/1')],
   warnings: [],
+  sources: [],
 };
 
 /** Espera o `void runPipeline(...)` que o `triggerPipeline` dispara. */
@@ -97,6 +99,8 @@ beforeEach(() => {
   vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.errorEvent.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.auditEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.sourceHealth.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.sourceHealth.createMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.briefingSource.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.briefingSource.createMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);

@@ -6,6 +6,12 @@ import { renormalizeStoredNews } from './news-renormalizer.service';
 import { deleteExpiredProductEvents } from './product-event.service';
 import { deleteExpiredErrorEvents } from './error-event.service';
 import { deleteExpiredAuditEvents } from './audit.service';
+import {
+  buildSourceHealthRows,
+  countKeptBySource,
+  deleteExpiredSourceHealth,
+  recordSourceHealth,
+} from './source-health.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
 import { isDegradingFetchWarning } from './run-outcome';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
@@ -269,7 +275,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
 
   try {
     // Stage 1: Collect news (NewsData.io + RSS) — `currentStage` já é 1.
-    const { newsDataItems, rssItems, allItems, warnings } = await fetchAll();
+    const { newsDataItems, rssItems, allItems, warnings, sources } = await fetchAll();
     metrics.newsDataCount = newsDataItems.length;
     metrics.rssCount = rssItems.length;
     await logPipelineEvent(pipelineLogId, 1, 'INFO', 'News collected', {
@@ -331,6 +337,48 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       count: persisted.count,
       skipped: deduplicated.length - persisted.count,
     });
+
+    // **A saúde de cada fonte, gravada aqui e não na etapa 1.** (Fase 11 do
+    // plano de observabilidade, §15)
+    //
+    // `fetched` e o desfecho de cada fonte existem desde a coleta; `kept` —
+    // quantos itens **desta** fonte entraram no acervo hoje — só existe depois
+    // de o `createMany` acima decidir o que era novo. Uma consulta pelas URLs
+    // do run, lendo o `createdAt`, é o que diz de cada item se ele entrou
+    // hoje (neste run ou num anterior do mesmo dia — o re-disparo depois de um
+    // `FAILED` recomputa os mesmos números em vez de zerá-los). A atribuição é
+    // por identidade do objeto, porque o `source` de um item da NewsData é o
+    // nome do veículo, que pode ser o nome de um feed.
+    //
+    // **Não crítico, de propósito**: observabilidade nunca quebra o caminho
+    // que observa (§2.1). O `WARN` degrada o dia pela etapa 4 — a tabela de
+    // fontes ficou sem o dia, e isso é informação.
+    try {
+      const rows = await prisma.news.findMany({
+        where: { sourceUrl: { in: deduplicated.map((item) => item.sourceUrl) } },
+        select: { sourceUrl: true, createdAt: true },
+      });
+      const createdAtByUrl = new Map(rows.map((row) => [row.sourceUrl, row.createdAt]));
+      const keptBySource = countKeptBySource(
+        deduplicated,
+        new Set(newsDataItems),
+        (sourceUrl) => (createdAtByUrl.get(sourceUrl)?.getTime() ?? 0) >= today.getTime(),
+      );
+      const healthRows = buildSourceHealthRows({ day: today, pipelineLogId, sources, keptBySource });
+      const written = await recordSourceHealth(today, healthRows);
+      await logPipelineEvent(pipelineLogId, 4, 'INFO', 'Source health recorded', {
+        sources: written,
+        ok: healthRows.filter((row) => row.outcome === 'OK').length,
+        empty: healthRows.filter((row) => row.outcome === 'EMPTY').length,
+        failed: healthRows.filter((row) => row.outcome === 'FAILED').length,
+        kept: healthRows.reduce((sum, row) => sum + row.kept, 0),
+      });
+    } catch (sourceHealthErr) {
+      degradedBy.push(4);
+      await logPipelineEvent(pipelineLogId, 4, 'WARN', 'Source health recording failed (non-critical)', {
+        ...extractErrorDetail(sourceHealthErr),
+      });
+    }
 
     // Stage 5: Select top items for AI generation
     currentStage = 5;
@@ -459,8 +507,10 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       //
       // O `AuditEvent` (Fase 5) é o oposto: **365 dias**, mais que qualquer
       // outra tabela, porque log de segurança responde pergunta feita meses
-      // depois. As constantes moram em cada service; os literais em prosa têm
-      // guarda em `tests/docs/retention-drift.test.ts`.
+      // depois. E a `SourceHealth` (Fase 11) vive **90**, como o `Article`:
+      // "esta fonte vale a pena?" é pergunta trimestral. As constantes moram
+      // em cada service; os literais em prosa têm guarda em
+      // `tests/docs/retention-drift.test.ts`.
       const [
         deletedNews,
         deletedLogs,
@@ -468,6 +518,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
         deletedEvents,
         deletedErrors,
         deletedAudit,
+        deletedSourceHealth,
       ] = await Promise.all([
         prisma.news.deleteMany({ where: { createdAt: { lt: newsCutoff } } }),
         prisma.pipelineLog.deleteMany({
@@ -477,6 +528,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
         deleteExpiredProductEvents(),
         deleteExpiredErrorEvents(),
         deleteExpiredAuditEvents(),
+        deleteExpiredSourceHealth(),
       ]);
       metrics.cleanupCount =
         deletedNews.count +
@@ -484,12 +536,14 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
         deletedArticles.count +
         deletedEvents +
         deletedErrors +
-        deletedAudit;
+        deletedAudit +
+        deletedSourceHealth;
       await logPipelineEvent(pipelineLogId, 8, 'INFO', 'Cleanup completed', {
         deleted: metrics.cleanupCount,
         productEvents: deletedEvents,
         errorEvents: deletedErrors,
         auditEvents: deletedAudit,
+        sourceHealth: deletedSourceHealth,
       });
     } catch (cleanupErr) {
       metrics.pipelineErrors += 1;

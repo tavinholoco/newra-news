@@ -9,6 +9,7 @@ import {
   NEWS_RETENTION_DAYS,
   PIPELINE_LOG_RETENTION_DAYS,
 } from '../../src/services/pipeline.service';
+import { SOURCE_HEALTH_RETENTION_DAYS } from '../../src/services/source-health.service';
 
 /**
  * A guarda contra a retenção que envelhece em prosa.
@@ -52,14 +53,16 @@ const AFIRMACOES: Record<string, Claim[]> = {
   'docs/diagrams/data-flow.mermaid': [
     { pattern: /news >(\d+)d/g, expected: NEWS_RETENTION_DAYS },
     { pattern: /logs >(\d+)d/g, expected: PIPELINE_LOG_RETENTION_DAYS },
-    { pattern: /artigos e eventos >(\d+)d/g, expected: ARTICLE_RETENTION_DAYS },
+    // A frase junta três tabelas num número só — ver a asserção "as três têm a
+    // mesma retenção", abaixo.
+    { pattern: /artigos, eventos e fontes >(\d+)d/g, expected: ARTICLE_RETENTION_DAYS },
     { pattern: /erros >(\d+)d/g, expected: ERROR_EVENT_RETENTION_DAYS },
     { pattern: /auditoria >(\d+)d/g, expected: AUDIT_EVENT_RETENTION_DAYS },
   ],
   'docs/diagrams/pipeline-sequence.mermaid': [
     { pattern: /news >(\d+)d/g, expected: NEWS_RETENTION_DAYS },
     { pattern: /logs >(\d+)d/g, expected: PIPELINE_LOG_RETENTION_DAYS },
-    { pattern: /artigos e eventos >(\d+)d/g, expected: ARTICLE_RETENTION_DAYS },
+    { pattern: /artigos, eventos e fontes >(\d+)d/g, expected: ARTICLE_RETENTION_DAYS },
     { pattern: /erros >(\d+)d/g, expected: ERROR_EVENT_RETENTION_DAYS },
     { pattern: /auditoria >(\d+)d/g, expected: AUDIT_EVENT_RETENTION_DAYS },
   ],
@@ -70,6 +73,7 @@ const AFIRMACOES: Record<string, Claim[]> = {
     { pattern: /ProductEvents >(\d+) dias/g, expected: PRODUCT_EVENT_RETENTION_DAYS },
     { pattern: /ErrorEvents >(\d+) dias/g, expected: ERROR_EVENT_RETENTION_DAYS },
     { pattern: /AuditEvents >(\d+) dias/g, expected: AUDIT_EVENT_RETENTION_DAYS },
+    { pattern: /SourceHealth >(\d+) dias/g, expected: SOURCE_HEALTH_RETENTION_DAYS },
   ],
   'packages/database/CLAUDE.md': [
     // A lista de models, um por linha…
@@ -91,6 +95,10 @@ const AFIRMACOES: Record<string, Claim[]> = {
       pattern: /^- AuditEvent →[^\n]*\(retenção: (\d+) dias/gm,
       expected: AUDIT_EVENT_RETENTION_DAYS,
     },
+    {
+      pattern: /^- SourceHealth →[^\n]*\(retenção: (\d+) dias/gm,
+      expected: SOURCE_HEALTH_RETENTION_DAYS,
+    },
     // …e a linha do cleanup, que os repete na forma curta.
     { pattern: /News \((\d+)d\)/g, expected: NEWS_RETENTION_DAYS },
     { pattern: /PipelineLog \((\d+)d\)/g, expected: PIPELINE_LOG_RETENTION_DAYS },
@@ -98,6 +106,7 @@ const AFIRMACOES: Record<string, Claim[]> = {
     { pattern: /ProductEvent \((\d+)d\)/g, expected: PRODUCT_EVENT_RETENTION_DAYS },
     { pattern: /ErrorEvent \((\d+)d\)/g, expected: ERROR_EVENT_RETENTION_DAYS },
     { pattern: /AuditEvent \((\d+)d\)/g, expected: AUDIT_EVENT_RETENTION_DAYS },
+    { pattern: /SourceHealth \((\d+)d\)/g, expected: SOURCE_HEALTH_RETENTION_DAYS },
   ],
   'README.md': [{ pattern: /cleaned up after (\d+) days/g, expected: NEWS_RETENTION_DAYS }],
   'README.pt-BR.md': [{ pattern: /expurgados após (\d+) dias/g, expected: NEWS_RETENTION_DAYS }],
@@ -143,10 +152,13 @@ describe('a retenção escrita em prosa bate com as constantes da etapa 8', () =
     expect(Number(match?.[1])).toBeLessThanOrEqual(PIPELINE_LOG_RETENTION_DAYS);
   });
 
-  it('os dois diagramas dizem "artigos e eventos" porque os dois têm a mesma retenção', () => {
-    // A frase junta as duas tabelas num número só. Se um dia divergirem, a
-    // frase — e este teste — precisam se partir em duas.
+  it('os dois diagramas dizem "artigos, eventos e fontes" porque os três têm a mesma retenção', () => {
+    // A frase junta as três tabelas num número só. Se uma dia divergir, a
+    // frase — e este teste — precisam se partir. A `SourceHealth` (Fase 11)
+    // é 90 de propósito: cruzar "o briefing daquele dia" com "quem o
+    // alimentou" pede as duas janelas iguais.
     expect(ARTICLE_RETENTION_DAYS).toBe(PRODUCT_EVENT_RETENTION_DAYS);
+    expect(SOURCE_HEALTH_RETENTION_DAYS).toBe(ARTICLE_RETENTION_DAYS);
   });
 
   it('as constantes são as que o produto decidiu — mudar aqui é mudar de propósito', () => {
@@ -161,5 +173,7 @@ describe('a retenção escrita em prosa bate com as constantes da etapa 8', () =
     expect(ERROR_EVENT_RETENTION_DAYS).toBe(14);
     // 365: log de segurança responde pergunta feita meses depois.
     expect(AUDIT_EVENT_RETENTION_DAYS).toBe(365);
+    // 90: "esta fonte vale a pena?" é pergunta trimestral.
+    expect(SOURCE_HEALTH_RETENTION_DAYS).toBe(90);
   });
 });
