@@ -1272,8 +1272,9 @@ recorte inteiro sem filtrar por status.
 
 ### GET /api/admin/pipeline/runs/:pipelineId
 
-Detalhe de um run: o resumo mais os **eventos por etapa** (Stage 1–9, nível
-INFO/WARN/ERROR, mensagem e contexto JSON).
+Detalhe de um run: o resumo mais os **eventos por etapa** (0 a 9.5 — a 0 é o
+run inteiro, no enterro do run morto; a 9.5 é a suíte de invariantes, com o
+relatório no `context` —, nível INFO/WARN/ERROR, mensagem e contexto JSON).
 
 **O evento final da etapa 9 (`Pipeline completed successfully`) resume o run**
 (Fase 8) — é a linha que o detalhe abre primeiro:
@@ -1382,7 +1383,10 @@ usado.
 Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
 `hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
 crônico), e `message`, `lastSeenAt` e `lastRequestId` são da hora mais
-recente. `byCategory` traz **sempre as seis** categorias da taxonomia, na
+recente. **`route` é o escopo da falha, e tem três formas** — o padrão da
+rota na API (`/api/news/:id`, nunca a URL), a etapa no pipeline (`stage-8.5`)
+e, desde a Fase 6, o id da invariante (`retention.news`) quando `origin` é
+`INVARIANT`; as três são conjuntos finitos, que é o que dá teto à tabela. `byCategory` traz **sempre as seis** categorias da taxonomia, na
 ordem dela, com zero onde não houve — a rosquinha tem fatias fixas. `groups`
 vem mais recente primeiro.
 
@@ -1636,8 +1640,9 @@ em `GET /api/admin/pipeline/runs`, que compartilha o schema com esta porta.
 
 ### GET /api/dev/logs/:pipelineId
 
-Detalhe completo de um run: log resumido + **eventos por etapa** (Stage 1–9,
-nível INFO/WARN/ERROR, mensagem e contexto JSON).
+Detalhe completo de um run: log resumido + **eventos por etapa** (0 a 9.5,
+nível INFO/WARN/ERROR, mensagem e contexto JSON — a mesma lista da porta de
+admin).
 
 **Auth:** `Authorization: Bearer <JOB_SECRET>`  
 **Rate limit:** 60 req/min

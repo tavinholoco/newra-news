@@ -1733,6 +1733,130 @@ aqui: o coalescimento da Fase 4, o rate limit, e schema estrito. **Gatilho
 numérico: 429 em `POST /api/errors/client` dentro de `GET /api/metrics/http`** —
 sem instrumentação nova.
 
+### Inventário reconferido antes de abrir — 16/09/2026
+
+As §11.2 e §11.3 são de 23/08. Medidas contra a `dev` em `1152ca0` (a Fase 6
+mergeada), no pós-merge da 6, para a sessão que abrir a fase não redescobrir.
+**A ordem é 7c antes de 7b**: a §11.2 diz "renderizar o `digest` **e
+reportá-lo**", e o caminho do reporte é a §11.3 — abrir a 7b primeiro seria
+escrever um `fetch` para uma rota que não existe. São **dois PRs** (7c: API +
+BFF; 7b: os boundaries), como a 7a foi um.
+
+**O que continua verdade:** são **quatro** `error.tsx`
+(`app/[locale]/error.tsx`, `news/`, `article/`, `admin/metrics/`), todos com
+`error: Error & { digest?: string }` **declarado e nunca lido** — só o `reset`
+é desestruturado —, todos client components dentro do provider do idioma
+(`useTranslations('errors')` funciona neles); **não existe
+`global-error.tsx`**; `ErrorOrigin.WEB` está no enum **sem produtor**; o
+`/api/events` é o modelo da porta anônima (`config: { rateLimit: { max: 30,
+timeWindow: '1 minute' } }`, `201 { data: { accepted } }` com `assertContract`,
+`events-anonymity` e `events-ingest-ceiling` como suítes); e o `app/not-found.tsx`
+é o modelo do boundary raiz (o próprio `globals.css`, o próprio `ThemeInit`,
+`<html lang>`), com o par de asserções do `state-matrix.test.ts` ("a 404 da
+raiz aplica o tema salvo": `<ThemeInit />` e `<html … <body`) a copiar para
+ele.
+
+**O que a §11 assume e mudou, ou nunca foi medido:**
+
+- **O "rate limit de 10/min" seria um balde único para o site inteiro.** O
+  BFF de `/api/events` (`app/api/events/route.ts`) faz `fetch` cru para a API
+  **sem repassar o IP do leitor**, e a API vê o IP da função da Vercel — é a
+  dívida medida do `CLAUDE.md` ("o teto de ingestão de eventos é um balde só
+  para todos os leitores"). Com 10/min, o décimo primeiro leitor a tropeçar
+  na mesma tela quebrada no mesmo minuto recebe 429. **Decisão para a fase:**
+  aceitar (o coalescimento por fingerprint já faz o `count` ser aproximado, e
+  o 429 é o gatilho escrito) ou repassar `x-forwarded-for` do BFF — o que
+  muda a semântica do `trustProxy: 1` da API (hoje confia **um** salto, o do
+  Render; o IP escrito pelo BFF seria o segundo). A recomendação é aceitar e
+  escrever: um erro que dez leitores viram num minuto já está na tabela.
+- **O fingerprint precisa de um padrão de rota, e nada no web sabe o padrão
+  da página atual.** `route` é peça do fingerprint e tem de ser conjunto
+  finito (§8); o client component só tem `window.location.pathname`
+  (`/pt-BR/news/3f2a…`), que é uma linha por notícia. O App Router não expõe
+  o padrão casado a um client component. **Saída honesta:** o cliente manda
+  `path` cru (sem query), e **a API normaliza** para o padrão do `app/`
+  (`/[locale]/news/[id]`, `/[locale]/article/[date]`) com um normalizador
+  pequeno — prefixo de idioma, UUID, `YYYY-MM-DD` — **cujo conjunto de saída
+  tem guarda derivada de `apps/web/app/**/page.tsx`**, como o `rotasDoApp()`
+  do `diagram-drift` já lê (e o `bff-route-seam` já lê arquivos do web da
+  API). Caminho que não casa vai para um balde único (`unmatched`, o mesmo
+  nome do `routePatternOf`). O `digest` **não** entra no fingerprint: vai no
+  `context`, com o `path` cru — é a chave para o stack do servidor, não para
+  a identidade da falha. Dois erros distintos na mesma página colapsam numa
+  linha por hora, com o `message` da primeira; o teto vale mais que a
+  distinção, e a tabela de falhas tem busca por mensagem.
+- **O BFF novo não pode usar `proxyToApi`** (exige sessão e assina JWT — a
+  mesma razão do `/api/events`), então nasce com `fetch` cru, **fora da
+  guarda `bff-route-seam`**, que só enumera chamadas a `proxyToApi`. Estender
+  a guarda para o literal ``fetch(`${API_BASE_URL}/…`)`` é parte da 7c — hoje
+  o `/api/events` também está fora dela, e é o mesmo caractere trocado que o
+  item 68 achou.
+- **`recordError` pede `code` da união e `context` plano.** `RecordedErrorCode`
+  ganha `CLIENT_ERROR_CODE` (o `error-event.test.ts` enumera os call sites
+  pelo parser); `severity: 'ERROR'` (um render que morreu não é degradação),
+  `category: 'internal'`; `context: { digest, path }` — `ErrorContext` é
+  `Record<string, escalar>`, e o `path` cru cabe ali (é diagnóstico, não
+  identidade). `requestId` é o da requisição que **ingeriu** o relato, não da
+  que falhou — a correlação com o log do servidor é o `digest`.
+- **O relato tem de passar por `scrubMessage`**: `message` vem do navegador e
+  pode carregar o que o erro quiser (uma URL com token, um e-mail num estado
+  de formulário). O `recordError` já redige; a rota não deve confiar no
+  cliente antes disso — schema estrito (300/64, `path` sem `?`) é o que
+  limita a forma, o redator é o que limita o conteúdo.
+- **Rota nova na API custa as três guardas do §18** (`authorization-matrix`
+  com `access: 'public'`, `docs/api.md`, tipo compartilhado ou exceção
+  escrita — o `{ accepted }` do `/api/events` tem tipo em `packages/types`; o
+  `{ recorded: true }` da 7c ou ganha um, ou entra em `WITHOUT_SHARED_TYPE`
+  como os dois booleanos que já estão lá), mais `events-anonymity` como
+  modelo: o relato não pode carregar `userId`, cookie ou e-mail, e a suíte
+  afirma isso pelo schema. A lista de 401 do smoke **não** muda — é de rota
+  `GET` atrás de sessão.
+- **O `digest` só existe em erro de servidor.** O Next o põe em `error.digest`
+  quando o erro veio de um server component ou de `redirect`/`notFound`
+  mal-usados; um erro de render no cliente chega **sem digest**. O corpo o
+  declara opcional, e a tela renderiza o texto pequeno só quando há — e é por
+  isso que o `path` viaja junto: sem digest, é o único ponteiro.
+- **O reporte do cliente não pode usar `track()` nem `lib/api.ts`**: o
+  primeiro é fire-and-forget pelo balde do analytics (§11.3), e o segundo
+  lança `ApiError` — dentro de um error boundary, uma segunda exceção é a
+  falha dupla que a §11.2 descreve. É um módulo pequeno e sem dependência
+  (`lib/report-client-error.ts`), `fetch` com `keepalive: true`, que **nunca
+  lança** e reporta **uma vez por montagem** (o `reset()` remonta o
+  boundary; o mesmo erro no retry é a mesma linha coalescida). O
+  `global-error.tsx` **não pode importar nada que dependa do provider do
+  next-intl** — o reporter tem de ser importável dali.
+- **Os quatro `error.tsx` usam `mx-auto max-w-7xl`**, o contêiner da V1 que a
+  armadilha 11 manda não copiar — a casca do layout já dá
+  `container-editorial`. A 7b, que os abre para pôr o `digest`, os alinha de
+  passagem; não é escopo novo, é o arquivo aberto.
+- **`global-error.tsx` e o `state-matrix`**: a guarda cobra o `globals.css` no
+  `app/layout.tsx` e o proíbe no `[locale]/layout.tsx`; um boundary raiz que
+  importa o próprio `globals.css` (como o `not-found.tsx`) passa. O que a 7b
+  acrescenta é o teste-irmão de "a 404 da raiz aplica o tema salvo" para o
+  `global-error.tsx` — `<ThemeInit />` e `<html … <body` —, e a decisão da
+  string: `useTranslations` **lança sem provider**; fixa neutra em dois
+  idiomas escolhida por `document.documentElement.lang`, com o motivo escrito
+  onde o `i18n-messages` não alcança (ele só cobra chave órfã, não string
+  fixa).
+
+**O que a fase paga em guarda (§18), medido:** rota nova na API (as três) +
+BFF anônimo (o `bff-route-seam` estendido ao `fetch` cru) + `code` novo na
+união + normalizador de rota com conjunto derivado do `app/` do web (7c);
+`state-matrix` para o `global-error.tsx`, `a11y-guards`, `design-tokens` e o
+reporte "uma vez por montagem" com `fetch` mockado (7b). **Sem migration, sem
+env nova** — a única variável envolvida (`API_BASE_URL` do BFF) já existe.
+
+**Depois da 7:** promoção `dev → main` (o lote inteiro desde a 3: taxonomia,
+`ErrorEvent`, as telas, o log de sucesso, a saúde por fonte, as invariantes,
+o erro do cliente) com as **três migrations** da 4, do 5a e do 11a aplicando
+juntas; o ritual contra produção; e só então a **9**, que o `CLAUDE.md` manda
+não levar dentro de um lote.
+
+**Branch:** `observability/fase-7c-client-error-ingest`, cortada em 16/09 de
+`1152ca0`. O passo 1 do ritual a realinha depois de o pós-merge da 6 mergear
+— conferir com `git merge-base --is-ancestor` que #209 **e** o PR do pós-merge
+estão na `dev`, e `rev-list --count origin/dev..origin/main` = 0.
+
 ---
 
 ## §12 Fase 8 — O log de sucesso, e por que `SUCCESS` mente hoje ✅ 2026-09-15
@@ -3198,6 +3322,15 @@ aplica as duas migrations juntas na promoção.**
   `utils/event-loop.ts`) porque exportar do lugar antigo fecharia um ciclo.
   Ensaio contra o banco local em 65 ms; o seed ganhou sete briefings com
   fontes. Item **75** do `docs/progress.md`; as decisões no fim da §10.
+- **§11.3 e §11.2 — Fase 7c (o caminho de ingestão) e 7b (o `digest` chega
+  a um humano). ← próximas, decididas em 16/09/2026, nesta ordem.** A 7b
+  reporta pelo caminho que a 7c abre. Dois PRs, sem schema e sem env. **O
+  inventário foi reconferido no fim da §11** — o "10/min" seria um balde
+  único para o site (o BFF não repassa o IP do leitor), nada no web sabe o
+  padrão da rota atual (a API normaliza, com conjunto derivado do `app/`), o
+  BFF anônimo nasce fora do `bff-route-seam`, e o `digest` só existe em erro
+  de servidor.
+- **Promoção `dev → main` depois da 7**, antes da 9 — o `CLAUDE.md` manda.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 

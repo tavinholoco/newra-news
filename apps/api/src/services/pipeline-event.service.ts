@@ -277,7 +277,8 @@ async function warnEventsByRun(ids: string[]): Promise<Map<string, OutcomeEvent[
 // ── Escrita (pipeline) ──────────────────────────────────────────────────────
 
 /**
- * Registra um evento da pipeline (Stage 1–9, nível, mensagem e contexto JSON).
+ * Registra um evento da pipeline (etapa 0 a 9.5, nível, mensagem e contexto
+ * JSON).
  * Nunca lança: observabilidade não pode quebrar o pipeline — falha de
  * persistência vira uma linha de `warn` no log, e nada além disso.
  *

@@ -311,9 +311,11 @@ a suíte de unidade, que roda sem rede.
   log de sucesso) fechou em 15/09**, abrindo o bloco 3; e a **11 (saúde por
   fonte) fechou em 15/09, em três PRs** — 11a (migration), 11b (API) e 11c
   (web); e a **6 (invariantes) fechou em 16/09, num PR só**.** Continua
-  aberta **uma fase inteira** (a 9) e as subfases **7b e 7c** — a **9 vai por
-  último, e é decisão** (das três coisas que ela exige no ar, com a 8 entregue
-  só falta a promoção).
+  aberta **uma fase inteira** (a 9) e as subfases **7c e 7b — as próximas,
+  nesta ordem** (a 7b reporta pelo caminho que a 7c abre; o terreno está no
+  fim da §11). Depois da 7, **promoção `dev → main`** e o ritual; a **9 vai
+  por último, e é decisão** (das três coisas que ela exige no ar, com a 8
+  entregue só falta a promoção).
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -331,6 +333,25 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Verificação pós-merge da Fase 6 (2026-09-16): três frases que sobraram,
+  a guarda de compilação vista reprovando, e o terreno da 7.** Item **76**.
+  Quatro enumerações sobre a árvore mergeada (`1152ca0`, #209): quem lê etapa
+  por número, quem lê o `route` do `ErrorEvent`, quem lê o resumo da 9 por
+  nome (ninguém no web — o campo novo não tem leitor a quebrar), e o que a
+  costura tipo ↔ schema garante. **"Stage 1–9" sobrevivia em três lugares**
+  (as duas portas de detalhe do run na `docs/api.md` e o JSDoc de
+  `logPipelineEvent`) — velho desde a 7.5, sem guarda que alcance; e a
+  `docs/api.md` não dizia que o `route` de um `ErrorEvent` tem **três
+  formas** desde a Fase 6. Tirar um id do `z.enum` de propósito fez o `tsc`
+  acusar em dois lugares — a fiação e a peça estão guardadas. Gitleaks em
+  `0 commits scanned` no push do merge, oitava medição. **O terreno da Fase
+  7 está no fim da §11**, e a ordem é **7c antes de 7b**: o "10/min" seria
+  um balde único para o site (o BFF não repassa o IP do leitor), nada no web
+  sabe o padrão da rota atual (a API normaliza, com conjunto derivado do
+  `app/`), o BFF anônimo nasce fora do `bff-route-seam`, e o `digest` só
+  existe em erro de servidor. Branch
+  `observability/fase-7c-client-error-ingest`.
 
 - **Fora da linha das fases (2026-09-16): a Fase 6 fechou na `dev` — as
   invariantes, "o que deveria ter acontecido aconteceu?", perguntado uma vez
