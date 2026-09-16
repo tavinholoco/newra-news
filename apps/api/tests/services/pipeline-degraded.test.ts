@@ -51,12 +51,19 @@ vi.mock('../../src/services/news-renormalizer.service', () => ({
 vi.mock('../../src/services/newsletter.service', () => ({
   sendDailyNewsletter: vi.fn(),
 }));
+// A etapa 9.5 (Fase 6) tem suíte própria. Sem o mock, as doze consultas cedem
+// o event loop uma a uma e o `settle()` de um `setImmediate` volta antes de o
+// run virar SUCCESS: o teste leria uma lista de status vazia.
+vi.mock('../../src/services/invariants.service', () => ({
+  runInvariants: vi.fn(),
+}));
 
 import { prisma } from '@newranews/database';
 import { fetchAll, type FetchWarning } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
+import { runInvariants } from '../../src/services/invariants.service';
 
 const item = (url: string) => ({
   title: 'Notícia',
@@ -123,6 +130,14 @@ beforeEach(() => {
     sample: [],
   });
   vi.mocked(sendDailyNewsletter).mockResolvedValue({ total: 0, sent: 0, failed: 0 });
+  vi.mocked(runInvariants).mockResolvedValue({
+    checked: 12,
+    violated: 0,
+    errored: 0,
+    durationMs: 48,
+    budgetMs: 2_000,
+    results: [],
+  });
 });
 
 describe('9.4 — a etapa crítica falha: o que para junto', () => {

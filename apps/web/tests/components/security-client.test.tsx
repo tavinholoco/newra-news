@@ -1,20 +1,27 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AuditTrail, ErrorSummary } from '@newranews/types';
+import type { AuditTrail, ErrorSummary, InvariantReport } from '@newranews/types';
 import { renderWithIntl } from '@/tests/utils';
-import { auditTrail, emptyErrorSummary, errorSummary } from '@/tests/fixtures/observability';
+import {
+  auditTrail,
+  emptyErrorSummary,
+  errorSummary,
+  invariantReport,
+} from '@/tests/fixtures/observability';
 
-const { useErrorSummary, useAuditTrail } = vi.hoisted(() => ({
+const { useErrorSummary, useAuditTrail, useInvariantReport } = vi.hoisted(() => ({
   useErrorSummary: vi.fn(),
   useAuditTrail: vi.fn(),
+  useInvariantReport: vi.fn(),
 }));
 
 /**
  * Mock parcial de `@/lib/queries` mente por omissão (lição da Fase 2): a aba
- * consome exatamente estes dois hooks, e um terceiro entra aqui junto.
+ * consome exatamente estes três hooks — o terceiro entrou com a Fase 6 —, e
+ * um quarto entra aqui junto.
  */
-vi.mock('@/lib/queries', () => ({ useErrorSummary, useAuditTrail }));
+vi.mock('@/lib/queries', () => ({ useErrorSummary, useAuditTrail, useInvariantReport }));
 
 const { SecurityClient } = await import('@/components/admin/security-client');
 
@@ -27,9 +34,17 @@ interface QueryState<T> {
 function mockQueries({
   errors = { data: errorSummary, isFetching: false, isError: false },
   audit = { data: auditTrail, isFetching: false, isError: false },
-}: { errors?: QueryState<ErrorSummary>; audit?: QueryState<AuditTrail> } = {}) {
+  // O painel de invariantes abre em 'nenhuma verificação ainda' por padrão:
+  // com a tabela dele montada, todo getByRole('table') das falhas acharia duas.
+  invariants = { data: null, isPending: false, isError: false },
+}: {
+  errors?: QueryState<ErrorSummary>;
+  audit?: QueryState<AuditTrail>;
+  invariants?: { data: InvariantReport | null | undefined; isPending: boolean; isError: boolean };
+} = {}) {
   useErrorSummary.mockReturnValue(errors);
   useAuditTrail.mockReturnValue(audit);
+  useInvariantReport.mockReturnValue(invariants);
 }
 
 beforeEach(() => {
@@ -188,11 +203,16 @@ describe('SecurityClient — as falhas registradas', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar as falhas registradas.');
   });
 
-  it('keeps the invariants section as an honest empty place until Phase 6', () => {
+  it('hosts the invariants panel where §4.1 says, between the failures and the audit trail', () => {
+    mockQueries({ invariants: { data: invariantReport, isPending: false, isError: false } });
     renderWithIntl(<SecurityClient />);
 
-    expect(screen.getByRole('heading', { name: 'Invariantes' })).toBeInTheDocument();
-    expect(screen.getByText(/Nenhuma invariante medida ainda/)).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(headings.indexOf('Invariantes')).toBeGreaterThan(headings.indexOf('Falhas registradas'));
+    expect(headings.indexOf('Invariantes')).toBeLessThan(headings.indexOf('Auditoria de ações de admin'));
+    // O painel é o da Fase 6, com a consulta própria — não um texto fixo.
+    expect(useInvariantReport).toHaveBeenCalled();
+    expect(screen.getByText('1 violada de 12')).toBeInTheDocument();
   });
 });
 

@@ -30,6 +30,7 @@ import type {
   ErrorSummaryWindow,
   AuditTrail,
   SourceHealthReport,
+  InvariantReport,
 } from '@newranews/types';
 import {
   API_TIMEOUT_MS,
@@ -615,6 +616,22 @@ export async function getSourceHealth(days: number): Promise<SourceHealthReport>
   const res = await fetchWebApi<ApiResponse<SourceHealthReport>>(
     `/api/admin/sources?days=${days}`,
   );
+  return res.data;
+}
+
+/**
+ * O último relatório de invariantes — o evento da etapa 9.5 do run mais
+ * recente (§10 do plano de observabilidade, Fase 6). `null` antes do primeiro
+ * run com a etapa: "nenhuma verificação ainda" é estado, e a tela o diz.
+ *
+ * **Rota nova, e o preview da `dev` fala com a API de produção** (armadilha
+ * 37): até a promoção ela responde 404 ali, o `proxyToApi` repassa o status,
+ * `fetchWebApi` lança e o painel desenha "indisponível" sobre o `isError` —
+ * que é diferente de `null`. Não há campo a preencher na fronteira porque a
+ * resposta inteira é nova.
+ */
+export async function getInvariantReport(): Promise<InvariantReport | null> {
+  const res = await fetchWebApi<ApiResponse<InvariantReport | null>>('/api/admin/invariants');
   return res.data;
 }
 

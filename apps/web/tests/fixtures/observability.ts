@@ -2,6 +2,8 @@ import type {
   AuditTrail,
   ErrorSummary,
   HttpMetrics,
+  InvariantReport,
+  InvariantResult,
   SourceDay,
   SourceHealthReport,
   SourceOutcome,
@@ -244,3 +246,73 @@ export const sourceHealthReport: SourceHealthReport = {
 
 /** A janela sem linha nenhuma — o estado antes do primeiro run com a Fase 11. */
 export const emptySourceHealthReport: SourceHealthReport = { window: SOURCE_WINDOW, sources: [] };
+
+// ── Fase 6: o relatório de invariantes ─────────────────────────────────────
+
+const invariantResult = (
+  id: InvariantResult['id'],
+  measure: InvariantResult['measure'],
+  observed: InvariantResult['observed'],
+  expected: InvariantResult['expected'],
+  overrides: Partial<InvariantResult> = {},
+): InvariantResult => ({
+  id,
+  status: 'OK',
+  measure,
+  observed,
+  expected,
+  detail: null,
+  error: null,
+  durationMs: 4,
+  ...overrides,
+});
+
+/**
+ * O relatório do ensaio de 16/09/2026 contra o banco local, mais um `ERROR`
+ * inventado para a tela ter os três estados: doze linhas, uma violada (o
+ * acervo mais velho que a retenção), uma sem resposta.
+ */
+export const invariantReport: InvariantReport = {
+  checkedAt: '2026-09-16T11:01:02.000Z',
+  pipelineLogId: '00000000-0000-4000-8000-00000000c001',
+  checked: 12,
+  violated: 1,
+  errored: 1,
+  durationMs: 381,
+  budgetMs: 2_000,
+  results: [
+    invariantResult('retention.news', 'oldest', '2026-07-01T09:00:00.000Z', '2026-08-16T11:01:00.000Z', {
+      status: 'VIOLATED',
+      durationMs: 272,
+    }),
+    invariantResult('retention.pipelineLog', 'oldest', '2026-08-17T11:00:10.000Z', '2026-08-16T11:01:00.000Z'),
+    invariantResult('retention.article', 'oldest', '2026-08-16T01:56:52.000Z', '2026-06-17T11:01:00.000Z'),
+    invariantResult('retention.productEvent', 'oldest', '2026-09-14T18:58:10.000Z', '2026-06-17T11:01:00.000Z'),
+    invariantResult('retention.errorEvent', 'oldest', '2026-09-14T10:00:00.000Z', '2026-09-01T11:01:00.000Z'),
+    invariantResult('retention.auditEvent', 'oldest', null, '2025-09-15T11:01:00.000Z'),
+    invariantResult('retention.sourceHealth', 'oldest', '2026-08-17T00:00:00.000Z', '2026-06-17T11:01:00.000Z'),
+    invariantResult('briefing.one_per_day', 'count', 7, 7),
+    invariantResult('briefing.has_sources', 'count', 0, 0),
+    invariantResult('pipeline.no_stale_running', 'count', 0, 0),
+    invariantResult('metrics.day_recorded', 'count', null, 0, {
+      status: 'ERROR',
+      error: 'relation "DailyMetric" does not exist',
+      durationMs: 15,
+    }),
+    invariantResult('newsletter.delivered', 'count', 0, 0),
+  ],
+};
+
+/** Tudo em ordem: o estado que se espera ver de manhã. */
+export const healthyInvariantReport: InvariantReport = {
+  ...invariantReport,
+  violated: 0,
+  errored: 0,
+  durationMs: 65,
+  results: invariantReport.results.map((result) => ({
+    ...result,
+    status: 'OK',
+    error: null,
+    observed: result.observed ?? 0,
+  })),
+};

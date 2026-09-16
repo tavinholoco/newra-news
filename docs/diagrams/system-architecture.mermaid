@@ -24,7 +24,7 @@ flowchart TB
 
     subgraph Backend["BACKEND — Render"]
         API["Fastify 4 · TypeScript · Prisma<br/>Zod · Rate-limit · CORS · Helmet<br/>OpenAPI sempre gerado, UI só fora de produção"]
-        PL["Pipeline diário<br/>(11 etapas)"]
+        PL["Pipeline diário<br/>(12 etapas)"]
         JOBS["Cron interno · @fastify/schedule<br/>(só dispara se o processo estiver de pé)"]
         API --> PL
         JOBS --> PL

@@ -1,7 +1,14 @@
 import { z } from 'zod';
-import type { ApiResponse, AuditTrail, ErrorSummary, SourceHealthReport } from '@newranews/types';
+import type {
+  ApiResponse,
+  AuditTrail,
+  ErrorSummary,
+  InvariantReport,
+  SourceHealthReport,
+} from '@newranews/types';
 import { assertContract } from '../../utils/contract';
 import { AUDIT_LIST_DEFAULT, AUDIT_LIST_MAX } from '../../services/audit.service';
+import { invariantRunSchema } from '../../services/invariants.service';
 import {
   SOURCE_HEALTH_WINDOW_DEFAULT_DAYS,
   SOURCE_HEALTH_WINDOW_MAX_DAYS,
@@ -127,8 +134,25 @@ export const sourceHealthReportSchema = z.object({
 
 export const sourceHealthResponseSchema = z.object({ data: sourceHealthReportSchema });
 
+/**
+ * As invariantes (§10 do plano de observabilidade, Fase 6).
+ *
+ * O schema do relatório é **o mesmo com que a etapa 9.5 grava e a leitura
+ * parseia** (`invariantRunSchema`, no service) mais os dois campos que vêm do
+ * evento — é assim que "o que sai pela rota é o que foi gravado" deixa de ser
+ * promessa. `data` é `null` antes do primeiro run com a etapa: "nenhuma
+ * verificação ainda" é estado, não erro.
+ */
+export const invariantReportSchema = invariantRunSchema.extend({
+  checkedAt: z.string(),
+  pipelineLogId: z.string(),
+});
+
+export const invariantReportResponseSchema = z.object({ data: invariantReportSchema.nullable() });
+
 assertContract<typeof errorSummaryResponseSchema, ApiResponse<ErrorSummary>>(true);
 assertContract<typeof auditTrailResponseSchema, ApiResponse<AuditTrail>>(true);
 assertContract<typeof sourceHealthResponseSchema, ApiResponse<SourceHealthReport>>(true);
+assertContract<typeof invariantReportResponseSchema, ApiResponse<InvariantReport | null>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

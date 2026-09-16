@@ -65,6 +65,7 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - NewsletterLog.date é @unique — apenas um envio registrado por dia
 - Seed deve criar dados realistas para todas as categorias
 - **O seed também popula `ErrorEvent`, `AuditEvent` e `DailyUptime`** (decidido no PR 5c, 14/09/2026): são as três tabelas que o `admin:capture` fotografa na `/admin` e na `/admin/security`, e sem elas a captura sai com o arco das horas em zero, a rosquinha de erro vazia e a trilha sem linha. Determinístico e idempotente como o resto — `upsert` pela chave natural ou por id fixo; o ator da trilha é o id sintético da sessão forjada pelo script
+- **O seed cria sete dias de briefing, cada um com três `BriefingSource`, e o evento da etapa 9.5 em todo run semeado** (Fase 6, 16/09/2026). O ensaio das invariantes contra o banco local reprovou `briefing.one_per_day` e `briefing.has_sources` por causa do seed antigo — um briefing só, sem fontes —, e o plano manda ajustar o seed, não a invariante. Idempotente nas duas pontas: o briefing por `date`, as fontes só quando o briefing não tem nenhuma (o que conserta o de hoje num banco semeado antes), e o evento da 9.5 acrescentado ao run `SUCCESS` que não o tem (índice 20 no id do evento). O relatório de hoje traz **uma** violação — a retenção do acervo, que é o que a suíte mede de verdade num banco local anterior à migration — para o painel ter a linha vermelha na captura
 
 ## Padrão de Export
 O PrismaClient é exportado como singleton:

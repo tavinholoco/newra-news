@@ -310,10 +310,10 @@ a suíte de unidade, que roda sem rede.
   (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha; e a **8 (o
   log de sucesso) fechou em 15/09**, abrindo o bloco 3; e a **11 (saúde por
   fonte) fechou em 15/09, em três PRs** — 11a (migration), 11b (API) e 11c
-  (web).** Continuam abertas **duas fases inteiras** (6 e 9) e as subfases
-  **7b e 7c**, e o bloco 3 do §19 vai em qualquer ordem — a 6 (invariantes)
-  depende de 4 e 5 no ar, e a **9 vai por último, e é decisão** (das três
-  coisas que ela exige no ar, com a 8 entregue só falta a promoção).
+  (web); e a **6 (invariantes) fechou em 16/09, num PR só**.** Continua
+  aberta **uma fase inteira** (a 9) e as subfases **7b e 7c** — a **9 vai por
+  último, e é decisão** (das três coisas que ela exige no ar, com a 8 entregue
+  só falta a promoção).
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -331,6 +331,31 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-16): a Fase 6 fechou na `dev` — as
+  invariantes, "o que deveria ter acontecido aconteceu?", perguntado uma vez
+  por run.** §10, item **75**. As etapas 7.5, 8, 8.5 e 9 engolem a própria
+  falha para o run terminar, e nada perguntava depois: a retenção podia parar
+  por um mês e o primeiro sintoma seria a conta do Neon. Entrou a **etapa
+  9.5** com **doze** consultas agregadas cedendo o event loop antes de cada
+  uma — a retenção das **sete** tabelas que a 8 expurga (a lista da §10
+  tinha seis: faltava `retention.article`, e a guarda deriva a contagem do
+  `Promise.all` do cleanup), um briefing por dia, todo briefing com fontes,
+  nenhum run morto, todo dia com run com métrica, a newsletter chegando a
+  alguém. **Violação não degrada o run**: o relatório é o `context` de um
+  `INFO` e cada violação é um `ErrorEvent` com `origin: INVARIANT` e o id no
+  fingerprint (uma linha por invariante por run); o que degrada é a consulta
+  que **lança** (`status: ERROR`, `WARN` da 9.5). `GET /api/admin/invariants`
+  lê o último evento e nunca roda a suíte; o painel na `/admin/security`
+  desenha três estados por linha com a forma carregando o estado. **Ensaio
+  contra o banco local antes de ligar: quatro reprovaram, nenhuma pela
+  invariante** — duas pelo acervo local nunca expurgado (como a §10 previu),
+  duas pelo seed, que se ajustou (sete briefings com fontes, 9.5 em todo run
+  semeado); segunda passada em **65 ms**. Os três exports que a §10 pedia
+  vieram por **mudança de módulo** (`services/retention.ts`,
+  `run-outcome.ts`, `utils/event-loop.ts`) — exportar do lugar antigo
+  fecharia um ciclo. **1.197 → 1.252 na API, 822 → 829 no web.** Fica a
+  **9**, por último e por decisão; 7b e 7c abertas.
 
 - **Verificação pós-merge da Fase 11 (2026-09-16): a coleta real, o nome
   que sobrou, e o terreno da 6.** Item **74**. Três enumerações e um ensaio
@@ -1035,7 +1060,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.019 em 162 suites (**1.197 API em 82** + **822 web em 80** — todos
+- **Testes:** 2.081 em 165 suites (**1.252 API em 84** + **829 web em 81** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

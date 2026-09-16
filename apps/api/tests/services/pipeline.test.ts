@@ -73,12 +73,21 @@ vi.mock('../../src/services/news-renormalizer.service', () => ({
 vi.mock('../../src/services/newsletter.service', () => ({
   sendDailyNewsletter: vi.fn(),
 }));
+// A suíte de invariantes (etapa 9.5, Fase 6) tem suíte própria; aqui o que se
+// mede é a fiação — o evento, o resumo, o `degradedBy`. Sem o mock, as doze
+// consultas bateriam num Prisma sem `aggregate` e o dia sairia degradado
+// pela 9.5 em todo cenário — quinta vez que este teste avisa pelo mesmo
+// caminho.
+vi.mock('../../src/services/invariants.service', () => ({
+  runInvariants: vi.fn(),
+}));
 
 import { prisma } from '@newranews/database';
 import { fetchAll } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
+import { runInvariants } from '../../src/services/invariants.service';
 import {
   pendingErrorEvents,
   resetErrorEventBuffer,
@@ -131,6 +140,16 @@ const mockGeneratedArticle = {
 };
 
 const mockSavedArticle = { id: 'article-uuid-123' };
+
+/** O relatório da 9.5 em ordem: doze conferidas, nenhuma violada, nenhuma com erro. */
+const healthyInvariants = {
+  checked: 12,
+  violated: 0,
+  errored: 0,
+  durationMs: 48,
+  budgetMs: 2_000,
+  results: [],
+};
 // `startedAt` entra na fixture porque a coluna tem default no schema e o
 // `create` real a devolve — o `triggerPipeline` lê dela para dizer quando o
 // run começou. Fixture sem o campo faria o teste medir um Prisma que não existe.
@@ -180,6 +199,7 @@ beforeEach(() => {
     sent: 0,
     failed: 0,
   });
+  vi.mocked(runInvariants).mockResolvedValue(healthyInvariants);
 });
 
 describe('PipelineService', () => {
@@ -913,6 +933,7 @@ describe('Fase 8 — o evento final da etapa 9 resume o run', () => {
       sourcesCited: 2,
       newsletter: { total: 12, sent: 11, failed: 1 },
       renormalized: { scanned: 8190, changed: 6 },
+      invariants: { checked: 12, violated: 0, errored: 0 },
       degradedBy: [],
       durationMs: expect.any(Number),
     });
@@ -973,6 +994,130 @@ describe('Fase 8 — o evento final da etapa 9 resume o run', () => {
 
     expect(derived).toEqual([1, 8.5, 9]);
     expect(finalEvent()?.data.context.degradedBy).toEqual(derived);
+  });
+});
+
+/**
+ * **As invariantes, depois da etapa 9.** (Fase 6 do plano de observabilidade,
+ * §10)
+ *
+ * O que se mede aqui é a fiação, e sobretudo a decisão que a §10 deixou
+ * escrita: **violação não degrada o run** — o relatório vai num `INFO`, e as
+ * linhas vermelhas são `ErrorEvent` por invariante (medidos na suíte do
+ * service). O que degrada é a suíte não conseguir perguntar: um `errored`
+ * maior que zero é `WARN` com `degradedBy.push(9.5)`. As consultas em si estão
+ * em `services/invariants.service.test.ts`.
+ */
+describe('Fase 6 — as invariantes, depois da etapa 9', () => {
+  const stageEvents = (stage: number) =>
+    vi.mocked(prisma.pipelineEvent.create).mock.calls
+      .map((call) => (call[0] as { data: { stage: number; level: string; message: string; context?: Record<string, unknown> } }).data)
+      .filter((data) => data.stage === stage);
+  const finalEvent = () =>
+    vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) => (call[0] as { data: { message: string } }).data.message === 'Pipeline completed successfully',
+    )?.[0] as { data: { context: Record<string, unknown> } } | undefined;
+
+  it('runs the suite after the daily metric, for this run, and before the run is marked SUCCESS', async () => {
+    const order: string[] = [];
+    vi.mocked(prisma.dailyMetric.upsert).mockImplementation(async () => {
+      order.push('metric');
+      return {} as never;
+    });
+    vi.mocked(runInvariants).mockImplementation(async () => {
+      order.push('invariants');
+      return healthyInvariants;
+    });
+    vi.mocked(prisma.pipelineLog.update).mockImplementation(async (args) => {
+      if ((args as { data: { status?: string } }).data.status === 'SUCCESS') order.push('success');
+      return mockLog as never;
+    });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    expect(order).toEqual(['metric', 'invariants', 'success']);
+    expect(runInvariants).toHaveBeenCalledWith({ pipelineLogId: 'log-uuid-456' });
+  });
+
+  it('writes the whole report as an INFO event, and a violation does not degrade the day', async () => {
+    vi.mocked(runInvariants).mockResolvedValue({
+      ...healthyInvariants,
+      violated: 1,
+      results: [
+        {
+          id: 'retention.news',
+          status: 'VIOLATED',
+          measure: 'oldest',
+          observed: '2026-07-01T00:00:00.000Z',
+          expected: '2026-08-16T11:01:00.000Z',
+          detail: null,
+          error: null,
+          durationMs: 3,
+        },
+      ],
+    });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    expect(stageEvents(9.5)).toEqual([
+      expect.objectContaining({
+        level: 'INFO',
+        message: 'Invariants checked',
+        context: expect.objectContaining({ checked: 12, violated: 1, errored: 0 }),
+      }),
+    ]);
+    expect(finalEvent()?.data.context).toMatchObject({
+      invariants: { checked: 12, violated: 1, errored: 0 },
+      degradedBy: [],
+    });
+    // O `INFO` não vira `ErrorEvent`; a linha da violação é do service, que
+    // aqui está mockado — nada no buffer é o que prova que o run não a dobrou.
+    expect(pendingErrorEvents()).toEqual([]);
+  });
+
+  it('degrades the day by 9.5 when a check could not run — the question, not the answer, failed', async () => {
+    vi.mocked(runInvariants).mockResolvedValue({ ...healthyInvariants, errored: 2 });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    expect(stageEvents(9.5)).toEqual([
+      expect.objectContaining({
+        level: 'WARN',
+        message: 'Invariants partially checked (non-critical)',
+        context: expect.objectContaining({ message: '2 of 12 checks could not run', errored: 2 }),
+      }),
+    ]);
+    expect(finalEvent()?.data.context).toMatchObject({
+      invariants: { checked: 12, violated: 0, errored: 2 },
+      degradedBy: [9.5],
+    });
+    // E a derivação sobre os eventos gravados concorda.
+    const written = vi.mocked(prisma.pipelineEvent.create).mock.calls.map(
+      (call) =>
+        (call[0] as { data: { stage: number; level: 'INFO' | 'WARN' | 'ERROR'; context?: Record<string, unknown> } }).data,
+    );
+    expect(
+      degradedStages(written.map((event) => ({ stage: event.stage, level: event.level, context: event.context ?? null }))),
+    ).toEqual([9.5]);
+  });
+
+  it('does not abort the run when the suite itself throws — WARN, degraded, and the summary says failed', async () => {
+    vi.mocked(runInvariants).mockRejectedValue(new Error('prisma: connection closed'));
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+    expect(stageEvents(9.5)).toEqual([
+      expect.objectContaining({ level: 'WARN', message: 'Invariants check failed (non-critical)' }),
+    ]);
+    expect(finalEvent()?.data.context).toMatchObject({ invariants: 'failed', degradedBy: [9.5] });
+    const successUpdate = vi.mocked(prisma.pipelineLog.update).mock.calls.find(
+      (call) => (call[0] as { data: { status?: string } }).data.status === 'SUCCESS',
+    );
+    expect(successUpdate).toBeDefined();
   });
 });
 

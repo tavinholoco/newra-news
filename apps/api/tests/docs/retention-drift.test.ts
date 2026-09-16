@@ -8,7 +8,7 @@ import {
   ARTICLE_RETENTION_DAYS,
   NEWS_RETENTION_DAYS,
   PIPELINE_LOG_RETENTION_DAYS,
-} from '../../src/services/pipeline.service';
+} from '../../src/services/retention';
 import { SOURCE_HEALTH_RETENTION_DAYS } from '../../src/services/source-health.service';
 
 /**
@@ -26,7 +26,8 @@ import { SOURCE_HEALTH_RETENTION_DAYS } from '../../src/services/source-health.s
  * descreve uma coleção quer guarda derivada da coleção, nunca um segundo lugar
  * onde ele é digitado. Aqui a fonte são as **constantes dos services** — que
  * até este PR nem existiam para notícia, log e artigo: eram literais dentro da
- * etapa.
+ * etapa (e desde a Fase 6 moram em `services/retention.ts`, porque a suíte de
+ * invariantes as lê e não pode importar o pipeline).
  *
  * **Cada padrão é positivo e negativo ao mesmo tempo.** Precisa casar ao menos
  * uma vez (a frase existe) e toda ocorrência precisa trazer o número certo (a
