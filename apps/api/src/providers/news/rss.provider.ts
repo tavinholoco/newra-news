@@ -84,7 +84,7 @@ export interface RssFetchResult {
  * reprovaria no dia em que um publisher espirrasse, e gate que falha por
  * motivo alheio é gate que se aprende a ignorar.
  */
-export async function fetchFromRssWithFailures(
+export async function fetchFromRssWithOutcomes(
   sources: RssSource[] = rssSources,
 ): Promise<RssFetchResult> {
   const settled = await Promise.all(sources.map((source) => timedSettled(() => fetchSource(source))));
@@ -130,10 +130,10 @@ async function timedSettled<T>(
 /**
  * Atalho para quem só precisa dos itens. Descarta `outcomes` — quem precisa
  * distinguir feed que falhou de feed que veio vazio usa
- * `fetchFromRssWithFailures` diretamente (é o que `fetchAll` faz).
+ * `fetchFromRssWithOutcomes` diretamente (é o que `fetchAll` faz).
  */
 export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<RawNewsItem[]> {
-  return (await fetchFromRssWithFailures(sources)).items;
+  return (await fetchFromRssWithOutcomes(sources)).items;
 }
 
 async function fetchFeedXml(url: string): Promise<string> {

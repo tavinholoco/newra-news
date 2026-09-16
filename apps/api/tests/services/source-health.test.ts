@@ -54,7 +54,7 @@ vi.mock('../../src/providers/news/rss.provider');
 
 import { prisma } from '@newranews/database';
 import { fetchFromNewsData } from '../../src/providers/news/newsdata.provider';
-import { fetchFromRssWithFailures } from '../../src/providers/news/rss.provider';
+import { fetchFromRssWithOutcomes } from '../../src/providers/news/rss.provider';
 
 const DAY = new Date('2026-09-15T00:00:00.000Z');
 
@@ -120,24 +120,24 @@ describe('a tabela aviso → desfecho, exaustiva nos dois sentidos', () => {
   const scenarioFor: Record<FetchWarningKind, () => { affected: string[] }> = {
     'provider-failed': () => {
       vi.mocked(fetchFromNewsData).mockRejectedValue(new Error('socket hang up'));
-      vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rssResult(feedsExcept()));
+      vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rssResult(feedsExcept()));
       return { affected: [NEWSDATA_SOURCE] };
     },
     'provider-empty': () => {
       vi.mocked(fetchFromNewsData).mockResolvedValue([item('Veículo', 'https://nd.test/1')]);
-      vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rssResult([]));
+      vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rssResult([]));
       return { affected: rssSources.map((s) => s.name) };
     },
     'feed-failed': () => {
       vi.mocked(fetchFromNewsData).mockResolvedValue([item('Veículo', 'https://nd.test/1')]);
-      vi.mocked(fetchFromRssWithFailures).mockResolvedValue(
+      vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
         rssResult(feedsExcept('Superinteressante'), { Superinteressante: 'ETIMEDOUT' }),
       );
       return { affected: ['Superinteressante'] };
     },
     'feed-empty': () => {
       vi.mocked(fetchFromNewsData).mockResolvedValue([item('Veículo', 'https://nd.test/1')]);
-      vi.mocked(fetchFromRssWithFailures).mockResolvedValue(rssResult(feedsExcept('Veja Saúde')));
+      vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rssResult(feedsExcept('Veja Saúde')));
       return { affected: ['Veja Saúde'] };
     },
   };

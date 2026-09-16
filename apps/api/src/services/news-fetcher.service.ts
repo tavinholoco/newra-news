@@ -1,7 +1,7 @@
 import { Category } from '@newranews/database';
 import { rssSources } from '../config/rss-sources';
 import { fetchFromNewsData } from '../providers/news/newsdata.provider';
-import { fetchFromRssWithFailures, type RssFeedOutcome } from '../providers/news/rss.provider';
+import { fetchFromRssWithOutcomes, type RssFeedOutcome } from '../providers/news/rss.provider';
 import type { RawNewsItem } from '../providers/types';
 import { baseLogger } from '../utils/logger';
 
@@ -32,7 +32,7 @@ export const NEWSDATA_SOURCE = 'newsdata';
  * dois dias e saíam como `feed-empty` — a mesma classe de "publicou devagar" —
  * porque o `Promise.allSettled` interno do RSS provider já tinha engolido a
  * rejeição antes de esta função decidir a classificação. Ver
- * `fetchFromRssWithFailures`.
+ * `fetchFromRssWithOutcomes`.
  *
  * **Tuple, e não só tipo**, desde a Fase 11: cada classe mapeia para um
  * `SourceOutcome` da `SourceHealth`, e a guarda (`source-health.test.ts`)
@@ -105,7 +105,7 @@ export interface FetchResult {
 export async function fetchAll(): Promise<FetchResult> {
   const [newsData, rss] = await Promise.all([
     timedSettled(() => fetchFromNewsData(ALL_CATEGORIES)),
-    timedSettled(() => fetchFromRssWithFailures()),
+    timedSettled(() => fetchFromRssWithOutcomes()),
   ]);
 
   const sources: SourceFetch[] = [];
@@ -146,7 +146,7 @@ export async function fetchAll(): Promise<FetchResult> {
   if (rss.result.status === 'rejected') {
     // O outer `allSettled` só rejeita se algo estourar antes do
     // `Promise.allSettled` interno do provider — na prática não acontece,
-    // porque `fetchFromRssWithFailures` engole toda rejeição por feed. Fica
+    // porque `fetchFromRssWithOutcomes` engole toda rejeição por feed. Fica
     // por simetria com o `newsdata`, cujo provider pode mesmo lançar cedo
     // (ex.: `NEWSDATA_API_KEY` ausente).
     //
