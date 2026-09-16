@@ -253,7 +253,9 @@ Regras que não são óbvias no código:
   e a lista de notícias
 - /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`):
   a linha de KPI com variação, rosquinhas de categoria, provider e ingestão,
-  as métricas de produto com a série por dia, e **os quatro sinais da API**
+  as métricas de produto com a série por dia, **o painel "Fontes"**
+  (`dashboard/source-health-panel`, via `/api/admin/sources` — Fase 11 do
+  plano de observabilidade) e **os quatro sinais da API**
   (`dashboard/golden-signals`, via `/api/admin/http-metrics`)
 - /[locale]/admin/security → **Logs e segurança** (Fase 5 do plano de
   observabilidade, PR 5c): as falhas registradas por fingerprint com busca,
@@ -362,6 +364,51 @@ Regras que não são óbvias no código:
     vivem no `ErrorEvent`. Duas tabelas sobre as mesmas linhas seriam as duas
     caixas vermelhas da Fase 2 em outra forma; o filtro por categoria é o que
     separa uma leitura da outra
+  - **o painel "Fontes" da `/admin/metrics` é derivação sobre a série crua**
+    (Fase 11 do plano, PR 11c — `dashboard/source-health-panel` sobre
+    `lib/source-days.ts`, o `outcome-days.ts` desta série). A API devolve,
+    por fonte, **só os dias com linha**; tudo o mais nasce aqui: o dia **"não
+    tentada"** pela ausência (a fonte removida de `rss-sources.ts`, o dia sem
+    run, o run que morreu antes da etapa 4 — não é falha da fonte, e as duas
+    pedem ações opostas), as médias de 7 e 30 dias **sobre os dias tentados**
+    (contar o dia em que o pipeline não rodou como zero penalizaria a fonte
+    pela falha da API; `FAILED` e `EMPTY` contam zero, porque ali a fonte foi
+    perguntada), a sequência de falhas que **um dia sem linha não quebra**
+    (ninguém perguntou — a regra do `degradedStreak`), e os dois gatilhos da
+    §15 — `FAILED_STREAK_TRIGGER` (3 dias) e `WITHERING_RATIO` (`kept` de 7 d
+    abaixo de 30 % do de 30). As médias se calam abaixo de `MIN_RECENT_SAMPLE`
+    / `MIN_WINDOW_SAMPLE` (armadilha 24: `NaN` compara `false`), e a variação
+    é o `kpiDelta` de sempre — célula vazia sem linha de base, nunca um chip
+    inventado
+  - **a faixa por fonte e a do run são a mesma casca, `admin/day-strip`**
+    (extraída da `OutcomeStrip` na Fase 11): trinta `<li>` de largura fluida,
+    `sr-only` + `title`, pontas e legenda opcionais. Cada série mapeia o
+    próprio conjunto de estados para `{ fill, label }`, e a forma carrega o
+    estado (armadilha 35): na faixa por fonte `OK` é verde cheio, `FAILED`
+    vermelho cheio, `EMPTY` **cinza cheio** (a fonte foi perguntada e não
+    tinha nada) e `NOT_ATTEMPTED` **vazado** (ninguém perguntou) — dois
+    cinzas, duas formas. Numa tabela com treze faixas a legenda mora **fora**,
+    uma vez, e a faixa é `compact`
+  - **a segunda tabela ordenável do admin extraiu o cabeçalho** —
+    `admin/sortable-header` (`useSort`, `sortBy`, `SortableHeader`), que a
+    tabela de falhas do 5c passou a usar. O gesto é o da referência: clicar
+    na coluna ativa inverte; noutra, ativa **descendente**. `null` ("sem
+    amostra") ordena por último nas duas direções
+  - **"Outras" fica por último na rosquinha de contribuição**, com
+    `keepOrder`: as fatias já vêm por `kept` decrescente e a cauda somada
+    (da oitava fonte em diante, o limite da §4.3) vai ao fim — reordenada por
+    valor, a cauda de 22 % saía **em primeiro**, acima da própria NewsData.
+    E a legenda do centro é uma palavra (`novas`): "novas em 30 d" cortava
+    nas bordas do anel. Os dois achados da captura, sem sintoma de código —
+    quarta fase seguida
+  - **a rota `/api/admin/sources` é nova, e o preview da `dev` lê a API de
+    produção** (armadilha 37): até a promoção ela responde 404 ali, o
+    `proxyToApi` repassa o status, `fetchWebApi` lança, e o painel desenha
+    "indisponível" sobre o `isError` — nunca a aba inteira quebrada. Não há
+    campo a preencher na fronteira porque a resposta inteira é nova; o
+    `DashboardClient` faz **três** consultas agora, e o mock de `fetch` da
+    suíte dele roteia pela URL — um corpo só para as três derrubou a suíte
+    lendo `sources.map` de um `DashboardMetrics`
   - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
     handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
     que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)
@@ -767,6 +814,7 @@ Quatro telas atrás de sessão — `/account`, `/account/preferences`,
 |---|---|
 | `account/account-nav` | as quatro abas; `/favorites` entra como a quarta |
 | `admin/admin-nav` | as três abas do painel: Painel, Métricas e Logs e segurança (§4.1 do plano de observabilidade) |
+| `admin/day-strip` · `admin/sortable-header` | a casca da faixa de 30 dias e o cabeçalho ordenável — as duas peças que a Fase 11 extraiu para a segunda faixa e a segunda tabela do admin |
 | `account/profile-card` | identidade, quanto foi salvo, e a saída |
 | `account/preferences-form` | assuntos e tema |
 | `account/newsletter-settings` | inscrição no briefing diário |

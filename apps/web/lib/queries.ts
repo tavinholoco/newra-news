@@ -38,6 +38,7 @@ import {
   getHttpMetrics,
   getErrorSummary,
   getAuditTrail,
+  getSourceHealth,
 } from '@/lib/api';
 import { OUTCOME_WINDOW_DAYS } from '@/lib/outcome-days';
 
@@ -128,6 +129,7 @@ export const observabilityKeys = {
   http: () => [...adminKeys.all, 'http-metrics'] as const,
   errors: (window: ErrorSummaryWindow) => [...adminKeys.all, 'errors', window] as const,
   audit: (days: number) => [...adminKeys.all, 'audit', days] as const,
+  sources: (days: number) => [...adminKeys.all, 'sources', days] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -437,6 +439,17 @@ export function useAuditTrail(days: number) {
     queryKey: observabilityKeys.audit(days),
     queryFn: () => getAuditTrail({ days, limit: AUDIT_TRAIL_LIMIT }),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * A saúde por fonte na janela (Fase 11 do plano). Sem `refetchInterval`,
+ * pela mesma decisão dos três acima; a janela é a da faixa do run, 30 dias.
+ */
+export function useSourceHealth(days: number) {
+  return useQuery({
+    queryKey: observabilityKeys.sources(days),
+    queryFn: () => getSourceHealth(days),
   });
 }
 

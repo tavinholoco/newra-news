@@ -4,22 +4,17 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { DayOutcome, OutcomeDay } from '@/lib/outcome-days';
 import { formatCalendarDay, formatList } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
+import { DayStrip } from './day-strip';
 
 /**
- * A faixa de 30 dias — um quadrado por dia, colorido por desfecho. (§12 do
- * plano de observabilidade, Fase 8)
+ * A faixa de 30 dias do pipeline — um quadrado por dia, colorido por
+ * desfecho. (§12 do plano de observabilidade, Fase 8)
  *
- * É o painel de maior densidade de informação por pixel do plano inteiro:
- * três semanas de saúde do produto num relance, e o buraco de 29–31/08 (a API
- * suspensa por horas do plano) apareceria como três quadrados vazados. Verde é
- * sucesso, laranja é sucesso degradado, vermelho é falha, **vazado é o dia que
- * não rodou** — o estado que não existia em lugar nenhum até esta fase.
- *
- * Sem biblioteca, como o resto dos gráficos de admin (§4.3): são trinta
- * `<li>` de largura fluida, para caberem em 375 px sem rolagem. Cada um leva o
- * dia e o desfecho num texto só para leitor de tela — trinta rótulos visíveis
- * não caberiam — e o mesmo texto em `title`, para quem passa o mouse.
+ * Verde é sucesso, laranja é sucesso degradado, vermelho é falha, **vazado é
+ * o dia que não rodou** — o estado que não existia em lugar nenhum até a
+ * Fase 8. A casca (os trinta `<li>`, as pontas, a legenda) é a `DayStrip`,
+ * extraída na Fase 11 para a faixa por fonte reusá-la; o que mora aqui é o
+ * mapeamento do desfecho de **run** para cor, forma e texto.
  */
 
 /**
@@ -88,42 +83,23 @@ export function OutcomeStrip({ days }: OutcomeStripProps) {
   };
 
   return (
-    // `max-w-narrow` (45rem): trinta quadrados de ~20 px em tela larga, e a
-    // largura inteira em 375 px. Sem o teto, a faixa esticaria até 80rem e cada
-    // quadrado viraria uma barra.
-    <div className='max-w-narrow'>
-      <ol
-        aria-label={t('pipeline.stripLabel', { days: days.length })}
-        className='flex gap-1'
-      >
-        {days.map((day) => {
-          const text = describe(day);
-          return (
-            <li key={day.date} className='min-w-0 flex-1'>
-              <span className='sr-only'>{text}</span>
-              <div
-                aria-hidden='true'
-                title={text}
-                className={cn('h-4 w-full rounded-sm', OUTCOME_FILL[day.outcome])}
-              />
-            </li>
-          );
-        })}
-      </ol>
-      {first && last && (
-        <div aria-hidden='true' className='mt-1 flex justify-between text-xs text-ink-muted'>
-          <span>{formatCalendarDay(first.date, locale)}</span>
-          {days.length > 1 && <span>{formatCalendarDay(last.date, locale)}</span>}
-        </div>
-      )}
-      <ul className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary'>
-        {legend.map((outcome) => (
-          <li key={outcome} className='inline-flex items-center gap-1.5'>
-            <span aria-hidden='true' className={cn('h-2.5 w-2.5 rounded-sm', OUTCOME_FILL[outcome])} />
-            {t(OUTCOME_MESSAGE_KEY[outcome])}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <DayStrip
+      label={t('pipeline.stripLabel', { days: days.length })}
+      days={days.map((day) => ({
+        key: day.date,
+        fill: OUTCOME_FILL[day.outcome],
+        label: describe(day),
+      }))}
+      ends={
+        first && last
+          ? { first: formatCalendarDay(first.date, locale), last: formatCalendarDay(last.date, locale) }
+          : undefined
+      }
+      legend={legend.map((outcome) => ({
+        key: outcome,
+        fill: OUTCOME_FILL[outcome],
+        label: t(OUTCOME_MESSAGE_KEY[outcome]),
+      }))}
+    />
   );
 }

@@ -61,6 +61,8 @@ test.describe('BFF sem sessão', () => {
     '/api/admin/errors',
     '/api/admin/audit',
     '/api/admin/http-metrics',
+    // Fase 11 (PR 11c): a saúde por fonte.
+    '/api/admin/sources',
   ]) {
     test(`${route} responde 401 com o corpo de erro do produto`, async ({ request }) => {
       const response = await request.get(route);

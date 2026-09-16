@@ -1,4 +1,11 @@
-import type { AuditTrail, ErrorSummary, HttpMetrics } from '@newranews/types';
+import type {
+  AuditTrail,
+  ErrorSummary,
+  HttpMetrics,
+  SourceDay,
+  SourceHealthReport,
+  SourceOutcome,
+} from '@newranews/types';
 
 /**
  * Fixtures das três leituras da Fase 5 (PR 5c), no shape dos contratos de
@@ -168,3 +175,72 @@ export const auditTrail: AuditTrail = {
     },
   ],
 };
+
+/**
+ * A saúde por fonte da Fase 11 (PR 11c), no shape de `GET /api/admin/sources`:
+ * a janela termina em 15/09/2026, e cada série traz **só os dias com linha**.
+ *
+ * As duas histórias dos gatilhos da §15 estão aqui, como no seed: a
+ * Superinteressante em `FAILED` nos três últimos dias, e a Trivela definhando
+ * (23 dias a 10, 7 dias a 2). O G1 é a fonte estável; a NewsData é o balde do
+ * agregador; e o G1 tem um dia sem linha (14/09) para o "não tentada" existir.
+ */
+const SOURCE_WINDOW = { days: 30, since: '2026-08-17T00:00:00.000Z', until: '2026-09-15T00:00:00.000Z' };
+
+function sourceDay(date: string, outcome: SourceOutcome, kept: number, fetched = kept + 5): SourceDay {
+  return {
+    day: `${date}T00:00:00.000Z`,
+    outcome,
+    fetched: outcome === 'OK' ? fetched : 0,
+    kept: outcome === 'OK' ? kept : 0,
+    latencyMs: outcome === 'FAILED' ? 30_000 : 480,
+    failureReason: outcome === 'FAILED' ? 'fetch failed: ETIMEDOUT' : null,
+    pipelineLogId: `run-${date}`,
+  };
+}
+
+/** `count` dias seguidos terminando em `until`, com o mesmo desfecho e `kept`. */
+function sourceRun(count: number, outcome: SourceOutcome, kept: number, until = '2026-09-15'): SourceDay[] {
+  const end = new Date(`${until}T00:00:00.000Z`);
+  const days: SourceDay[] = [];
+  for (let offset = count - 1; offset >= 0; offset--) {
+    const at = new Date(end.getTime() - offset * 86_400_000);
+    days.push(sourceDay(at.toISOString().slice(0, 10), outcome, kept));
+  }
+  return days;
+}
+
+export const sourceHealthReport: SourceHealthReport = {
+  window: SOURCE_WINDOW,
+  sources: [
+    {
+      source: 'G1',
+      kind: 'RSS',
+      // 30 dias a 30, menos o 14/09 — o dia em que o pipeline não a perguntou.
+      days: sourceRun(30, 'OK', 30).filter((day) => !day.day.startsWith('2026-09-14')),
+    },
+    {
+      source: 'Superinteressante',
+      kind: 'RSS',
+      days: [...sourceRun(27, 'OK', 8, '2026-09-12'), ...sourceRun(3, 'FAILED', 0)],
+    },
+    {
+      source: 'Trivela',
+      kind: 'RSS',
+      days: [...sourceRun(23, 'OK', 10, '2026-09-08'), ...sourceRun(7, 'OK', 2)],
+    },
+    {
+      source: 'Veja Saúde',
+      kind: 'RSS',
+      days: [...sourceRun(28, 'OK', 4, '2026-09-13'), ...sourceRun(2, 'EMPTY', 0)],
+    },
+    {
+      source: 'newsdata',
+      kind: 'AGGREGATOR',
+      days: sourceRun(30, 'OK', 40, '2026-09-15'),
+    },
+  ],
+};
+
+/** A janela sem linha nenhuma — o estado antes do primeiro run com a Fase 11. */
+export const emptySourceHealthReport: SourceHealthReport = { window: SOURCE_WINDOW, sources: [] };

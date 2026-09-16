@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DashboardMetrics } from '@newranews/types';
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { renderWithIntl } from '@/tests/utils';
-import { httpMetrics } from '@/tests/fixtures/observability';
+import { httpMetrics, sourceHealthReport } from '@/tests/fixtures/observability';
 
 const mockMetrics: DashboardMetrics = {
   today: {
@@ -42,17 +42,23 @@ const mockMetrics: DashboardMetrics = {
 };
 
 /**
- * **O `fetch` é roteado pela URL**, porque a tela faz duas consultas: as
- * métricas do pipeline e os quatro sinais da API. Um mock que devolvesse o
- * mesmo corpo para as duas entregaria `DashboardMetrics` a quem espera
- * `HttpMetrics`, e o painel de sinais quebraria lendo `saturation` de um
- * objeto que não a tem — falha sem relação com o que o teste mede.
+ * **O `fetch` é roteado pela URL**, porque a tela faz três consultas: as
+ * métricas do pipeline, os quatro sinais da API e a saúde por fonte. Um mock
+ * que devolvesse o mesmo corpo para todas entregaria `DashboardMetrics` a quem
+ * espera `HttpMetrics`, e o painel de sinais quebraria lendo `saturation` de um
+ * objeto que não a tem — falha sem relação com o que o teste mede. **Foi o que
+ * aconteceu na Fase 11**: o painel de fontes leu `sources.map` de um
+ * `DashboardMetrics` e derrubou a suíte inteira, antes de esta linha existir.
  */
 function mockFetchSuccess(metrics: DashboardMetrics = mockMetrics) {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation((url: string) => {
-      const data = url.includes('/api/admin/http-metrics') ? httpMetrics : metrics;
+      const data = url.includes('/api/admin/http-metrics')
+        ? httpMetrics
+        : url.includes('/api/admin/sources')
+          ? sourceHealthReport
+          : metrics;
       return Promise.resolve({
         ok: true,
         json: vi.fn().mockResolvedValue({ data }),
