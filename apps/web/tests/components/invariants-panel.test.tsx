@@ -111,6 +111,11 @@ describe('InvariantsPanel', () => {
     // Tabela vazia: o mínimo é `null`, e a célula diz que não há nada — não zero.
     const audit = within(rows[5]!).getAllByRole('cell').map((cell) => cell.textContent);
     expect(audit[2]).toBe('—');
+    // Sem resposta: nem medido nem esperado — a pergunta não foi feita, e um
+    // `expected` vazio de retenção viraria "Invalid Date" se fosse formatado.
+    const unanswered = within(rows[10]!).getAllByRole('cell').map((cell) => cell.textContent);
+    expect(unanswered[2]).toBe('—');
+    expect(unanswered[3]).toBe('—');
   });
 
   it('reads as all clear when nothing is violated', async () => {

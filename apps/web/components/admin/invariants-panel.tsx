@@ -112,13 +112,20 @@ export function InvariantsPanel() {
     return <p className='text-sm text-muted-foreground'>{t('security.invariants.empty')}</p>;
   }
 
-  /** `count` é número; `oldest` é instante (ISO) ou vazio na tabela vazia. */
+  /**
+   * `count` é número; `oldest` é instante (ISO) ou vazio na tabela vazia. Em
+   * `ERROR` a pergunta não foi feita, então as duas colunas são "—": não há
+   * medido, e o esperado de uma retenção nem chegou a ser calculado.
+   */
   const formatMeasure = (result: InvariantResult, value: number | string | null): string => {
-    if (value === null) return t('security.invariants.none');
+    if (result.status === 'ERROR' || value === null || value === '') {
+      return t('security.invariants.none');
+    }
     if (result.measure === 'oldest' && typeof value === 'string') return formatDateTime(value, locale);
     return typeof value === 'number' ? formatCount(value, locale) : value;
   };
   const formatExpected = (result: InvariantResult): string => {
+    if (result.status === 'ERROR') return t('security.invariants.none');
     const value = formatMeasure(result, result.expected);
     return result.measure === 'oldest'
       ? t('security.invariants.atLeast', { value })
