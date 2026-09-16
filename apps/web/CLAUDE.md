@@ -260,8 +260,9 @@ Regras que não são óbvias no código:
 - /[locale]/admin/security → **Logs e segurança** (Fase 5 do plano de
   observabilidade, PR 5c): as falhas registradas por fingerprint com busca,
   filtros e colunas ordenáveis (`/api/admin/errors`), a rosquinha de erro por
-  categoria, a trilha de auditoria (`/api/admin/audit`) e o lugar das
-  invariantes, vazio até a Fase 6
+  categoria, **o painel de invariantes** (`admin/invariants-panel`, via
+  `/api/admin/invariants` — Fase 6 do plano) e a trilha de auditoria
+  (`/api/admin/audit`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
   - **a casca do painel vive no mesmo layout**: contêiner e faixa de abas
@@ -409,6 +410,23 @@ Regras que não são óbvias no código:
     `DashboardClient` faz **três** consultas agora, e o mock de `fetch` da
     suíte dele roteia pela URL — um corpo só para as três derrubou a suíte
     lendo `sources.map` de um `DashboardMetrics`
+  - **o painel de invariantes tem três estados que não são o mesmo** (Fase 6
+    do plano, `admin/invariants-panel` sobre `/api/admin/invariants`):
+    `isError` é "indisponível" (rota nova, armadilha 37 — 404 da API de
+    produção até a promoção); `data: null` é "nenhuma verificação ainda" (a
+    API responde `null` antes do primeiro run com a etapa 9.5); e o relatório
+    é a tabela com as **doze** linhas, na ordem da API. A API lê o **último
+    evento da 9.5** e nunca roda a suíte por pedido da tela — não há janela a
+    escolher, e não há `refetchInterval`. Por linha, três estados e **a forma
+    carrega o estado** (armadilha 35): `OK` ponto verde cheio, `VIOLATED`
+    vermelho cheio, `ERROR` — a pergunta que não pôde ser feita, não uma
+    resposta — contorno laranja **tracejado**. `measure` diz como formatar as
+    duas colunas: `count` é número contra número (`= 7`); `oldest` é o
+    instante mais antigo contra o admitido (`≥ 16 de ago.`), e `null` é "—"
+    (tabela vazia), nunca zero. Os rótulos por id estão por extenso em
+    `CHECK_KEY`, porque chave montada em runtime parece órfã; a tabela tem
+    `aria-label` — é a segunda tabela da aba, e um `getByRole('table')` sem
+    nome acharia duas (a suíte da aba deixa o painel em `null` por padrão)
   - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
     handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
     que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)

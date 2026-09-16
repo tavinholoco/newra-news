@@ -9,10 +9,10 @@ import {
 /**
  * **Fase 8 — a tabela do desfecho, incluindo os casos que hoje somem.**
  *
- * `PipelineLog.status` é binário e o pipeline não é: quatro etapas engolem a
- * própria falha de propósito (7.5, 8, 8.5 e 9), o fallback para o Groq é um
- * `WARN` da etapa 6, e a colheita degradada é um `WARN` da etapa 1. Um run pode
- * ter seis coisas erradas e reportar `SUCCESS`. O desfecho é **função pura**
+ * `PipelineLog.status` é binário e o pipeline não é: cinco etapas engolem a
+ * própria falha de propósito (7.5, 8, 8.5, 9 e 9.5), o fallback para o Groq é
+ * um `WARN` da etapa 6, e a colheita degradada é um `WARN` da etapa 1. Um run
+ * pode ter sete coisas erradas e reportar `SUCCESS`. O desfecho é **função pura**
  * sobre o run e seus eventos — sem coluna nova, sem migration (§17.19) —, e é
  * por isso que cabe no `turbo test`, sem banco.
  */

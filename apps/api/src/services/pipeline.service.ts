@@ -13,7 +13,13 @@ import {
   recordSourceHealth,
 } from './source-health.service';
 import { extractErrorDetail, logPipelineEvent } from './pipeline-event.service';
-import { isDegradingFetchWarning } from './run-outcome';
+import { STALE_RUN_MS, isDegradingFetchWarning } from './run-outcome';
+import {
+  ARTICLE_RETENTION_DAYS,
+  NEWS_RETENTION_DAYS,
+  PIPELINE_LOG_RETENTION_DAYS,
+} from './retention';
+import { runInvariants } from './invariants.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
 import type { PipelineTrigger } from '@newranews/types';
@@ -26,45 +32,6 @@ function startOfDay(date: Date): Date {
   d.setUTCHours(0, 0, 0, 0);
   return d;
 }
-
-/**
- * Depois de quanto tempo um `RUNNING` deixa de ser "está rodando" e passa a ser
- * "morreu sem conseguir contar".
- *
- * **O run só vira `SUCCESS` na etapa 9.** Se o processo morre antes — e ele
- * morre: em 03/09/2026 o Render mandou `SIGTERM` no meio da etapa 8.5, porque a
- * varredura do acervo segurou o event loop por 45 s e os health checks pararam
- * de ser respondidos —, a linha fica em `RUNNING` para sempre. Não há `catch`
- * que alcance isso, porque `process.exit` não desenrola pilha nenhuma.
- *
- * O estrago não é o registro errado, é a idempotência: o `findFirst` abaixo
- * aceita `RUNNING` como "já tem run hoje", então **um cadáver recusa todo
- * disparo pelo resto do dia** — e a tela responde "já está rodando" sobre algo
- * que morreu de manhã. É a mesma família do episódio de 25/08, quando o painel
- * dizia "disparado com sucesso" sem ter disparado: resposta que não distingue
- * o que de fato aconteceu.
- *
- * **Quinze minutos é folga sobre o pipeline inteiro, não sobre uma etapa.** Os
- * runs medidos fecham em torno de 20 s a 60 s; o mais lento tem a geração de
- * IA com três tentativas e o fallback do Groq no caminho, e ainda assim não
- * passa de poucos minutos. Um `RUNNING` de quinze minutos não está lento, está
- * morto.
- */
-const STALE_RUN_MS = 15 * 60 * 1000;
-
-/**
- * As retenções da etapa 8, nomeadas.
- *
- * Eram literais dentro da etapa (`thirtyDaysAgo`, `ninetyDaysAgo`), e o número
- * de cada uma está escrito em prosa em quatro documentos que a etapa não abre
- * — os dois diagramas do pipeline e os dois `CLAUDE.md`. A guarda
- * `tests/docs/retention-drift.test.ts` compara a prosa com estas constantes
- * (e com as dos outros três services), pela mesma razão do `13` dos feeds:
- * número que descreve código quer guarda derivada do código.
- */
-export const NEWS_RETENTION_DAYS = 30;
-export const PIPELINE_LOG_RETENTION_DAYS = 30;
-export const ARTICLE_RETENTION_DAYS = 90;
 
 /**
  * Grava a lista de fontes do briefing (plano V2 §18.4).
@@ -191,8 +158,8 @@ export async function triggerPipeline(): Promise<PipelineTrigger> {
         completedAt: new Date(),
       },
     });
-    // Etapa 0: o evento é sobre o run inteiro, não sobre uma das nove etapas —
-    // e 0 não colide com nenhuma delas.
+    // Etapa 0: o evento é sobre o run inteiro, não sobre uma das etapas — e 0
+    // não colide com nenhuma delas.
     await logPipelineEvent(existingLog.id, 0, 'ERROR', detail.message, {
       ...detail,
       startedAt: existingLog.startedAt.toISOString(),
@@ -272,6 +239,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
   // então "devolveu" e "lançou" é a única distinção que a etapa sabe fazer.
   let newsletterSummary: { total: number; sent: number; failed: number } | 'failed' = 'failed';
   let renormalized: { scanned: number; changed: number } | 'failed' = 'failed';
+  let invariants: { checked: number; violated: number; errored: number } | 'failed' = 'failed';
 
   try {
     // Stage 1: Collect news (NewsData.io + RSS) — `currentStage` já é 1.
@@ -637,6 +605,47 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       });
     }
 
+    // Stage 9.5: Invariants (§10 do plano de observabilidade, Fase 6 —
+    // non-critical, failure does not abort pipeline).
+    //
+    // **"O que deveria ter acontecido aconteceu?"**, perguntado uma vez por
+    // run, depois de a 9 gravar a métrica do dia e antes de o run virar
+    // `SUCCESS`. As etapas 7.5 a 9 engolem a própria falha para o run
+    // terminar; esta é quem confere depois — a retenção que parou em silêncio,
+    // o dia sem briefing, o cadáver em `RUNNING`, o dia sem métrica, a
+    // newsletter que não entrega.
+    //
+    // **Violação não degrada o run.** O relatório inteiro vai no `context` de
+    // um evento `INFO`, e cada violação é um `ErrorEvent` próprio com o id da
+    // invariante no fingerprint (`runInvariants` os grava). O que degrada é a
+    // suíte não conseguir perguntar — uma consulta que lançou sai como `ERROR`
+    // no resultado, e aí o evento é `WARN`: o que não aconteceu foi a checagem.
+    // O `catch` de fora é para a própria suíte quebrar, que ela promete não
+    // fazer.
+    //
+    // O número é literal como em toda etapa — o `diagram-drift` deriva as
+    // etapas anunciadas dos literais — e `INVARIANTS_STAGE` é o que a leitura
+    // usa; há teste cobrando que os dois sejam o mesmo.
+    try {
+      currentStage = 9.5;
+      const report = await runInvariants({ pipelineLogId });
+      invariants = { checked: report.checked, violated: report.violated, errored: report.errored };
+      if (report.errored > 0) {
+        degradedBy.push(9.5);
+        await logPipelineEvent(pipelineLogId, 9.5, 'WARN', 'Invariants partially checked (non-critical)', {
+          message: `${report.errored} of ${report.checked} checks could not run`,
+          ...report,
+        });
+      } else {
+        await logPipelineEvent(pipelineLogId, 9.5, 'INFO', 'Invariants checked', { ...report });
+      }
+    } catch (invariantsErr) {
+      degradedBy.push(9.5);
+      await logPipelineEvent(pipelineLogId, 9.5, 'WARN', 'Invariants check failed (non-critical)', {
+        ...extractErrorDetail(invariantsErr),
+      });
+    }
+
     // Mark pipeline as successful
     currentStage = 9;
     await prisma.pipelineLog.update({
@@ -666,6 +675,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       sourcesCited: sourcesSaved,
       newsletter: newsletterSummary,
       renormalized,
+      invariants,
       degradedBy,
       durationMs: Date.now() - startedAt,
     });

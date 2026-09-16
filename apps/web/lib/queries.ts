@@ -39,6 +39,7 @@ import {
   getErrorSummary,
   getAuditTrail,
   getSourceHealth,
+  getInvariantReport,
 } from '@/lib/api';
 import { OUTCOME_WINDOW_DAYS } from '@/lib/outcome-days';
 
@@ -130,6 +131,7 @@ export const observabilityKeys = {
   errors: (window: ErrorSummaryWindow) => [...adminKeys.all, 'errors', window] as const,
   audit: (days: number) => [...adminKeys.all, 'audit', days] as const,
   sources: (days: number) => [...adminKeys.all, 'sources', days] as const,
+  invariants: () => [...adminKeys.all, 'invariants'] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -450,6 +452,18 @@ export function useSourceHealth(days: number) {
   return useQuery({
     queryKey: observabilityKeys.sources(days),
     queryFn: () => getSourceHealth(days),
+  });
+}
+
+/**
+ * O último relatório de invariantes (Fase 6 do plano). Sem janela e sem
+ * `refetchInterval`: a suíte roda uma vez por run, e é o pipeline quem paga —
+ * recarregar a página é o gesto.
+ */
+export function useInvariantReport() {
+  return useQuery({
+    queryKey: observabilityKeys.invariants(),
+    queryFn: () => getInvariantReport(),
   });
 }
 

@@ -13,6 +13,7 @@ import { WindowSelector } from '@/components/dashboard/window-selector';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AuditTrail } from './audit-trail';
 import { ErrorGroupsTable } from './error-groups-table';
+import { InvariantsPanel } from './invariants-panel';
 
 /** As duas janelas que `GET /api/admin/errors` aceita. */
 const WINDOWS: readonly ErrorSummaryWindow[] = ['24h', '7d'];
@@ -62,12 +63,12 @@ function ErrorsSkeleton() {
  * A aba **Logs e segurança** (§4.1 e §9 do plano de observabilidade): "o que
  * quebrou e quem tentou o quê?".
  *
- * Quatro painéis, na ordem em que se lê um incidente: o **resumo** da janela
+ * Cinco painéis, na ordem em que se lê um incidente: o **resumo** da janela
  * (total, falhas distintas, e as três severidades), a **rosquinha por
  * categoria** — que diz de onde vem a dor sem ler uma linha —, a **tabela de
- * falhas** com busca, filtros e o `lastRequestId`, e a **trilha de auditoria**.
- * O quinto, **invariantes**, é um lugar vazio de propósito: a Fase 6 o
- * preenche, e a seção existe para que ela entre onde a §4.1 diz.
+ * falhas** com busca, filtros e o `lastRequestId`, as **invariantes** (Fase 6:
+ * o último relatório da etapa 9.5 — "o que deveria ter acontecido
+ * aconteceu?") e a **trilha de auditoria**.
  *
  * **Sem `refetchInterval`**, como o resto da área (armadilha 3 do §17).
  *
@@ -188,13 +189,16 @@ export function SecurityClient() {
       </section>
 
       {/**
-        * Vazio até a Fase 6 (§10 do plano), e vazio de propósito — a seção é
-        * o lugar onde as nove invariantes vão entrar, e dizer "nenhuma ainda"
-        * é mais honesto que a aba não citar o que a §4.1 promete.
+        * A seção nasceu vazia no 5c e a Fase 6 a preencheu (§10 do plano). O
+        * painel desenha os próprios três estados — indisponível, nenhuma
+        * verificação ainda, e a tabela — e carrega em consulta separada, como
+        * os outros: uma fronteira de rota trocaria a aba inteira pelo estado
+        * do painel que falhou.
         */}
       <section>
         <SectionTitle>{t('security.invariants.title')}</SectionTitle>
-        <p className='text-sm text-muted-foreground'>{t('security.invariants.empty')}</p>
+        <p className='mb-4 text-sm text-muted-foreground'>{t('security.invariants.description')}</p>
+        <InvariantsPanel />
       </section>
 
       <AuditTrail />

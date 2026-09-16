@@ -7567,6 +7567,94 @@ antes de escrever o `WARN` — o `run-outcome-wiring` cobra o `push`. Branch
 
 **1.197 na API, 822 no web** — sem teste novo: renomeação e prosa.
 
+### 75. Fase 6 — as invariantes: "o que deveria ter acontecido aconteceu?", perguntado uma vez por run ✅ 2026-09-16
+
+> A §10 do plano de observabilidade, num PR só (sem schema, sem env, sem
+> página nova), sobre `e708b1b` — a `dev` com o pós-merge da 11. Fecha o
+> buraco que as etapas 7.5, 8, 8.5 e 9 abrem de propósito: elas engolem a
+> própria falha para o run terminar, e nada perguntava depois se o que elas
+> deveriam ter deixado está lá. A retenção podia parar por um mês e o
+> primeiro sintoma seria a conta do Neon; o dia sem briefing de 01/09 teve
+> como único sinal o briefing ausente.
+
+**O que entrou:** a **etapa 9.5** (`services/invariants.service.ts`), entre o
+`upsert` da 9 e o `SUCCESS` — **doze** consultas agregadas cedendo o event
+loop antes de cada uma: a retenção das **sete** tabelas que a 8 expurga
+(limiar = constante + 1 dia), um briefing por dia nos últimos sete, todo
+briefing da semana com `BriefingSource`, nenhum `RUNNING` mais velho que
+`STALE_RUN_MS` (fora o run corrente), todo dia com run `SUCCESS` com a sua
+`DailyMetric` (dois `findMany` de uma coluna, chave em dia UTC), e a
+newsletter chegando a alguém nos dias em que havia assinante (`total > 0` e
+`sent = 0`). O relatório inteiro é o `context` de um `PipelineEvent` `INFO`;
+**cada violação é um `ErrorEvent`** (`origin: INVARIANT`, `WARN`,
+`INVARIANT_VIOLATED`, o id no `route`, `category: 'contract'`) — uma linha
+por invariante por run. **`GET /api/admin/invariants`** lê o último evento da
+9.5 e nunca roda a suíte por pedido da tela; o painel na `/admin/security`
+(onde o 5c deixou o lugar) desenha a linha de resumo e a tabela com três
+estados por linha — e três estados de painel: indisponível (404 da API de
+produção até a promoção), nenhuma verificação ainda (`data: null`), e o
+relatório.
+
+#### As decisões que a §10 deixou para a fase, tomadas
+
+- **Doze, não onze — e a décima segunda não é a candidata.** A etapa 8
+  expurga sete tabelas e a lista tinha retenção para seis: faltava
+  `retention.article` desde 23/08. A guarda deriva a contagem do
+  `Promise.all` do cleanup pelo parser. `sourceHealth.day_written` fica de
+  fora com o gatilho escrito. O orçamento virou **tempo** (`budgetMs` no
+  relatório, 2 s) e **forma** (pelo parser: `aggregate`, `count`, ou
+  `findMany` com `select` de uma coluna e sem `include`).
+- **Violação não degrada o run; a pergunta que não pôde ser feita, sim.**
+  `status` tem três valores — `OK` · `VIOLATED` · `ERROR` — e só o terceiro
+  (a consulta lançou) faz a etapa sair `WARN` com `degradedBy.push(9.5)`. A
+  linha vermelha mora na tabela de falhas e no painel, não no desfecho do
+  dia.
+- **Os três exports vieram por mudança de módulo, porque exportar do lugar
+  antigo fecharia um ciclo**: o pipeline importa o `invariants.service`, e
+  este não pode importá-lo de volta. `STALE_RUN_MS` → `run-outcome.ts`
+  (puro), as três retenções inline da 8 → `services/retention.ts`,
+  `yieldToEventLoop` → `utils/event-loop.ts` (o renormalizador é fábrica nas
+  suítes do pipeline, e um import de valor de lá chegaria `undefined`).
+- **O número da etapa é literal nas chamadas** — o `diagram-drift` deriva as
+  etapas dos literais e não veria a constante; `INVARIANTS_STAGE` é da
+  leitura, com teste cobrando a igualdade.
+
+#### O ensaio contra o banco local, antes de ligar a etapa (armadilha 18)
+
+Quatro reprovaram, **nenhuma pela invariante**: `retention.news` e
+`retention.pipelineLog` porque o acervo e os runs locais são de agosto e
+nunca passaram pela etapa 8 (como a §10 previu — é a resposta certa);
+`briefing.one_per_day` (3 de 7) e `briefing.has_sources` (3 sem fonte) por
+causa do seed, que criava um briefing só, sem `BriefingSource`. **O seed se
+ajustou**, não a invariante: sete dias de briefing com três fontes cada, e o
+evento da 9.5 em todo run semeado — idempotente nas duas pontas (o de hoje
+num banco já semeado ganha as fontes; o run já semeado ganha o evento).
+Segunda passada: **65 ms** (381 na primeira conexão), duas reprovando, as
+duas verdadeiras.
+
+#### Achados no caminho, nenhum do plano
+
+- **`recordError` usava o relógio real, não o da suíte** — dois runs em dias
+  diferentes coalesceram numa linha no teste. A hora da linha é a hora da
+  pergunta.
+- **`pipeline-degraded.test.ts` lia uma lista de status vazia**: as doze
+  consultas cedem o event loop uma a uma e o `settle()` de um `setImmediate`
+  volta antes do `SUCCESS`. Ganhou o mock do service, como o
+  `pipeline.test.ts` — quinta suíte a avisar pelo mesmo caminho do prisma
+  parcial.
+- **Prosa velha em quatro lugares**: `run-outcome.ts` e seu teste ("quatro
+  etapas engolem" — cinco), o `run-outcome-wiring` ("seis dentro do run" —
+  eram sete desde o 11b, hoje nove), a etapa 0 ("uma das nove etapas"), e as
+  cinco contagens "11 etapas" (dois diagramas, arquitetura, `apps/api/CLAUDE.md`,
+  `presentation.md`).
+- **A tela, fotografada nos dois temas em 1440 e 375 e com o `ERROR`
+  injetado, não teve achado** — a primeira fase desde a 5 em que a captura
+  não pagou; a forma carrega o estado desde o primeiro desenho (contorno
+  tracejado para "sem resposta").
+
+**1.197 → 1.252 na API (82 → 84 suítes), 822 → 829 no web (80 → 81).** Depois
+da 6: a **9 por último** (promover antes dela); 7b e 7c continuam abertas.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

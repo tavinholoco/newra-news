@@ -1412,7 +1412,7 @@ era de toda rota que o BFF já repassava:
 
 ---
 
-## §10 Fase 6 — Invariantes (o eixo das inconsistências) ← próxima
+## §10 Fase 6 — Invariantes (o eixo das inconsistências) ✅ 2026-09-16
 
 **Fecha:** as etapas 7.5, 8, 8.5 e 9 engolem a própria falha de propósito, para
 o run terminar — e nada nunca pergunta "o que deveria ter acontecido
@@ -1571,6 +1571,101 @@ que ponto o loop girou, não se há `take`).
 pós-merge da 11 mergear — conferir com `git merge-base --is-ancestor` que
 #207 **e** o PR do pós-merge estão na `dev`, e `rev-list --count
 origin/dev..origin/main` = 0.
+
+### O que o PR decidiu — 16/09/2026 ✅
+
+Sobre `e708b1b` (a `dev` com o pós-merge da 11). **Um PR, sem schema, sem
+env, sem página nova** — como o inventário previa. Sete decisões, cada uma
+onde o inventário deixou uma escolha ou errou um fato:
+
+1. **Doze, e não onze — e a décima segunda não é a candidata.** A etapa 8
+   expurga **sete** tabelas e a lista tinha retenção para seis: faltava
+   `retention.article`, desde 23/08. Entrou, e a guarda **deriva a contagem
+   do `Promise.all` do cleanup** pelo parser — a próxima tabela com expurgo
+   não nasce sem a invariante ao lado. `sourceHealth.day_written` fica de
+   fora, com o gatilho escrito ("o primeiro dia sem linha em produção"): o
+   `degradedBy: [4]` já diz o mesmo hoje. **O orçamento é por tempo e por
+   forma**, como a §10 deixou escolher: `INVARIANTS_BUDGET_MS` (2 s) viaja no
+   relatório (`budgetMs`) para a tela dizer quanto sobrou, e a forma é
+   guardada pelo parser sobre todo `prisma.*` do arquivo — `aggregate`,
+   `count`, ou `findMany` com `select` de **uma** coluna e sem `include`.
+   Medido no ensaio: **65 ms** as doze (381 na primeira conexão).
+2. **`INFO` + `recordError` por violação, como a §10 desenha — e o `ERROR`
+   por consulta que lança é o caso que a §10 não tinha.** `status` tem três
+   valores (`OK` · `VIOLATED` · `ERROR`): a violação é uma etapa anterior
+   que não fez o que devia, e o run não degrada; a consulta que lançou é a
+   suíte que não conseguiu perguntar, e aí a etapa sai `WARN` com
+   `degradedBy.push(9.5)` — o `run-outcome-wiring` cobrou o `push` sozinho.
+   `recordError({ origin: 'INVARIANT', severity: 'WARN', code:
+   'INVARIANT_VIOLATED', route: <id>, category: 'contract' })` — `contract`
+   é a categoria da taxonomia cuja definição já dizia "invariante" —, **com o
+   relógio da suíte** (a primeira versão usava o do `recordError`, e dois
+   runs em dias diferentes coalesceram numa linha no teste).
+3. **Limiar de retenção = constante + 1 dia, e o dia é folga entre dois runs,
+   não tolerância.** Com a etapa 8 funcionando o mínimo é `≥ now − retention`
+   com sobra; com a 8 de hoje falhada (com `WARN` próprio), o mínimo é o corte
+   de ontem, na fronteira; no segundo dia sem expurgo a violação é certa. É o
+   `deleteMany` que roda e não apaga que ela pega, no dia seguinte.
+4. **`metrics.day_recorded` por dois `findMany` de uma coluna** (≤ 31 linhas
+   cada, chave em dia UTC), como o inventário sugeria — é o que a suíte sem
+   banco testa. O run de hoje está `RUNNING` na 9.5, então hoje fica de fora:
+   o `WARN` da 9 é quem fala se a métrica de hoje não foi gravada.
+5. **Os exports vieram por mudança de módulo, não de visibilidade — e o
+   motivo é ciclo.** O `pipeline.service` importa o `invariants.service`;
+   este não pode importar aquele de volta. `STALE_RUN_MS` foi para
+   `run-outcome.ts` (puro — "quando um run está morto" é estado do run), as
+   três retenções inline da etapa 8 para `services/retention.ts`, e
+   `yieldToEventLoop` para `utils/event-loop.ts` (o renormalizador é
+   substituído por fábrica nas suítes do pipeline, e um import de valor de lá
+   chegaria `undefined` à 9.5). Os três cabeçalhos dizem por quê.
+6. **O número da etapa é literal nas chamadas do pipeline.** O `diagram-drift`
+   deriva as etapas dos literais; com `INVARIANTS_STAGE` ele não veria a 9.5.
+   A constante é da leitura, com teste cobrando a igualdade.
+7. **A leitura parseia o `context` com o mesmo schema que a resposta declara**
+   (`invariantRunSchema`, no service, estendido na rota com `checkedAt` e
+   `pipelineLogId`). `context` que não parseia é 500 com `category:
+   'contract'`, nunca "nenhuma verificação"; `data: null` é o estado do
+   primeiro deploy, e a tela desenha três coisas diferentes para 404, `null` e
+   relatório.
+
+**O ensaio contra o banco local (armadilha 18) reprovou quatro, nenhuma pela
+invariante.** `retention.news` e `retention.pipelineLog` porque o acervo local
+é anterior à migration e nunca passou pela etapa 8 — como a §10 previu, e é
+a resposta certa; `briefing.one_per_day` (3 de 7) e `briefing.has_sources`
+(3 sem fonte) por causa do seed, que criava um briefing só, sem
+`BriefingSource`. **O seed se ajustou**: sete dias de briefing com três fontes
+cada (idempotente nas duas pontas — o de hoje num banco já semeado ganha as
+fontes), e o evento da 9.5 em todo run semeado, inclusive nos que já
+existiam. Segunda passada: **65 ms, duas reprovando, as duas verdadeiras**.
+
+**A tela** (`admin/invariants-panel`, na `/admin/security`, onde o 5c deixou
+o lugar): a linha de resumo (quando, quantas violadas de quantas, quantas sem
+resposta, duração de orçamento, o run) e a tabela com as doze na ordem da
+API. Três estados por linha com **a forma carregando o estado** (armadilha
+35): ponto verde cheio, vermelho cheio, e contorno laranja **tracejado** para
+"sem resposta" — que não é veredito. `measure` decide a formatação:
+`count` é `7` contra `= 7`; `oldest` é o instante contra `≥ 16 de ago.`, e
+`null` é "—". Fotografada nos dois temas em 1440 e 375 e com o estado `ERROR`
+injetado (o seed não tem consulta que lança): nenhum achado — a primeira fase
+desde a 5 em que a captura não pagou.
+
+**O que mudou fora do escopo estrito:** `run-outcome.ts` e `run-outcome.test.ts`
+diziam "quatro etapas engolem a falha (7.5, 8, 8.5 e 9)" — são cinco; o
+`run-outcome-wiring` dizia "seis dentro do run" e já eram sete desde o 11b (a
+etapa 4), hoje nove; a etapa 0 do `triggerPipeline` dizia "uma das nove
+etapas"; `pipeline-degraded.test.ts` lia uma lista de status **vazia** porque
+as doze consultas cedem o event loop e o `settle()` de um `setImmediate` volta
+antes do `SUCCESS` — ganhou o mock, como o `pipeline.test.ts`. **1.197 →
+1.252 na API (82 → 84 suítes), 822 → 829 no web (80 → 81).**
+
+**Guardas novas:** `tests/services/invariants.service.test.ts` (a forma de
+cada consulta pelo parser; o loop girando **antes** da primeira; uma retenção
+por tabela do `Promise.all`; o fingerprint por invariante; a leitura que
+recusa o malformado), `tests/routes/admin-invariants.test.ts` (a porta, e o
+`null` que atravessa como `null`), `tests/components/invariants-panel.test.tsx`
+(os três estados, os dois formatos), e as que reprovaram sozinhas: os dois
+diagramas, a matriz, `docs/api.md`, `shared-type-contract`, `i18n-messages`,
+`hand-written-lists`, `admin-surface`, `bff-route-seam`.
 
 ---
 
@@ -2869,6 +2964,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **Campo novo no `devLogSummarySchema`** (a listagem de runs) | `assertContract` em `routes/dev/schemas.ts` (tipo em `packages/types`); e **toda fixture de rota que devolve o resumo responde 500** — `dev.test.ts` e `admin-pipeline.test.ts` — porque o serializer do type provider recusa o objeto incompleto (Fase 8). E `pii-in-logs.test.ts` fixa a **forma literal** do contexto da etapa 7.5: renomear a variável `newsletter` reprova, e é o certo |
 | **Campo novo que o web lê de uma resposta existente** | Nenhuma guarda reprova, e é por isso que está aqui: o preview da `dev` lê a API de produção, que não tem o campo (armadilha 37). Preencher na fronteira (`lib/api.ts`, como `withOutcome`) com teste da forma antiga — pós-merge da Fase 8 |
 | **`WARN` novo numa etapa do pipeline** | `run-outcome-wiring.test.ts` (pós-merge da Fase 8) — o `degradedBy.push` da mesma etapa tem de estar no mesmo bloco, pelo parser |
+| **Tabela nova no expurgo da etapa 8** | `invariants.service.test.ts` (Fase 6) — o número de `retention.*` tem de bater com o `Promise.all` do cleanup, pelo parser; e `retention-drift.test.ts`, para a prosa |
+| **Consulta nova no `invariants.service.ts`** | `invariants.service.test.ts` — `aggregate`, `count`, ou `findMany` com `select` de uma coluna e sem `include`; qualquer outra forma reprova, porque é o 03/09 em outra roupa |
 
 ---
 
@@ -3090,13 +3187,17 @@ aplica as duas migrations juntas na promoção.**
   derivação em `lib/source-days.ts`, o painel "Fontes" na `/admin/metrics`
   com os dois gatilhos como alerta e "indisponível" sobre 404. As decisões de
   cada um, no fim da §15.
-- **§10 — Fase 6 (invariantes). ← próxima, decidida em 16/09/2026.** Etapa
-  9.5 + `GET /api/admin/invariants` + o painel na `/admin/security`, num PR
-  só (sem schema). **O inventário foi reconferido no fim da §10** — as nove
-  viraram onze (o `AuditEvent` e a `SourceHealth` entraram no expurgo depois
-  da lista), `STALE_RUN_MS` e `yieldToEventLoop` não são exportados,
-  `metrics.day_recorded` não é agregado em Prisma, `RecordedErrorCode` pede
-  o código novo, e "violação degrada o run?" se decide antes do `WARN`.
+- ~~**§10 — Fase 6 (invariantes).**~~ ✅ **Entregue em 16/09/2026, num PR
+  só** (sem schema, sem env, sem página nova). Etapa 9.5 com **doze**
+  invariantes (a `retention.article` faltava — a etapa 8 expurga sete
+  tabelas, e a guarda deriva a contagem do `Promise.all`), `INFO` +
+  `ErrorEvent` por violação (`INVARIANT_VIOLATED`, id no `route`) e `WARN`
+  só quando uma consulta lança, `GET /api/admin/invariants` lendo o último
+  evento, o painel na `/admin/security` com três estados por linha. Os três
+  exports vieram por mudança de módulo (`retention.ts`, `run-outcome.ts`,
+  `utils/event-loop.ts`) porque exportar do lugar antigo fecharia um ciclo.
+  Ensaio contra o banco local em 65 ms; o seed ganhou sete briefings com
+  fontes. Item **75** do `docs/progress.md`; as decisões no fim da §10.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 

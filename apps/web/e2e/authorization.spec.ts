@@ -63,6 +63,8 @@ test.describe('BFF sem sessão', () => {
     '/api/admin/http-metrics',
     // Fase 11 (PR 11c): a saúde por fonte.
     '/api/admin/sources',
+    // Fase 6: o último relatório de invariantes.
+    '/api/admin/invariants',
   ]) {
     test(`${route} responde 401 com o corpo de erro do produto`, async ({ request }) => {
       const response = await request.get(route);

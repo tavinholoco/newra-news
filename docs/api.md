@@ -1503,6 +1503,85 @@ são derivadas no web.
 **Erros:** `400` `days` fora do intervalo · `401` sem sessão · `403` sem
 `role: ADMIN`
 
+### GET /api/admin/invariants
+
+O último relatório de invariantes — o evento da **etapa 9.5** do run mais
+recente (§10 do plano de observabilidade, Fase 6). Uma invariante é a pergunta
+"o que deveria ter acontecido aconteceu?", feita por consulta agregada uma vez
+por run, depois de a etapa 9 gravar a métrica do dia: a retenção de cada
+tabela que a etapa 8 expurga, um briefing por dia, o run morto em `RUNNING`, o
+dia com run e sem `DailyMetric`, a newsletter que não entrega.
+
+**A rota lê o evento; nunca roda a suíte.** Atualizar a tela não pode disparar
+doze consultas em 0.1 vCPU — a suíte roda uma vez por run, e é o pipeline quem
+paga.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+
+**Resposta 200:** tipada como `ApiResponse<InvariantReport | null>`.
+
+```json
+{
+  "data": {
+    "checkedAt": "ISO string",
+    "pipelineLogId": "uuid",
+    "checked": 12,
+    "violated": 1,
+    "errored": 0,
+    "durationMs": 61,
+    "budgetMs": 2000,
+    "results": [
+      {
+        "id": "retention.news",
+        "status": "VIOLATED",
+        "measure": "oldest",
+        "observed": "2026-07-01T09:00:00.000Z",
+        "expected": "2026-08-16T11:01:00.000Z",
+        "detail": null,
+        "error": null,
+        "durationMs": 5
+      },
+      {
+        "id": "metrics.day_recorded",
+        "status": "OK",
+        "measure": "count",
+        "observed": 0,
+        "expected": 0,
+        "detail": null,
+        "error": null,
+        "durationMs": 7
+      }
+    ]
+  }
+}
+```
+
+**`data` é `null` antes do primeiro run com a etapa** — "nenhuma verificação
+ainda" é estado, não erro. `checkedAt` é o `createdAt` do evento e
+`pipelineLogId` o run em que a suíte rodou. `results` vem sempre completo, na
+ordem da tabela de definições (`services/invariants.service.ts`): as **doze**
+são `retention.news` · `retention.pipelineLog` · `retention.article` ·
+`retention.productEvent` · `retention.errorEvent` · `retention.auditEvent` ·
+`retention.sourceHealth` · `briefing.one_per_day` · `briefing.has_sources` ·
+`pipeline.no_stale_running` · `metrics.day_recorded` · `newsletter.delivered`.
+
+`status` é `OK` · `VIOLATED` · `ERROR` — o terceiro é a pergunta que não pôde
+ser feita (a consulta lançou; `error` traz a mensagem, redigida), e é o único
+que degrada o run. `measure` diz como ler os dois números: `count` compara
+`observed` com `expected` por igualdade; `oldest` é o instante mais antigo na
+tabela (ISO, `null` na tabela vazia), que tem de ser `>= expected` — o limiar é
+a retenção mais um dia. `detail` lista o que faltou quando há lista (os dias
+sem métrica). `durationMs` de cada uma e da suíte; `budgetMs` é o teto da §10
+(2 s), e estourá-lo é uma invariante que virou varredura.
+
+**Cada violação é também um `ErrorEvent`** (`origin: INVARIANT`, `WARN`,
+`code: INVARIANT_VIOLATED`, `route` = o id) — aparece em `GET
+/api/admin/errors`, uma linha por invariante por run.
+
+**Erros:** `401` sem sessão · `403` sem `role: ADMIN` · `500` quando o
+`context` do evento não parseia (contrato quebrado entre quem grava e quem lê)
+
 ---
 
 ## Observabilidade (dev-only)

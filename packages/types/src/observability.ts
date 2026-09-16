@@ -197,3 +197,87 @@ export interface SourceHealthReport {
   /** Toda fonte com linha na janela, por nome — inclusive a que saiu da lista no meio dela. */
   sources: SourceSeries[];
 }
+
+/**
+ * As invariantes do sistema (§10 do plano de observabilidade, Fase 6). É o
+ * contrato de `GET /api/admin/invariants` — e a forma do `context` do evento
+ * da etapa 9.5, que é de onde a rota lê.
+ *
+ * Uma invariante é a pergunta "o que deveria ter acontecido aconteceu?",
+ * feita por consulta agregada uma vez por run: a retenção de cada tabela que
+ * a etapa 8 expurga, um briefing por dia, o run morto, o dia sem métrica, a
+ * newsletter que não entrega. As etapas 7.5 a 9 engolem a própria falha de
+ * propósito para o run terminar; a suíte é quem pergunta depois.
+ */
+
+/**
+ * O conjunto fechado, como tipo: o id é a peça do fingerprint do
+ * `ErrorEvent` (`route`), e a tela tem um rótulo por id. Uma invariante nova
+ * entra aqui, na tabela de definições da API e nos dois arquivos de mensagem.
+ */
+export type InvariantId =
+  | 'retention.news'
+  | 'retention.pipelineLog'
+  | 'retention.article'
+  | 'retention.productEvent'
+  | 'retention.errorEvent'
+  | 'retention.auditEvent'
+  | 'retention.sourceHealth'
+  | 'briefing.one_per_day'
+  | 'briefing.has_sources'
+  | 'pipeline.no_stale_running'
+  | 'metrics.day_recorded'
+  | 'newsletter.delivered';
+
+/**
+ * `OK` e `VIOLATED` são a resposta da pergunta; `ERROR` é a pergunta que não
+ * pôde ser feita — a consulta lançou. Os dois últimos pedem ações diferentes,
+ * e por isso não são um valor só: a violação é uma etapa anterior que não fez
+ * o que devia, o erro é a própria suíte (ou o banco) fora do ar.
+ */
+export type InvariantStatus = 'OK' | 'VIOLATED' | 'ERROR';
+
+/** O que uma invariante mede, e é o que diz à tela como formatar `observed` e `expected`. */
+export type InvariantMeasure =
+  /** Uma contagem, comparada por igualdade com `expected`. */
+  | 'count'
+  /** O instante mais antigo na tabela (ISO), que tem de ser `>= expected`. */
+  | 'oldest';
+
+export interface InvariantResult {
+  id: InvariantId;
+  status: InvariantStatus;
+  measure: InvariantMeasure;
+  /**
+   * A contagem, ou o instante mais antigo em ISO. `null` quando a tabela está
+   * vazia (a retenção vale por vacuidade) ou quando a consulta lançou.
+   */
+  observed: number | string | null;
+  /** A contagem esperada, ou o instante mais antigo admitido, em ISO. */
+  expected: number | string;
+  /** Só quando há o que listar — os dias sem métrica, as datas sem briefing. Curto por construção. */
+  detail: string | null;
+  /** Só em `ERROR`: a mensagem da consulta, redigida. */
+  error: string | null;
+  durationMs: number;
+}
+
+/** A resposta de `GET /api/admin/invariants`: o último relatório da etapa 9.5, ou `null` antes do primeiro run. */
+export interface InvariantReport {
+  /** Quando a suíte rodou — o `createdAt` do evento da etapa 9.5. */
+  checkedAt: string;
+  /** O run em que rodou. */
+  pipelineLogId: string;
+  checked: number;
+  violated: number;
+  errored: number;
+  /** A suíte inteira, de relógio. */
+  durationMs: number;
+  /**
+   * O teto que a §10 dá à suíte (2 s). Viaja no relatório para a tela dizer
+   * quanto sobrou — estourar é uma invariante que virou varredura.
+   */
+  budgetMs: number;
+  /** Na ordem da tabela de definições, sempre completa. */
+  results: InvariantResult[];
+}

@@ -5,12 +5,12 @@ import type { FetchWarningKind } from './news-fetcher.service';
  * O desfecho de um run, derivado — e por que `SUCCESS` mente. (§12 do plano de
  * observabilidade, Fase 8)
  *
- * **`PipelineLog.status` é binário e o pipeline não é.** Quatro etapas engolem
- * a própria falha de propósito para o run terminar (7.5, 8, 8.5 e 9 — `WARN`,
- * e o run segue `SUCCESS`), o fallback para o Groq é um `WARN` da etapa 6 e a
- * colheita degradada é um `WARN` da etapa 1. Um run pode ter **seis coisas
- * erradas** e reportar `SUCCESS`; o `SUCCESS_DEGRADED` é o valor que carrega
- * toda essa informação, e `degradedBy` diz qual etapa.
+ * **`PipelineLog.status` é binário e o pipeline não é.** Cinco etapas engolem
+ * a própria falha de propósito para o run terminar (7.5, 8, 8.5, 9 e 9.5 —
+ * `WARN`, e o run segue `SUCCESS`), o fallback para o Groq é um `WARN` da
+ * etapa 6 e a colheita degradada é um `WARN` da etapa 1. Um run pode ter
+ * **sete coisas erradas** e reportar `SUCCESS`; o `SUCCESS_DEGRADED` é o valor
+ * que carrega toda essa informação, e `degradedBy` diz qual etapa.
  *
  * **Função pura, sem coluna e sem banco — de propósito.** O desfecho é lido dos
  * eventos que o run já grava; uma coluna pediria migration e divergiria dos
@@ -25,6 +25,37 @@ import type { FetchWarningKind } from './news-fetcher.service';
  * isso é o calendário do web (`lib/outcome-days.ts`), sobre a listagem dos
  * últimos 30 dias.
  */
+
+/**
+ * Depois de quanto tempo um `RUNNING` deixa de ser "está rodando" e passa a ser
+ * "morreu sem conseguir contar".
+ *
+ * **O run só vira `SUCCESS` na etapa 9.** Se o processo morre antes — e ele
+ * morre: em 03/09/2026 o Render mandou `SIGTERM` no meio da etapa 8.5, porque a
+ * varredura do acervo segurou o event loop por 45 s e os health checks pararam
+ * de ser respondidos —, a linha fica em `RUNNING` para sempre. Não há `catch`
+ * que alcance isso, porque `process.exit` não desenrola pilha nenhuma.
+ *
+ * O estrago não é o registro errado, é a idempotência: o `findFirst` do
+ * `triggerPipeline` aceita `RUNNING` como "já tem run hoje", então **um cadáver
+ * recusa todo disparo pelo resto do dia** — e a tela responde "já está
+ * rodando" sobre algo que morreu de manhã. É a mesma família do episódio de
+ * 25/08, quando o painel dizia "disparado com sucesso" sem ter disparado:
+ * resposta que não distingue o que de fato aconteceu.
+ *
+ * **Quinze minutos é folga sobre o pipeline inteiro, não sobre uma etapa.** Os
+ * runs medidos fecham em torno de 20 s a 60 s; o mais lento tem a geração de
+ * IA com três tentativas e o fallback do Groq no caminho, e ainda assim não
+ * passa de poucos minutos. Um `RUNNING` de quinze minutos não está lento, está
+ * morto.
+ *
+ * **Mora aqui, e não no `pipeline.service.ts`, desde a Fase 6**: o invariante
+ * `pipeline.no_stale_running` pergunta pelo mesmo número, e o
+ * `invariants.service` não pode importar o pipeline — é o pipeline que o
+ * importa. Este módulo é puro, e "quando um run está morto" é definição de
+ * estado do run, que é o que ele descreve.
+ */
+export const STALE_RUN_MS = 15 * 60 * 1000;
 
 /** O que a derivação lê de um run: só o estado. */
 export interface OutcomeRun {

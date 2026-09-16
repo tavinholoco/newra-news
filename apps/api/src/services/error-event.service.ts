@@ -96,7 +96,7 @@ export const UNHANDLED_CODE = 'UNHANDLED';
 /** Falha que abortou o run do pipeline (o `catch` final de `runPipelineStages`). */
 export const PIPELINE_FAILED_CODE = 'PIPELINE_STAGE_FAILED';
 
-/** Etapa não-crítica que falhou sem abortar o run — o `WARN` das etapas 7.5 a 9. */
+/** Etapa não-crítica que falhou sem abortar o run — o `WARN` das etapas 7.5 a 9.5. */
 export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
 
 /**
@@ -109,22 +109,33 @@ export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
 export const AUDIT_WRITE_FAILED_CODE = 'AUDIT_WRITE_FAILED';
 
 /**
+ * Uma invariante reprovou na etapa 9.5 (Fase 6, §10 do plano).
+ *
+ * O `route` do fingerprint é o **id da invariante** (`retention.news`,
+ * `briefing.one_per_day`, …), então uma violação que dura dez dias são dez
+ * linhas — uma por run — e não uma por consulta. Pelo mesmo motivo do
+ * `AUDIT_WRITE_FAILED_CODE`, mora aqui e não no `invariants.service.ts`.
+ */
+export const INVARIANT_VIOLATED_CODE = 'INVARIANT_VIOLATED';
+
+/**
  * **Todo código que pode chegar à tabela, como tipo.** É o teto do fingerprint
- * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as quatro
+ * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as cinco
  * constantes deste arquivo. Um `code: \`stage-${n}\`` deixa de compilar, e um
  * `code: algumaString` também. A guarda pelo parser em
  * `tests/services/error-event.test.ts` continua, porque enumera os call sites
  * — mas o teto em si passou a ser garantido em tempo de compilação.
  *
- * `origin: WEB` e `origin: INVARIANT` acrescentam os seus aqui quando nascerem
- * (Fases 7b/7c e 6): a união é o lugar onde a decisão fica visível.
+ * `origin: WEB` acrescenta os seus aqui quando nascer (Fases 7b/7c); o de
+ * `INVARIANT` entrou na Fase 6. A união é o lugar onde a decisão fica visível.
  */
 export type RecordedErrorCode =
   | ErrorCode
   | typeof UNHANDLED_CODE
   | typeof PIPELINE_FAILED_CODE
   | typeof PIPELINE_DEGRADED_CODE
-  | typeof AUDIT_WRITE_FAILED_CODE;
+  | typeof AUDIT_WRITE_FAILED_CODE
+  | typeof INVARIANT_VIOLATED_CODE;
 
 export interface RecordErrorInput {
   origin: ErrorOrigin;

@@ -8,6 +8,7 @@ import {
   sanitizeTitle,
   splitDekAndBody,
 } from '../providers/news/feed-text';
+import { yieldToEventLoop } from '../utils/event-loop';
 import { classifyCategory } from './category-classifier.service';
 
 /**
@@ -163,19 +164,9 @@ const READ_PAGE_SIZE = 500;
  */
 const YIELD_EVERY = 100;
 
-/**
- * Devolve o event loop ao Node.
- *
- * `setImmediate` roda na fase *check*, **depois** da fase de poll — então o
- * I/O que estava esperando (a conexão do health check, entre outras) é atendido
- * antes de a varredura continuar. `await Promise.resolve()` não serve: a
- * microtask volta para o mesmo tick e nada de I/O acontece no meio.
- */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
-}
+// O respiro em si — `yieldToEventLoop` — mora em `utils/event-loop.ts` desde a
+// Fase 6, porque a suíte de invariantes usa o mesmo. O porquê do
+// `setImmediate` está escrito lá.
 
 interface PendingUpdate {
   id: string;

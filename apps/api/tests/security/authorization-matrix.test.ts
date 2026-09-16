@@ -143,6 +143,8 @@ const MATRIX: Row[] = [
   { route: 'GET /api/admin/audit', access: 'admin' },
   // Fase 11 (§15): a saúde por fonte. Mesmo grupo, mesma herança.
   { route: 'GET /api/admin/sources', access: 'admin' },
+  // Fase 6: o último relatório de invariantes — lê o evento da etapa 9.5.
+  { route: 'GET /api/admin/invariants', access: 'admin' },
 
   { route: 'GET /api/dev/logs', access: 'job' },
   { route: 'GET /api/dev/logs/:pipelineId', access: 'job' },

@@ -120,21 +120,74 @@ async function main() {
   }
   console.log(`  News: ${newsCreated} created (${newsItems.length - newsCreated} already existed)`);
 
-  const existingArticle = await prisma.article.findUnique({ where: { date: today } });
-  if (!existingArticle) {
-    await prisma.article.create({
-      data: {
-        title: 'Panorama do Dia: IA na saúde, política digital e ciência brasileira em destaque',
-        summary: 'No cenário de hoje, a inteligência artificial avança nos hospitais públicos, o Congresso debate regulação das big techs e cientistas da USP anunciam descoberta promissora no combate ao câncer.',
-        content: `## Tecnologia e Saúde\n\nA inteligência artificial chegou aos hospitais públicos brasileiros com força total. Um novo sistema de análise de exames reduz em 60% o tempo de diagnóstico, demonstrando como a tecnologia pode democratizar o acesso à medicina de qualidade.\n\n## Cenário Político\n\nNo Congresso, avança o projeto de regulação das big techs. O texto aprovado na Câmara prevê multas significativas para plataformas que descumprirem as novas regras, sinalizando uma postura mais firme do Brasil no debate global sobre soberania digital.\n\n## Economia\n\nO Banco Central manteve a Selic estável, surpreendendo analistas. A decisão reflete a cautela do Copom diante de um cenário externo ainda incerto e pressões inflacionárias internas.\n\n## Ciência Nacional\n\nPesquisadores da USP anunciaram a descoberta de uma molécula com potencial anticancerígeno extraída da biodiversidade amazônica. A pesquisa reforça a importância estratégica da proteção da Amazônia.\n\n## Síntese\n\nO dia foi marcado pela intersecção entre tecnologia, ciência e debates institucionais. O Brasil demonstra capacidade de inovar enquanto enfrenta desafios econômicos e políticos que moldarão o país nos próximos meses.`,
-        date: today,
-        newsCount: newsItems.length,
-      },
-    });
-    console.log('  Article: 1 created for today');
-  } else {
-    console.log('  Article: already exists for today');
+  // Sete dias de briefing, cada um com fontes — e não só o de hoje. As duas
+  // invariantes de briefing da Fase 6 (`briefing.one_per_day` e
+  // `briefing.has_sources`) perguntam pelos últimos sete dias, e o ensaio
+  // contra o banco local antes de ligar a etapa 9.5 reprovou as duas por causa
+  // do seed antigo: um briefing só, sem `BriefingSource`. O plano manda ajustar
+  // o seed, não a invariante. O de hoje é o texto completo; os seis anteriores
+  // são corpo curto, o bastante para a tela de detalhe e para o histórico.
+  // Idempotente: o briefing por `date` (é `@unique`), as fontes só quando o
+  // briefing não tem nenhuma — o que também conserta o de hoje num banco
+  // semeado antes desta mudança.
+  const todayContent = `## Tecnologia e Saúde\n\nA inteligência artificial chegou aos hospitais públicos brasileiros com força total. Um novo sistema de análise de exames reduz em 60% o tempo de diagnóstico, demonstrando como a tecnologia pode democratizar o acesso à medicina de qualidade.\n\n## Cenário Político\n\nNo Congresso, avança o projeto de regulação das big techs. O texto aprovado na Câmara prevê multas significativas para plataformas que descumprirem as novas regras, sinalizando uma postura mais firme do Brasil no debate global sobre soberania digital.\n\n## Economia\n\nO Banco Central manteve a Selic estável, surpreendendo analistas. A decisão reflete a cautela do Copom diante de um cenário externo ainda incerto e pressões inflacionárias internas.\n\n## Ciência Nacional\n\nPesquisadores da USP anunciaram a descoberta de uma molécula com potencial anticancerígeno extraída da biodiversidade amazônica. A pesquisa reforça a importância estratégica da proteção da Amazônia.\n\n## Síntese\n\nO dia foi marcado pela intersecção entre tecnologia, ciência e debates institucionais. O Brasil demonstra capacidade de inovar enquanto enfrenta desafios econômicos e políticos que moldarão o país nos próximos meses.`;
+  const BRIEFING_DAYS = 7;
+  const SOURCES_PER_BRIEFING = 3;
+  let articlesCreated = 0;
+  let sourcesCreated = 0;
+  for (let daysAgo = 0; daysAgo < BRIEFING_DAYS; daysAgo++) {
+    const date = new Date(today);
+    date.setUTCDate(date.getUTCDate() - daysAgo);
+
+    let article = await prisma.article.findUnique({ where: { date } });
+    if (!article) {
+      article = await prisma.article.create({
+        data: daysAgo === 0
+          ? {
+              title: 'Panorama do Dia: IA na saúde, política digital e ciência brasileira em destaque',
+              summary: 'No cenário de hoje, a inteligência artificial avança nos hospitais públicos, o Congresso debate regulação das big techs e cientistas da USP anunciam descoberta promissora no combate ao câncer.',
+              content: todayContent,
+              date,
+              newsCount: newsItems.length,
+            }
+          : {
+              title: `Panorama do Dia: o que marcou ${date.toISOString().slice(0, 10)}`,
+              summary: 'Um dia de tecnologia, política e ciência — o resumo das notícias que o pipeline selecionou.',
+              content: `## O dia em três eixos\n\nTecnologia, política e ciência dividiram a atenção. As matérias selecionadas pelo pipeline apontam para um cenário em movimento, com decisões institucionais e avanços de pesquisa no mesmo dia.\n\n## Síntese\n\nBriefing semeado para o histórico local — o de hoje traz o texto completo.`,
+              date,
+              newsCount: newsItems.length,
+            },
+      });
+      articlesCreated++;
+    }
+
+    const sourceCount = await prisma.briefingSource.count({ where: { articleId: article.id } });
+    if (sourceCount === 0) {
+      // Rotaciona pelas notícias do seed para cada briefing citar um trio
+      // diferente; `newsId` é ponteiro fraco, resolvido pela URL como no
+      // pipeline, e fica nulo se a notícia não estiver no banco.
+      const picked = Array.from({ length: SOURCES_PER_BRIEFING }, (_, position) => {
+        const item = newsItems[(daysAgo * SOURCES_PER_BRIEFING + position) % newsItems.length];
+        if (!item) throw new Error('seed: no news item to cite');
+        return { item, position };
+      });
+      for (const { item, position } of picked) {
+        const news = await prisma.news.findFirst({ where: { sourceUrl: item.sourceUrl }, select: { id: true } });
+        await prisma.briefingSource.create({
+          data: {
+            articleId: article.id,
+            newsId: news?.id ?? null,
+            position,
+            title: item.title,
+            source: item.source,
+            sourceUrl: item.sourceUrl,
+          },
+        });
+        sourcesCreated++;
+      }
+    }
   }
+  console.log(`  Article: ${articlesCreated} created (${BRIEFING_DAYS - articlesCreated} already existed), ${sourcesCreated} BriefingSource rows`);
 
   // 30 dias de métricas do pipeline. Sem elas a `/dashboard` fica inteira em
   // zero e o `category-bars` — que consome `--chart-1..5` — não desenha barra
@@ -354,13 +407,87 @@ async function main() {
   const FAILED_DAY = 8;
   const NEWSLETTER_FAILED_DAY = 3;
 
+  // O relatório da etapa 9.5, na forma de `InvariantRun` (Fase 6). Os
+  // números são os do ensaio de 16/09/2026 contra o banco local: doze
+  // consultas em ~380 ms, e só a retenção do acervo reprovando no run de
+  // hoje — os outros dias saem limpos, para a faixa de histórico não ser um
+  // muro vermelho.
+  const invariantsReport = (daysAgo: number, now: Date) => {
+    const iso = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+    const oldest = (id: string, retention: number, observedDaysAgo: number) => ({
+      id,
+      status: observedDaysAgo > retention + 1 ? 'VIOLATED' : 'OK',
+      measure: 'oldest',
+      observed: iso(observedDaysAgo),
+      expected: iso(retention + 1),
+      detail: null,
+      error: null,
+      durationMs: 4 + (id.length % 5),
+    });
+    const count = (id: string, observed: number, expected: number) => ({
+      id,
+      status: observed === expected ? 'OK' : 'VIOLATED',
+      measure: 'count',
+      observed,
+      expected,
+      detail: null,
+      error: null,
+      durationMs: 6 + (id.length % 7),
+    });
+    const results = [
+      oldest('retention.news', 30, daysAgo === 0 ? 47 : 29),
+      oldest('retention.pipelineLog', 30, 29),
+      oldest('retention.article', 90, 6),
+      oldest('retention.productEvent', 90, 2),
+      oldest('retention.errorEvent', 14, 2),
+      oldest('retention.auditEvent', 365, 4),
+      oldest('retention.sourceHealth', 90, 29),
+      count('briefing.one_per_day', 7, 7),
+      count('briefing.has_sources', 0, 0),
+      count('pipeline.no_stale_running', 0, 0),
+      count('metrics.day_recorded', 0, 0),
+      count('newsletter.delivered', 0, 0),
+    ];
+    return {
+      checked: results.length,
+      violated: results.filter((result) => result.status === 'VIOLATED').length,
+      errored: 0,
+      durationMs: 380 - ((daysAgo * 17) % 90),
+      budgetMs: 2_000,
+      results,
+    };
+  };
+
   let runsCreated = 0;
   for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
     if (NEVER_RAN_DAYS.has(daysAgo)) continue;
 
     const id = runId(daysAgo);
     const existing = await prisma.pipelineLog.findUnique({ where: { id } });
-    if (existing) continue;
+    if (existing) {
+      // Run semeado antes da Fase 6: recebe o evento da 9.5 que não tinha, para
+      // o painel de invariantes não ficar em "nenhuma verificação ainda" num
+      // banco que já era semeado. Só nos que terminaram — o run `FAILED` na 6
+      // nunca chega à 9.5. Índice 20 no id do evento, fora dos que o seed já usa.
+      if (existing.status === PipelineStatus.SUCCESS) {
+        const has95 = await prisma.pipelineEvent.count({ where: { pipelineLogId: id, stage: 9.5 } });
+        if (has95 === 0) {
+          const at25 = new Date(existing.startedAt.getTime() + 25_000);
+          await prisma.pipelineEvent.create({
+            data: {
+              id: eventId(daysAgo, 20),
+              pipelineLogId: id,
+              stage: 9.5,
+              level: PipelineEventLevel.INFO,
+              message: 'Invariants checked',
+              context: invariantsReport(daysAgo, at25),
+              createdAt: at25,
+            },
+          });
+        }
+      }
+      continue;
+    }
 
     const day = new Date(today);
     day.setUTCDate(day.getUTCDate() - daysAgo);
@@ -400,6 +527,12 @@ async function main() {
         { stage: 8, level: PipelineEventLevel.INFO, message: 'Cleanup completed', context: { deleted: (daysAgo * 7) % 40, productEvents: 0, errorEvents: 0, auditEvents: 0 }, at: at(22) },
         { stage: 8.5, level: PipelineEventLevel.INFO, message: 'Stored news renormalized', context: { scanned: 8190, textChanged: 0, imageRecovered: 0, categoryChanged: 0, categorySkipped: 0 }, at: at(23) },
         { stage: 9, level: PipelineEventLevel.INFO, message: 'Daily metrics recorded', context: { durationMs }, at: at(24) },
+        // A etapa 9.5 (Fase 6): o relatório de invariantes inteiro no
+        // `context`, na forma que `invariants.service.ts` grava e lê. O de
+        // hoje traz uma violação — a retenção do acervo, que é o que a suíte
+        // mede de verdade num banco local anterior à migration — para o
+        // painel da `/admin/security` ter a linha vermelha na captura.
+        { stage: 9.5, level: PipelineEventLevel.INFO, message: 'Invariants checked', context: invariantsReport(daysAgo, at(24)), at: at(25) },
         {
           stage: 9,
           level: PipelineEventLevel.INFO,
@@ -418,10 +551,11 @@ async function main() {
             sourcesCited: 15,
             newsletter: newsletterFailed ? 'failed' : { total: 3, sent: 3, failed: 0 },
             renormalized: { scanned: 8190, changed: 0 },
+            invariants: { checked: 12, violated: daysAgo === 0 ? 1 : 0, errored: 0 },
             degradedBy: [...(fallback ? [6] : []), ...(newsletterFailed ? [7.5] : [])],
             durationMs,
           },
-          at: at(24),
+          at: at(25),
         },
       );
     }

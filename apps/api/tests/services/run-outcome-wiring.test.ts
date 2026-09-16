@@ -90,8 +90,9 @@ describe('todo WARN de etapa dentro do run entra em `degradedBy`', () => {
   const calls = collectWarnCalls();
 
   it('finds the WARN emissions at all — a parser that finds nothing would pass everything', () => {
-    // Seis dentro do run (1, 6, 7.5, 8, 8.5, 9) e uma no `catch`.
-    expect(calls.length).toBeGreaterThanOrEqual(7);
+    // Nove dentro do run (1, 4, 6, 7.5, 8, 8.5, 9 e duas da 9.5 — a Fase 11
+    // pôs a 4 e a Fase 6 as duas da 9.5) e uma no `catch`.
+    expect(calls.length).toBeGreaterThanOrEqual(10);
   });
 
   it.each(calls.map((call) => [call.stageText, call.line, call] as const))(

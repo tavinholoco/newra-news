@@ -72,6 +72,10 @@
   vez — a série de `fetched`, `kept`, desfecho e latência por fonte na janela
   (`days` ≤ 90, o teto é a retenção). Só os dias com linha; "não tentada" é
   ausência, derivada no web. Fase 11
+- GET /api/admin/invariants — **admin**: o último relatório de invariantes —
+  o evento da **etapa 9.5** do run mais recente, **lido, nunca recalculado**
+  (doze consultas em 0.1 vCPU não podem ser disparadas por um F5). `data:
+  null` antes do primeiro run com a etapa. Fase 6
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only: runs (com o **desfecho** da Fase 8,
@@ -84,8 +88,8 @@
 ## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
 
 **A garantia é do grupo, não da rota.** `routes/admin/index.ts` registra o
-`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os quatro subgrupos
-(`pipeline`, `errors`, `audit`, `sources`) herdam o hook — hook de contexto pai vale para
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os cinco subgrupos
+(`pipeline`, `errors`, `audit`, `sources`, `invariants`) herdam o hook — hook de contexto pai vale para
 todo `register` abaixo dele. Toda rota do grupo nasce protegida sem ninguém
 lembrar de repetir a linha; **na Fase 2 as duas linhas moravam em
 `pipeline.ts`**, e subiram para o pai quando a Fase 5 pôs dois subgrupos ao
@@ -164,10 +168,10 @@ denunciava a divergência. Ao mexer no `select` de um serviço, confira o schema
 - Tem `Cache-Control` editorial: as facetas não mudam ao virar a página, então
   ficam fora da listagem para não recalcular dois `groupBy` a cada paginação.
 
-## Pipeline Diário (11 etapas)
+## Pipeline Diário (12 etapas)
 Coleta → Normalização → Deduplicação → Persistência →
 Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup →
-**Renormalização** → Métricas
+**Renormalização** → Métricas → **Invariantes**
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias,
 **ProductEvents >90 dias** (por `occurredAt`), **ErrorEvents >14 dias** (por
@@ -180,7 +184,21 @@ depois) e **SourceHealth >90 dias** (por `day` — como o Article, para cruzar
 > etapa não abre**, e há guarda: `tests/docs/retention-drift.test.ts` compara
 > esta linha, os dois diagramas do pipeline e o `packages/database/CLAUDE.md`
 > com as constantes de retenção de cada service. É a família do `13` dos
-> feeds — número que descreve código quer guarda derivada do código.
+> feeds — número que descreve código quer guarda derivada do código. **As
+> três de News, PipelineLog e Article moram em `services/retention.ts`** desde
+> a Fase 6 — a suíte de invariantes as lê, e não pode importar o pipeline.
+
+**A etapa 9.5 (invariantes, Fase 6 do plano de observabilidade) pergunta o
+que nenhuma etapa perguntava: "o que deveria ter acontecido aconteceu?".**
+Doze consultas agregadas depois de a 9 gravar a métrica do dia — a retenção de
+cada uma das sete tabelas que a 8 expurga, um briefing por dia, todo briefing
+da semana com fontes, nenhum run morto em `RUNNING`, todo dia com run
+`SUCCESS` com a sua `DailyMetric`, a newsletter chegando a alguém quando havia
+assinante. **Violação não degrada o run**: o relatório inteiro é o `context`
+de um `INFO`, e cada violação é um `ErrorEvent` com `origin: INVARIANT` e o
+id da invariante no `route` — uma linha por invariante por run. O que degrada
+é a suíte não conseguir perguntar (uma consulta que lança sai como `ERROR` no
+resultado, e a etapa emite `WARN`). Ver "As invariantes", abaixo.
 
 **A etapa 8.5 (renormalização) é o que faz uma correção de regra alcançar o que
 já está gravado.** Consertar a ingestão só conserta o que entra; sem ela, uma
@@ -193,8 +211,8 @@ escreve nada.
 
 **O desfecho de um run não é o `status` — é derivado dos eventos** (Fase 8 do
 plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
-pipeline não é: 7.5, 8, 8.5 e 9 falham com `WARN` e o run segue `SUCCESS`, o
-fallback para o Groq é `WARN` da etapa 6, a colheita degradada é `WARN` da
+pipeline não é: 7.5, 8, 8.5, 9 e 9.5 falham com `WARN` e o run segue `SUCCESS`,
+o fallback para o Groq é `WARN` da etapa 6, a colheita degradada é `WARN` da
 etapa 1. `deriveRunOutcome` devolve `SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`
 (`null` em `RUNNING`) e `degradedStages` lista as etapas — **sem coluna**: coluna
 pediria migration e divergiria dos eventos no primeiro `catch` esquecido
@@ -217,9 +235,11 @@ pediria migration e divergiria dos eventos no primeiro `catch` esquecido
   e esquecer o `push` reprova aqui.
 - **O evento final da etapa 9 resume o run** (`collected`, `sources`, `deduped`,
   `persisted`, `selected`, `provider`, `model`, `promptVersion`, `briefingId`,
-  `briefingChars`, `sourcesCited`, `newsletter`, `renormalized`, `degradedBy`,
-  `durationMs`). `newsletter` e `renormalized` valem `'failed'` quando a etapa
-  lançou: o service da newsletter não distingue "pulado" de "zero assinantes".
+  `briefingChars`, `sourcesCited`, `newsletter`, `renormalized`, `invariants`,
+  `degradedBy`, `durationMs`). `newsletter`, `renormalized` e `invariants`
+  valem `'failed'` quando a etapa lançou: o service da newsletter não distingue
+  "pulado" de "zero assinantes"; `invariants` é `{ checked, violated,
+  errored }`.
 - **A listagem lê os `WARN` dos runs da página numa consulta** (`warnEventsByRun`),
   e o detalhe deriva dos eventos que já traz. O schema é um só nas duas portas.
 - **`NEVER_RAN` não existe aqui.** A API lista o que existe; quem deriva o dia
@@ -634,8 +654,9 @@ Regras que não são óbvias no código:
 - **`code` e `category` são texto no banco**, e o conjunto fechado mora em
   `utils/errors.ts`. Enum do Postgres cobraria uma migration por código novo, e
   cada fase seguinte do plano acrescenta pelo menos um.
-- **`origin: WEB` e `origin: INVARIANT` ainda não têm produtor** — são das
-  Fases 7b/7c e 6. O enum descreve o desenho; a coluna aceita o que existe hoje.
+- **`origin: WEB` ainda não tem produtor** — é das Fases 7b/7c. `INVARIANT`
+  ganhou o seu na Fase 6: `INVARIANT_VIOLATED`, com o id da invariante no
+  `route`. O enum descreve o desenho; a coluna aceita o que existe hoje.
 - **O `WARN` que não degrada não vira `ErrorEvent`** (pós-merge da Fase 8):
   `recordPipelineEvent` pergunta a `isDegradingWarn` antes de gravar, então o
   aviso da etapa 1 só com `feed-empty` fica no `PipelineEvent` e fora da
@@ -652,7 +673,7 @@ Regras que não são óbvias no código:
   `FetchWarning`, não no topo do `context`, e a primeira inferência a chamava de
   `internal`.
 - **`code` é tipo, não `string`** — `RecordedErrorCode`, a união dos literais
-  da taxonomia com as três constantes do service. Um `code` interpolado deixa
+  da taxonomia com as cinco constantes do service. Um `code` interpolado deixa
   de compilar; a guarda pelo parser continua porque enumera os call sites.
 - **`pipelineLogId` é explícito quando quem chama sabe**, e `logPipelineEvent`
   sempre soube. O `AsyncLocalStorage` é reserva: o enterro do run morto roda
@@ -701,7 +722,7 @@ do `ErrorEvent`, e o quarto sinal de ouro.
 | `plugins/uptime-heartbeat.ts` | o intervalo de 5 min e o `onClose` — **registrado no `server.ts`** |
 | `services/error-summary.service.ts` | a soma por fingerprint na janela — o **leitor** do `ErrorEvent`, separado do escritor |
 | `services/saturation.service.ts` | memória, event loop (`plugins/observability.ts`) e horas do plano, com teto e razão |
-| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos (quatro desde a Fase 11) |
+| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos (quatro desde a Fase 11, cinco desde a 6) |
 
 Regras que não são óbvias no código:
 
@@ -817,6 +838,89 @@ Regras que não são óbvias no código:
   tentado são derivados no web (PR 11c), como o desfecho por dia da Fase 8.
   `days` ≤ 90, que é a retenção: pedir mais devolveria dias que o expurgo já
   esvaziou.
+
+## As invariantes (Fase 6 do plano de observabilidade)
+
+`services/invariants.service.ts`, a etapa 9.5 do pipeline e
+`GET /api/admin/invariants`. Fecha: as etapas 7.5, 8, 8.5 e 9 engolem a própria
+falha de propósito, para o run terminar, e nada perguntava depois se o que
+elas deveriam ter deixado está lá — a retenção podia parar por um mês e o
+primeiro sintoma seria a conta do Neon; o dia sem briefing de 01/09/2026 teve
+como único sinal o briefing ausente.
+
+| Peça | Papel |
+|---|---|
+| `services/invariants.service.ts` | a tabela de definições (`INVARIANT_IDS`, `RETENTION_INVARIANTS`), `runInvariants`, o `recordError` por violação, `invariantRunSchema` e a leitura `getLatestInvariantReport` |
+| `services/pipeline.service.ts` | a etapa 9.5, entre o `upsert` da 9 e o `SUCCESS`, com `invariants` no resumo |
+| `services/retention.ts` · `services/run-outcome.ts` (`STALE_RUN_MS`) · `utils/event-loop.ts` (`yieldToEventLoop`) | os três exports que a suíte precisava e que moravam em módulos que ela não pode importar |
+| `routes/admin/invariants.ts` | a porta: lê o último evento da 9.5, nunca roda a suíte |
+
+Regras que não são óbvias no código:
+
+- **São doze, e não as onze do inventário — nem as nove da §10.** A etapa 8
+  expurga **sete** tabelas e a lista tinha retenção para seis: faltava
+  `retention.article`. A guarda deriva a contagem do `Promise.all` do cleanup
+  (pelo parser), para a próxima tabela com expurgo não nascer sem a invariante
+  ao lado. O orçamento da §10 ("no máximo 10 consultas") virou **tempo**
+  (`INVARIANTS_BUDGET_MS`, 2 s, no relatório para a tela dizer quanto sobrou)
+  e **forma**: `aggregate`, `count`, ou `findMany` de **uma** coluna e ≤ 31
+  linhas — guarda pelo parser sobre todo `prisma.*` do arquivo. Medido em
+  16/09/2026 contra o banco local: **65 ms** (381 na primeira conexão).
+- **O limiar de retenção é `retention + 1` dia, e o dia a mais é a folga entre
+  dois runs, não tolerância.** Com o expurgo funcionando o mínimo é
+  `≥ now − retention` com sobra; se a etapa 8 de hoje falhou (com o próprio
+  `WARN`), o mínimo é o corte de **ontem**, na fronteira; no segundo dia sem
+  expurgo a violação é certa. O que ela pega é o `deleteMany` que roda e não
+  apaga — e reprova no dia seguinte. Tabela vazia (`null`) passa.
+- **Violação não degrada o run; a pergunta que não pôde ser feita, sim.** O
+  run não é o que falhou — o que falhou é o que uma etapa anterior deveria ter
+  feito. Cada violação é `recordError({ origin: 'INVARIANT', severity:
+  'WARN', code: INVARIANT_VIOLATED, route: <id>, category: 'contract' })`
+  (a categoria da taxonomia para "o dado não casa com o prometido —
+  invariante"), com o relógio da suíte; o `PipelineEvent` da 9.5 é `INFO`. Uma
+  consulta que lança vira `status: 'ERROR'` naquele resultado, as outras
+  continuam, e a etapa sai `WARN` com `degradedBy.push(9.5)`. **O que não
+  pode é a violação virar os dois** — a linha vermelha mora na tabela de
+  falhas e no painel, não no desfecho do dia.
+- **A suíte cede o event loop antes de cada consulta**, pelo mesmo
+  `yieldToEventLoop` da etapa 8.5, e o teste pergunta **em que ponto** o loop
+  girou (armadilha 4 do §17) — suíte de invariante é o que vira varredura sem
+  ninguém perceber, e o sintoma seria o `SIGTERM` de 03/09, não um teste lento.
+- **`metrics.day_recorded` não é uma consulta agregada em Prisma.** Agrupar
+  `startedAt` por dia pede `date_trunc`; a saída honesta são dois `findMany` de
+  uma coluna (≤ 31 linhas cada) comparados em memória, com a chave em **dia
+  UTC** (a armadilha do `Article.date`). O run de hoje ainda está `RUNNING` na
+  9.5, então o dia de hoje fica de fora — a métrica dele acabou de ser gravada
+  pela 9, e o `WARN` dela é quem fala se não foi.
+- **`pipeline.no_stale_running` deixa o run corrente de fora** (`id: { not:
+  pipelineLogId }`): ele está `RUNNING` porque está rodando. E usa o
+  `STALE_RUN_MS` do `triggerPipeline` — que **mudou de módulo** para
+  `run-outcome.ts` (puro) porque o `invariants.service` não pode importar o
+  pipeline: é o pipeline que o importa. Pelo mesmo motivo `NEWS`,
+  `PIPELINE_LOG` e `ARTICLE_RETENTION_DAYS` foram para `services/retention.ts`
+  e `yieldToEventLoop` para `utils/event-loop.ts` — os dois com o motivo
+  escrito no cabeçalho. Exportar do lugar antigo fecharia um ciclo, e a suíte
+  de invariantes arrastaria o grafo inteiro dos providers.
+- **O número da etapa é literal (`9.5`) nas chamadas do pipeline**, como toda
+  etapa, porque o `diagram-drift` deriva as etapas anunciadas dos literais;
+  `INVARIANTS_STAGE` é o que a leitura usa, com teste cobrando a igualdade.
+- **A rota lê o evento e nunca roda a suíte** — `findFirst` por `stage` e
+  `createdAt`, os dois com índice. O `context` é parseado com o **mesmo**
+  `invariantRunSchema` que a resposta declara; um `context` que não parseia é
+  contrato quebrado entre quem grava e quem lê (os dois moram no mesmo
+  arquivo) e sai como 500 com `category: 'contract'`, nunca como "nenhuma
+  verificação". `data: null` é o estado do primeiro deploy.
+- **`newsletter.delivered` conta dias com `total > 0` e `sent = 0`.** `total`
+  é quantos assinantes estavam ativos na hora do envio — dia sem assinante não
+  conta. É a frase "a newsletter não entrega a assinante real" do `CLAUDE.md`
+  da raiz, como número numa tela.
+- **O ensaio contra o banco local antes de ligar a etapa (armadilha 18)
+  reprovou quatro, nenhuma pela invariante**: `retention.news` e
+  `retention.pipelineLog` porque o acervo local é anterior à migration e nunca
+  passou pela etapa 8 (como a §10 previu); `briefing.one_per_day` e
+  `briefing.has_sources` por causa do seed, que criava um briefing só, sem
+  fontes — e aí é o seed que se ajusta: sete dias de briefing com três fontes
+  cada, e o evento da 9.5 em todo run semeado.
 
 ## As guardas que enumeram a superfície
 
