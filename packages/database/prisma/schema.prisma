@@ -402,6 +402,25 @@ enum ErrorSeverity {
   FATAL
 }
 
+/// De que tipo é a fonte. `AGGREGATOR` é a NewsData.io, que entra como **uma**
+/// fonte e agrega dezenas de veículos — o limite honesto da §15: dividi-la
+/// por veículo é pré-requisito só no dia em que a decisão for trocá-la por
+/// outro agregador.
+enum SourceKind {
+  RSS
+  AGGREGATOR
+}
+
+/// O desfecho de uma fonte num dia. `EMPTY` é a fonte que respondeu e não
+/// tinha nada — o normal de feed especializado em dia comum, e o que **não**
+/// degrada o run (`feed-empty`); `FAILED` é a que lançou, ou o provider que
+/// caiu por cima dela. "Não tentada" não está aqui: é a ausência de linha.
+enum SourceOutcome {
+  OK
+  EMPTY
+  FAILED
+}
+
 /// Ação de admin registrada de forma durável — quem disparou o pipeline, quem
 /// apagou o quê (§9 do plano de observabilidade, decidido em 12/09/2026).
 ///
@@ -494,4 +513,67 @@ model DailyUptime {
   seconds Int      @default(0)
 
   updatedAt DateTime @updatedAt
+}
+
+/// A saúde de cada fonte de notícia, um dia de cada vez (§15 do plano de
+/// observabilidade, Fase 11 — decidido em 15/09/2026).
+///
+/// **O pipeline sabe hoje qual fonte falhou, e esquece amanhã.** O aviso por
+/// fonte da etapa 1 (`FetchWarning`) vira o `context` de um `PipelineEvent` e
+/// morre com o run: "há quantos dias a Superinteressante está fora?" exigia
+/// ler os eventos de N dias e cruzar à mão — em 03/09/2026 a resposta era
+/// "dois", e só apareceu porque alguém foi olhar. E a fonte que definha —
+/// entregava 20 por dia e passou a entregar 2 — não falha nunca, então não
+/// deixa aviso nenhum. Esta tabela é a memória que faltava: **uma linha por
+/// `(source, dia)`**, diária porque a colheita é diária.
+///
+/// **`kept` é a coluna que faz a tabela valer.** `fetched` é o que a fonte
+/// publicou; `kept` é o que ela **acrescentou ao acervo** — o item cuja URL
+/// entrou em `News` naquele dia. Uma fonte que republica o que outra já deu
+/// tem `fetched` alto e `kept` perto de zero, e é a que se troca primeiro
+/// (§17.25). Não é "sobreviveu à deduplicação da etapa 3": aquele dedup é por
+/// URL, e dois veículos com a mesma pauta têm URLs diferentes.
+///
+/// **`source` é texto, sem FK e sem enum**, de propósito: é o `name` de
+/// `rss-sources.ts` ou `newsdata`, e a fonte removida da lista continua na
+/// série — o web desenha o dia sem linha como "não tentada", como faz com o
+/// dia sem run (`NEVER_RAN`). Por isso `SourceOutcome` tem **três** valores e
+/// não quatro: "não tentada" é ausência, e a API nunca a emite.
+///
+/// **O último run do dia representa o dia** (a regra da Fase 8): a escrita é
+/// `deleteMany` do dia + `createMany`, numa transação — duas instruções, não
+/// treze `upsert`. Uma por run, depois da etapa 4, porque `kept` só existe
+/// depois de o `createMany` de `News` decidir o que era novo.
+///
+/// Retenção de 90 dias, executada pela etapa 8 — mais que os 14 do
+/// `ErrorEvent` e os 30 do `PipelineLog`, porque "esta fonte vale a pena?" é
+/// pergunta trimestral; e igual à do `Article`, para cruzar "o briefing
+/// daquele dia" com "quem o alimentou". 90 dias × 13 fontes ≈ 1.170 linhas.
+model SourceHealth {
+  id            String        @id @default(uuid())
+  /// `name` de `rss-sources.ts`, ou `newsdata` — o balde do agregador.
+  source        String
+  kind          SourceKind
+  /// Dia de calendário à meia-noite UTC, como `DailyMetric.date`.
+  day           DateTime
+  /// Itens que **esta fonte** trouxe no run, depois do filtro do provider.
+  fetched       Int           @default(0)
+  /// Dos `fetched`, quantos entraram no acervo naquele dia. Nunca maior que
+  /// `fetched`.
+  kept          Int           @default(0)
+  outcome       SourceOutcome
+  /// Já redigida e truncada; `null` quando `outcome` não é `FAILED`.
+  failureReason String?
+  /// Do `fetch` ao parse, por feed; para o agregador, o provider inteiro.
+  latencyMs     Int?
+  /// O run que escreveu a linha — sem FK, como no `ErrorEvent`: o run vive 30
+  /// dias e esta linha 90, então o ponteiro sobrevive a quem aponta.
+  pipelineLogId String?
+
+  /// O alvo do `deleteMany` + `createMany` e a chave da série por fonte. Serve
+  /// a busca por fonte sozinha, e é por isso que **não** há um
+  /// `@@index([source, day])` ao lado (§17.12).
+  @@unique([source, day])
+  /// A da janela (30 dias, todas as fontes) e a do expurgo.
+  @@index([day])
 }

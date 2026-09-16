@@ -5,6 +5,8 @@ import {
   ErrorSeverity,
   PipelineEventLevel,
   PipelineStatus,
+  SourceKind,
+  SourceOutcome,
 } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -461,6 +463,88 @@ async function main() {
     runsCreated++;
   }
   console.log(`  PipelineLog: ${runsCreated} created (${30 - NEVER_RAN_DAYS.size - runsCreated} already existed)`);
+
+  // ── Saúde por fonte (Fase 11 do plano, PR 11a) ──────────────────────────
+  // Uma linha por (fonte, dia) nos mesmos 30 dias dos runs acima — os três
+  // dias sem run não têm linha nenhuma (o pipeline não escreveu), e o dia
+  // `FAILED` na etapa 6 **tem**, porque a escrita acontece depois da 4: é a
+  // distinção que a tela precisa mostrar. Os nomes espelham `rss-sources.ts`
+  // (15/09/2026) mais o balde `newsdata`; são texto, não FK, de propósito.
+  //
+  // As duas histórias que os gatilhos da §15 existem para pegar estão aqui:
+  // a Superinteressante em `FAILED` há três dias (o `ETIMEDOUT` de 03/09,
+  // que também aparece 12–13 dias atrás com a Veja Saúde e o Drauzio), e a
+  // Trivela **definhando** — `kept` de ~12 por dia caindo para ~2 na última
+  // semana, sem falhar nunca. Os dois feeds de saúde ficam `EMPTY` no fim de
+  // semana, que é o normal que não pode acender luz. Determinístico e
+  // idempotente: `createMany` com `skipDuplicates` sobre a chave `(source, day)`.
+  type SeedSource = { name: string; kind: SourceKind; fetched: number; keptRatio: number; latencyMs: number };
+  const seedSources: SeedSource[] = [
+    { name: 'newsdata', kind: SourceKind.AGGREGATOR, fetched: 62, keptRatio: 0.7, latencyMs: 740 },
+    { name: 'G1', kind: SourceKind.RSS, fetched: 50, keptRatio: 0.6, latencyMs: 420 },
+    { name: 'Folha de S.Paulo', kind: SourceKind.RSS, fetched: 30, keptRatio: 0.55, latencyMs: 610 },
+    { name: 'BBC Brasil', kind: SourceKind.RSS, fetched: 24, keptRatio: 0.65, latencyMs: 380 },
+    { name: 'TechCrunch', kind: SourceKind.RSS, fetched: 20, keptRatio: 0.5, latencyMs: 890 },
+    { name: 'InfoMoney', kind: SourceKind.RSS, fetched: 40, keptRatio: 0.45, latencyMs: 1_150 },
+    { name: 'Valor Econômico', kind: SourceKind.RSS, fetched: 35, keptRatio: 0.4, latencyMs: 970 },
+    { name: 'ESPN Brasil', kind: SourceKind.RSS, fetched: 25, keptRatio: 0.6, latencyMs: 530 },
+    { name: 'Trivela', kind: SourceKind.RSS, fetched: 18, keptRatio: 0.65, latencyMs: 2_100 },
+    { name: 'Olhar Digital', kind: SourceKind.RSS, fetched: 22, keptRatio: 0.55, latencyMs: 640 },
+    { name: 'Superinteressante', kind: SourceKind.RSS, fetched: 10, keptRatio: 0.8, latencyMs: 1_900 },
+    { name: 'Veja Saúde', kind: SourceKind.RSS, fetched: 8, keptRatio: 0.75, latencyMs: 1_400 },
+    { name: 'Drauzio Varella', kind: SourceKind.RSS, fetched: 6, keptRatio: 0.8, latencyMs: 1_250 },
+  ];
+  const FEED_TIMEOUT_MS = 30_000;
+  const TIMED_OUT = 'fetch failed: ETIMEDOUT';
+  const FAILED_SOURCE_DAYS: Record<string, number[]> = {
+    Superinteressante: [0, 1, 2, 12, 13],
+    'Veja Saúde': [12, 13],
+    'Drauzio Varella': [12, 13],
+  };
+  const WEEKEND_EMPTY = new Set(['Veja Saúde', 'Drauzio Varella']);
+
+  const sourceRows: {
+    source: string;
+    kind: SourceKind;
+    day: Date;
+    fetched: number;
+    kept: number;
+    outcome: SourceOutcome;
+    failureReason: string | null;
+    latencyMs: number;
+    pipelineLogId: string;
+  }[] = [];
+  for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+    if (NEVER_RAN_DAYS.has(daysAgo)) continue;
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - daysAgo);
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6;
+
+    for (const [index, source] of seedSources.entries()) {
+      const failed = FAILED_SOURCE_DAYS[source.name]?.includes(daysAgo) ?? false;
+      const empty = !failed && weekend && WEEKEND_EMPTY.has(source.name);
+      // A Trivela definha: inteira até 10 dias atrás, e daí a menos de um
+      // quarto — é o `kept` médio de 7 dias abaixo de 30% do de 30.
+      const withering = source.name === 'Trivela' && daysAgo < 10;
+      const wobble = ((daysAgo * 7 + index * 3) % 9) - 4;
+      const fetched = failed || empty ? 0 : Math.max(1, source.fetched + wobble - (withering ? 12 : 0));
+      const kept = failed || empty ? 0 : Math.min(fetched, Math.round(fetched * source.keptRatio) - (withering ? 2 : 0));
+
+      sourceRows.push({
+        source: source.name,
+        kind: source.kind,
+        day: new Date(day),
+        fetched,
+        kept: Math.max(0, kept),
+        outcome: failed ? SourceOutcome.FAILED : empty ? SourceOutcome.EMPTY : SourceOutcome.OK,
+        failureReason: failed ? TIMED_OUT : null,
+        latencyMs: failed ? FEED_TIMEOUT_MS : source.latencyMs + wobble * 15,
+        pipelineLogId: runId(daysAgo),
+      });
+    }
+  }
+  const sourceHealth = await prisma.sourceHealth.createMany({ data: sourceRows, skipDuplicates: true });
+  console.log(`  SourceHealth: ${sourceHealth.count} created (${sourceRows.length - sourceHealth.count} already existed)`);
 
   console.log('Seed completed successfully.');
 }

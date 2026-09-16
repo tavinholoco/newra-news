@@ -332,6 +332,24 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Fora da linha das fases (2026-09-15): a Fase 11 abriu pelo schema — PR
+  11a.** §15, item **71**. `SourceHealth`: uma linha por `(source, dia)` com
+  `fetched`, `kept`, `outcome`, `failureReason`, `latencyMs` e o
+  `pipelineLogId` sem FK — a memória que a etapa 1 não tinha ("há quantos
+  dias a Superinteressante está fora?" exigia cruzar eventos à mão). **Três
+  decisões mudaram o desenho da §15:** `SourceOutcome` tem **três** valores
+  (`NOT_ATTEMPTED` é ausência de linha, derivada no web como o `NEVER_RAN` —
+  a escrita é depois da etapa 4, e o pipeline nunca o emitiria); `kept` é "a
+  URL entrou em `News` **naquele dia**", e não "antes deste run", para o
+  re-disparo depois de um `FAILED` na 6 não sobrescrever números honestos com
+  zeros; e o `@@index([source, day])` saiu pela armadilha 12. SQL por
+  `migrate diff` entre os dois schemas, sem banco; replay no Postgres local.
+  O seed semeia 27 dias × 13 fontes com as duas histórias dos gatilhos (a
+  Superinteressante em `FAILED` há 3 dias; a Trivela com `kept` de 7 dias em
+  25 % do de 30). **Nenhum teste novo, nenhuma mudança em `src/`** — as
+  guardas derivadas do schema fizeram o trabalho, vistas reprovando nove
+  vezes. **São três PRs** (11a migration · 11b API · 11c web), como na Fase 5.
+
 - **Verificação pós-merge da Fase 8 (2026-09-15): a linha `feed-empty` tinha
   um terceiro consumidor, e o preview lia uma API que não sabe o desfecho.**
   Item **70**. Três enumerações sobre a árvore mergeada. **O `ErrorEvent`

@@ -2098,7 +2098,7 @@ configuração. E ela **reprova hoje**, o que é o jeito certo de a fase começa
 
 ---
 
-## §15 Fase 11 — A saúde de cada fonte, uma por uma
+## §15 Fase 11 — A saúde de cada fonte, uma por uma — 11a ✅ 2026-09-15
 
 **Fecha:** o pipeline sabe **hoje** qual fonte falhou, e esquece amanhã. Uma
 fonte que entregava 20 matérias por dia e passou a entregar 2 é **invisível** —
@@ -2342,6 +2342,53 @@ desenhar "indisponível" sobre 404, não quebrar.
 #204 (pós-merge da 8) mergear — conferir com `git merge-base --is-ancestor`
 que #203 **e** #204 estão na `dev`, e `rev-list --count origin/dev..origin/main`
 = 0.
+
+### O que o PR da migration decidiu — 15/09/2026 (11a ✅)
+
+Sobre a `dev` em `3c02e4c` (#204 mergeado; `dev..main` = 0). Item **71** do
+`docs/progress.md`. **São três PRs, não dois** — migration, API, web —, pela
+mesma medida da Fase 5: o provider cronometrando, a etapa 4 contando, a rota
+e a retenção de um lado, e do outro um componente extraído, uma tabela
+ordenável, uma rosquinha e um painel; juntos seriam maiores que o 5b e o 5c
+somados. O que o modelo da §15 desenhava e saiu diferente, com o motivo:
+
+- **`SourceOutcome` tem três valores.** `NOT_ATTEMPTED` era desenhado como
+  valor gravado, para a fonte removida de `rss-sources.ts` e para o run que
+  morreu antes da etapa 1 — mas a escrita acontece depois da etapa 4 (o
+  inventário já tinha movido para lá), então nenhum dos dois casos produz
+  linha: **o pipeline nunca emitiria o valor.** É a lição do `NEVER_RAN` da
+  Fase 8, e a solução é a mesma: o web deriva "não tentada" pela ausência de
+  linha, e a série da fonte removida continua desenhada. O `@@index([source,
+  day])` saiu pela armadilha 12, que este plano escreveu para o `ErrorEvent` e
+  esqueceu no próprio desenho.
+- **`kept` é "a URL entrou em `News` naquele dia"** — nem "sobreviveu ao
+  dedup" (o inventário já tinha medido que isso não separa nada) nem "novo
+  para o acervo antes deste run": o segundo run do dia só existe depois de um
+  `FAILED`, e um `FAILED` na etapa 6 já escreveu as fontes com números
+  honestos; contar "novo antes do run" no segundo faria `kept` cair a zero em
+  toda fonte e o `deleteMany` + `createMany` gravar isso por cima. Contando o
+  que entrou hoje, o segundo run recomputa os mesmos números mais o que
+  chegou, e "o último run representa o dia" fica certo sem merge nem
+  `increment`. O `findMany` das URLs antes do `createMany` traz `createdAt`
+  junto — é a única diferença de custo.
+- **`pipelineLogId` entrou**, sem FK como no `ErrorEvent` (a linha vive 90
+  dias, o run 30): é o link da linha para o detalhe do run, onde o
+  `feed-failed` daquele dia continua no `PipelineEvent`.
+- **O seed semeia as duas histórias dos gatilhos** — a Superinteressante em
+  `FAILED` há três dias, a Trivela com `kept` de 7 dias em 25 % do de 30 —
+  e os dois feeds de saúde `EMPTY` no fim de semana. 27 dias × 13 fontes;
+  os três dias sem run não têm linha, o dia `FAILED` na 6 tem.
+
+**O que o 11b decide, e já está escrito para não ser redescoberto:** o
+provider devolve um desfecho por fonte configurada com `fetched` e
+`latencyMs` (e `fetchAll` deriva os `warnings` daí); a escrita é uma
+transação de duas instruções, uma por run, depois da etapa 4, dentro de um
+`try` cujo `catch` é `WARN` da etapa 4 com `degradedBy.push(4)` — a
+observabilidade não aborta o que observa; `SOURCE_HEALTH_RETENTION_DAYS = 90`
+no service, na etapa 8, na frase dos diagramas ("artigos, eventos e
+fontes") e na linha do cleanup do `packages/database/CLAUDE.md`; e
+`SourceHealth` entra na lista do `response-schema-contract` com o schema da
+rota nova.
 
 ---
 
@@ -2755,12 +2802,16 @@ aplica as duas migrations juntas na promoção.**
   "último briefing há N h". Sem migration, sem rota nova. Item **69** do
   `docs/progress.md`; as decisões no fim da §12, e o pós-merge (item **70**)
   logo abaixo delas.
-- **§15 — Fase 11 (saúde por fonte). ← próxima, decidida em 15/09/2026.**
-  Migration + etapa 1 + painel, em **dois PRs**. É a que responde à pergunta
-  de trocar provedor. **O inventário foi reconferido no fim da §15** — e é a
-  fase com mais desvio: `latencyMs` não é medido, `fetched` por feed não sai
-  do provider, `kept` por dedup mede quase nada (o dedup é por URL), a escrita
-  não cabe na etapa 1, e a faixa da Fase 8 é tipada no desfecho do run.
+- **§15 — Fase 11 (saúde por fonte). ← em curso, em três PRs.** É a que
+  responde à pergunta de trocar provedor. **O inventário foi reconferido no
+  fim da §15** — e é a fase com mais desvio: `latencyMs` não é medido,
+  `fetched` por feed não sai do provider, `kept` por dedup mede quase nada (o
+  dedup é por URL), a escrita não cabe na etapa 1, e a faixa da Fase 8 é
+  tipada no desfecho do run. **11a (a migration) ✅ 15/09/2026**, item **71**
+  — `SourceOutcome` com três valores (o `NOT_ATTEMPTED` é ausência, como o
+  `NEVER_RAN`), `kept` = "entrou no acervo naquele dia", `pipelineLogId` sem
+  FK, e o seed com as duas histórias dos gatilhos. **11b (a API) e 11c (o
+  web)** seguem; as decisões de cada um, no fim da §15.
 - **§10 — Fase 6 (invariantes).** Depende da 4 e da 5 estarem no ar.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
