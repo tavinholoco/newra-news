@@ -142,6 +142,8 @@ const httpMetricsRouteSchema = z.object({
   route: z.string(),
   count: z.number(),
   errorRate: z.number(),
+  // 4xx por rota (Fase 7c): o 429 das duas portas anônimas mora aqui.
+  clientErrorRate: z.number(),
   avgMs: z.number(),
   p95Ms: z.number(),
   maxMs: z.number(),

@@ -142,6 +142,19 @@ export function SaturationPanel({
   );
 }
 
+/**
+ * O 4xx por rota — ou "—" enquanto a API no ar não o manda.
+ *
+ * `clientErrorRate` por rota entrou na Fase 7c, e o preview da `dev` lê a
+ * API de **produção**, que só o ganha na promoção (armadilha 37 do plano).
+ * O contrato diz que o campo existe; a versão que ainda não está no ar não
+ * o tem. Desenhar "—" sobre a ausência é o que impede um `NaN%` na tabela.
+ */
+function clientErrorCell(route: HttpMetrics['routes'][number], locale: string): string {
+  const legacy = route as Partial<Pick<HttpMetrics['routes'][number], 'clientErrorRate'>>;
+  return legacy.clientErrorRate === undefined ? '—' : formatRate(legacy.clientErrorRate, locale);
+}
+
 function RoutesTable({ routes }: { routes: HttpMetrics['routes'] }) {
   const t = useTranslations('dashboard');
   const locale = toDateFormatLocale(useLocale());
@@ -161,6 +174,7 @@ function RoutesTable({ routes }: { routes: HttpMetrics['routes'] }) {
             <th scope='col' className='px-3 py-2 text-right font-medium'>{t('signals.colAvg')}</th>
             <th scope='col' className='px-3 py-2 text-right font-medium'>{t('signals.colMax')}</th>
             <th scope='col' className='px-3 py-2 text-right font-medium'>{t('signals.colErrorRate')}</th>
+            <th scope='col' className='px-3 py-2 text-right font-medium'>{t('signals.colClientErrorRate')}</th>
           </tr>
         </thead>
         <tbody className='divide-y divide-border'>
@@ -172,6 +186,8 @@ function RoutesTable({ routes }: { routes: HttpMetrics['routes'] }) {
               <td className='px-3 py-2 text-right tabular-nums text-ink-secondary'>{formatMilliseconds(route.avgMs, locale)}</td>
               <td className='px-3 py-2 text-right tabular-nums text-ink-secondary'>{formatMilliseconds(route.maxMs, locale)}</td>
               <td className='px-3 py-2 text-right tabular-nums text-ink-secondary'>{formatRate(route.errorRate, locale)}</td>
+              {/* O 4xx por rota é onde o 429 das duas portas anônimas aparece (Fase 7c). */}
+              <td className='px-3 py-2 text-right tabular-nums text-ink-secondary'>{clientErrorCell(route, locale)}</td>
             </tr>
           ))}
         </tbody>

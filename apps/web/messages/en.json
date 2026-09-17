@@ -352,7 +352,8 @@
       "colP95": "p95",
       "colAvg": "avg",
       "colMax": "max",
-      "colErrorRate": "error"
+      "colErrorRate": "error",
+      "colClientErrorRate": "4xx"
     },
     "sources": {
       "title": "Sources",

@@ -115,6 +115,13 @@ const MATRIX: Row[] = [
     access: 'public',
     payload: { events: [] },
   },
+  // A segunda porta anônima (Fase 7c): o relato de um error boundary do web.
+  // Sem sessão pelo mesmo motivo, e com o próprio balde de 10/min.
+  {
+    route: 'POST /api/errors/client',
+    access: 'public',
+    payload: { message: 'boom', path: '/pt-BR' },
+  },
 
   { route: 'POST /api/auth/upsert', access: 'auth-upsert', payload: { email: 'a@b.com' } },
 

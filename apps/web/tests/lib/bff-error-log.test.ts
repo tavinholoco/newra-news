@@ -648,6 +648,27 @@ describe('a fiação: os três catch chamam o logger de verdade', () => {
     expect(lines()[0]?.scope).toBe('bff.events');
   });
 
+  it('logs the client-error relay 502 — the route whose silence would look like "nothing broke"', async () => {
+    // Fase 7c: o repasse do relato de um error boundary. Se este `catch`
+    // ficasse mudo, a ingestão podia estar quebrada por dias e o único sintoma
+    // seria a aba de segurança sem nenhuma linha de `origin: WEB` — a mesma
+    // forma do sinal mais lento do produto, agora sobre erro em vez de métrica.
+    const { POST } = await import('@/app/api/errors/client/route');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
+    const res = await POST(
+      new Request('http://localhost:3000/api/errors/client', {
+        method: 'POST',
+        body: '{"message":"boom","path":"/pt-BR"}',
+      }),
+    );
+
+    expect(res.status).toBe(502);
+    expect(lines()[0]?.scope).toBe('bff.errors.client');
+    // Nada do corpo na linha: é texto do navegador.
+    expect(JSON.stringify(lines()[0])).not.toContain('boom');
+  });
+
   it('logs the pipeline trigger 500 with `warmed`, the field that separates two causes', async () => {
     /**
      * O briefing de 01/09/2026 sumiu e o único sinal foi a ausência dele. O

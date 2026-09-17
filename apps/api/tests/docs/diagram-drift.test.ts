@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { webPageRoutes } from '../helpers/web-routes';
 
 /**
  * A guarda contra o diagrama que descreve um sistema que já mudou.
@@ -104,25 +105,13 @@ function atributosDoDiagrama(): Map<string, string[]> {
   return atributos;
 }
 
-/** Toda `page.tsx` sob `app/[locale]`, como rota: `/`, `/news/[id]`, … */
-function rotasDoApp(): string[] {
-  const base = path.join(RAIZ, 'apps/web/app/[locale]');
-  const paginas: string[] = [];
-
-  const varrer = (dir: string): void => {
-    for (const entrada of readdirSync(dir)) {
-      const completo = path.join(dir, entrada);
-      if (statSync(completo).isDirectory()) varrer(completo);
-      else if (entrada === 'page.tsx') paginas.push(completo);
-    }
-  };
-  varrer(base);
-
-  return paginas
-    .map((arquivo) => path.relative(base, arquivo).replace(/\\/g, '/').replace(/\/?page\.tsx$/, ''))
-    .map((rota) => `/${rota}`)
-    .sort();
-}
+/**
+ * Toda `page.tsx` sob `app/[locale]`, como rota: `/`, `/news/[id]`, …
+ *
+ * Desde a Fase 7c mora em `helpers/web-routes.ts`: o normalizador de rota do
+ * erro do cliente (`utils/web-route.ts`) tem guarda sobre a mesma superfície.
+ */
+const rotasDoApp = webPageRoutes;
 
 /**
  * As etapas que o pipeline **anuncia** — o segundo argumento de

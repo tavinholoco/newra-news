@@ -352,7 +352,8 @@
       "colP95": "p95",
       "colAvg": "média",
       "colMax": "máx.",
-      "colErrorRate": "erro"
+      "colErrorRate": "erro",
+      "colClientErrorRate": "4xx"
     },
     "sources": {
       "title": "Fontes",
