@@ -335,6 +335,27 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Verificação pós-merge da 7c (2026-09-17): o fluxo anônimo que nenhum
+  diagrama desenhava, e o `<script>` que não executa.** Item **78**. Quatro
+  enumerações sobre a árvore mergeada (`d38fb5e`, #211): quem lê `origin` e
+  `route` do `ErrorEvent` (crus, sem mapa), a prosa do "única" (nenhuma
+  sobrou), contagens de rota (nenhuma), e os diagramas — **os dois com o BFF
+  diziam "assina um JWT por requisição" e o fluxo anônimo (analytics e
+  relato de erro) nunca foi desenhado**; rótulos e aresta corrigidos, os
+  seis parseiam pelo parser do Mermaid em Node. Gitleaks `0 commits`, nona.
+  **O terreno da 7b está no fim da §11 ("Inventário da 7b, reconferido
+  depois da 7c"), e corrige o inventário de 16/09 num ponto:** o
+  `<ThemeInit />` copiado para o `global-error.tsx` **não executa** — o
+  React DOM cria `<script>` de client component via `innerHTML` de
+  propósito (armadilha 40); tema em boundary raiz é `useEffect` +
+  `applyStoredTheme()`. Mais: o `<main>` do layout de idioma não dá
+  contêiner (só o `error.tsx` de admin duplica a casca), os quatro
+  `error.tsx` são o mesmo componente, o `message` de erro de servidor é a
+  frase genérica do Next (261 chars — o `digest` é a identidade), o idioma
+  da string fixa sai do pathname, e o ensaio real vai por `page.route`
+  devolvendo `routes: null` na aba de métricas. Branch
+  `observability/fase-7b-error-boundaries`, cortada de `d38fb5e`.
+
 - **Fora da linha das fases (2026-09-16): a Fase 7c fechou na `dev` — o
   caminho de ingestão do erro do cliente, a segunda porta anônima.** §11.3,
   item **77**. `origin: WEB` estava no enum do `ErrorEvent` desde a Fase 4

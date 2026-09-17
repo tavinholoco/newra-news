@@ -35,13 +35,14 @@ flowchart LR
     end
 
     API["Fastify API"]
-    BFF["BFF — app/api/*<br/>getServerSession + assina o JWT da requisição"]
+    BFF["BFF — app/api/*<br/>getServerSession + assina o JWT da requisição<br/>/api/events e /api/errors/client: anônimas, sem JWT"]
 
     MW --> Leitura
     MW --> Conta
     MW --> Admin
 
     Leitura -->|"prefetch no servidor<br/>ISR mantém a última página boa no ar"| API
+    Leitura -.->|"analytics por sendBeacon · relato de erro<br/>same-origin, sem sessão"| BFF
     Conta -->|"casca estática, dado no cliente"| BFF
     Admin -->|"casca estática, dado no cliente"| BFF
     BFF -->|"Bearer JWT · o papel só é assinado<br/>quando a rota o exige"| API

@@ -7816,6 +7816,80 @@ A captura (duas abas, 375 e 1440, claro e escuro) não achou defeito visual
 **1.252 → 1.295 na API (84 → 88 suítes), 829 → 840 no web (81 → 82).**
 Branch `observability/fase-7c-client-error-ingest`, base `dev`.
 
+### 78. A verificação pós-merge da 7c: o fluxo anônimo que nenhum diagrama desenhava, e o `<script>` que não executa ✅ 2026-09-17
+
+> Sobre a árvore mergeada (`d38fb5e`, #211 — mergeado às 00:26 UTC, os oito
+> checks verdes), a pergunta dos itens 39, 52, 57, 61, 63, 65, 68, 70, 74 e
+> 76 — *o que ficou de fora?* — por quatro enumerações: **quem lê `origin` e
+> `route` do `ErrorEvent`** (a tabela de falhas imprime os dois crus; o
+> `/dev/dashboard` não imprime métricas de HTTP), **onde a prosa dizia
+> "única"** sobre a porta anônima (nenhuma frase restante), **contagens de
+> rota em prosa** (nenhuma), e **o que os diagramas desenham do BFF**.
+
+**O que foi conferido e está em ordem:** `dev..main` = 0, 62 à frente; a
+tabela de falhas não tem mapa de rótulo para `origin` nem `code`, então
+`WEB`/`CLIENT_ERROR` saem como vieram; `byOrigin` já tinha a fatia `WEB`
+fixa desde o 5b (a captura da fase mostrou "WEB 9"); a `docs/api.md` e o
+`HttpRouteMetrics` já dizem o `route` em quatro formas e o 4xx por rota.
+
+#### O que ficou de fora, e entrou aqui
+
+- **Os dois diagramas com o BFF diziam "assina um JWT por requisição", e o
+  fluxo anônimo nunca foi desenhado** — nem o `sendBeacon` do analytics (V2
+  Fase 8), nem o relato de erro. Deriva anterior à 7c, que a 7c dobrou. Os
+  rótulos nomeiam as duas exceções e entrou a aresta tracejada
+  `Leitura -.-> BFF` ("anônimas, sem JWT") em `system-architecture` e
+  `frontend-routes`. O `diagram-drift` compara conjuntos derivados (páginas,
+  models, etapas) e não alcança rótulo de nó — prosa dentro de diagrama.
+  **Os seis parseiam**, medido pelo parser do próprio Mermaid em Node com
+  jsdom (diretório de rascunho fora do repositório: `mermaid@11` + `jsdom`;
+  `globalThis.navigator` é só leitura e não se sobrescreve).
+- **Gitleaks em `0 commits scanned` no push do merge — nona medição.**
+
+**Nenhum defeito de código.** O rendimento do pós-merge foi o terreno da 7b,
+medido contra a árvore mergeada, e **uma armadilha que o inventário de 16/09
+tinha escrito ao contrário**:
+
+- **`<ThemeInit />` copiado para o `global-error.tsx` não aplicaria o
+  tema** — e a asserção-irmã que o inventário mandava copiar
+  (`toContain('<ThemeInit />')`) passaria verde sobre uma tela de crash
+  branca no tema escuro. O `ThemeInit` é `<script>` inline; no
+  `not-found.tsx` (server component) o navegador o executa ao parsear o
+  HTML. O `global-error.tsx` é client component, e o React DOM cria
+  `<script>` via `innerHTML` **de propósito para não executar**
+  (`react-dom@18.3.1`, `react-dom.development.js:9766`). Saída: um
+  `applyStoredTheme()` **leitor** em `lib/theme.ts`, num `useEffect`, com a
+  guarda sobre a chamada. **Armadilha 40.**
+- **O `<main>` do layout de idioma é só `flex-1`** — não dá contêiner; quem
+  dá `container-editorial` é o `admin/layout.tsx`. Só o `error.tsx` de
+  `admin/metrics` duplica a casca (armadilha 11 literal); os outros três
+  precisam de contêiner próprio, e o certo é o `container-editorial` da V2,
+  não o `max-w-7xl` da V1 que os quatro carregam (os dois `loading.tsx` com
+  o mesmo contêiner ficam para a 13).
+- **Os quatro `error.tsx` são o mesmo componente** (26 linhas, só as chaves
+  mudam) — a 7b extrai uma casca e mantém os `t('…')` literais em cada
+  arquivo, senão o `i18n-messages` os lê como órfãos.
+- **`error.message` de um erro de servidor é a frase genérica do Next** —
+  261 caracteres, medida no `app-page.runtime.prod.js` do `next@14.2.35`;
+  cabe no teto e não identifica nada. O `digest` é a identidade.
+- **O idioma da string fixa sai do pathname** (`localePrefix: 'always'`),
+  não do `document.documentElement.lang` — que no render é o `<html>` que
+  está sendo substituído.
+- **O `bff-seam` exige `signal` em todo `fetch`**; o reporter com
+  `keepalive` é o segundo caso legítimo (o primeiro é o analytics), e entra
+  em `WITHOUT_TIMEOUT` com o motivo.
+- **Como ensaiar um boundary real sem `throw` no produto:** `page.route` no
+  `admin:capture` devolvendo `routes: null` em `/api/admin/http-metrics` faz
+  o `GoldenSignals` lançar no render → `admin/metrics/error.tsx` → reporter
+  → `/api/errors/client` (não interceptado) → a linha
+  `WEB:ERROR:CLIENT_ERROR:/[locale]/admin/metrics` na `/admin/security`.
+
+Detalhe em "Inventário da 7b, reconferido depois da 7c", no fim da §11 do
+plano. Branch `observability/fase-7b-error-boundaries`, cortada de
+`d38fb5e`.
+
+**1.295 na API, 840 no web** — sem teste novo: dois diagramas e prosa.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
