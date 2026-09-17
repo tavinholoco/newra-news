@@ -53,6 +53,11 @@ const SRC_DIR = join(__dirname, '../../src');
 const WITHOUT_SHARED_TYPE: Record<string, string> = {
   removeFavoriteResponseSchema: 'booleano de confirmação, declarado inline no web',
   unsubscribeResponseSchema: 'booleano de confirmação, declarado inline no web',
+  // O reporter do web (Fase 7b) é fire-and-forget com `keepalive` e nunca lê
+  // o corpo — dentro de um error boundary, ler a resposta é uma segunda chance
+  // de falhar. O **corpo da requisição** tem contrato (`ClientErrorReport`,
+  // asserido em `routes/errors/schemas.ts`); a resposta não tem leitor.
+  clientErrorAcceptedSchema: 'booleano de aceite (202); o reporter do cliente não lê a resposta',
   sendNewsletterResponseSchema: 'disparo de job, sem consumidor no web',
   jobTriggerResponseSchema: 'disparo de job, sem consumidor no web',
   renormalizeResponseSchema: 'disparo de job, sem consumidor no web',
@@ -136,8 +141,14 @@ function collectSuccessResponseSchemas(): string[] {
     .filter((file) => !file.endsWith('schemas.ts'))
     .flatMap((file) => responseBlocks(stripComments(readFileSync(file, 'utf8'))))
     .flatMap((block) =>
-      [...block.matchAll(/\b(?:200|201|204)\s*:\s*([A-Za-z_$][\w$]*)/g)].map(
-        (match) => match[1] as string,
+      // **Todo `2xx`, e não uma lista de três.** A primeira versão varria
+      // `200|201|204`, e o `202` do `POST /api/errors/client` (Fase 7c)
+      // passou por ela sem uma linha vermelha — uma rota nova com resposta
+      // de sucesso fora da lista nascia sem contrato e sem ninguém perceber,
+      // que é exatamente o buraco que esta suíte existe para fechar. Status
+      // de sucesso é a classe, não três números.
+      [...block.matchAll(/\b(2\d\d)\s*:\s*([A-Za-z_$][\w$]*)/g)].map(
+        (match) => match[2] as string,
       ),
     );
 

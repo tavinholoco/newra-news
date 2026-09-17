@@ -55,6 +55,11 @@
   `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
   lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
+- POST /api/errors/client — o relato de um error boundary do web (**pública e
+  anônima**, rate limit 10/min — um balde só para o site, decidido). Vira
+  uma linha de `ErrorEvent` com `origin: WEB` e o **padrão da página** no
+  `route`; responde **202**. Ver "O erro do cliente" abaixo. Fase 7c do
+  plano de observabilidade
 - GET /api/admin/pipeline/runs — **admin (JWT + role ADMIN)**: os últimos runs
   do pipeline + os que falharam, com os mesmos filtros do `/api/dev/logs`
   (`status`, `since`, `limit`). **Mesma consulta e mesmo schema** — o que muda é
@@ -654,9 +659,11 @@ Regras que não são óbvias no código:
 - **`code` e `category` são texto no banco**, e o conjunto fechado mora em
   `utils/errors.ts`. Enum do Postgres cobraria uma migration por código novo, e
   cada fase seguinte do plano acrescenta pelo menos um.
-- **`origin: WEB` ainda não tem produtor** — é das Fases 7b/7c. `INVARIANT`
-  ganhou o seu na Fase 6: `INVARIANT_VIOLATED`, com o id da invariante no
-  `route`. O enum descreve o desenho; a coluna aceita o que existe hoje.
+- **`origin: WEB` ganhou o seu produtor na Fase 7c** — `CLIENT_ERROR`, um
+  código só, com o **padrão da página** (`/[locale]/news/[id]`) no `route`;
+  ver "O erro do cliente", abaixo. `INVARIANT` ganhou o seu na Fase 6:
+  `INVARIANT_VIOLATED`, com o id da invariante no `route`. As quatro origens
+  do enum escrevem, e o `route` tem quatro formas — todas de conjunto finito.
 - **O `WARN` que não degrada não vira `ErrorEvent`** (pós-merge da Fase 8):
   `recordPipelineEvent` pergunta a `isDegradingWarn` antes de gravar, então o
   aviso da etapa 1 só com `feed-empty` fica no `PipelineEvent` e fora da
@@ -702,6 +709,12 @@ Regras que não são óbvias no código:
   saúde e seria ausência de amostra.
 - **A chave é o padrão da rota** (`GET /api/news/:id`), nunca a URL. URL crua
   seria uma linha por notícia e um mapa sem teto.
+- **O 4xx sai por rota desde a Fase 7c** (`clientErrorRate` em cada linha de
+  `routes`). O contador existia desde a Fase 9 e nunca saía do processo — só
+  o global era servido —, então o gatilho escrito das duas portas anônimas
+  ("429 em `POST /api/events` dentro desta rota") não era atribuível: um 429
+  ali era indistinguível de um 404 em `/news`. Medido ao escrever a 7c, com
+  teste que enche o balde e lê o snapshot.
 - **Os percentis vêm de histograma**, então são o **teto do balde** em que o
   percentil cai. O `max` é o valor real, e é ele que denuncia o cold start.
 - **O `x-request-id` de quem chama é respeitado**, o que permite seguir uma
@@ -922,6 +935,74 @@ Regras que não são óbvias no código:
   fontes — e aí é o seed que se ajusta: sete dias de briefing com três fontes
   cada, e o evento da 9.5 em todo run semeado.
 
+## O erro do cliente (Fase 7c do plano de observabilidade)
+
+`POST /api/errors/client`, `services/client-error.service.ts` e
+`utils/web-route.ts`. Fecha: um crash de render no web mostrava "algo deu
+errado", descartava o `digest` que localizaria o stack do servidor, e não era
+contado em lugar nenhum — `origin: WEB` estava no enum desde a Fase 4 sem
+ninguém escrever nele. Quem chama é o reporter dos error boundaries (Fase 7b),
+pelo BFF anônimo `app/api/errors/client/route.ts`.
+
+| Peça | Papel |
+|---|---|
+| `routes/errors/schemas.ts` | o corpo (`ClientErrorReport`, com `assertContract`) e o `202 { accepted: true }` |
+| `routes/errors/index.ts` | a porta: 10/min, sem sessão, `recordClientError(body, request.id)` |
+| `services/client-error.service.ts` | o relato vira `recordError` com `origin: WEB`, `CLIENT_ERROR`, o padrão da página no `route`, `digest` e `path` no `context` |
+| `utils/web-route.ts` | `WEB_ROUTE_PATTERNS` (o `app/[locale]` do web, digitado aqui com guarda derivada da árvore) e `webRoutePatternOf` |
+
+Regras que não são óbvias no código:
+
+- **Endpoint dedicado, não um 15º evento de produto.** O `/api/events` tem
+  catálogo guardado e um balde já insuficiente; relato de falha competindo
+  com pageview pelo mesmo limite é a armadilha 10 do §17. E o `track()` é
+  fire-and-forget sem retorno — certo para analytics, errado para erro, onde
+  se quer ver o 429.
+- **O `route` é o padrão da página, e a API é quem normaliza.** Um client
+  component só tem `window.location.pathname` (uma linha por notícia), e o
+  App Router não expõe o padrão casado. `webRoutePatternOf` troca o idioma
+  por `[locale]`, UUID por `[id]` e `YYYY-MM-DD` por `[date]`, e pergunta ao
+  conjunto; o que não casa vai para o **mesmo `unmatched`** do
+  `routePatternOf` (importado — a guarda de literal solto reprova a cópia).
+  A lista é digitada na API porque produção não tem os arquivos do web; o
+  que a impede de apodrecer é `tests/utils/web-route.test.ts`, que lê toda
+  `page.tsx` e cobra igualdade nas duas direções.
+- **Um código só (`CLIENT_ERROR`), `severity: ERROR`, `category: internal`.**
+  Dois erros distintos na mesma página colapsam numa linha por hora, com a
+  mensagem do primeiro — o teto vale mais que a distinção, e a tabela de
+  falhas tem busca. `digest` e o `path` cru vão no `context`: são
+  diagnóstico, não identidade. O `requestId` é o da **ingestão**, não o da
+  requisição que falhou; a correlação com o log do servidor é o `digest`.
+- **O balde de 10/min é um só para o site inteiro, e é decisão.** O BFF é
+  anônimo e não repassa o IP do leitor. A alternativa (o BFF escrever
+  `x-forwarded-for`) mudaria a semântica do `trustProxy: 1` e foi recusada:
+  o décimo primeiro leitor a tropeçar na mesma tela no mesmo minuto recebe
+  429, mas o erro que dez viram já está na tabela. **Gatilho:** 429 nesta
+  rota no `clientErrorRate` por rota de `GET /api/metrics/http` — que passou
+  a existir nesta fase, porque antes o 4xx por rota não saía do processo.
+- **`202`, e o corpo é `{ accepted: true }`.** O relato entra no **buffer**
+  do `ErrorEvent` e vai ao banco no flush de 30 s; `201` mentiria. Ninguém lê
+  este corpo (o reporter é fire-and-forget), então ele está na lista de
+  exceções do `shared-type-contract` — e **aquela guarda só varria
+  `200|201|204`**: o `202` passou por ela sem uma linha vermelha até a
+  varredura virar `2\d\d`. Status de sucesso é a classe, não três números.
+- **O amplificador de escrita tem três defesas, todas medidas juntas** em
+  `tests/security/client-error-ingest.test.ts`: dez relatos distintos da
+  mesma página são **uma** entrada com `count: 10` (o coalescimento da Fase
+  4), o décimo primeiro é 429 com o buffer intacto (o balde), e `z.object`
+  descarta o que o schema não declara (`userId`, `email`, um stack). O
+  `scrubMessage` do `recordError` é quem limita o **conteúdo** da mensagem —
+  ela é texto do navegador.
+- **O balde é real no `inject`.** A suíte de rota esbarrou nele na décima
+  primeira requisição; cada chamada dela sai de um `x-forwarded-for` próprio
+  (`trustProxy: 1` o lê), e o teto tem o próprio teste.
+- **A costura com o BFF lê o `fetch` cru desde esta fase.** As duas rotas
+  anônimas do web não passam por `proxyToApi`, e o `bff-route-seam` só
+  enumerava aquele — um `/errors/clientt` passaria nos dois CIs. Hoje a
+  forma ``fetch(`${API_BASE_URL}/…`)`` entra com o `method` do objeto de
+  opções; o que aponta para uma variável de ambiente inteira (o
+  `BACKEND_JOB_URL` do cron) fica de fora com o motivo escrito.
+
 ## As guardas que enumeram a superfície
 
 Três testes desta fase seguem o mesmo formato, e é o formato que impede buraco
@@ -933,7 +1014,8 @@ novo: **enumeram a superfície e exigem decisão para cada item.**
 | `tests/routes/response-schema-contract.test.ts` | as colunas do Prisma | campo no schema de resposta, ou motivo escrito |
 | `tests/security/authorization-matrix.test.ts` | as rotas do roteador | linha na matriz de autorização |
 | `tests/docs/retention-drift.test.ts` | as retenções da etapa 8 (constantes) | o número certo em cada frase que o repete |
-| `tests/security/bff-route-seam.test.ts` | os `proxyToApi` do BFF do web (pelo parser: caminho como padrão + método) | uma rota registrada para cada um — a costura que faltava, achada no pós-merge do 5c |
+| `tests/security/bff-route-seam.test.ts` | os `proxyToApi` **e os `fetch` crus para `${API_BASE_URL}`** do BFF do web (pelo parser: caminho como padrão + método) | uma rota registrada para cada um — a costura que faltava, achada no pós-merge do 5c; as duas portas anônimas entraram na Fase 7c |
+| `tests/utils/web-route.test.ts` | as `page.tsx` de `apps/web/app/[locale]` (`helpers/web-routes.ts`, o mesmo helper do `diagram-drift`) | um padrão em `WEB_ROUTE_PATTERNS` para cada página, e nenhum a mais — o conjunto de saída do normalizador do erro do cliente (Fase 7c) |
 
 **Cada uma tem uma asserção que segura as outras**: um parser que devolvesse
 lista vazia faria a guarda passar para sempre, então há um teste afirmando que a

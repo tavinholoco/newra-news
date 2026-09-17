@@ -119,14 +119,27 @@ export const AUDIT_WRITE_FAILED_CODE = 'AUDIT_WRITE_FAILED';
 export const INVARIANT_VIOLATED_CODE = 'INVARIANT_VIOLATED';
 
 /**
+ * Um error boundary do web relatou um crash de render (Fase 7c, §11.3 do
+ * plano) — o **único** código de `origin: WEB`, e o primeiro produtor dele.
+ *
+ * Um só de propósito: o `route` do fingerprint já é o padrão da página
+ * (`/[locale]/news/[id]`), e o que distingue duas falhas na mesma página é o
+ * `message` da primeira da hora mais o `digest` no `context`. Um código por
+ * tipo de erro do navegador seria cardinalidade escolhida pelo cliente, que é
+ * justamente o que o teto da tabela não pode ter. Mora aqui pelo mesmo
+ * motivo dos dois acima: `client-error.service.ts` importa `recordError`.
+ */
+export const CLIENT_ERROR_CODE = 'CLIENT_ERROR';
+
+/**
  * **Todo código que pode chegar à tabela, como tipo.** É o teto do fingerprint
- * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as cinco
+ * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as seis
  * constantes deste arquivo. Um `code: \`stage-${n}\`` deixa de compilar, e um
  * `code: algumaString` também. A guarda pelo parser em
  * `tests/services/error-event.test.ts` continua, porque enumera os call sites
  * — mas o teto em si passou a ser garantido em tempo de compilação.
  *
- * `origin: WEB` acrescenta os seus aqui quando nascer (Fases 7b/7c); o de
+ * `origin: WEB` entrou na Fase 7c com um código só (`CLIENT_ERROR`); o de
  * `INVARIANT` entrou na Fase 6. A união é o lugar onde a decisão fica visível.
  */
 export type RecordedErrorCode =
@@ -135,7 +148,8 @@ export type RecordedErrorCode =
   | typeof PIPELINE_FAILED_CODE
   | typeof PIPELINE_DEGRADED_CODE
   | typeof AUDIT_WRITE_FAILED_CODE
-  | typeof INVARIANT_VIOLATED_CODE;
+  | typeof INVARIANT_VIOLATED_CODE
+  | typeof CLIENT_ERROR_CODE;
 
 export interface RecordErrorInput {
   origin: ErrorOrigin;

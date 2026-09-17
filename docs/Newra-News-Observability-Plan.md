@@ -1714,7 +1714,7 @@ para produção.
 boundary**, que é falha dupla e não renderiza nada. Resolver com string neutra
 fixa, ou escolhendo por `document.documentElement.lang`.
 
-### §11.3 — O caminho de ingestão
+### §11.3 — O caminho de ingestão ✅ 2026-09-16 (7c)
 
 `POST /api/errors/client`, **endpoint dedicado e não um 15º tipo de evento de
 produto**. O `/api/events` é medição de produto anônima de propósito, com
@@ -1856,6 +1856,101 @@ não levar dentro de um lote.
 `1152ca0`. O passo 1 do ritual a realinha depois de o pós-merge da 6 mergear
 — conferir com `git merge-base --is-ancestor` que #209 **e** o PR do pós-merge
 estão na `dev`, e `rev-list --count origin/dev..origin/main` = 0.
+
+### O que o PR decidiu — 16/09/2026 (7c ✅)
+
+Sobre a `dev` em `5881727` (#210 mergeado; a branch foi realinhada pelo
+passo 1 do ritual, porque a remota estava em `1152ca0`). **API + BFF, sem
+migration, sem env nova, sem página nova** — o inventário acima acertou o
+desenho inteiro; o que a implementação acrescentou foi o que ela mediu.
+
+**O que entrou, e as decisões que não estavam escritas:**
+
+- **O corpo tem tipo compartilhado; a resposta, não.** `ClientErrorReport`
+  em `packages/types/src/observability.ts` com os dois tetos
+  (`CLIENT_ERROR_MESSAGE_MAX_LENGTH = 300`, `CLIENT_ERROR_DIGEST_MAX_LENGTH =
+  64`) — é o que o reporter da 7b escreve, e o `assertContract` ao lado do
+  schema o cobra. O `path` exige pathname (`^\/[^?#]*$`, até 512): sem
+  query, como o `/api/events`, e sem fragmento, que nunca chega a um
+  servidor por caminho honesto. A resposta é **`202 { accepted: true }`**, e
+  não o `{ recorded: true }` do inventário: o relato entra no **buffer** do
+  `ErrorEvent` e vai ao banco no flush de 30 s — `201` mentiria, e
+  "recorded" também. Ninguém lê o corpo (o reporter é fire-and-forget), então
+  ele entrou em `WITHOUT_SHARED_TYPE` com o motivo.
+- **O `shared-type-contract` só varria `200|201|204`, e o `202` passou por
+  ele sem uma linha vermelha.** Foi visto ao rodar as três guardas de rota
+  nova: duas reprovaram (matriz, `docs/api.md`) e a terceira ficou verde
+  sobre uma resposta de sucesso sem contrato — o buraco que ela existe para
+  fechar. A varredura virou `2\d\d`, e aí reprovou. Armadilha **38**.
+- **O normalizador mora em `utils/web-route.ts`, ao lado do
+  `request-route.ts`**: `WEB_ROUTE_PATTERNS` (o `app/[locale]` do web, com o
+  prefixo `[locale]`) e `webRoutePatternOf`, que troca o idioma por forma
+  (`^[a-z]{2}(-[A-Z]{2})?$` — a lista de idiomas mora no web e não é copiada),
+  UUID por `[id]`, data por `[date]`, e pergunta ao conjunto. O que não casa
+  vai para o `UNMATCHED_ROUTE` **importado** (a guarda de literal solto
+  reprova a cópia). A guarda `tests/utils/web-route.test.ts` deriva o
+  conjunto de toda `page.tsx` pelo **mesmo helper que o `diagram-drift`
+  passou a usar** (`tests/helpers/web-routes.ts`, extraído dele) — um
+  segundo parser da mesma superfície seria um segundo lugar para quebrar em
+  silêncio. Vista reprovando com `/[locale]/signin` removido.
+- **`CLIENT_ERROR_CODE = 'CLIENT_ERROR'` mora em `error-event.service.ts`**,
+  pelo mesmo motivo das outras constantes: `client-error.service.ts` importa
+  `recordError`, e o tipo da união precisa da constante. `severity: ERROR`,
+  `category: internal`, `statusCode: null`, `requestId` da ingestão,
+  `context: { digest: digest ?? null, path }` — `null` explícito para "não
+  havia digest" não sumir do JSON.
+- **O balde de 10/min foi aceito como balde único, e o teste mede o
+  décimo primeiro.** A suíte de rota esbarrou nele na décima primeira
+  requisição (o rate limit é real no `inject`); cada chamada dela passou a
+  sair de um `x-forwarded-for` próprio, e o teto ganhou o teste que faltava:
+  dez relatos distintos da mesma página são **uma** entrada com `count: 10`,
+  o décimo primeiro é 429 com o buffer intacto.
+- **O gatilho "429 dentro de `GET /api/metrics/http`" não era observável por
+  rota — para esta porta nem para o `/api/events`, que o escreve desde a
+  Fase 9.** O `RouteStats` contava `clientErrors` por rota e o snapshot só
+  servia o `clientErrorRate` **global**: um 429 no `/api/events` era
+  indistinguível de um 404 em `/news`. Entrou `clientErrorRate` por rota no
+  snapshot, no schema e no `HttpRouteMetrics`, com a coluna **"4xx"** na
+  tabela de latência por rota da `/admin/metrics` — desenhando "—" quando a
+  API no ar ainda não manda o campo (armadilha 37, sobre a forma antiga com
+  teste). E o teste do teto lê o snapshot depois do 429: a resposta do rate
+  limiter, enviada de um `onRequest`, **passa** pelo `onResponse` — medido,
+  não assumido. Armadilha **39**.
+- **A costura lê o `fetch` cru.** `bff-route-seam` ganhou `anonymousPatternOf`
+  (cabeça vazia + `${API_BASE_URL}` como primeiro span; `method` do objeto
+  de opções, `GET` por omissão) e uma asserção que **nomeia** as duas portas
+  anônimas — lista vazia não aprova. Vista reprovando em `/errors/clientt`
+  nas duas asserções (a que nomeia e a dos órfãos). O `BACKEND_JOB_URL` do
+  cron fica de fora com o motivo: o caminho não está no arquivo.
+- **O smoke ganhou o gêmeo do teste de anonimato do `/api/events`, com corpo
+  vazio de propósito**: um relato válido gravaria uma falha falsa na tabela
+  de produção a cada push na `main`. O 400 do schema é o que prova que a
+  porta está aberta sem sessão.
+- **Ensaio local, de ponta a ponta, antes da captura:** três relatos válidos
+  pelo BFF (202), um com query string (400 com a mensagem do schema), um com
+  caminho que não é página (202, `unmatched`), e o balde estourando no
+  décimo primeiro **através do BFF**, com o corpo da API. Depois do flush, a
+  `/admin/security` mostrou as três linhas de `origin: WEB` —
+  `/[locale]/article/[date]` com 5, `/[locale]/news/[id]` com 3 e a mensagem
+  da primeira, `unmatched` com 1 — e a `/admin/metrics` a coluna "4xx" com
+  30,77 % em `POST /api/errors/client`. A captura (`admin-metrics`,
+  `admin-security`, 375 e 1440, claro e escuro) não achou defeito visual: a
+  sétima coluna entra na rolagem horizontal que a tabela já tinha em 375.
+
+**Custo em guarda, medido:** `web-route.test.ts` (o conjunto derivado),
+`client-error.service.test.ts`, `errors-client.test.ts`, `client-error-ingest.test.ts`
+(anonimato + teto + o gatilho observável), a extensão do `bff-route-seam`, a
+linha na `MATRIX`, a seção na `docs/api.md`, a exceção no
+`shared-type-contract` (e a varredura `2\d\d`), o `code` na união. No web:
+`client-error-api.test.ts`, a fiação em `bff-error-log`, a coluna e a forma
+antiga em `api-health.test.tsx`, a chave nos dois JSONs. **1.252 → 1.295 na
+API (84 → 88 suítes), 829 → 840 no web (81 → 82).**
+
+**Depois da 7c: a 7b** (os quatro `error.tsx` desestruturando `error`, o
+`digest` em texto pequeno, `lib/report-client-error.ts` reportando **uma vez
+por montagem** para `/api/errors/client` com `keepalive`, e o
+`global-error.tsx` com o `not-found.tsx` de modelo) — o inventário acima já
+tem o terreno dela. E então a promoção.
 
 ---
 
@@ -3062,6 +3157,23 @@ Não-objetivos declarados como número, nunca como item de lista.
     **lê** preenche na fronteira (`withOutcome` em `lib/api.ts`) ou desenha
     "indisponível" sobre a ausência; rota nova já vem coberta pelo `catch`
     do `proxyToApi` (404 → "não foi possível carregar").
+38. **Guarda que enumera "status de sucesso" como lista de três números.** O
+    `shared-type-contract` varria `200|201|204`, e o `202` do
+    `POST /api/errors/client` (7c) passou por ele **verde** — uma rota nova
+    com resposta de sucesso nascia sem contrato, que é o buraco que a suíte
+    existe para fechar. Só apareceu porque as três guardas de rota nova foram
+    rodadas juntas e uma delas não reprovou. Status de sucesso é a **classe**
+    (`2\d\d`), não os três valores que alguém lembrou de usar. Oitava
+    ocorrência da família "a guarda vê caractere, não intenção".
+39. **Gatilho escrito como "observável sem instrumentação nova" que ninguém
+    mediu.** "429 em `POST /api/events` dentro de `GET /api/metrics/http`"
+    estava escrito desde a Fase 9 — no `CLAUDE.md`, na rota, neste plano — e
+    o snapshot **não servia o 4xx por rota**: o contador existia no
+    `RouteStats` e só o `clientErrorRate` global saía, então um 429 ali era
+    indistinguível de um 404 em `/news`. Um gatilho que aponta para um campo
+    se confere **lendo o campo**, não a frase; e a 7c herdou a mesma frase
+    para a segunda porta anônima e teria repetido o erro. Hoje o teste do
+    teto enche o balde e lê o snapshot.
 
 ---
 
@@ -3083,7 +3195,11 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`code` novo, ou subclasse nova de `AppError`** | `error-taxonomy.test.ts` (Fase 3) — literal do tuple, e nenhum código sem quem o lance; a família é derivada do arquivo, então a subclasse entra na varredura sozinha |
 | **Retenção nova na etapa 8, ou número de retenção alterado** | `retention-drift.test.ts` (Fase 5) — a prosa dos dois diagramas, dos dois `CLAUDE.md` e dos dois READMEs contra as constantes dos services, nas duas direções |
 | **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
-| **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); e `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke |
+| **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` **e, desde a 7c, de cada ``fetch(`${API_BASE_URL}/…`)``** têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke; e `apps/web/tests/lib/bff-error-log.test.ts` — nenhum `catch` de `route.ts` sem `logServerError` |
+| **Rota anônima nova no BFF** (sem `proxyToApi`) | as de cima, mais a asserção do `bff-route-seam` que **nomeia** as portas anônimas (lista vazia não aprova), e a suíte irmã de `events-anonymity`/`client-error-ingest` na API — nada de identidade no schema, e a rota respondendo sem credencial |
+| **Página nova em `apps/web/app/[locale]`** (além das três de "Página nova no web") | `apps/api/tests/utils/web-route.test.ts` (7c) — o `WEB_ROUTE_PATTERNS` do normalizador do erro do cliente tem de ganhar a linha, nas duas direções; e o `diagram-drift`, pelo mesmo helper (`tests/helpers/web-routes.ts`) |
+| **Resposta de sucesso com status fora de `200/201/204`** | `shared-type-contract.test.ts` varre todo `2\d\d` desde a 7c — antes o `202` passava sem contrato (armadilha 38) |
+| **Campo novo por rota em `GET /api/metrics/http`** | `assertContract` do `httpMetricsResponseSchema` contra `HttpRouteMetrics`; e a forma antiga no web (`api-health.test.tsx`, "draws a dash, never NaN") — armadilha 37 |
 | **Página nova sob `app/[locale]/admin`** | `hand-written-lists.test.ts` — o `ALL_ROUTES` do `capture-admin.mjs` tem de fotografá-la; mais as três guardas de "Página nova no web" acima |
 | **Campo novo no `devLogSummarySchema`** (a listagem de runs) | `assertContract` em `routes/dev/schemas.ts` (tipo em `packages/types`); e **toda fixture de rota que devolve o resumo responde 500** — `dev.test.ts` e `admin-pipeline.test.ts` — porque o serializer do type provider recusa o objeto incompleto (Fase 8). E `pii-in-logs.test.ts` fixa a **forma literal** do contexto da etapa 7.5: renomear a variável `newsletter` reprova, e é o certo |
 | **Campo novo que o web lê de uma resposta existente** | Nenhuma guarda reprova, e é por isso que está aqui: o preview da `dev` lê a API de produção, que não tem o campo (armadilha 37). Preencher na fronteira (`lib/api.ts`, como `withOutcome`) com teste da forma antiga — pós-merge da Fase 8 |
@@ -3322,14 +3438,25 @@ aplica as duas migrations juntas na promoção.**
   `utils/event-loop.ts`) porque exportar do lugar antigo fecharia um ciclo.
   Ensaio contra o banco local em 65 ms; o seed ganhou sete briefings com
   fontes. Item **75** do `docs/progress.md`; as decisões no fim da §10.
-- **§11.3 e §11.2 — Fase 7c (o caminho de ingestão) e 7b (o `digest` chega
-  a um humano). ← próximas, decididas em 16/09/2026, nesta ordem.** A 7b
-  reporta pelo caminho que a 7c abre. Dois PRs, sem schema e sem env. **O
-  inventário foi reconferido no fim da §11** — o "10/min" seria um balde
-  único para o site (o BFF não repassa o IP do leitor), nada no web sabe o
-  padrão da rota atual (a API normaliza, com conjunto derivado do `app/`), o
-  BFF anônimo nasce fora do `bff-route-seam`, e o `digest` só existe em erro
-  de servidor.
+- ~~**§11.3 — Fase 7c (o caminho de ingestão do erro do cliente).**~~ ✅
+  **Entregue em 16/09/2026, num PR só** (API + BFF; sem migration, sem env,
+  sem página). `POST /api/errors/client` anônima com balde único de 10/min
+  (decidido), `202 { accepted: true }`, o `route` como padrão da página por
+  `utils/web-route.ts` com conjunto derivado das `page.tsx` do web,
+  `CLIENT_ERROR` como único código de `origin: WEB`, o `bff-route-seam` lendo
+  o `fetch` cru, e **dois achados fora do inventário**: o `202` passava pelo
+  `shared-type-contract` (armadilha 38) e o gatilho "429 em
+  `/api/metrics/http`" das duas portas anônimas não era observável por rota
+  (armadilha 39 — entrou o `clientErrorRate` por rota, com a coluna "4xx" na
+  `/admin/metrics`). Item **77** do `docs/progress.md`; as decisões no fim
+  da §11.
+- **§11.2 — Fase 7b (o `digest` chega a um humano). ← próxima.** Reporta
+  pelo caminho que a 7c abriu: os quatro `error.tsx` desestruturando
+  `error`, o `digest` em texto pequeno, `lib/report-client-error.ts` (uma vez
+  por montagem, `keepalive`, nunca lança, importável do `global-error.tsx`),
+  e o `global-error.tsx` com o `not-found.tsx` de modelo. O terreno está no
+  inventário do fim da §11; o corpo que ela manda é o `ClientErrorReport` de
+  `packages/types`. Sem schema e sem env.
 - **Promoção `dev → main` depois da 7**, antes da 9 — o `CLAUDE.md` manda.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
@@ -3360,7 +3487,7 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
       na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
       decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
       primeiro modelo pago.
-- [ ] Ler o §17 inteiro. São 34 armadilhas e a maioria custou um incidente.
+- [ ] Ler o §17 inteiro. São 39 armadilhas e a maioria custou um incidente.
 
 **Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
 não depende de nada neste plano, o que a torna a partida natural.

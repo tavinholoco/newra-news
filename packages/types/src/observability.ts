@@ -23,7 +23,12 @@ export interface ErrorGroup {
   severity: ErrorSeverity;
   code: string;
   category: string;
-  /** O padrão da rota (`/api/news/:id`) ou a etapa (`stage-6`), nunca a URL. */
+  /**
+   * O escopo da falha, em quatro formas — todas de conjunto finito, nunca a
+   * URL: o padrão da rota na API (`/api/news/:id`), a etapa do pipeline
+   * (`stage-6`), o id da invariante (`retention.news`) e, desde a Fase 7c, o
+   * padrão da página do web (`/[locale]/news/[id]`) quando `origin` é `WEB`.
+   */
   route: string | null;
   statusCode: number | null;
   message: string;
@@ -116,6 +121,12 @@ export interface HttpRouteMetrics {
   route: string;
   count: number;
   errorRate: number;
+  /**
+   * 4xx / total por rota — desde a Fase 7c. É onde o gatilho das duas portas
+   * anônimas se lê: um 429 em `POST /api/events` ou em `POST /api/errors/client`
+   * é o balde compartilhado do site dizendo que alguém ficou de fora.
+   */
+  clientErrorRate: number;
   avgMs: number;
   p95Ms: number;
   maxMs: number;
@@ -281,3 +292,30 @@ export interface InvariantReport {
   /** Na ordem da tabela de definições, sempre completa. */
   results: InvariantResult[];
 }
+
+/**
+ * O relato de um erro do cliente — o que um error boundary do web manda para
+ * `POST /api/errors/client` (§11.3 do plano de observabilidade, Fase 7c).
+ *
+ * **Sem stack, sem identidade, sem query string.** O stack minificado do
+ * navegador não localiza nada; quem localiza o stack do servidor é o
+ * `digest`, que o Next põe em `error.digest` quando o erro veio de um server
+ * component — e **só** nesse caso: um render que morreu no cliente chega sem
+ * ele, e é por isso que o `path` viaja junto (sem digest, é o único ponteiro).
+ * A rota é anônima como o `/api/events`: não há sessão a autenticar, e o que
+ * separa relato de lixo é o schema.
+ */
+export interface ClientErrorReport {
+  /** `error.message`, truncado no cliente em {@link CLIENT_ERROR_MESSAGE_MAX_LENGTH}. */
+  message: string;
+  /** O `digest` do Next, quando há — chave para o stack no log do servidor. */
+  digest?: string;
+  /** `window.location.pathname` — sem query, sem fragmento. A API normaliza para o padrão da rota. */
+  path: string;
+}
+
+/** Teto de `message` (§11.3). O truncamento acontece no cliente; aqui é o teto que o servidor aceita. */
+export const CLIENT_ERROR_MESSAGE_MAX_LENGTH = 300;
+
+/** Teto de `digest` (§11.3). O do Next tem ~10 dígitos; 64 cobre qualquer forma futura. */
+export const CLIENT_ERROR_DIGEST_MAX_LENGTH = 64;

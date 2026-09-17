@@ -57,6 +57,15 @@ export interface HttpMetricsSnapshot {
     route: string;
     count: number;
     errorRate: number;
+    /**
+     * 4xx / total **por rota** — desde a Fase 7c. O contador existia desde a
+     * Fase 9 e nunca saía do processo: só o `clientErrorRate` global era
+     * servido, e um 429 no `POST /api/events` era indistinguível de um 404
+     * em `/news`. O gatilho escrito das duas portas anônimas ("429 nesta rota
+     * dentro de `/api/metrics/http`") só passou a ser observável com este
+     * campo.
+     */
+    clientErrorRate: number;
     avgMs: number;
     p95Ms: number;
     maxMs: number;
@@ -159,6 +168,7 @@ export function getHttpMetrics(now: Date = new Date()): HttpMetricsSnapshot {
         route: r.route,
         count: r.count,
         errorRate: ratio(r.errors, r.count),
+        clientErrorRate: ratio(r.clientErrors, r.count),
         avgMs: r.count === 0 ? 0 : Math.round(r.totalMs / r.count),
         p95Ms: percentileFromBuckets(r.buckets, 0.95),
         maxMs: r.maxMs,

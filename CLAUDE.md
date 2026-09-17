@@ -310,12 +310,13 @@ a suíte de unidade, que roda sem rede.
   (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha; e a **8 (o
   log de sucesso) fechou em 15/09**, abrindo o bloco 3; e a **11 (saúde por
   fonte) fechou em 15/09, em três PRs** — 11a (migration), 11b (API) e 11c
-  (web); e a **6 (invariantes) fechou em 16/09, num PR só**.** Continua
-  aberta **uma fase inteira** (a 9) e as subfases **7c e 7b — as próximas,
-  nesta ordem** (a 7b reporta pelo caminho que a 7c abre; o terreno está no
-  fim da §11). Depois da 7, **promoção `dev → main`** e o ritual; a **9 vai
-  por último, e é decisão** (das três coisas que ela exige no ar, com a 8
-  entregue só falta a promoção).
+  (web); e a **6 (invariantes) fechou em 16/09, num PR só**; e a **7c (o
+  caminho de ingestão do erro do cliente) fechou em 16/09, num PR só**.**
+  Continua aberta **uma fase inteira** (a 9) e a subfase **7b — a próxima**
+  (reporta pelo caminho que a 7c abriu; o terreno está no fim da §11).
+  Depois da 7, **promoção `dev → main`** e o ritual; a **9 vai por último,
+  e é decisão** (das três coisas que ela exige no ar, com a 8 entregue só
+  falta a promoção).
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -333,6 +334,30 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-16): a Fase 7c fechou na `dev` — o
+  caminho de ingestão do erro do cliente, a segunda porta anônima.** §11.3,
+  item **77**. `origin: WEB` estava no enum do `ErrorEvent` desde a Fase 4
+  sem produtor; hoje `POST /api/errors/client` (**pública e anônima** como o
+  `/api/events`, balde próprio de **10/min — um só para o site, decidido**)
+  recebe `{ message ≤ 300, digest? ≤ 64, path }` e vira uma linha com
+  `CLIENT_ERROR`, `severity: ERROR`, e **o `route` como padrão da página**
+  (`/[locale]/news/[id]`) — a API normaliza (`utils/web-route.ts`) contra um
+  conjunto com guarda derivada de toda `page.tsx` do web; o que não casa vai
+  para `unmatched`. `202 { accepted: true }` porque o relato entra no
+  buffer, não no banco. O BFF `app/api/errors/client/route.ts` repassa só
+  corpo e content type, e o 429 atravessa. **Dois achados fora do
+  inventário:** o `shared-type-contract` varria só `200|201|204` e o `202`
+  passou verde (armadilha 38 — hoje `2\d\d`); e o gatilho "429 dentro de
+  `/api/metrics/http`", escrito desde a Fase 9 para o `/api/events`, **não
+  era observável por rota** — o 4xx por rota era contado e nunca servido
+  (armadilha 39 — entrou `clientErrorRate` por rota, com a coluna "4xx" na
+  `/admin/metrics`, desenhando "—" até a promoção). O `bff-route-seam` lê o
+  `fetch` cru e nomeia as duas portas anônimas. Ensaio local de ponta a
+  ponta (BFF → API → flush → `/admin/security` com três linhas de `WEB`) e
+  captura das duas abas sem defeito visual. **1.252 → 1.295 na API, 829 →
+  840 no web.** Fica a **7b** (os boundaries e o reporter, usando esta
+  porta), depois a promoção, e a **9** por último.
 
 - **Verificação pós-merge da Fase 6 (2026-09-16): três frases que sobraram,
   a guarda de compilação vista reprovando, e o terreno da 7.** Item **76**.
@@ -1081,7 +1106,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.081 em 165 suites (**1.252 API em 84** + **829 web em 81** — todos
+- **Testes:** 2.135 em 170 suites (**1.295 API em 88** + **840 web em 82** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
@@ -1589,8 +1614,13 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   segundos** devolveram 10 × 400 e **35 × 429**. O número fica em 30, e não por
   folga: com lote de 20 ele já permite 600 eventos/min, o que alcança as 200 mil
   linhas da dívida da `/metrics/product` em ~5h30 — dobrá-lo não compra
-  proteção. **Gatilho, e é observável sem instrumentação nova:** 429 em
-  `POST /api/events` dentro de `GET /api/metrics/http`.
+  proteção. **Gatilho:** 429 em `POST /api/events` dentro de
+  `GET /api/metrics/http` — **e só passou a ser legível por rota na Fase
+  7c**: esta frase dizia "observável sem instrumentação nova" desde a Fase 9,
+  e o 4xx por rota era contado e nunca servido (armadilha 39 do plano). Hoje
+  é o `clientErrorRate` de cada linha de `routes`, e a coluna "4xx" da
+  `/admin/metrics`. O `POST /api/errors/client` (7c) partilha o desenho e o
+  gatilho, com balde de 10/min.
 - **`NewsletterLog` é a única tabela do produto fora do expurgo.** Uma linha por
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser

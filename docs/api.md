@@ -762,7 +762,7 @@ três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
     "clientErrorRate": 0.012,
     "latencyMs": { "avg": 42, "p50": 50, "p95": 250, "p99": 500, "max": 4903 },
     "routes": [
-      { "route": "GET /api/news", "count": 812, "errorRate": 0, "avgMs": 38, "p95Ms": 100, "maxMs": 940 }
+      { "route": "GET /api/news", "count": 812, "errorRate": 0, "clientErrorRate": 0.0012, "avgMs": 38, "p95Ms": 100, "maxMs": 940 }
     ],
     "saturation": {
       "memory": { "rssBytes": 98304000, "heapUsedBytes": 41000000, "heapTotalBytes": 60000000, "limitBytes": 536870912, "ratio": 0.1831 },
@@ -786,6 +786,14 @@ três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
 > 512 MB do plano; `eventLoop.lagMs` é o atraso **além** da resolução do timer
 > (10 ms), então em regime o p50 é ~0 e o `max` guarda a pior parada que esta
 > instância viu.
+
+> **`clientErrorRate` por rota existe desde a Fase 7c, e é onde o gatilho das
+> duas portas anônimas se lê.** O contador de 4xx por rota existia desde a
+> Fase 9 e nunca saía do processo — só o global era servido —, então "429 em
+> `POST /api/events` dentro desta rota", escrito como gatilho desde então, não
+> era observável: um 429 ali era indistinguível de um 404 em `/news`. Hoje um
+> `clientErrorRate` subindo em `POST /api/events` ou em `POST /api/errors/client`
+> é o balde compartilhado do site dizendo que alguém ficou de fora.
 
 > **`since` e `uptimeSeconds` não são enfeite.** A janela é em memória: **zera a
 > cada deploy e a cada hibernação** (o plano free do Render dorme com ~15 min
@@ -1169,6 +1177,73 @@ dias e briefing aos 90 — não há job manual a disparar.
 
 ---
 
+## Erro do cliente
+
+> O caminho de ingestão da §11.3 do plano de observabilidade (Fase 7c). Um
+> error boundary do web relata o crash de render para cá, e o relato vira uma
+> linha do `ErrorEvent` com `origin: WEB` — a mesma tabela que a
+> `/admin/security` lê. **Endpoint dedicado, e não um 15º tipo de evento de
+> produto:** relato de falha não compete com pageview pelo balde do analytics.
+> **Pública e anônima** como o `/api/events`, e pelo mesmo motivo é chata com
+> o corpo.
+
+### POST /api/errors/client
+
+Rate limit próprio: **10 req/min** — e é **um balde só para o site inteiro**,
+porque o caminho real é navegador → BFF do Next → API, e o BFF anônimo não
+repassa o IP do leitor. Decidido, não esquecido: o décimo primeiro leitor a
+tropeçar na mesma tela no mesmo minuto recebe 429, mas o erro que dez viram já
+está na tabela — o coalescimento por fingerprint faz o `count` ser aproximado
+de qualquer forma. **Gatilho:** 429 nesta rota dentro de `GET /api/metrics/http`.
+
+**Body:**
+
+```json
+{
+  "message": "Cannot read properties of undefined (reading 'title')",
+  "digest": "1234567890",
+  "path": "/pt-BR/news/3f2a9c1e-7b4d-4e8a-9c2b-1d5e6f7a8b9c"
+}
+```
+
+Tipado em `packages/types` como `ClientErrorReport`, com guarda de compilação
+ao lado do schema.
+
+| Campo | Regra | Por quê |
+|---|---|---|
+| `message` | 1 a 300 caracteres | `error.message`, truncado no cliente; aqui é o teto que o servidor aceita. Passa por `scrubMessage` antes de virar linha — é texto do navegador |
+| `digest` | opcional, até 64 | o `digest` do Next, que **só existe em erro de server component** — é a chave para o stack no log do servidor. Um crash no cliente chega sem ele |
+| `path` | pathname: começa em `/`, sem `?` e sem `#`, até 512 | a query carregaria o termo de busca (mesma regra do `/api/events`). É o único ponteiro quando não há `digest` |
+
+**Sem stack** — o do navegador é minificado e não localiza nada. **Sem
+identidade** — `z.object` descarta qualquer campo não declarado, e há guarda
+afirmando isso pelo schema.
+
+**O que vira linha:** `origin: WEB`, `severity: ERROR`, `code: CLIENT_ERROR`,
+`category: internal`, e o **`route` é o padrão da página, nunca o `path` cru**
+— a API normaliza `/pt-BR/news/3f2a…` para `/[locale]/news/[id]`, contra o
+conjunto derivado das `page.tsx` do web; o que não casa vai para `unmatched`.
+`digest` e o `path` cru vão no `context`. Dois erros distintos na mesma página
+na mesma hora são **uma** linha, com a mensagem do primeiro.
+
+**Resposta 202:** `{ "data": { "accepted": true } }`
+
+`202` e não `201`: o relato entrou no **buffer** do `ErrorEvent`, que vai ao
+banco a cada 30 s (ou no desligamento, com prazo). Nada foi criado no instante
+da resposta.
+
+**Resposta 400:** `message` vazia ou acima do teto, `digest` acima do teto,
+`path` com query, com fragmento ou sem a barra inicial. **Nada é gravado.**
+
+**Resposta 429:** o balde de 10/min — e é o único código desta rota que o
+cliente tem motivo para ver.
+
+**Não leva `Cache-Control`**, pela mesma razão do `/api/events`.
+
+**Retenção:** a do `ErrorEvent` — 14 dias, pela etapa 8 do pipeline diário.
+
+---
+
 ## Pipeline (admin)
 
 > **A mesma consulta do `/api/dev/logs`, por outra porta.** As rotas abaixo
@@ -1383,10 +1458,12 @@ usado.
 Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
 `hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
 crônico), e `message`, `lastSeenAt` e `lastRequestId` são da hora mais
-recente. **`route` é o escopo da falha, e tem três formas** — o padrão da
-rota na API (`/api/news/:id`, nunca a URL), a etapa no pipeline (`stage-8.5`)
-e, desde a Fase 6, o id da invariante (`retention.news`) quando `origin` é
-`INVARIANT`; as três são conjuntos finitos, que é o que dá teto à tabela. `byCategory` traz **sempre as seis** categorias da taxonomia, na
+recente. **`route` é o escopo da falha, e tem quatro formas** — o padrão da
+rota na API (`/api/news/:id`, nunca a URL), a etapa no pipeline (`stage-8.5`),
+desde a Fase 6 o id da invariante (`retention.news`) quando `origin` é
+`INVARIANT`, e desde a Fase 7c o **padrão da página do web**
+(`/[locale]/news/[id]`, nunca o pathname) quando `origin` é `WEB`; as quatro
+são conjuntos finitos, que é o que dá teto à tabela. `byCategory` traz **sempre as seis** categorias da taxonomia, na
 ordem dela, com zero onde não houve — a rosquinha tem fatias fixas. `groups`
 vem mais recente primeiro.
 

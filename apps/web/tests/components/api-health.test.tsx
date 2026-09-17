@@ -101,6 +101,35 @@ describe('GoldenSignals — os quatro sinais na aba de métricas', () => {
     expect(table).toHaveTextContent('100 ms');
   });
 
+  it('shows the 4xx rate per route — where the 429 of the two anonymous doors reads', () => {
+    // Fase 7c: o contador existia desde a Fase 9 e nunca saía do processo. A
+    // coluna é o que torna "429 em POST /api/events" um gatilho que alguém vê.
+    useHttpMetrics.mockReturnValue({ data: httpMetrics, isError: false });
+
+    renderWithIntl(<GoldenSignals />);
+
+    expect(screen.getByRole('columnheader', { name: '4xx' })).toBeInTheDocument();
+    const news = screen.getByText('GET /api/news').closest('tr');
+    expect(news).toHaveTextContent('0,12%');
+  });
+
+  it('draws a dash, never NaN, when the API on air does not send the 4xx rate yet', () => {
+    // Armadilha 37: o preview da `dev` lê a API de produção, que só ganha o
+    // campo na promoção. A forma antiga da resposta tem de continuar
+    // desenhável.
+    const legacyRoutes = httpMetrics.routes.map(({ clientErrorRate: _dropped, ...route }) => route);
+    useHttpMetrics.mockReturnValue({
+      data: { ...httpMetrics, routes: legacyRoutes as typeof httpMetrics.routes },
+      isError: false,
+    });
+
+    renderWithIntl(<GoldenSignals />);
+
+    const news = screen.getByText('GET /api/news').closest('tr');
+    expect(news).toHaveTextContent('—');
+    expect(news).not.toHaveTextContent('NaN');
+  });
+
   it('says there is no request yet instead of drawing an empty table', () => {
     useHttpMetrics.mockReturnValue({ data: { ...httpMetrics, routes: [] }, isError: false });
 

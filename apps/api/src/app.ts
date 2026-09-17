@@ -27,6 +27,7 @@ import { metricsAdminRoutes } from './routes/metrics/admin';
 import { metricsHttpRoutes } from './routes/metrics/http';
 import { newsletterRoutes } from './routes/newsletter';
 import { eventsRoutes } from './routes/events';
+import { clientErrorRoutes } from './routes/errors';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
 import { accountRoutes } from './routes/account';
@@ -301,6 +302,11 @@ export async function buildApp() {
   // Eventos de produto (docs/v2/04 §6). Publica e anonima: o que separa
   // evento de lixo e o schema, nao a sessao.
   await app.register(eventsRoutes, { prefix: '/api/events' });
+
+  // O erro do cliente (§11.3 do plano de observabilidade). A segunda porta
+  // publica e anonima, pelo mesmo motivo — e um endpoint proprio, para o
+  // relato de falha nao competir com o pageview pelo balde do analytics.
+  await app.register(clientErrorRoutes, { prefix: '/api/errors' });
 
   await app.register(authRoutes, { prefix: '/api/auth' });
 

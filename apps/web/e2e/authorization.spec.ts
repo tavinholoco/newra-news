@@ -101,4 +101,22 @@ test.describe('BFF sem sessão', () => {
      */
     expect([401, 403]).not.toContain(response.status());
   });
+
+  test('o relato de erro do cliente continua anônimo — a segunda porta sem sessão', async ({
+    request,
+  }) => {
+    // Fase 7c do plano de observabilidade. O `ErrorEvent` não tem dado
+    // pessoal em coluna nenhuma; um 401 aqui seria alguém pondo dono no
+    // relato. **O corpo é vazio de propósito**, como o lote vazio do teste
+    // acima: um relato válido gravaria uma falha falsa na tabela de produção
+    // a cada push na `main`. O que se espera é o 400 do schema — e os outros
+    // códigos são legítimos pelo mesmo motivo: 429 é o balde de 10/min do
+    // site inteiro, 502 é a API sem responder num build local.
+    const response = await request.post('/api/errors/client', {
+      data: {},
+      failOnStatusCode: false,
+    });
+
+    expect([401, 403]).not.toContain(response.status());
+  });
 });

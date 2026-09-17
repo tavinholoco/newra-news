@@ -23,8 +23,8 @@ export const httpMetrics: HttpMetrics = {
   clientErrorRate: 0.012,
   latencyMs: { avg: 42, p50: 50, p95: 250, p99: 500, max: 4903 },
   routes: [
-    { route: 'GET /api/news', count: 812, errorRate: 0, avgMs: 38, p95Ms: 100, maxMs: 940 },
-    { route: 'GET /api/home', count: 300, errorRate: 0.003, avgMs: 60, p95Ms: 180, maxMs: 4903 },
+    { route: 'GET /api/news', count: 812, errorRate: 0, clientErrorRate: 0.0012, avgMs: 38, p95Ms: 100, maxMs: 940 },
+    { route: 'GET /api/home', count: 300, errorRate: 0.003, clientErrorRate: 0, avgMs: 60, p95Ms: 180, maxMs: 4903 },
   ],
   saturation: {
     memory: {

@@ -435,9 +435,17 @@ Regras que não são óbvias no código:
     BFF com `GET` atrás de sessão está na lista de 401 do smoke
     (`e2e/authorization.spec.ts`), e toda `page.tsx` sob `app/[locale]/admin`
     está no `ALL_ROUTES` do `capture-admin.mjs` — nas duas direções. E **o
-    caminho que cada `proxyToApi` repassa é conferido contra o roteador da
-    API** por `apps/api/tests/security/bff-route-seam.test.ts`: um literal
-    errado no BFF passava nos dois CIs e só falhava em produção
+    caminho que cada `proxyToApi` repassa — e, desde a Fase 7c, cada
+    ``fetch(`${API_BASE_URL}/…`)`` das duas rotas anônimas — é conferido
+    contra o roteador da API** por
+    `apps/api/tests/security/bff-route-seam.test.ts`: um literal errado no
+    BFF passava nos dois CIs e só falhava em produção
+  - **a tabela de latência por rota tem a coluna "4xx" desde a Fase 7c**
+    (`dashboard/golden-signals`): é onde o 429 das duas portas anônimas
+    (`POST /api/events`, `POST /api/errors/client`) aparece — o contador
+    existia na API desde a Fase 9 e nunca saía do processo. Até a promoção a
+    API de produção não manda o campo (armadilha 37), e a célula desenha
+    "—" sobre a ausência, nunca `NaN%`
   - **as telas de admin se fotografam com `pnpm --filter @newranews/web
     admin:capture`** (`scripts/capture-admin.mjs`). A baseline visual da §30
     exclui `/admin` porque exige sessão, então **esta área nunca esteve em
@@ -586,6 +594,7 @@ Regras que não são óbvias no código:
 | `lib/api.ts` → `ApiError` | a falha **com o status**: `null` é transporte, 404/400 é sobre o pedido |
 | `lib/api.ts` → `nullIfNotFound` | o que separa "não encontrada" de "deu erro" |
 | `lib/use-results-focus.ts` | foco + rolagem ao virar página, respeitando `prefers-reduced-motion` |
+| `app/api/errors/client/route.ts` | o repasse **anônimo** do relato de um error boundary para `POST /api/errors/client` (Fase 7c do plano de observabilidade) — modelo do `app/api/events/route.ts`: sem `proxyToApi`, só corpo e content type atravessam, o status da API (inclusive o 429) atravessa intacto, o `catch` escreve `bff.errors.client`. Quem o chama é o reporter dos boundaries (Fase 7b) |
 | `tests/security/` | três suítes: cabeçalhos, superfície do navegador, otimizador de imagem |
 | `tests/lib/state-matrix.test.ts` | a matriz de todas as rotas × 4 estados, como asserção — a contagem mora no `toHaveLength` dela |
 

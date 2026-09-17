@@ -24,6 +24,17 @@ import { registeredRoutes } from '../helpers/registered-routes';
  * arquivos do web que escrevem o literal. Pelo parser (armadilha 27 do §17),
  * porque a pergunta é "qual é o segundo argumento desta chamada" — e um
  * template literal com `${params.id}` é gramática, não texto.
+ *
+ * **Desde a Fase 7c a costura também lê o `fetch` cru**
+ * (``fetch(`${API_BASE_URL}/…`)``). A primeira versão enumerava só o
+ * `proxyToApi`, e as rotas **anônimas** do BFF — o `/api/events` e, desde a
+ * 7c, o `/api/errors/client` — não passam por ele de propósito (ele exige
+ * sessão e assina JWT). Ficavam fora da guarda, expostas ao mesmo caractere
+ * trocado que o item 68 achou: um `/errors/clientt` passaria nos dois CIs e
+ * falharia só em produção. O que continua fora, com o motivo escrito, é o
+ * `fetch` cujo destino vem de uma variável de ambiente inteira (o
+ * `BACKEND_JOB_URL` do cron): o caminho não está no arquivo, e "não sei" ali
+ * não é defeito de leitura.
  */
 
 vi.mock('@newranews/database', async () => {
@@ -57,7 +68,12 @@ interface ProxyCall {
   method: string;
   /** O caminho como padrão: `${...}` vira `:param`; `.join(` vira `*`. */
   pattern: string;
+  /** Por onde o repasse sai: o cliente com sessão, ou o `fetch` sem ela. */
+  via: 'proxyToApi' | 'fetch';
 }
+
+/** O identificador que as rotas anônimas do BFF interpolam na frente do caminho. */
+const API_BASE_IDENTIFIER = 'API_BASE_URL';
 
 function collectRoutes(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -103,25 +119,81 @@ function patternOf(argument: ts.Expression): string | null {
   return null;
 }
 
+/**
+ * O primeiro argumento de um `fetch` anônimo, como padrão de rota — ou `null`
+ * quando a chamada não é para a API.
+ *
+ * Só a forma ``fetch(`${API_BASE_URL}/events`, …)`` é lida: cabeça vazia e o
+ * identificador da base como primeiro `${}`. O resto do template segue a
+ * mesma leitura do `proxyToApi`. Um `fetch` para qualquer outra coisa (o
+ * `BACKEND_JOB_URL` do cron, um feed de terceiro) não é costura com a API e
+ * não entra.
+ */
+function anonymousPatternOf(argument: ts.Expression): string | null {
+  if (!ts.isTemplateExpression(argument)) return null;
+  if (argument.head.text !== '') return null;
+  const [base, ...rest] = argument.templateSpans;
+  if (
+    !base ||
+    !ts.isIdentifier(base.expression) ||
+    base.expression.text !== API_BASE_IDENTIFIER
+  ) {
+    return null;
+  }
+
+  let pattern = base.literal.text;
+  for (const span of rest) {
+    pattern += span.expression.getText().includes('.join(') ? '*' : ':param';
+    pattern += span.literal.text;
+  }
+  return pattern;
+}
+
+/** O `method:` do objeto de opções de um `fetch`; `GET` quando não há. */
+function fetchMethodOf(init: ts.Expression | undefined): string {
+  if (!init || !ts.isObjectLiteralExpression(init)) return 'GET';
+  for (const property of init.properties) {
+    if (
+      ts.isPropertyAssignment(property) &&
+      ts.isIdentifier(property.name) &&
+      property.name.text === 'method' &&
+      ts.isStringLiteral(property.initializer)
+    ) {
+      return property.initializer.text;
+    }
+  }
+  return 'GET';
+}
+
 export function proxyCallsIn(source: string, label: string): ProxyCall[] {
   const tree = ts.createSourceFile(label, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   const calls: ProxyCall[] = [];
 
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'proxyToApi'
-    ) {
-      const [, pathArgument, methodArgument] = node.arguments;
-      const pattern = pathArgument ? patternOf(pathArgument) : null;
-      const method =
-        methodArgument && ts.isStringLiteral(methodArgument) ? methodArgument.text : 'GET';
-      calls.push({
-        site: `${label}#${enclosingHandler(node)}`,
-        method,
-        pattern: pattern ?? '<ilegível>',
-      });
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (node.expression.text === 'proxyToApi') {
+        const [, pathArgument, methodArgument] = node.arguments;
+        const pattern = pathArgument ? patternOf(pathArgument) : null;
+        const method =
+          methodArgument && ts.isStringLiteral(methodArgument) ? methodArgument.text : 'GET';
+        calls.push({
+          site: `${label}#${enclosingHandler(node)}`,
+          method,
+          pattern: pattern ?? '<ilegível>',
+          via: 'proxyToApi',
+        });
+      } else if (node.expression.text === 'fetch') {
+        const [urlArgument, initArgument] = node.arguments;
+        const pattern = urlArgument ? anonymousPatternOf(urlArgument) : null;
+        if (pattern !== null) {
+          calls.push({
+            site: `${label}#${enclosingHandler(node)}`,
+            method: fetchMethodOf(initArgument),
+            pattern,
+            via: 'fetch',
+          });
+        }
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -175,6 +247,18 @@ describe('a costura BFF → API', () => {
     expect(calls.some((call) => call.pattern.includes('*'))).toBe(true);
   });
 
+  it('finds the anonymous relays too — the routes that never touch proxyToApi', () => {
+    // As duas portas sem sessão do BFF, e a asserção é pelo caminho: se a
+    // leitura do `fetch` cru quebrar, é aqui que ela aparece — não numa lista
+    // vazia que aprova tudo.
+    const anonymous = calls.filter((call) => call.via === 'fetch');
+
+    expect(anonymous.map((call) => `${call.method} /api${call.pattern}`).sort()).toEqual([
+      'POST /api/errors/client',
+      'POST /api/events',
+    ]);
+  });
+
   it('every path the BFF forwards is a route the API registers, with the same method', () => {
     const routes = registeredRoutes(app);
 
@@ -201,17 +285,39 @@ describe('a costura BFF → API', () => {
     `;
 
     expect(proxyCallsIn(source, 'a.ts')).toEqual([
-      { site: 'a.ts#GET', method: 'GET', pattern: '/news/:param' },
-      { site: 'a.ts#DELETE', method: 'DELETE', pattern: '/favorites/*' },
-      { site: 'a.ts#POST', method: 'POST', pattern: '<ilegível>' },
+      { site: 'a.ts#GET', method: 'GET', pattern: '/news/:param', via: 'proxyToApi' },
+      { site: 'a.ts#DELETE', method: 'DELETE', pattern: '/favorites/*', via: 'proxyToApi' },
+      { site: 'a.ts#POST', method: 'POST', pattern: '<ilegível>', via: 'proxyToApi' },
+    ]);
+  });
+
+  it('reads a raw fetch to the API, and ignores a fetch to anywhere else', () => {
+    // A leitura nova, vista nas duas direções: o que é costura entra com o
+    // método declarado (ou `GET` por omissão), e o que não aponta para a base
+    // da API — variável de ambiente inteira, URL de terceiro, base no meio do
+    // template — fica de fora em vez de virar "<ilegível>".
+    const source = `
+      export async function POST(request: Request) {
+        await fetch(\`\${API_BASE_URL}/errors/client\`, { method: 'POST', body });
+        await fetch(\`\${API_BASE_URL}/health\`);
+        await fetch(\`\${process.env.BACKEND_JOB_URL}\`, { method: 'POST' });
+        await fetch('https://example.com/feed.xml');
+        await fetch(\`https://\${API_BASE_URL}/x\`);
+      }
+    `;
+
+    expect(proxyCallsIn(source, 'b.ts')).toEqual([
+      { site: 'b.ts#POST', method: 'POST', pattern: '/errors/client', via: 'fetch' },
+      { site: 'b.ts#POST', method: 'GET', pattern: '/health', via: 'fetch' },
     ]);
   });
 
   it('would catch a typo in a forwarded path', () => {
     const routes = registeredRoutes(app);
-    const typo: ProxyCall = { site: 'x', method: 'GET', pattern: '/admin/error' };
-    const wrongMethod: ProxyCall = { site: 'x', method: 'POST', pattern: '/admin/errors' };
-    const right: ProxyCall = { site: 'x', method: 'GET', pattern: '/admin/errors' };
+    const via = 'proxyToApi' as const;
+    const typo: ProxyCall = { site: 'x', method: 'GET', pattern: '/admin/error', via };
+    const wrongMethod: ProxyCall = { site: 'x', method: 'POST', pattern: '/admin/errors', via };
+    const right: ProxyCall = { site: 'x', method: 'GET', pattern: '/admin/errors', via };
 
     expect(routes.some((route) => matches(route, typo))).toBe(false);
     expect(routes.some((route) => matches(route, wrongMethod))).toBe(false);

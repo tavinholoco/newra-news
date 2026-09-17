@@ -7726,6 +7726,96 @@ em `1152ca0`.
 
 **1.252 na API, 829 no web** — sem teste novo: prosa.
 
+### 77. Fase 7c — o caminho de ingestão do erro do cliente: a segunda porta anônima, e o gatilho que ninguém tinha lido ✅ 2026-09-16
+
+> A §11.3 do plano de observabilidade, sobre a `dev` em `5881727` (#210
+> mergeado; a branch remota estava em `1152ca0` e o passo 1 do ritual a
+> realinhou). **API + BFF, num PR só — sem migration, sem env nova, sem
+> página nova.** A 7b (os boundaries e o reporter) vem depois e usa esta
+> porta; o inventário de 16/09 no fim da §11 acertou o desenho inteiro, e o
+> que a fase acrescentou foi o que mediu.
+
+**O que fecha:** um crash de render no web mostrava "algo deu errado" e não
+era contado em lugar nenhum — `origin: WEB` estava no enum do `ErrorEvent`
+desde a Fase 4 sem ninguém escrever nele. Hoje `POST /api/errors/client`
+(**pública e anônima** como o `/api/events`, balde próprio de 10/min) recebe
+`{ message ≤ 300, digest? ≤ 64, path }` e o relato vira uma linha de
+`ErrorEvent` com `origin: WEB`, `severity: ERROR`, `code: CLIENT_ERROR`,
+`category: internal` — **e o `route` é o padrão da página**
+(`/[locale]/news/[id]`), nunca o pathname. O BFF anônimo
+`app/api/errors/client/route.ts` repassa só corpo e content type, e deixa o
+status da API atravessar (inclusive o 429 — é o único que o reporter tem
+motivo para ver).
+
+**As decisões que o inventário deixava, tomadas:**
+
+- **O balde de 10/min é um só para o site, e foi aceito.** O BFF não
+  repassa o IP do leitor; a alternativa (`x-forwarded-for` escrito pelo
+  BFF) mudaria a semântica do `trustProxy: 1` e foi recusada. O décimo
+  primeiro leitor a tropeçar na mesma tela no mesmo minuto recebe 429 — mas
+  o erro que dez viram já está na tabela, e o coalescimento já faz o `count`
+  ser aproximado.
+- **A API normaliza o `path`**, em `utils/web-route.ts`: idioma vira
+  `[locale]` por **forma** (a lista de idiomas mora no web e não é copiada),
+  UUID vira `[id]`, `YYYY-MM-DD` vira `[date]`, e o resultado é conferido
+  contra `WEB_ROUTE_PATTERNS` — digitado na API (produção não tem os
+  arquivos do web) com **guarda derivada de toda `page.tsx`** pelo mesmo
+  helper que o `diagram-drift` passou a usar. O que não casa vai para o
+  `unmatched` do `routePatternOf`, importado.
+- **`202 { accepted: true }`**, não o `{ recorded: true }` do inventário: o
+  relato entra no buffer e vai ao banco no flush de 30 s. O corpo tem tipo
+  compartilhado (`ClientErrorReport`, com `assertContract`); a resposta não
+  tem leitor e entrou na lista de exceções com o motivo.
+- **Um código só de `origin: WEB`.** Dois erros distintos na mesma página
+  colapsam numa linha por hora com a mensagem do primeiro; `digest` e `path`
+  cru vão no `context`, o `requestId` é o da ingestão.
+- **O `bff-route-seam` lê o `fetch` cru** (``fetch(`${API_BASE_URL}/…`)``,
+  `method` do objeto de opções) e **nomeia** as duas portas anônimas — lista
+  vazia não aprova. Visto reprovando em `/errors/clientt` nas duas asserções.
+
+#### Dois achados fora do inventário
+
+1. **O `shared-type-contract` só varria `200|201|204`, e o `202` passou por
+   ele verde.** Ao rodar as três guardas de rota nova, duas reprovaram
+   (matriz, `docs/api.md`) e a terceira aprovou uma resposta de sucesso sem
+   contrato — o buraco que ela existe para fechar. A varredura virou `2\d\d`
+   e aí reprovou. **Armadilha 38**: status de sucesso é a classe, não três
+   números.
+2. **O gatilho "429 em `POST /api/events` dentro de `GET /api/metrics/http`"
+   — escrito desde a Fase 9 no `CLAUDE.md`, na rota e no plano — não era
+   observável por rota.** O `RouteStats` contava `clientErrors` por rota e o
+   snapshot servia só o `clientErrorRate` **global**: um 429 no
+   `/api/events` era indistinguível de um 404 em `/news`, e a 7c herdou a
+   mesma frase para a segunda porta. Entrou `clientErrorRate` por rota no
+   snapshot, no schema, no `HttpRouteMetrics` e como coluna **"4xx"** na
+   tabela de latência por rota da `/admin/metrics` — desenhando "—" enquanto
+   a API no ar não manda o campo (armadilha 37, com teste da forma antiga).
+   E o teste do teto **lê o snapshot depois do 429**: a resposta do rate
+   limiter, enviada de um `onRequest`, passa pelo `onResponse` — medido.
+   **Armadilha 39**: gatilho que aponta para um campo se confere lendo o
+   campo.
+
+**Lições de ferramenta:** o balde de 10/min é real no `inject` (a suíte de
+rota esbarrou nele na décima primeira requisição — cada chamada passou a sair
+de um `x-forwarded-for` próprio, e o teto ganhou o próprio teste); o smoke
+manda **corpo vazio** de propósito, porque um relato válido gravaria uma
+falha falsa na tabela de produção a cada push na `main`; e a captura pediu
+`CHROMIUM_PATH` apontando para o headless shell anterior do Playwright, que
+a versão instalada não tinha.
+
+**Ensaio local de ponta a ponta, antes da captura:** três relatos válidos
+pelo BFF (202), um com query string (400), um com caminho que não é página
+(202 → `unmatched`), e o balde estourando no décimo primeiro **através do
+BFF** com o corpo da API. Depois do flush, a `/admin/security` mostrou as
+três linhas de `origin: WEB` (`/[locale]/article/[date]` com 5,
+`/[locale]/news/[id]` com 3, `unmatched` com 1; "Erros por origem: WEB 9") e
+a `/admin/metrics` a coluna "4xx" com 30,77 % em `POST /api/errors/client`.
+A captura (duas abas, 375 e 1440, claro e escuro) não achou defeito visual
+— a primeira fase em cinco em que não achou.
+
+**1.252 → 1.295 na API (84 → 88 suítes), 829 → 840 no web (81 → 82).**
+Branch `observability/fase-7c-client-error-ingest`, base `dev`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
