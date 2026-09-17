@@ -1952,6 +1952,129 @@ por montagem** para `/api/errors/client` com `keepalive`, e o
 `global-error.tsx` com o `not-found.tsx` de modelo) — o inventário acima já
 tem o terreno dela. E então a promoção.
 
+### O que a verificação pós-merge da 7c achou — 17/09/2026
+
+Sobre a árvore mergeada (`d38fb5e`, #211 — mergeado às 00:26 UTC, os oito
+checks verdes), a pergunta de sempre — *o que ficou de fora?* — por quatro
+enumerações: **quem lê `origin` e `route` do `ErrorEvent`** (a tabela de
+falhas imprime os dois crus, sem mapa de rótulo — nada a acrescentar; o
+`/dev/dashboard` não imprime métricas de HTTP, então a segunda porta não
+tem a coluna a perder), **onde a prosa dizia "única"** (nenhuma frase
+afirmava que o `/api/events` era a única anônima — a de `events-anonymity`
+já foi corrigida na fase), **contagens de rota em prosa** (nenhuma nos
+READMEs, na `docs/api.md` ou na apresentação), e **o que os diagramas
+desenham do BFF**.
+
+- **Os dois diagramas com o BFF diziam que ele "assina um JWT por
+  requisição", e o fluxo anônimo nunca foi desenhado** — nem o `sendBeacon`
+  do analytics (Fase 8 da V2), nem agora o relato de erro. Deriva anterior
+  à 7c, que a 7c dobrou. Os rótulos passaram a nomear as duas exceções e
+  entrou a aresta tracejada `Leitura -.-> BFF` ("anônimas, sem JWT") nos
+  dois. **Os seis parseiam** — pelo parser do próprio Mermaid, em Node com
+  jsdom, num diretório de rascunho fora do repositório (`mermaid@11` +
+  `jsdom`; não sobrescrever `globalThis.navigator`). O `diagram-drift` não
+  alcança rótulo de nó; é prosa dentro de diagrama.
+- **Gitleaks em `0 commits scanned` no push do merge — nona medição.**
+  Dívida com gatilho no §16, inalterada.
+
+**Nenhum defeito de código.** O que o pós-merge mediu de útil foi o terreno
+da 7b, abaixo — e ali achou uma armadilha que o inventário de 16/09 tinha
+escrito ao contrário.
+
+### Inventário da 7b, reconferido depois da 7c — 17/09/2026
+
+O inventário de 16/09 (acima) continua valendo no que diz da 7b. O que a
+medição contra `d38fb5e` acrescenta ou **corrige**:
+
+- **`<ThemeInit />` copiado para o `global-error.tsx` não aplicaria o
+  tema, e a asserção-irmã do `state-matrix` passaria verde sobre isso.** O
+  `ThemeInit` é um `<script>` inline; funciona no `not-found.tsx` porque
+  aquele é **server component** — o navegador executa o script ao parsear o
+  HTML. O `global-error.tsx` é client component e renderiza no cliente, e o
+  React DOM cria `<script>` via `innerHTML` **de propósito para ele não
+  executar** (`react-dom@18.3.1`, `react-dom.development.js:9766` — "so its
+  parser-inserted flag is set to true and it does not execute"). A
+  asserção `toContain('<ThemeInit />')` veria o caractere e não a
+  intenção. **Saída:** um `applyStoredTheme()` em `lib/theme.ts` — lê
+  (`readStoredTheme() ?? prefers-color-scheme`) e faz o `toggle('dark')`
+  **sem gravar** (o arquivo existe para haver um escritor da chave, e este
+  é leitor) —, chamado num `useEffect` do `global-error.tsx`; a guarda
+  cobra a chamada, não o componente. Armadilha **40**.
+- **O `<main>` do layout de idioma é só `flex-1`: não dá contêiner.** Quem
+  dá `container-editorial` é o `admin/layout.tsx`. Dos quatro `error.tsx`,
+  **só o de `admin/metrics` duplica a casca** (é a armadilha 11 literal); os
+  três sob `[locale]`, `news/` e `article/` precisam de contêiner próprio —
+  e o certo é o `container-editorial` da V2 (`styles/tokens.css:355`), não
+  o `mx-auto max-w-7xl px-4 sm:px-6 lg:px-8` da V1 que os quatro carregam.
+  Os dois `loading.tsx` (`[locale]/`, `admin/metrics/`) têm o mesmo
+  contêiner da V1 e **não são escopo da 7b** — ficam registrados aqui para a
+  13.
+- **Os quatro `error.tsx` são o mesmo componente**, 26 linhas cada,
+  diferindo só nas chaves (`genericTitle`/`newsTitle`/`articlesTitle`/
+  `dashboardTitle` e os `Desc`). A 7b extrai **uma** casca
+  (`components/errors/error-state.tsx`: título, descrição, `error`, `reset`;
+  desenha o `digest` quando há e chama o reporter uma vez) e cada arquivo
+  mantém os próprios `t('…')` — a chave tem de ficar **literal no arquivo**,
+  senão o `i18n-messages` a lê como órfã.
+- **O `bff-seam.test.ts` exige `signal` em todo `fetch` de `lib/` e
+  `app/api/`**, com `WITHOUT_TIMEOUT` como exceção escrita. O reporter é o
+  segundo caso legítimo, pelo mesmo motivo do `lib/analytics/index.ts`:
+  `keepalive: true` existe para sobreviver à navegação, e abortar por prazo
+  cancelaria a entrega. Entra na lista com o motivo.
+- **O idioma da string fixa do `global-error.tsx` sai do pathname, não do
+  `document.documentElement.lang`.** No instante do render o `<html>` do
+  documento é o que está sendo **substituído**; ler o `lang` dali durante o
+  render é ler o que vai sumir. `localePrefix: 'always'` garante que
+  `window.location.pathname` começa por `/pt-BR` ou `/en` — determinístico,
+  e é o mesmo dado que o reporter já manda como `path`. Duas strings por
+  idioma, o motivo escrito onde o `i18n-messages` não alcança.
+- **`error.message` de um erro de servidor é a frase genérica do Next**
+  (261 caracteres, medida no `app-page.runtime.prod.js` do `next@14.2.35`:
+  "An error occurred in the Server Components render. The specific message
+  is omitted in production builds…"). Cabe no teto de 300 e não identifica
+  nada; **o `digest` é a identidade**, e o coalescimento por página faz a
+  primeira mensagem da hora ser esta. Recomendação: mandar como está — o
+  redator não precisa de ajuda e a frase diz a um humano o que aconteceu —
+  e desenhar o `digest` em destaque, porque para esse caso ele é tudo.
+- **"Uma vez por montagem" precisa do `useRef`** que o `PageView` já usa:
+  o StrictMode monta duas vezes em desenvolvimento, e sem a guarda todo
+  erro contaria dois em `pnpm dev`. `reset()` remonta o boundary, e o mesmo
+  erro no retry é a mesma linha coalescida — é o comportamento certo.
+- **`next/font/google` em client component:** o `not-found.tsx` é server
+  component e chama `Inter()`/`Newsreader()` no escopo do módulo; o
+  `global-error.tsx` fará o mesmo num arquivo `'use client'`. Funciona (a
+  transformação é do SWC, por módulo), mas **conferir no `pnpm build`**
+  antes de escrever a guarda — é a única parte do modelo que muda de lado.
+- **Como ensaiar um boundary de verdade, sem código de teste no app:** o
+  `admin:capture` já tem `page.route` interceptando o BFF. Interceptar
+  `/api/admin/http-metrics` e devolver `{ data: { …, routes: null } }` faz o
+  `GoldenSignals` lançar no render (`routes.length`), o
+  `admin/metrics/error.tsx` renderiza, o reporter dispara para
+  `/api/errors/client` (não interceptado) e a API **de pé** grava a linha
+  `WEB:ERROR:CLIENT_ERROR:/[locale]/admin/metrics` — visível na
+  `/admin/security` depois do flush. É o único caminho que exercita os
+  três saltos (boundary → BFF → API) sem `throw` no produto; com a API
+  parada, `/pt-BR/news/<id>` cai no `news/error.tsx` (o `ApiError` de
+  transporte não é `isAboutTheRequest`, e `nullIfNotFound` relança), mas o
+  relato morre no 502 do BFF — que é o desfecho honesto, e a linha
+  `bff.errors.client` prova que ele disparou.
+
+**Custo em guarda, reconferido:** `state-matrix` (o par de asserções do
+`global-error.tsx` — `<html … <body` e a **chamada** a `applyStoredTheme`,
+não o `<ThemeInit />`), `a11y-guards` (o `h1` do boundary), `design-tokens`
+(a casca nova, sem cor crua), `i18n-messages` (chaves continuam literais
+nos quatro arquivos), `bff-seam` (a exceção do reporter), e o teste do
+reporter com `fetch` mockado: uma chamada por montagem, corpo =
+`ClientErrorReport`, `keepalive: true`, nunca lança (fetch rejeitando,
+`fetch` ausente, `window` ausente). **Sem migration, sem env, sem página
+nova; sem rota nova no BFF nem na API.**
+
+**Branch:** `observability/fase-7b-error-boundaries`, cortada em 17/09 de
+`d38fb5e`. O passo 1 do ritual a realinha depois de o pós-merge da 7c
+mergear — conferir com `git merge-base --is-ancestor` que #211 **e** o PR
+do pós-merge estão na `dev`, e `rev-list --count origin/dev..origin/main`
+= 0.
+
 ---
 
 ## §12 Fase 8 — O log de sucesso, e por que `SUCCESS` mente hoje ✅ 2026-09-15
@@ -3174,6 +3297,17 @@ Não-objetivos declarados como número, nunca como item de lista.
     se confere **lendo o campo**, não a frase; e a 7c herdou a mesma frase
     para a segunda porta anônima e teria repetido o erro. Hoje o teste do
     teto enche o balde e lê o snapshot.
+40. **`<script>` inline renderizado por client component não executa.** O
+    `ThemeInit` funciona no `not-found.tsx` porque aquele é server
+    component e o navegador executa o script ao parsear o HTML; num
+    `global-error.tsx` — client component, renderizado no cliente — o React
+    DOM cria o `<script>` via `innerHTML` **de propósito para ele não
+    executar** (`react-dom@18.3.1`, "parser-inserted flag … does not
+    execute"). O inventário de 16/09 mandava copiar o par de asserções do
+    `not-found` (`<ThemeInit />` e `<html … <body`), e a primeira passaria
+    verde sobre uma tela de crash em branco no tema escuro — a mesma
+    família do `bg-white` que a captura no escuro achou. Tema em boundary
+    raiz é `useEffect` + `applyStoredTheme()`, e a guarda cobra a chamada.
 
 ---
 
@@ -3454,9 +3588,14 @@ aplica as duas migrations juntas na promoção.**
   pelo caminho que a 7c abriu: os quatro `error.tsx` desestruturando
   `error`, o `digest` em texto pequeno, `lib/report-client-error.ts` (uma vez
   por montagem, `keepalive`, nunca lança, importável do `global-error.tsx`),
-  e o `global-error.tsx` com o `not-found.tsx` de modelo. O terreno está no
-  inventário do fim da §11; o corpo que ela manda é o `ClientErrorReport` de
-  `packages/types`. Sem schema e sem env.
+  e o `global-error.tsx` com o `not-found.tsx` de modelo — **menos o
+  `<ThemeInit />`, que não executa em client component (armadilha 40)**. O
+  terreno está em **"Inventário da 7b, reconferido depois da 7c"**, no fim
+  da §11 (o `<main>` sem contêiner, a casca única para os quatro, a exceção
+  no `bff-seam`, o idioma pelo pathname, a mensagem genérica do Next, e o
+  ensaio por `page.route`); o corpo que ela manda é o `ClientErrorReport` de
+  `packages/types`. Sem schema e sem env. Branch
+  `observability/fase-7b-error-boundaries`.
 - **Promoção `dev → main` depois da 7**, antes da 9 — o `CLAUDE.md` manda.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
@@ -3487,7 +3626,7 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
       na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
       decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
       primeiro modelo pago.
-- [ ] Ler o §17 inteiro. São 39 armadilhas e a maioria custou um incidente.
+- [ ] Ler o §17 inteiro. São 40 armadilhas e a maioria custou um incidente.
 
 **Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
 não depende de nada neste plano, o que a torna a partida natural.
