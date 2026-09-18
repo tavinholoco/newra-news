@@ -7890,6 +7890,109 @@ plano. Branch `observability/fase-7b-error-boundaries`, cortada de
 
 **1.295 na API, 840 no web** — sem teste novo: dois diagramas e prosa.
 
+### 79. Fase 7b — o `digest` chega a um humano: a casca única dos cinco boundaries, o reporter, e o boundary que a ISR nunca alcança ✅ 2026-09-17
+
+> A §11.2 do plano de observabilidade, sobre a `dev` em `943915c` (#212
+> mergeado; a branch remota estava em `d38fb5e` e o passo 1 do ritual a
+> realinhou). **Só web, num PR só — sem migration, sem env, sem página, sem
+> rota nova.** Reporta pelo caminho que a 7c abriu. **Fecha a Fase 7** — e,
+> com ela, o que faltava antes da promoção `dev → main`.
+
+**O que fecha:** os quatro `error.tsx` declaravam `error: Error & { digest?:
+string }` e **nunca o liam** — só o `reset` era desestruturado. Um crash
+mostrava "algo deu errado", descartava o `digest` que localiza o stack no
+log do servidor, e não era contado em lugar nenhum. E não existia
+`global-error.tsx`: um crash no layout de idioma mostrava o padrão do Next,
+sem estilo. Hoje os cinco boundaries passam pela mesma casca
+(`components/errors/error-state.tsx`), que desenha o `digest` em texto
+pequeno e selecionável sob o botão — o papel do `requestId` no corpo do 500
+da API — e chama `useReportClientError` uma vez por montagem, que manda o
+`ClientErrorReport` para `POST /api/errors/client` com `keepalive`, sem
+nunca lançar.
+
+**As decisões que o inventário deixava, tomadas:**
+
+- **A casca recebe tudo por prop, inclusive as strings.** O quinto
+  boundary é o raiz, fora do provider do next-intl (`useTranslations` ali
+  lança dentro do boundary — armadilha 9); uma casca que traduzisse não
+  serviria para ele. Cada `error.tsx` chama o próprio `t('…')`, literal no
+  arquivo, como o `i18n-messages` cobra. `errors.digestLabel` nos dois
+  JSONs.
+- **`layout='inset'` para o `admin/metrics/error.tsx`**, que renderiza
+  dentro do `admin/layout.tsx` — o único dos quatro que já está em
+  contêiner (armadilha 11); os outros três ganham o `container-editorial`
+  da V2 no lugar do `max-w-7xl` da V1.
+- **O tema do `global-error.tsx` é `applyStoredTheme()` num `useEffect`** —
+  o leitor novo de `lib/theme.ts`, que aplica sem gravar. O `<ThemeInit />`
+  do modelo (`not-found.tsx`) é `<script>` inline e **não executa** quando
+  é o React quem o insere num client component (armadilha 40). A guarda
+  cobra a chamada, e reprova o `<ThemeInit />` copiado.
+- **As strings saem dos JSONs lidos direto, no idioma do pathname, lido num
+  efeito.** O inventário pedia "string fixa neutra em dois idiomas"; uma
+  cópia derivaria dos JSONs em silêncio, e importá-los custa o que toda
+  página já carrega pelo `NextIntlClientProvider`. Não do
+  `document.documentElement.lang` (é o `<html>` que está sendo
+  substituído) nem durante o render (`window` não existe no servidor, e
+  divergir da hidratação dentro do boundary raiz é a falha dupla).
+  `localeFromPathname` é pura, em `lib/i18n.ts`.
+- **"Uma vez por montagem" mora no hook**, com o `useRef` do `PageView`
+  contra o StrictMode; `reset()` remonta, e o mesmo erro no retry é um
+  relato novo, coalescido pela API na mesma linha — o comportamento certo.
+- **O reporter é a segunda exceção do `bff-seam`**, com o motivo: sem
+  `signal`, porque um prazo abortaria a única tentativa de um relato que
+  sai durante uma navegação que acabou de falhar.
+- **O `admin:capture` fotografa o boundary como rota permanente**
+  (`admin-metrics-error`, opção `breakBff`): intercepta o BFF dos sinais de
+  ouro com `routes: null`, o `GoldenSignals` lança no render, o boundary
+  renderiza — sem `throw` no produto. O inventário dizia que o script "já
+  tinha `page.route`"; não tinha.
+
+#### O ensaio, e o que ele corrigiu no inventário
+
+**Os três saltos para o erro de cliente** (build de produção — o overlay do
+dev cobriria a foto): quatro capturas do boundary (375/1440, claro/escuro),
+**quatro `202`** na API — um por montagem, nenhum dobrado —, nenhuma linha
+`bff.errors.client`, e depois do flush a `/admin/security` com
+`CLIENT_ERROR · INTERNAL · WEB` em `/[locale]/admin/metrics`, **4
+ocorrências em 1 hora**. **O erro de servidor, com `digest`**: um `throw`
+temporário no corpo da `admin/metrics/page.tsx`, guardado por variável de
+ambiente e nunca commitado — "Referência do erro: 1475300246" na tela, e a
+linha `WEB` com `context: { digest: "1475300246" }` e a `message` sendo a
+**frase genérica do Next**, 261 caracteres: o digest é a identidade.
+
+⚠️ **O inventário dizia que, com a API parada, `/pt-BR/news/<id>` "cai no
+`news/error.tsx`". Não cai — cai na 500 estática do Next, em qualquer
+navegação.** Medido três vezes: API parada (dois `digest` no log, um do
+`generateMetadata` e um do corpo, e a 500 preta); API de pé com `throw` no
+corpo, navegação direta (**HTTP 500**, mesma tela); e navegação de cliente
+a partir do acervo (o RSC devolve 500 e o roteador cai para navegação
+dura). As duas páginas de detalhe são ISR, e **erro durante a geração é "a
+geração falhou"**, não "renderize o boundary" — o `error.tsx` do segmento
+só entra no erro de render do cliente, que não tem digest. **Onde o digest
+chega a um humano é nas páginas `force-dynamic`** (admin, conta,
+favoritos), e é lá que o ensaio o viu. A saída para as duas ISR é decisão
+sobre ISR e SEO (o que o CDN cacheia de um render de erro), fora do escopo
+dos boundaries — dívida com gatilho no §16, **armadilha 41**.
+
+**Lições de ferramenta:** (1) a guarda que lê prosa reprovou a explicação —
+`not.toContain('ThemeInit')` viu o JSDoc que explica por que o
+`<ThemeInit />` não está lá; tirar comentário antes de perguntar
+(armadilha 27, sétima vez); (2) o Docker Desktop caiu **três vezes** ao
+subir, pelo `.sock` órfão de duas pastas diferentes (`Docker/run` e
+`docker-secrets-engine`) — cada tentativa que morre recria a pasta que
+alcançou e deixa órfão novo; o que resolveu foi renomear **as duas** de uma
+vez, com tudo parado, e subir uma vez só; (3) o cache de `fetch` do Next
+serviu uma matéria inteira com a API parada — um id nunca buscado é o que
+mede a falha de transporte; (4) o `breakBff` troca o `data` inteiro, então
+o primeiro campo lido é quem lança (`toLocaleString` de `undefined`), não o
+`routes.length` previsto — mesmo desfecho.
+
+**Custo em guarda:** `report-client-error.test.ts` (11), `error-state.test.tsx`
+(6), `i18n.test.ts` (3), `theme.test.ts` (+3), `state-matrix` (+2),
+`a11y-guards` (+1), `bff-seam` (a exceção). Seis quebras de propósito, seis
+reprovações. **840 → 866 no web (82 → 85 suítes); 1.295 na API.** Branch
+`observability/fase-7b-error-boundaries`, base `dev`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -1669,7 +1669,7 @@ diagramas, a matriz, `docs/api.md`, `shared-type-contract`, `i18n-messages`,
 
 ---
 
-## §11 Fase 7 — Erro do cliente (três subfases independentes)
+## §11 Fase 7 — Erro do cliente (três subfases independentes) ✅ 7a 2026-09-07 · 7c 2026-09-16 · 7b 2026-09-17
 
 **Fecha:** um crash de render mostra "algo deu errado", descarta o `digest` que
 localizaria o stack do servidor, e não é contado em lugar nenhum. Um crash no
@@ -1694,7 +1694,7 @@ Duas coisas que isso destrava e que já existem sem funcionar:
   o rastro para o log do servidor" e **nenhum código o lê**. O
   `logServerError` é o leitor.
 
-### §11.2 — O `digest` chega a um humano
+### §11.2 — O `digest` chega a um humano ✅ 2026-09-17 (7b)
 
 Os quatro `error.tsx` passam a desestruturar `error`, renderizar o `digest` em
 texto pequeno ao lado do botão de tentar de novo — o mesmo papel que o
@@ -2074,6 +2074,106 @@ nova; sem rota nova no BFF nem na API.**
 mergear — conferir com `git merge-base --is-ancestor` que #211 **e** o PR
 do pós-merge estão na `dev`, e `rev-list --count origin/dev..origin/main`
 = 0.
+
+### O que o PR decidiu — 17/09/2026 (7b ✅)
+
+Sobre a `dev` em `943915c` (#212 mergeado; a branch remota estava em
+`d38fb5e` e o passo 1 a realinhou). **Só web, num PR só — sem migration,
+sem env, sem página, sem rota nova.** O inventário reconferido acima acertou
+o desenho; o que a implementação acrescentou foi o que o ensaio mediu, e
+**uma frase do inventário estava errada** (abaixo).
+
+**O que entrou, e as decisões que não estavam escritas:**
+
+- **A casca recebe tudo por prop, inclusive as strings** —
+  `components/errors/error-state.tsx` com `title`, `description`,
+  `retryLabel`, `digestLabel`, `error`, `reset`. O motivo é o quinto
+  boundary: o `global-error.tsx` renderiza fora do provider do next-intl, e
+  uma casca que traduzisse por conta própria não serviria para ele. Cada
+  `error.tsx` chama o próprio `t('…')` — a chave literal no arquivo é o que
+  o `i18n-messages` procura. Uma chave nova nos dois JSONs,
+  `errors.digestLabel`.
+- **`layout='inset'` para o boundary que já está dentro de contêiner.** O
+  inventário disse que o `<main>` do layout de idioma é só `flex-1`, então a
+  casca traz o `container-editorial` — mas o `admin/metrics/error.tsx`
+  renderiza dentro do `admin/layout.tsx`, que já o dá, e um segundo dobraria
+  o gutter. É a única diferença entre os quatro.
+- **`useReportClientError(error)` mora no reporter, não na casca.** O
+  `useRef` do `PageView` é a guarda do StrictMode; pô-lo no hook faz a
+  regra "uma vez por montagem" ser uma só para quem quer que use o reporter.
+  `reportClientError` (a função) e o hook saem do mesmo módulo; o teste
+  cobre os dois, com StrictMode de verdade (`renderHook` com `wrapper`).
+- **As strings do `global-error.tsx` saem dos JSONs, lidos direto.** O
+  inventário pedia "fixa neutra em dois idiomas"; uma cópia das quatro
+  frases derivaria dos JSONs em silêncio na primeira edição, e importá-los
+  custa o que toda página já manda ao cliente pelo `NextIntlClientProvider`.
+  A guarda cobra os dois imports. **O idioma é estado, lido num efeito** — não
+  durante o render. `window` não existe no servidor, e um primeiro render
+  que dependesse dele divergiria da hidratação dentro do boundary raiz, que
+  é onde uma segunda falha custa mais. O primeiro render sai no idioma
+  padrão e o efeito troca; `localeFromPathname` é pura, em `lib/i18n.ts`,
+  com teste (`/english` não é `/en`).
+- **A guarda que lê prosa reprovou a explicação.** A asserção
+  `not.toContain('ThemeInit')` do `state-matrix` viu o JSDoc do
+  `global-error.tsx` — que explica por que o `<ThemeInit />` **não** está
+  lá — e reprovou. Tirar comentário antes de perguntar (armadilha 27, pela
+  sétima vez): o teste normaliza a fonte antes de asserir.
+- **O `admin:capture` ganhou o boundary como rota permanente**
+  (`admin-metrics-error`, opção `breakBff`): o inventário dizia que o script
+  "já tem `page.route`" — não tinha; agora tem, e a foto do boundary passa a
+  sair em toda captura de admin, com o relato indo de verdade para a API.
+
+**O ensaio, medido, e o que ele corrigiu no inventário:**
+
+- **Boundary → BFF → API → flush → tela, para o erro de cliente:** quatro
+  capturas do `admin-metrics-error` (375/1440, claro/escuro), quatro `202`
+  na API — um por montagem, nenhum dobrado —, nenhuma linha
+  `bff.errors.client`, e depois do flush a `/admin/security` com
+  `CLIENT_ERROR · INTERNAL · WEB` em `/[locale]/admin/metrics`, **4
+  ocorrências em 1 hora**, `digest: null` no contexto. A mensagem foi
+  "Cannot read properties of undefined (reading 'toLocaleString')" — o
+  `breakBff` troca o `data` inteiro, então o primeiro campo lido é quem
+  lança, não o `routes.length` que o inventário previa; mesmo desfecho.
+- **O erro de servidor, com `digest` na tela e no banco:** um `throw`
+  temporário no corpo da `admin/metrics/page.tsx` (guardado por variável de
+  ambiente, nunca commitado), build de produção, captura: "Referência do
+  erro: 1475300246" sob o botão, e a linha `WEB` com
+  `context: { digest: "1475300246" }` e a **`message` sendo a frase
+  genérica do Next**, 261 caracteres — o digest é a identidade, como o
+  inventário disse.
+- ⚠️ **O inventário dizia que, com a API parada, `/pt-BR/news/<id>` "cai
+  no `news/error.tsx`". Não cai — cai na 500 estática do Next, em qualquer
+  navegação.** Medido três vezes: com a API parada (dois `digest` no log,
+  um do `generateMetadata` e um do corpo, e a 500 preta sem estilo); com a
+  API de pé e um `throw` no corpo, por navegação direta (**HTTP 500**,
+  mesma tela); e pela navegação de cliente a partir do acervo (o RSC
+  devolve 500 e o roteador cai para navegação dura). **É comportamento do
+  Next 14 para render de geração**: as duas páginas de detalhe são ISR
+  (`revalidate` + `generateStaticParams` vazio), e erro durante a geração
+  é "a geração falhou", não "renderize o boundary" — o `error.tsx` daquele
+  segmento só alcança erro de render **no cliente**, que não tem digest.
+  O `global-error.tsx` também não alcança (é para o layout). **Onde o
+  digest chega a um humano é nas páginas dinâmicas** — `force-dynamic`: as
+  de admin, conta e favoritos —, e é lá que o ensaio o viu. Para as duas
+  ISR, a 500 estática continua sendo o que o leitor vê quando a API não
+  responde numa matéria ainda não gerada; a saída (metadata resiliente +
+  render que não falha a geração, ou uma `500` própria) é decisão sobre
+  ISR e SEO — o que o CDN cacheia de um render de erro — e fica registrada
+  como dívida com gatilho no §16, fora do escopo dos boundaries.
+
+**Custo em guarda, medido:** `report-client-error.test.ts` (11: corpo,
+`keepalive`, tetos, sem digest, nunca lança — `fetch` rejeitando, lançando,
+ausente, `window` ausente —, uma vez por montagem sob StrictMode, de novo
+ao remontar), `error-state.test.tsx` (6, inclusive `inset`),
+`i18n.test.ts` (3), `theme.test.ts` (+3, `applyStoredTheme` sem gravar),
+`state-matrix` (+2: o boundary raiz pela chamada, e os cinco pela casca),
+`a11y-guards` (+1: o `h1` só na casca), `bff-seam` (a exceção com o
+motivo). Seis quebras de propósito, seis reprovações. **840 → 866 no web
+(82 → 85 suítes); 1.295 na API, sem mudança.**
+
+**Depois da 7b: a promoção `dev → main`** (o lote inteiro desde a 3, com
+as três migrations da 4, do 5a e do 11a), o ritual contra produção, e só
+então a **9**.
 
 ---
 
@@ -3127,6 +3227,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
 | Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
 | **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo |
+| **Erro de servidor nas duas páginas ISR de detalhe é a 500 estática do Next, e nenhum boundary a alcança** | medido na 7b (17/09/2026): `/news/[id]` e `/article/[date]` são render de geração (`revalidate` + `generateStaticParams` vazio), e erro na geração — do `generateMetadata` ou do corpo — é "a geração falhou", não "renderize o `error.tsx`"; a navegação de cliente cai para navegação dura no 500 do RSC. O `digest` existe no log e não chega a ninguém, e nada é reportado. **Gatilho: a primeira linha `CLIENT_ERROR` com `route` de uma das duas em que alguém precise do digest — ou a primeira medição de `/news/[id]` respondendo 500 em produção fora de uma acordada da API.** A saída é decisão sobre ISR e SEO (metadata resiliente à falha de transporte + o que o CDN cacheia de um render de erro), não sobre boundary |
 
 ---
 
@@ -3308,6 +3409,20 @@ Não-objetivos declarados como número, nunca como item de lista.
     verde sobre uma tela de crash em branco no tema escuro — a mesma
     família do `bg-white` que a captura no escuro achou. Tema em boundary
     raiz é `useEffect` + `applyStoredTheme()`, e a guarda cobra a chamada.
+41. **`error.tsx` não alcança erro de servidor numa página ISR.** Medido na
+    7b, três vezes: com a API parada, com um `throw` no corpo por navegação
+    direta (HTTP 500) e pela navegação de cliente (o RSC devolve 500 e o
+    roteador cai para navegação dura). Render de geração que lança é "a
+    geração falhou" — a 500 estática do Next, preta e sem estilo —, e o
+    boundary do segmento só entra no erro de render **do cliente**, que não
+    tem `digest`. O inventário de 16/09 e o de 17/09 diziam que
+    `/pt-BR/news/<id>` "cai no `news/error.tsx`" com a API parada; era
+    dedução, e a medição diz o contrário. **Onde o digest chega a um humano
+    é nas páginas `force-dynamic`** (admin, conta, favoritos). Ao afirmar
+    que um boundary alcança um erro, provoque o erro e olhe a tela — o
+    `admin:capture` tem `breakBff` para o erro de cliente, e um `throw`
+    guardado por variável de ambiente, nunca commitado, serve para o de
+    servidor.
 
 ---
 
@@ -3538,7 +3653,7 @@ aplica as duas migrations juntas na promoção.**
 | ~~7b~~ ✅ | **§9 — Fase 5, a API** — **entregue em 12/09/2026** | `GET /api/admin/errors` **e `/audit`** (a leitura da auditoria não estava listada — tabela sem leitor), saturação no `/api/metrics/http`, as três colunas no `dashboardMetricsSchema`, o `response-schema-contract` no `DailyMetric`, o ator atravessando BFF → cron → API por `x-actor-id`, e o heartbeat do `DailyUptime` — **no `server.ts`**, não no `buildApp`. Item **64** do `docs/progress.md` |
 | ~~7c~~ ✅ | **§9 — Fase 5, o web** — **entregue em 14/09/2026** | A `/admin/security` nasceu e o `toHaveLength` foi a 16. As três abas, `series-bars`, rosquinhas, o arco das horas com o ritmo do mês, KPI com variação (três de quatro — o quarto não tem par honesto no contrato), `admin-surface.test.ts` pelo parser, e o `admin:capture` cobrindo a tela nova, com o seed populando as três tabelas. **Fecha a Fase 5.** Item **67** do `docs/progress.md` |
 
-**Bloco 3 — depois da espinha, em qualquer ordem. ← próximo**
+**Bloco 3 — depois da espinha, em qualquer ordem — fechado em 17/09/2026, menos a 9.**
 
 - ~~**§12 — Fase 8 (log de sucesso).**~~ ✅ **Entregue em 15/09/2026.** O
   desfecho derivado (`SUCCESS_DEGRADED` com `degradedBy`), o resumo no evento
@@ -3584,19 +3699,23 @@ aplica as duas migrations juntas na promoção.**
   (armadilha 39 — entrou o `clientErrorRate` por rota, com a coluna "4xx" na
   `/admin/metrics`). Item **77** do `docs/progress.md`; as decisões no fim
   da §11.
-- **§11.2 — Fase 7b (o `digest` chega a um humano). ← próxima.** Reporta
-  pelo caminho que a 7c abriu: os quatro `error.tsx` desestruturando
-  `error`, o `digest` em texto pequeno, `lib/report-client-error.ts` (uma vez
-  por montagem, `keepalive`, nunca lança, importável do `global-error.tsx`),
-  e o `global-error.tsx` com o `not-found.tsx` de modelo — **menos o
-  `<ThemeInit />`, que não executa em client component (armadilha 40)**. O
-  terreno está em **"Inventário da 7b, reconferido depois da 7c"**, no fim
-  da §11 (o `<main>` sem contêiner, a casca única para os quatro, a exceção
-  no `bff-seam`, o idioma pelo pathname, a mensagem genérica do Next, e o
-  ensaio por `page.route`); o corpo que ela manda é o `ClientErrorReport` de
-  `packages/types`. Sem schema e sem env. Branch
-  `observability/fase-7b-error-boundaries`.
-- **Promoção `dev → main` depois da 7**, antes da 9 — o `CLAUDE.md` manda.
+- ~~**§11.2 — Fase 7b (o `digest` chega a um humano).**~~ ✅ **Entregue em
+  17/09/2026, num PR só** (só web; sem migration, sem env, sem página, sem
+  rota). A casca única `components/errors/error-state` para os **cinco**
+  boundaries (tudo por prop, sem next-intl — o quinto é o raiz),
+  `lib/report-client-error.ts` (nunca lança, `keepalive`, uma vez por
+  montagem pelo `useRef` no hook), o `global-error.tsx` com
+  `applyStoredTheme()` num efeito (armadilha 40) e as strings dos JSONs
+  lidos direto no idioma do pathname, `errors.digestLabel` nos dois JSONs, o `admin:capture` com o
+  boundary como rota permanente (`breakBff`). **O ensaio corrigiu o
+  inventário**: erro de servidor nas duas páginas ISR de detalhe é a 500
+  estática do Next em qualquer navegação — o boundary de segmento só entra
+  no erro de render do cliente (armadilha 41), e o digest chega a um humano
+  nas páginas `force-dynamic`; a dívida está no §16. Item **79** do
+  `docs/progress.md`; as decisões no fim da §11. **Fecha a Fase 7.**
+- **Promoção `dev → main` depois da 7 ← próximo passo**, antes da 9 — o
+  `CLAUDE.md` manda. O lote inteiro desde a Fase 3, com as três migrations
+  (4, 5a, 11a) aplicando juntas; depois, o ritual contra produção.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 
@@ -3626,7 +3745,7 @@ descartaria 5.635 corpos e passava em todo teste de unidade.
       na Fase 5, onde a extensão do `response-schema-contract.test.ts` força a
       decisão. Gatilho para voltar atrás: mais de um briefing por dia, ou o
       primeiro modelo pago.
-- [ ] Ler o §17 inteiro. São 40 armadilhas e a maioria custou um incidente.
+- [ ] Ler o §17 inteiro. São 41 armadilhas e a maioria custou um incidente.
 
 **Sem decisão pendente. O primeiro PR pode abrir** — e a Fase 10 é a única que
 não depende de nada neste plano, o que a torna a partida natural.
