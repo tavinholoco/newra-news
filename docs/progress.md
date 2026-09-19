@@ -8093,6 +8093,94 @@ delas. Apagar é decisão de quem as criou.
 
 **Sem teste novo: prosa.** 1.295 na API, 866 no web.
 
+### 81. A promoção `dev → main` (#215), cada rodada do CI lida, e o ritual contra produção — com uma frase minha corrigida ✅ 2026-09-19
+
+> **O merge que publica:** #215, `4efbacd`, às **01:06:32 UTC** de 19/09 —
+> 68 commits, 29 PRs (#175 → #214), 219 arquivos, as Fases 4, 5, 8, 11, 6,
+> 7c e 7b de uma vez. Este item é a leitura de **cada** workflow que o push
+> disparou, as sondas contra produção durante e depois da janela dos
+> deploys, e o ritual. É a primeira medição contra produção de tudo o que o
+> plano fez desde 09/09.
+
+#### As seis rodadas, uma a uma
+
+| Workflow | Resultado | O que o log diz |
+|---|---|---|
+| **Migrate (produção)** | ✅ | `migrate status` listou as **três** pendentes e saiu com exit 1 (é assim que o Prisma sinaliza pendência; o passo é `continue-on-error`, e o `##[error]` vermelho dentro de um passo verde é cosmético). `migrate deploy` aplicou as três em **01:07:02**, 30 s depois do merge, em 0,2 s: `add_error_events`, `add_audit_and_uptime_drop_ai_tokens_used`, `add_source_health`. "All migrations have been successfully applied" |
+| **CI** | ✅ | Lint, Test, Build, `pnpm audit` |
+| **CodeQL** | ✅ | JavaScript/TypeScript |
+| **Gitleaks** | ✅ (`0 commits scanned`) | **Décima segunda medição, e a maior**: 68 commits entraram na `main` com zero varridos — o `--no-merges --first-parent` do §16, agora sobre o lote inteiro. O conteúdo foi varrido nos 29 PRs; o gate do merge continua decorativo |
+| **Smoke E2E** | ✅ **31 passed, 6 skipped**, 15,4 s | esperou os 420 s; os seis pulados são os fluxos de conta e admin sem os quatro segredos, como o workflow imprime. Entre os 31: toda rota `GET` de admin do BFF em 401 (inclusive as **seis** novas deste lote — `errors`, `audit`, `http-metrics`, `sources`, `invariants`, `pipeline/runs`), o `/api/events` anônimo, e **o gêmeo do `/api/errors/client`** (corpo vazio → 400, sem gravar nada) |
+| **Lighthouse CI** (`workflow_dispatch`) | ✅ gate verde | abaixo |
+
+#### A janela dos deploys, medida com relógio
+
+- **01:06:32** merge · **01:07:02** migrations aplicadas · **~01:08:00** a
+  API nova de pé (`uptime: 74 s` às 01:09:15) · às **01:09** o web novo já
+  repassava o 400 da rota nova. **A janela "schema novo × API velha" durou
+  ~1 minuto** — o item 80 previa alguns —, e às 01:09 `GET
+  /api/metrics/weekly` e `/monthly` respondiam **200** com a forma nova (sem
+  `aiTokensUsed`). `/api/health`, `/news`, `/home`: 200 em toda sonda. O
+  cron das 11:00 UTC estava a dez horas de distância.
+
+#### Sondas contra produção, anônimas
+
+- **A matriz de autorização vale no ar:** sete rotas de admin da API
+  (`/admin/errors`, `/audit`, `/invariants`, `/sources`, `/pipeline/runs`,
+  `/metrics/http`, `/metrics/dashboard`) e seis do BFF → **401**. As duas
+  portas anônimas com corpo vazio → **400** (o `/errors/client` devolve o
+  erro do Zod — `message` e `path` obrigatórios). Rota inexistente → **404
+  `{"error":"Not Found"}`**, o contrato da Fase 3. `x-request-id` ecoado e
+  respeitado quando enviado; `x-ratelimit-*` presentes; a CSP da API e a do
+  web nas duas pontas. **Nenhum relato válido foi enviado de propósito**:
+  gravaria uma falha falsa na primeira leitura das abas.
+- **Um vislumbre do dado:** `/api/metrics/weekly` → `pipelineSuccessRate:
+  0.5` nos últimos 6 dias (três com `pipelineErrors > 0`), `aiProviderUsage:
+  { gemini: 6 }`. É a faixa de desfechos da `/admin` que vai dizer o que
+  foram — e é a primeira coisa a olhar na leitura com credencial.
+- **Higiene da `main`:** 0 PNGs de `.admin-captures` rastreados (eram 13);
+  `dependabot.yml` idêntico nas duas — os sete `ignore` passaram a valer.
+  **A `dev` foi realinhada por fast-forward** (`dev..main` = 0,
+  `main..dev` = 0).
+
+#### Lighthouse — sete rotas, medianas de 3 execuções (artefato baixado, não a tabela impressa)
+
+`/pt-BR` **94** · `/news` **91** · `/article` **94** · `/about` **96** ·
+`/en` **95** · `/news/[id]` **96** · `/article/[date]` **95**.
+Acessibilidade **100** e SEO **100** nas sete. LCP entre 2,43 s e 3,04 s (a
+`/news` é a mais lenta, como em 24/08 — entrega de imagem, §10.6). A
+primeira execução da `/pt-BR` saiu em **75** e as duas seguintes em 94/95:
+é o padrão da API fria que o aquecimento do workflow existe para tirar da
+mediana, e tirou.
+
+**Best practices em 96 em quatro rotas — e o audit é `errors-in-console`:
+`Failed to load resource: 402`.** É o `/_next/image`. **A cota de imagem
+da Vercel NÃO virou.** Eu tinha escrito o contrário no corpo do #215 ("a
+cota virou — a baseline pode ser recapturada") a partir de **uma** imagem
+da home respondendo `200 image/webp`; medindo doze imagens distintas depois
+do Lighthouse, **12 de 12 respondem `402` com `X-Vercel-Cache: MISS`** — a
+que respondeu 200 era um `HIT` da borda, transformada antes de a cota
+estourar. **Sonda de cota se faz numa imagem em `MISS`, nunca numa que a
+borda já tem** — e o Lighthouse a fez por mim. O 🟡 do `CLAUDE.md` continua
+valendo; a baseline visual continua sendo ruído até o período virar. As
+três rotas sem foto (`/article`, `/about`, `/article/[date]`) estão em 100.
+
+#### O que a promoção deixa para a leitura com credencial
+
+Tudo o que este lote existe para mostrar só é visível com a sessão ADMIN
+de produção, e é o próximo passo: a faixa de desfechos e o batimento na
+`/admin` (os três dias com erro da semana), o arco das horas do plano
+(`DailyUptime` começou a contar às ~01:08 de 19/09 — o ritmo do mês se cala
+por 24 h), os quatro sinais e o painel "Fontes" na `/admin/metrics` (a
+`SourceHealth` só ganha a primeira linha no run das 11:00), e na
+`/admin/security` os `ErrorEvent` que a API passou a gravar — o
+`AUTH_TOKEN_INVALID` das minhas sondas 401 deve ser a primeira linha —, as
+invariantes ("nenhuma verificação ainda" até o primeiro run com a 9.5) e a
+trilha de auditoria vazia.
+
+**Sem teste novo: prosa, sondas e três workflows lidos.** 1.295 na API,
+866 no web.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

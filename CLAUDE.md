@@ -107,6 +107,14 @@ de promover.
 
 ### A promoção espera o plano de observabilidade terminar — 07/09/2026
 
+> **Promovido em 19/09/2026 (#215, `4efbacd`) — o lote das Fases 4, 5, 8,
+> 11, 6, 7c e 7b, com as três migrations juntas.** A seção abaixo é a
+> política que valeu de 07/09 a 19/09 e o que ela custou; a medição da
+> promoção está no item **81** do `docs/progress.md` (a janela dos deploys
+> durou ~1 min; smoke 31/6 pulados; Lighthouse verde; Gitleaks `0 commits`
+> sobre 68). **O que sobra do plano é a Fase 9**, que vai sozinha, por
+> decisão. A `dev` foi realinhada por fast-forward no mesmo dia.
+
 **Decidido depois da Fase 2.** As onze fases do plano integram na `dev` e a
 `main` recebe **uma promoção só, no fim**. O argumento é o mesmo que criou a
 política: a `main` é o que está no ar, e o plano é trabalho de instrumentação
@@ -313,10 +321,11 @@ a suíte de unidade, que roda sem rede.
   (web); e a **6 (invariantes) fechou em 16/09, num PR só**; e a **7c (o
   caminho de ingestão do erro do cliente) fechou em 16/09, num PR só**; e a
   **7b (os boundaries e o reporter) fechou em 17/09, num PR só — com ela a
-  Fase 7 inteira**.** Continua aberta **uma fase só** (a 9). **O próximo
-  passo é a promoção `dev → main`** e o ritual contra produção; a **9 vai
-  por último, e é decisão** (das três coisas que ela exige no ar, com a 8
-  entregue só falta a promoção).
+  Fase 7 inteira**; e **a promoção `dev → main` aconteceu em 19/09 (#215)**,
+  com o ritual medido (item 81).** Continua aberta **uma fase só** (a 9),
+  **por último e por decisão** — as três coisas que ela exige no ar (4, 5 e
+  8) estão lá desde a promoção; o que falta antes dela é a primeira leitura
+  das três abas com credencial de produção.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -334,6 +343,27 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Promoção `dev → main` (2026-09-19, #215, `4efbacd`): as sete fases do
+  plano de observabilidade estão no ar, e cada rodada do CI foi lida.**
+  Item **81**. 68 commits / 29 PRs, três migrations aplicadas em 01:07:02
+  (30 s depois do merge, 0,2 s), API nova de pé ~1 min depois — **a janela
+  do `DROP COLUMN` durou um minuto**, e as rotas públicas responderam 200
+  em toda sonda. **Smoke: 31 passed, 6 skipped** (conta e admin sem os
+  segredos), com as seis rotas de admin novas em 401 e o gêmeo anônimo do
+  `/api/errors/client`. **Lighthouse (medianas):** 94 · 91 · 94 · 96 · 95 ·
+  96 · 95, a11y e SEO 100 nas sete, gate verde — e **best practices em 96
+  nas quatro rotas com foto por `errors-in-console: 402`: a cota de imagem
+  NÃO virou** (12/12 imagens em `MISS` → 402; o 200 que eu tinha visto era
+  `HIT` da borda, e o corpo do #215 disse o contrário — corrigido no item
+  81). Gitleaks `0 commits scanned` sobre 68 — a décima segunda medição, a
+  maior. Matriz de autorização conferida no ar (13 rotas em 401, 404 no
+  contrato da Fase 3, `x-request-id` ecoado). **A `dev` está realinhada.**
+  **O que falta é seu: a primeira leitura das três abas de admin com a
+  credencial de produção** (o `AUTH_TOKEN_INVALID` das minhas sondas deve
+  ser a primeira linha da `/admin/security`; `SourceHealth` e as
+  invariantes só ganham dado no run das 11:00 UTC). **Depois: a Fase 9,
+  sozinha.**
 
 - **Verificação pós-merge da 7b (2026-09-19): a Fase 7 não deve nada, e o
   lote da promoção foi medido.** Item **80**. Sobre `79655d1` (#213):
@@ -666,6 +696,13 @@ a suíte de unidade, que roda sem rede.
   > para um endereço que você lê: **é a terceira vez** que este projeto descobre
   > um teto de plano gratuito pelo produto quebrado (keep-alive, suspensão de
   > 29/08, agora a imagem).
+  >
+  > **Remedido em 19/09/2026, na promoção: ainda estourada.** O Lighthouse
+  > acusou `errors-in-console: 402` nas quatro rotas com foto (best
+  > practices em 96), e 12 de 12 imagens da home em `MISS` respondem 402.
+  > **Uma imagem em `HIT` da borda responde 200 e engana** — foi assim que o
+  > corpo do #215 disse "a cota virou". Sonda de cota é numa imagem em
+  > `MISS`. Item 81.
   >
   > **Se estourar de novo depois do corte, a resposta honesta é o Pro** — espremer
   > mais começa a estragar a imagem. A outra saída, o proxy próprio, ficou mais

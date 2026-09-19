@@ -3717,13 +3717,13 @@ aplica as duas migrations juntas na promoção.**
   no erro de render do cliente (armadilha 41), e o digest chega a um humano
   nas páginas `force-dynamic`; a dívida está no §16. Item **79** do
   `docs/progress.md`; as decisões no fim da §11. **Fecha a Fase 7.**
-- **Promoção `dev → main` depois da 7 ← próximo passo**, antes da 9 — o
-  `CLAUDE.md` manda. O lote desde a Fase 4 (a 3 está no ar desde o #168 de
-  09/09; o primeiro PR do lote é o #175) — **30 PRs, 66 commits, três
-  migrations** (4, 5a, 11a) aplicando juntas, nenhuma variável de ambiente
-  nova, um bump de dependência de produção (`fastify-plugin` 5 → 6, #194) e
-  os 13 PNGs desrastreados; depois, o ritual contra produção. Medido no
-  pós-merge da 7b (item 80).
+- ~~**Promoção `dev → main` depois da 7**~~ ✅ **Feita em 19/09/2026 — #215,
+  `4efbacd`**: 68 commits, 29 PRs (#175 → #214), as três migrations (4, 5a,
+  11a) aplicadas juntas em 0,2 s, a janela dos deploys em ~1 min, smoke
+  31/6 pulados, Lighthouse verde (a11y e SEO 100 nas sete), Gitleaks `0
+  commits` sobre 68. O lote medido antes está no item **80**; a promoção
+  lida rodada a rodada, no **81**. **Ficou para a credencial de produção: a
+  primeira leitura das três abas** — é a próxima coisa a fazer, antes da 9.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 
