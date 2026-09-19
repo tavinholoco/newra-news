@@ -33,6 +33,28 @@ function prefersDark(): boolean {
 }
 
 /**
+ * Aplica o tema salvo (ou o do sistema) **sem gravar nada** — é o leitor,
+ * e existe por causa do boundary raiz.
+ *
+ * O `ThemeInit` faz exatamente esta conta num `<script>` inline, antes do
+ * paint; funciona no layout e no `not-found.tsx` porque são server
+ * components e o navegador executa o script ao parsear o HTML. O
+ * `global-error.tsx` é client component, e um `<script>` que o React insere
+ * **não executa** (armadilha 40 do plano de observabilidade) — copiar o
+ * `<ThemeInit />` para lá deixaria a tela de crash branca no tema escuro.
+ * Lá, o tema é esta função num `useEffect`.
+ *
+ * Devolve o tema que ficou valendo, como `applyThemePreference`.
+ */
+export function applyStoredTheme(): StoredTheme {
+  const resolved: StoredTheme = readStoredTheme() ?? (prefersDark() ? 'dark' : 'light');
+
+  document.documentElement.classList.toggle('dark', resolved === 'dark');
+
+  return resolved;
+}
+
+/**
  * Aplica a preferência e a guarda. `SYSTEM` **apaga** a escolha em vez de
  * gravar o valor que o sistema tem agora: gravado, o tema deixaria de
  * acompanhar o aparelho quando ele virasse à noite.

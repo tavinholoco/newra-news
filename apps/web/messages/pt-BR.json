@@ -400,7 +400,8 @@
     "articlesTitle": "Não foi possível carregar os artigos",
     "articlesDesc": "Ocorreu um erro ao buscar os artigos. Por favor, tente novamente.",
     "dashboardTitle": "Não foi possível carregar as métricas",
-    "dashboardDesc": "Ocorreu um erro ao buscar os dados do pipeline. Por favor, tente novamente."
+    "dashboardDesc": "Ocorreu um erro ao buscar os dados do pipeline. Por favor, tente novamente.",
+    "digestLabel": "Referência do erro:"
   },
   "favorites": {
     "title": "Salvos",

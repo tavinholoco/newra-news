@@ -21,7 +21,15 @@
   em `app/[locale]/`; o `not-found.tsx` raiz renderiza `<html>`/`<body>` e
   `ThemeInit` próprios (fora de qualquer layout de idioma) — e **é ele que
   atende todo endereço errado**, inclusive os com prefixo de idioma, porque
-  caminho sem arquivo de rota não cai dentro de `[locale]`
+  caminho sem arquivo de rota não cai dentro de `[locale]`. **A exceção
+  sancionada é o `app/global-error.tsx`** (Fase 7b do plano de
+  observabilidade): é o boundary do crash no layout de idioma, renderiza o
+  próprio `<html>`/`<body>` com o `not-found.tsx` de modelo — **menos o
+  `<ThemeInit />`**, que é `<script>` inline e não executa quando é o React
+  quem o insere num client component (armadilha 40); lá o tema é
+  `applyStoredTheme()` num `useEffect`, e as strings saem dos JSONs lidos
+  direto, no idioma do pathname (`useTranslations` sem provider lança dentro
+  do boundary; uma cópia fixa das frases derivaria dos JSONs em silêncio)
 - **Revalidação on-demand** — `app/api/cron/daily-news/route.ts` chama
   `revalidatePath('/[locale]', 'layout')` + `revalidatePath('/sitemap.xml')`
   após o trigger do pipeline. **Gotcha:** o cache do Next grava as tags com o
@@ -457,7 +465,13 @@ Regras que não são óbvias no código:
     arquivo deixa o produto bit a bit igual, e é isso que separa a ferramenta de
     um atalho de autenticação (OWASP M10 / CWE-489). Desde o 5c ele fotografa
     as três abas, e o seed popula `ErrorEvent`, `AuditEvent` e `DailyUptime`
-    para a foto não sair com arco em zero e trilha vazia
+    para a foto não sair com arco em zero e trilha vazia. **Desde a Fase 7b
+    fotografa também o error boundary** (`admin-metrics-error`): a opção
+    `breakBff` intercepta o BFF dos sinais de ouro com `routes: null`, o
+    `GoldenSignals` lança no render e o `admin/metrics/error.tsx` renderiza
+    — sem `throw` no produto. O relato do boundary **não** é interceptado:
+    com a API de pé, cada captura dessa rota grava uma linha `WEB` de verdade
+    no banco local, visível na `/admin/security` depois do flush
 
 ## SEO (Fase 7)
 
@@ -595,6 +609,9 @@ Regras que não são óbvias no código:
 | `lib/api.ts` → `nullIfNotFound` | o que separa "não encontrada" de "deu erro" |
 | `lib/use-results-focus.ts` | foco + rolagem ao virar página, respeitando `prefers-reduced-motion` |
 | `app/api/errors/client/route.ts` | o repasse **anônimo** do relato de um error boundary para `POST /api/errors/client` (Fase 7c do plano de observabilidade) — modelo do `app/api/events/route.ts`: sem `proxyToApi`, só corpo e content type atravessam, o status da API (inclusive o 429) atravessa intacto, o `catch` escreve `bff.errors.client`. Quem o chama é o reporter dos boundaries (Fase 7b) |
+| `lib/report-client-error.ts` | o reporter (Fase 7b): `reportClientError` monta o `ClientErrorReport` (`message` no teto, `digest` só quando há, `path` sem query) e o manda com `keepalive`, **nunca lança** — dentro de um boundary, uma segunda exceção é a falha dupla; `useReportClientError` chama uma vez por montagem (`useRef` contra o StrictMode, como o `PageView`). Segunda exceção declarada do `bff-seam` (sem `signal`: um prazo abortaria a única tentativa) |
+| `components/errors/error-state.tsx` | a casca única dos **cinco** boundaries — os quatro `error.tsx` e o `global-error.tsx`: `h1`, descrição, botão, o `digest` em texto pequeno selecionável (o papel do `requestId` no 500 da API), e é ela que reporta. **Tudo por prop e sem next-intl**, porque o boundary raiz renderiza fora do provider; cada `error.tsx` chama o próprio `t('…')` para a chave ficar literal no arquivo. `layout='inset'` no `admin/metrics/error.tsx`, que já está dentro do contêiner do `admin/layout.tsx` (armadilha 11) |
+| `app/global-error.tsx` | o boundary raiz — o único crash que o `[locale]/error.tsx` não alcança (o do layout de idioma). Detalhe na "Restrição importante" do topo |
 | `tests/security/` | três suítes: cabeçalhos, superfície do navegador, otimizador de imagem |
 | `tests/lib/state-matrix.test.ts` | a matriz de todas as rotas × 4 estados, como asserção — a contagem mora no `toHaveLength` dela |
 

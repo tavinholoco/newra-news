@@ -1,9 +1,16 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui/button';
+import { ErrorState } from '@/components/errors/error-state';
 
+/**
+ * O boundary do segmento de idioma — o que segura tudo que não tem boundary
+ * mais perto. A casca é a `ErrorState` (Fase 7b do plano de observabilidade):
+ * desenha o `digest` e reporta pela porta anônima da 7c. As chaves ficam
+ * aqui, literais, porque é assim que o `i18n-messages` as encontra.
+ */
 export default function Error({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -13,14 +20,13 @@ export default function Error({
   const tCommon = useTranslations('common');
 
   return (
-    <div className='mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-4 py-32 sm:px-6 lg:px-8'>
-      <h1 className='font-display text-2xl font-bold text-foreground'>
-        {t('genericTitle')}
-      </h1>
-      <p className='text-muted-foreground'>
-        {t('genericDesc')}
-      </p>
-      <Button onClick={reset}>{tCommon('retry')}</Button>
-    </div>
+    <ErrorState
+      title={t('genericTitle')}
+      description={t('genericDesc')}
+      retryLabel={tCommon('retry')}
+      digestLabel={t('digestLabel')}
+      error={error}
+      reset={reset}
+    />
   );
 }

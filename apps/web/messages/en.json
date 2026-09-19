@@ -400,7 +400,8 @@
     "articlesTitle": "Couldn't load the articles",
     "articlesDesc": "An error occurred while fetching the articles. Please try again.",
     "dashboardTitle": "Couldn't load the metrics",
-    "dashboardDesc": "An error occurred while fetching the pipeline data. Please try again."
+    "dashboardDesc": "An error occurred while fetching the pipeline data. Please try again.",
+    "digestLabel": "Error reference:"
   },
   "favorites": {
     "title": "Saved",

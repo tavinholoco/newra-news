@@ -47,6 +47,8 @@ const SCANNED_DIRS = [join(WEB_ROOT, 'lib'), join(WEB_ROOT, 'app', 'api')];
 const WITHOUT_TIMEOUT: Record<string, string> = {
   'lib/analytics/index.ts':
     'fetch de reserva do sendBeacon, com keepalive: abortar cancelaria a entrega que ele existe para garantir',
+  'lib/report-client-error.ts':
+    'o relato de um error boundary, com keepalive: sai durante uma navegação que acabou de falhar, e um prazo abortaria a única tentativa (Fase 7b)',
 };
 
 function collectFiles(dir: string): string[] {

@@ -311,12 +311,12 @@ a suíte de unidade, que roda sem rede.
   log de sucesso) fechou em 15/09**, abrindo o bloco 3; e a **11 (saúde por
   fonte) fechou em 15/09, em três PRs** — 11a (migration), 11b (API) e 11c
   (web); e a **6 (invariantes) fechou em 16/09, num PR só**; e a **7c (o
-  caminho de ingestão do erro do cliente) fechou em 16/09, num PR só**.**
-  Continua aberta **uma fase inteira** (a 9) e a subfase **7b — a próxima**
-  (reporta pelo caminho que a 7c abriu; o terreno está no fim da §11).
-  Depois da 7, **promoção `dev → main`** e o ritual; a **9 vai por último,
-  e é decisão** (das três coisas que ela exige no ar, com a 8 entregue só
-  falta a promoção).
+  caminho de ingestão do erro do cliente) fechou em 16/09, num PR só**; e a
+  **7b (os boundaries e o reporter) fechou em 17/09, num PR só — com ela a
+  Fase 7 inteira**.** Continua aberta **uma fase só** (a 9). **O próximo
+  passo é a promoção `dev → main`** e o ritual contra produção; a **9 vai
+  por último, e é decisão** (das três coisas que ela exige no ar, com a 8
+  entregue só falta a promoção).
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -334,6 +334,32 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-17): a Fase 7b fechou na `dev` — o
+  `digest` chega a um humano, e com ela a Fase 7 inteira.** §11.2, item
+  **79**. Os quatro `error.tsx` declaravam `error` e nunca o liam; hoje os
+  **cinco** boundaries (os quatro mais o `app/global-error.tsx`, que não
+  existia) passam pela casca única `components/errors/error-state` —
+  tudo por prop e sem next-intl, porque o raiz renderiza fora do provider
+  —, que desenha o `digest` em texto pequeno selecionável e chama
+  `useReportClientError` **uma vez por montagem** (`lib/report-client-error.ts`:
+  `keepalive`, nunca lança, segunda exceção do `bff-seam`). O
+  `global-error.tsx` tem o `not-found.tsx` de modelo **menos o
+  `<ThemeInit />`** — `<script>` inline não executa quando é o React quem o
+  insere (armadilha 40); o tema é `applyStoredTheme()` num efeito, e as
+  strings saem dos JSONs lidos direto, no idioma do pathname (cópia fixa
+  derivaria em silêncio). O `admin:capture` fotografa o boundary
+  como rota permanente (`admin-metrics-error`, `breakBff`). **Ensaio em
+  build de produção, os três saltos**: quatro capturas → quatro `202` →
+  a linha `WEB · CLIENT_ERROR · /[locale]/admin/metrics` com `count: 4` na
+  `/admin/security`; e o erro de servidor com "Referência do erro:
+  1475300246" na tela e o mesmo digest no `context` da linha. **O ensaio
+  corrigiu o inventário (armadilha 41): erro de servidor nas duas páginas
+  ISR de detalhe é a 500 estática do Next em qualquer navegação** — o
+  boundary de segmento só entra no erro de render do cliente; o digest
+  chega a um humano nas páginas `force-dynamic`. Dívida com gatilho no
+  §16. **840 → 866 no web; 1.295 na API.** **Próximo passo: a promoção
+  `dev → main`** e o ritual; depois, a 9.
 
 - **Verificação pós-merge da 7c (2026-09-17): o fluxo anônimo que nenhum
   diagrama desenhava, e o `<script>` que não executa.** Item **78**. Quatro
@@ -1127,7 +1153,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.135 em 170 suites (**1.295 API em 88** + **840 web em 82** — todos
+- **Testes:** 2.161 em 173 suites (**1.295 API em 88** + **866 web em 85** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

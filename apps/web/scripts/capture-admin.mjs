@@ -1,6 +1,8 @@
 // Captura as telas de **admin**, que exigem sessão — e por isso nunca estiveram
 // na baseline visual. São as três abas (`/admin`, `/admin/metrics`,
-// `/admin/security`), a primeira também com um run expandido.
+// `/admin/security`), a primeira também com um run expandido — e, desde a
+// Fase 7b do plano de observabilidade, o **error boundary** da `/admin/metrics`,
+// provocado por um BFF interceptado (`breakBff`).
 //
 //   pnpm --filter @newranews/web admin:capture
 //
@@ -87,6 +89,24 @@ const ALL_ROUTES = [
   // mesmo PR — senão a aba nasce sem foto.
   { slug: 'admin-security', url: '/pt-BR/admin/security' },
   { slug: 'admin-en', url: '/en/admin', expand: true, widths: ['1440'], themes: ['light'] },
+  /**
+   * O error boundary de verdade, sem `throw` no produto (Fase 7b do plano de
+   * observabilidade). O BFF dos sinais de ouro responde com `routes: null`,
+   * o `GoldenSignals` lança no render (`routes.length`), o
+   * `admin/metrics/error.tsx` renderiza — e o reporter dele dispara para
+   * `/api/errors/client`, que **não** é interceptado: com a API de pé, cada
+   * captura desta rota grava uma linha `WEB` de verdade no banco local, que
+   * a `/admin/security` mostra depois do flush de 30 s. É o único caminho que
+   * exercita os três saltos (boundary → BFF → API) sem código de teste no app.
+   */
+  {
+    slug: 'admin-metrics-error',
+    url: '/pt-BR/admin/metrics',
+    breakBff: {
+      path: '/api/admin/http-metrics',
+      body: { data: { routes: null } },
+    },
+  },
 ];
 const ROUTES = process.env.ROUTES
   ? ALL_ROUTES.filter((r) => process.env.ROUTES.split(',').map((s) => s.trim()).includes(r.slug))
@@ -229,6 +249,16 @@ async function capture(browser, cookie, route, viewport, theme) {
   }, theme);
 
   const page = await context.newPage();
+  if (route.breakBff) {
+    // Só este BFF; tudo o mais — inclusive o relato do boundary — segue ao vivo.
+    await page.route(`**${route.breakBff.path}`, (intercepted) =>
+      intercepted.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(route.breakBff.body),
+      }),
+    );
+  }
   const suffix = theme === 'dark' ? '-dark' : '';
   const ext = FORMAT === 'jpeg' ? 'jpg' : 'png';
   const file = path.join(OUT_DIR, `${route.slug}--${viewport.name}${suffix}.${ext}`);

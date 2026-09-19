@@ -176,21 +176,19 @@ const MATRIZ: Linha[] = [
   },
 ];
 
+function collectFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = path.join(dir, entry);
+    return statSync(full).isDirectory() ? collectFiles(full) : [full];
+  });
+}
+
 function pageSegments(): string[] {
-  const found: string[] = [];
-
-  function walk(dir: string) {
-    for (const entry of readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry === 'page.tsx') {
-        found.push(path.relative(APP, dir).replace(/\\/g, '/').replace(/^\.$/, ''));
-      }
-    }
-  }
-
-  walk(APP);
-  return found;
+  return collectFiles(APP)
+    .filter((file) => path.basename(file) === 'page.tsx')
+    .map((file) =>
+      path.relative(APP, path.dirname(file)).replace(/\\/g, '/').replace(/^\.$/, ''),
+    );
 }
 
 const SEGMENTOS = pageSegments();
@@ -336,6 +334,74 @@ describe('a matriz de estado das rotas', () => {
 
     expect(notFound).toContain('<ThemeInit />');
     expect(notFound).toMatch(/<html[\s\S]*?<body/);
+  });
+
+  it('o boundary raiz existe, renderiza o próprio `<html>`, e aplica o tema pela chamada — não pelo `<ThemeInit />`', () => {
+    /**
+     * **`global-error.tsx` é o boundary raiz sancionado** (§11.2 do plano de
+     * observabilidade, Fase 7b). O `CLAUDE.md` proíbe `error.tsx` na raiz
+     * porque o boundary cairia fora do `<html>`; este renderiza o próprio
+     * `<html>`/`<body>` e é a exceção — o modelo é o `not-found.tsx` acima,
+     * que já pagou a lição do CSS e do tema.
+     *
+     * **Menos o `<ThemeInit />`, e é a armadilha 40 do plano.** Ele é um
+     * `<script>` inline; funciona no `not-found.tsx` porque aquele é server
+     * component e o navegador executa o script ao parsear o HTML. Este é
+     * client component, e o React DOM cria `<script>` via `innerHTML` **de
+     * propósito para não executar**. Copiar o par de asserções do teste
+     * acima passaria verde sobre uma tela de crash branca no tema escuro —
+     * a guarda cobra a **chamada** a `applyStoredTheme()`, que é o leitor
+     * de `lib/theme.ts`, e reprova o componente que não faria nada.
+     */
+    // Sem comentário antes de perguntar: o JSDoc do arquivo explica por que
+    // o `<ThemeInit />` não está lá, e a guarda que lê prosa vê o caractere
+    // e reprova a explicação (armadilha 27).
+    const globalError = readFileSync(path.resolve(WEB_ROOT, 'app/global-error.tsx'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+    expect(globalError).toMatch(/^'use client';/);
+    expect(globalError).toMatch(/<html[\s\S]*?<body/);
+    expect(globalError).toContain("import '@/styles/globals.css'");
+    expect(globalError).toMatch(/applyStoredTheme\(\)/);
+    expect(globalError).not.toContain('ThemeInit');
+    // Armadilha 9: `useTranslations` sem provider lança dentro do boundary —
+    // falha dupla, nada renderiza. As strings saem dos próprios JSONs, lidos
+    // direto e escolhidos pelo pathname — uma cópia fixa delas derivaria dos
+    // JSONs em silêncio na primeira edição.
+    expect(globalError).not.toMatch(/useTranslations|getTranslations|next-intl/);
+    expect(globalError).toContain("from '@/messages/pt-BR.json'");
+    expect(globalError).toContain("from '@/messages/en.json'");
+    expect(globalError).toMatch(/localeFromPathname\(/);
+  });
+
+  it('todo boundary de erro desenha pela casca única, e é ela que reporta', () => {
+    /**
+     * Os quatro `error.tsx` eram o mesmo componente de 26 linhas; o
+     * `global-error.tsx` é o quinto. A casca (`components/errors/error-state`)
+     * é quem desenha o `digest` e chama o reporter uma vez por montagem — um
+     * boundary que a contorna nasce sem as duas coisas, e nada mais acusa.
+     * As chaves de mensagem continuam **literais em cada arquivo**: o
+     * `i18n-messages` as lê como órfãs se saírem dali.
+     */
+    const boundaries = [
+      ...collectFiles(APP).filter((file) => path.basename(file) === 'error.tsx'),
+      path.resolve(WEB_ROOT, 'app/global-error.tsx'),
+    ];
+    expect(boundaries.length).toBeGreaterThanOrEqual(5);
+
+    const foraDaCasca = boundaries
+      .filter((file) => !/<ErrorState\b/.test(readFileSync(file, 'utf8')))
+      .map((file) => path.relative(WEB_ROOT, file).replace(/\\/g, '/'));
+
+    expect(foraDaCasca).toEqual([]);
+
+    const casca = readFileSync(
+      path.resolve(WEB_ROOT, 'components/errors/error-state.tsx'),
+      'utf8',
+    );
+    expect(casca).toMatch(/useReportClientError\(/);
+    expect(casca).toMatch(/digest/);
   });
 
   it('as telas atrás de sessão são dinâmicas', () => {
