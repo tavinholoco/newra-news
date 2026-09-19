@@ -24,7 +24,7 @@
     "dotenv": "^16.4.0",
     "fastify": "^4.28.0",
     "fastify-plugin": "^6.0.0",
-    "fastify-type-provider-zod": "^2.1.0",
+    "fastify-type-provider-zod": "^7.0.0",
     "jose": "^6.2.12",
     "pino": "9.14.0",
     "rss-parser": "^3.13.0",
