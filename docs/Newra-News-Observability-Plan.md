@@ -3230,6 +3230,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
 | Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
 | **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo |
+| **A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou** | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
 | **Erro de servidor nas duas páginas ISR de detalhe é a 500 estática do Next, e nenhum boundary a alcança** | medido na 7b (17/09/2026): `/news/[id]` e `/article/[date]` são render de geração (`revalidate` + `generateStaticParams` vazio), e erro na geração — do `generateMetadata` ou do corpo — é "a geração falhou", não "renderize o `error.tsx`"; a navegação de cliente cai para navegação dura no 500 do RSC. O `digest` existe no log e não chega a ninguém, e nada é reportado. **Gatilho: a primeira linha `CLIENT_ERROR` com `route` de uma das duas em que alguém precise do digest — ou a primeira medição de `/news/[id]` respondendo 500 em produção fora de uma acordada da API.** A saída é decisão sobre ISR e SEO (metadata resiliente à falha de transporte + o que o CDN cacheia de um render de erro), não sobre boundary |
 
 ---
@@ -3426,6 +3427,34 @@ Não-objetivos declarados como número, nunca como item de lista.
     `admin:capture` tem `breakBff` para o erro de cliente, e um `throw`
     guardado por variável de ambiente, nunca commitado, serve para o de
     servidor.
+
+42. **Relógio na saída da ISR faz toda regeneração ser cobrada — e a
+    biblioteca pode pôr o relógio lá sem ninguém escrever `new Date()`.** A
+    Vercel mede ISR Write em unidades de 8 KB e **não cobra revalidação com
+    conteúdo idêntico**; o `NextIntlClientProvider` serializa `now` no payload
+    RSC, e o padrão do next-intl é `new Date()` por requisição. Medido em
+    19/09/2026: três páginas, três carimbos (a hora de cada geração), e a Home
+    a 53 unidades por regeneração — só as listagens, de hora em hora nos dois
+    idiomas, davam ~5.100 unidades/dia, 150 mil em 30 dias, o aviso de 75%
+    da cota, sem um visitante. A armadilha do "relógio dentro do render" já
+    estava na lista da raiz pela hidratação; esta é a mesma, pela **conta**.
+    Hoje `STATIC_NOW` (`lib/i18n.ts`) e `tests/lib/isr-determinism.test.ts`,
+    que cobra o pino, nenhum leitor do relógio, e o `sitemap()` igual a si
+    mesmo com o relógio andando. **Ao suspeitar de ISR Writes, meça o
+    payload de uma página estática sem dado (`/about`) e procure por
+    timestamp** — o que muda ali muda em toda página.
+
+43. **`.catch(() => [])` numa rota ISR troca o documento bom por um vazio, e
+    a ISR grava o vazio.** Pela regra da Vercel, 5xx na revalidação é
+    *falha* e falha **mantém o conteúdo anterior** (nova tentativa em 30 s);
+    200 vazio é *sucesso* e substitui. O `news-sitemap.xml` dizia por escrito
+    o contrário ("500 tira do rodízio; vazio só diz 'nada novo'") — certo
+    para render por requisição, invertido para ISR. Medido com a API
+    suspensa em 19/09: `sitemap.xml` de 386 para 10 URLs e o news sitemap de
+    612 para **zero**, com 200 e `HIT`. Era o "news sitemap com zero URLs"
+    da suspensão de 29/08, sem mecanismo. A guarda `api-failure` varria só
+    `app/[locale]`; hoje varre **tudo sob `app/` com `export const
+    revalidate`** — o que a ISR guarda define o alcance, não o diretório.
 
 ---
 

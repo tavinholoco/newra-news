@@ -1,4 +1,4 @@
-import { getNews, getArticles } from '@/lib/api';
+import { getNews, getArticles, nullUnlessPublishing } from '@/lib/api';
 import { logServerError } from '@/lib/log-server-error';
 import { plainTitle } from '@/lib/markdown-text';
 import { toDateSlug } from '@/lib/format';
@@ -120,39 +120,50 @@ async function collectBriefings(since: Date): Promise<NewsEntry[]> {
  * **Só a janela de 48h**, que é o que a documentação do formato pede — sitemap
  * de notícias não é arquivo, é o que acabou de sair.
  *
- * Falha de rede devolve um documento **válido e vazio**, nunca 500: um sitemap
- * que responde erro sai do rodízio de leitura do buscador, e um vazio só diz
- * "nada novo agora".
+ * **Falha da API sobe, e é isso que mantém o documento anterior no ar.** Esta
+ * rota dizia o contrário até 19/09/2026 — "um sitemap que responde erro sai do
+ * rodízio; um vazio só diz 'nada novo'" — e a frase estava certa para um render
+ * por requisição e **invertida para ISR**: aqui a Vercel trata 5xx na
+ * revalidação como *falha*, e falha **preserva o que estava guardado**, com
+ * nova tentativa em 30 s; um 200 vazio é uma revalidação *bem-sucedida*, e
+ * substitui o documento bom. Medido com a API suspensa: este sitemap regenerou
+ * de **612 URLs para zero**, com 200 e `HIT`, e ficaria assim até a API
+ * voltar — foi o "news sitemap com zero URLs" da suspensão de 29/08, que
+ * ninguém tinha ligado ao `catch`.
  */
 export async function GET(): Promise<Response> {
   const since = new Date(Date.now() - WINDOW_MS);
 
   /**
-   * **A degradação continua a mesma; o silêncio é que acabou.**
+   * **A linha de log fica; o que muda é o desfecho.**
    *
-   * Devolver documento vazio em vez de 500 é a decisão certa e está explicada
-   * acima. O que faltava era alguém **saber** que foi isso que aconteceu: um
-   * sitemap vazio e um sitemap que não conseguiu perguntar são bit a bit iguais
-   * para quem olha a resposta, e o Google Notícias lê esta rota logo depois de a
-   * matéria sair. Sem a linha, "o acervo não rendeu nada nas últimas 48 h" e "a
-   * API não respondeu" ficam indistinguíveis — a mesma classe de defeito que a
-   * Fase 7a fechou nas outras três rotas.
+   * A Fase 7a pôs a linha porque um sitemap vazio e um que não conseguiu
+   * perguntar eram bit a bit iguais para quem olha a resposta. Hoje os dois
+   * deixaram de ser iguais também na resposta — mas a linha continua sendo o
+   * único lugar onde a causa (`ECONNREFUSED`, timeout, 503) sobrevive, porque
+   * o que o Next devolve depois do `throw` é a 500 genérica com `digest`.
+   *
+   * `nullUnlessPublishing` é a mesma peça da Home e do `sitemap.ts`: relança
+   * onde o resultado é publicado — o build da Vercel, que preserva o deploy
+   * anterior, e a revalidação em runtime, que preserva o documento anterior —
+   * e cede no build do CI, que roda sem API de propósito e não publica nada;
+   * ali o documento sai válido e vazio, como antes.
    *
    * Esta rota escapou da Fase 7a por um detalhe de caminho: ela é a única
    * `route.ts` **fora de `app/api`**, e a guarda só varria aquele diretório.
    */
+  const logged = <T>(collection: string, promise: Promise<T>): Promise<T> =>
+    promise.catch((error: unknown) => {
+      logServerError('bff.news-sitemap', error, { collection });
+      throw error;
+    });
+
   const [news, briefings] = await Promise.all([
-    collectNews(since).catch((error: unknown) => {
-      logServerError('bff.news-sitemap', error, { collection: 'news' });
-      return [] as NewsEntry[];
-    }),
-    collectBriefings(since).catch((error: unknown) => {
-      logServerError('bff.news-sitemap', error, { collection: 'briefings' });
-      return [] as NewsEntry[];
-    }),
+    nullUnlessPublishing(logged('news', collectNews(since))),
+    nullUnlessPublishing(logged('briefings', collectBriefings(since))),
   ]);
 
-  const entries = [...briefings, ...news]
+  const entries = [...(briefings ?? []), ...(news ?? [])]
     .sort(
       (a, b) =>
         new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),

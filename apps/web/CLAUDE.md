@@ -14,6 +14,16 @@
   `usePathname`/`useRouter` aplicam o prefixo automaticamente)
 - **Renderização estática + ISR por idioma** — com `generateStaticParams` +
   `setRequestLocale`, cada página é SSG (`revalidate: 3600`) para pt-BR e en
+- **A saída da ISR tem de ser determinística, e o `now` do next-intl está
+  fixo por isso** (`STATIC_NOW` em `lib/i18n.ts`, devolvido por
+  `i18n/request.ts`). A Vercel mede ISR Write em unidades de 8 KB e **só
+  cobra quando o conteúdo mudou**; o `NextIntlClientProvider` serializa `now`
+  no payload RSC e o padrão é `new Date()` por requisição — então nenhuma
+  regeneração era igual à anterior, e as três listagens de hora em hora nos
+  dois idiomas custavam ~5.100 unidades/dia (item 82 do `docs/progress.md`).
+  **Nada lê esse relógio** (`useNow`, `getNow`, `relativeTime`) e a guarda
+  `tests/lib/isr-determinism.test.ts` mantém assim; quem precisar de "agora"
+  lê no cliente, num efeito. Não passe `now=` ao provider do layout
 - **Restrição importante** — o `app/layout.tsx` raiz é pass-through (sem
   `<html>`) e **importa o `globals.css`, que mora só ali**; **não criar
   `loading.tsx`/`error.tsx` na raiz** (seus boundaries caem fora do `<html>` e
@@ -526,6 +536,15 @@ Regras que não são óbvias no código:
   BCP-47 da rota. Janela de 48h e teto de 1.000 URLs são do formato.
 - **Dois sitemaps no `robots.txt`.** O geral descreve o acervo; o de notícias, a
   janela. O cron diário invalida os dois.
+- **Os dois sitemaps relançam a falha da API onde o resultado é publicado, e
+  nenhum tem `new Date()` na saída.** Pela regra da Vercel, 5xx na
+  revalidação é falha e **mantém o documento anterior**; 200 vazio é sucesso
+  e o substitui — foi assim que, com a API suspensa em 19/09/2026, o geral
+  caiu de 386 para 10 URLs e o de notícias de 612 para zero. É
+  `nullUnlessPublishing`, como na Home: no CI (sem API, sem publicação) o
+  documento sai válido e vazio. E o `lastModified` das listagens é a data do
+  item mais novo, `/about` e `/newsletter` não declaram data — um `lastmod`
+  que muda toda hora regenerava o documento toda hora.
 - **`formatArticleDate` lê em UTC; `formatDate`/`formatDateTime`, no fuso local.**
   `Article.date` é data de calendário gravada à meia-noite UTC — lida no fuso
   local, num fuso negativo ela vira a véspera. Era assim que `/article/2026-08-22`
@@ -625,6 +644,9 @@ Regras que não são óbvias no código:
   API disse não" com "a API não respondeu", e a ISR fixa a confusão por uma
   hora. Em `catch` que alimente `notFound()`, use `nullIfNotFound`. Onde o valor
   vira `initialData`, continua sendo `prefetch` (que falha em `undefined`).
+  **A guarda alcança tudo sob `app/` com `export const revalidate`** — não só
+  `app/[locale]`: os dois sitemaps ficaram fora dela por diretório até
+  19/09/2026, e regeneraram vazios com a API suspensa.
 - **A Home usa `nullUnlessPublishing`, e "build" não é uma coisa só.** Onde o
   resultado é **publicado** — build da Vercel e revalidação da ISR — a exceção
   sobe: o deploy anterior fica no ar, ou a última página boa fica. Onde nada é

@@ -8220,6 +8220,131 @@ não passa por `node -e` em Bash; vai pelo Write.
 **1.295 → 1.299 na API (88 → 89 suítes); 866 no web.** Prosa, sondas, três
 workflows lidos, cinco PRs de bump lidos, uma guarda.
 
+### 82. Dois e-mails de cota, e o `new Date()` que fazia toda regeneração da ISR ser cobrada ✅ 2026-09-19
+
+> Investigação a pedido, sobre dois avisos recebidos: o Render em **629 de
+> 750 h** e a Vercel em **75% de ISR Writes** (150 mil de 200 mil) mais **100%
+> de transformações de imagem**. Os dois têm a mesma forma — **cota da conta,
+> não do projeto** —, e o da Vercel tinha causa no código, medida. Este PR é o
+> conserto do lado que é nosso; o que é decisão de painel está no fim.
+
+#### Render — o "segundo serviço" do §9.0 tem nome
+
+O e-mail lista **dois** web services free no workspace: `newra-news-api` e
+**`NetsheetEngine`**. O `docs/setup.md` §9.0 tinha escrito em 01/09 que a
+conta da suspensão de 29/08 só fechava com "um segundo serviço free no mesmo
+workspace" — era ele. 750 − 629 = 121 h entre o aviso e a suspensão de 19/09;
+se o aviso é de ~17/09, os dois juntos queimavam **40–48 h/dia**.
+
+E a hora da suspensão ficou mais apertada: a Home foi regenerada às
+**13:00:06 UTC** com a API respondendo (é o `now` gravado no HTML dela, e o
+`Age` bate), então a suspensão foi **entre 13:00 e 17:23**, não "depois das
+11:02".
+
+**A projeção do §9.0 ("60–150 h/mês sem keep-alive") não contou dois
+despertadores.** Toda regeneração ISR chama a API — Home, `/news` e `/article`
+com `revalidate = 3600` são 24 despertares/dia de 15 min, **≥ 6 h/dia**, se um
+bot visita a cada hora; e o `news-sitemap.xml` tem `revalidate = 900`: se o
+Google o lê mais de 4×/hora, a API nunca dorme. Quanto é Newra e quanto é
+NetsheetEngine, só **Billing → free instance hours** por serviço diz — a CLI do
+Render e o `neonctl` estavam com sessão expirada, e o `DailyUptime` da Fase 5
+só começou às 01:08 de 19/09.
+
+#### Vercel — ISR Write é unidade de 8 KB, e conteúdo igual não cobra
+
+Nunca esteve em documento nenhum do projeto. Três fatos da documentação da
+Vercel: **write é unidade de 8 KB**, HTML e payload RSC gravados juntos;
+**revalidação com conteúdo idêntico não incorre em unidade nenhuma**; e a
+lista de "escritas inesperadas" começa com *"check that you're not using
+`new Date()` in the ISR output"*.
+
+Medido em produção (HTML + RSC → unidades): **Home 53**, matéria 36, briefing
+42, `/news` 28, `/article` 26 — e `/about`, sem dado, 27 (95 KB de flight RSC
+para 25 KB de marcação: as mensagens dos dois idiomas inteiras, mais a árvore).
+
+**E a saída nunca era idêntica.** O `NextIntlClientProvider` do layout
+serializa `"now":"$D…"`, e o `getConfig` do next-intl 3.26 faz
+`now: result.now || new Date()` a cada requisição. Três páginas, três valores:
+`01:07:33` na `/about` (o build), `10:08:47` na matéria, `13:00:06` na Home — a
+hora de cada geração. **Ninguém no web lê esse relógio** (nenhum `useNow`,
+`getNow` ou `relativeTime`). O `sitemap.ts` tinha o seu próprio:
+`lastModified: new Date()` nas rotas fixas.
+
+A conta fecha sem tráfego: **3 listagens × 2 idiomas × 24 regenerações/dia ×
+26–53 unidades ≈ 5.100 unidades/dia ≈ 150 mil em 30 dias** — o número do
+aviso. Crawlers em matérias antigas (36 unidades, ×2 idiomas, ~16 mil URLs
+alcançáveis) somam por cima; a amostra de `vercel logs` mostrou um varrendo a
+árvore `/en` em rajada (8 hits em `/en/news` num segundo — as oito categorias —
+e quatro matérias em `MISS cold` no segundo seguinte).
+
+**O time da Vercel tem cinco projetos** (`newra-news-web`, `trak-acessoria`,
+`portfolio`, `jessica`, `dandarkness`) e as cotas são do time. E **o Hobby não
+tem ciclo de faturamento** — a documentação diz "espera-se 30 dias", sem dizer
+se é janela móvel ou 30 dias a partir do estouro. Nada aqui pode escrever "vira
+no dia X".
+
+#### O achado colateral, ao vivo: os dois sitemaps regeneraram vazios
+
+Entre duas sondas, `sitemap.xml` caiu de **386 para 10 URLs** e
+`news-sitemap.xml` de **612 para 0** — com `200` e `HIT`. Os dois tinham
+`.catch(() => [])`, e a guarda `api-failure.test.ts` varria só `app/[locale]`.
+A justificativa escrita no news-sitemap ("500 tira do rodízio; vazio só diz
+'nada novo'") estava **invertida para ISR**: pela regra da Vercel, 5xx na
+revalidação é falha e **mantém o documento anterior** (nova tentativa em
+30 s); 200 vazio é sucesso e substitui. É o "news sitemap com zero URLs" da
+suspensão de 29/08, agora com mecanismo — a mesma classe do
+`nullUnlessPublishing`.
+
+#### O que o PR fez
+
+- **`now` fixo** (`STATIC_NOW = new Date(0)` em `lib/i18n.ts`, devolvido pelo
+  `i18n/request.ts`). A época é reconhecível como pino; nada o lê.
+- **`sitemap.ts` determinístico**: a data das listagens é a do item mais novo
+  que elas mostram, `/about` e `/newsletter` não declaram data. E
+  `nullUnlessPublishing` no lugar do `.catch(() => [])`.
+- **`news-sitemap.xml`**: a linha de log da 7a fica, e `nullUnlessPublishing`
+  relança onde publica. No CI (sem API, sem publicação) o documento continua
+  válido e vazio.
+- **Guardas**: `isr-determinism.test.ts` (o pino na configuração, o layout sem
+  `now=` próprio, nenhum leitor do relógio — com o detector visto casando —, e
+  o `sitemap()` produzindo a mesma saída com o relógio andando); e a
+  `api-failure` passou a varrer **toda a superfície da ISR** (`export const
+  revalidate` sob `app/`), com os dois sitemaps nomeados. **Quatro quebras de
+  propósito, nove testes vistos reprovando**, cada quebra pela guarda desenhada
+  para ela. Build do CI sem API verde, com os dois sitemaps `○`.
+
+**866 → 881 no web (85 → 86 suítes).**
+
+#### O que isto resolve, e o que não
+
+- **ISR Writes:** o piso de ~5.100 unidades/dia some — regeneração com o mesmo
+  dado deixa de ser cobrada. O que sobra é escrita **quando o conteúdo muda**
+  (uma vez por dia, depois do pipeline e da etapa 8.5) e a primeira geração de
+  cada matéria que um crawler descobre (36 unidades). O número só começa a cair
+  depois da promoção à `main`, e no ritmo em que os dias velhos saem da janela
+  de 30 dias. A leitura de confirmação é o gráfico diário de ISR Writes no
+  Usage, uma semana depois do deploy.
+- **Sitemaps:** corrigido para a próxima queda da API. Para esta, eles seguem
+  vazios até a API voltar — e **a promoção não deve acontecer com a API
+  suspensa**: o build da Vercel chama a API (`nullUnlessPublishing` na Home e
+  agora nos sitemaps), então ele falha e o deploy anterior fica. Isso é o
+  comportamento desenhado, mas significa que nada disto chega ao ar antes de
+  01/10.
+- **Render:** **não resolvido por este PR.** Fixar `now` não muda quantas
+  vezes a API acorda; o que muda é o `revalidate` das listagens (o cron já
+  invalida sob demanda — o 3600 era a rede de segurança da invalidação
+  otimista, dívida escrita no próprio cron) e a partilha com o NetsheetEngine,
+  que é decisão de painel. Entrou no §16 do plano com gatilho.
+- **Imagem:** não tocado. Se o aviso de 17/09 for um **novo** cruzamento, o
+  corte de 09/09 não bastou e o gatilho do item 54 ("Pro") disparou — só o
+  gráfico diário diz.
+
+**Lições de ferramenta:** o `next-intl/server` resolve para o build de cliente
+no Vitest e `getRequestConfig` lança — o mock reproduz o servidor, que é a
+identidade (conferido no fonte). E o "quebre de propósito" comeu duas rodadas
+por CRLF e por `node -e` engolindo escapes: script em arquivo, com regex
+tolerante a `\r?\n`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

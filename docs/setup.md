@@ -426,6 +426,36 @@ Nessa ordem, e só com medição na mão:
    passa a cobrar por uso.
 3. **A suspensão expira sozinha** no dia 1º.
 
+#### Aconteceu de novo — 19/09/2026, e a conta acima estava incompleta
+
+**O "segundo serviço" tem nome: `NetsheetEngine`.** O e-mail do Render de
+"629 de 750 h" lista os dois web services free do workspace, e as 750 h são
+do **workspace**. A API foi suspensa entre **13:00 e 17:23 UTC** de 19/09 —
+a Home regenerou às 13:00:06 com a API respondendo, e é o `now` gravado no
+HTML dela que dá o limite. 750 − 629 = 121 h entre o aviso e a suspensão: se
+o aviso é de ~17/09, os dois serviços juntos queimavam 40–48 h/dia. Quanto é
+de cada um só **Billing → free instance hours** por serviço diz (item 82 do
+`docs/progress.md`).
+
+**E a projeção "sem keep-alive: ~60–150 h/mês" não contou quem mais acorda a
+API.** Ela assumia que só leitor acorda; dois mecanismos do próprio site
+acordam também, sem nenhum leitor:
+
+- **toda regeneração da ISR chama a API.** Home, `/news` e `/article` têm
+  `revalidate = 3600`; basta um bot visitar cada uma por hora para serem 24
+  despertares/dia de 15 min — **≥ 6 h/dia** só disso;
+- **o `news-sitemap.xml` tem `revalidate = 900`.** Se o Google o lê mais de
+  4×/hora, a API nunca dorme — é um keep-alive em outra roupa.
+
+Nenhum dos dois é resolvido fixando o `now` (item 82 — aquilo resolve a cota
+de **escritas** da Vercel, não as **horas** do Render). O que os reduz é o
+`revalidate` das listagens: o cron já invalida tudo sob demanda depois do
+pipeline, então o 3600 hoje é só a rede de segurança da invalidação otimista
+(dívida escrita em `app/api/cron/daily-news/route.ts`). Está no §16 do plano
+de observabilidade, com gatilho — e o `DailyUptime` da Fase 5, que começou a
+contar em 19/09, é o que vai dizer quantas horas por dia a API de fato fica
+acordada a partir de outubro.
+
 ### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
 
 **O segredo é o mesmo nos dois serviços** — o web assina o JWT, a API valida —,
