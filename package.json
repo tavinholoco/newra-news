@@ -19,7 +19,7 @@
     "db:seed": "turbo db:seed"
   },
   "devDependencies": {
-    "turbo": "^2.10.12",
+    "turbo": "^2.10.13",
     "prettier": "^3.9.6"
   },
   "pnpm": {
