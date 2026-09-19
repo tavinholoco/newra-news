@@ -34,7 +34,7 @@ importers:
         version: 9.1.0
       '@fastify/schedule':
         specifier: ^4.1.0
-        version: 4.1.1(fastify@4.29.1)(toad-scheduler@3.1.0)
+        version: 4.1.1(fastify@4.29.1)(toad-scheduler@4.2.0)
       '@fastify/swagger':
         specifier: ^8.15.0
         version: 8.15.0
@@ -69,8 +69,8 @@ importers:
         specifier: ^3.13.0
         version: 3.13.0
       toad-scheduler:
-        specifier: ^3.0.0
-        version: 3.1.0
+        specifier: ^4.2.0
+        version: 4.2.0
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -2244,8 +2244,8 @@ packages:
       typescript:
         optional: true
 
-  croner@8.1.2:
-    resolution: {integrity: sha512-ypfPFcAXHuAZRCzo3vJL6ltENzniTjwe/qsLleH1V2/7SRDjgvRQyrLmumFTLmjFax4IuSxfGXEn79fozXcJog==}
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
     engines: {node: '>=18.0'}
 
   cross-spawn@7.0.6:
@@ -4586,8 +4586,8 @@ packages:
     resolution: {integrity: sha512-/m8M+2BJUpoJdgAHoG+baCwBT+tf2VraSfkBgl0Y00qIWt41DJ8R5B8nsEw0I58YwF5IZH6z24/2TobDKnqSWw==}
     engines: {node: '>=12'}
 
-  toad-scheduler@3.1.0:
-    resolution: {integrity: sha512-ZTwsGMWyKTOokgTmIvjPIvkT3ZiPFgkAi8L0OLONOcSc/BUDPRzNMOfVWZzugIAxyntvY0Nzy1etNk+31Q4FXQ==}
+  toad-scheduler@4.2.0:
+    resolution: {integrity: sha512-Jk3qwIHySLiutaSCN4RJIzg1UH5TrCiAxvZHFZAfHjIDUvfXs1V9RSlk2TNlEaadJgw/RXRWNFq2fjSkqRdYpg==}
 
   toidentifier@1.0.1:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
@@ -5622,11 +5622,11 @@ snapshots:
       fastify-plugin: 4.5.1
       toad-cache: 3.7.0
 
-  '@fastify/schedule@4.1.1(fastify@4.29.1)(toad-scheduler@3.1.0)':
+  '@fastify/schedule@4.1.1(fastify@4.29.1)(toad-scheduler@4.2.0)':
     dependencies:
       fastify: 4.29.1
       fastify-plugin: 4.5.1
-      toad-scheduler: 3.1.0
+      toad-scheduler: 4.2.0
 
   '@fastify/send@2.1.0':
     dependencies:
@@ -6935,7 +6935,7 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  croner@8.1.2: {}
+  croner@10.0.1: {}
 
   cross-spawn@7.0.6:
     dependencies:
@@ -9608,9 +9608,9 @@ snapshots:
 
   toad-cache@3.7.0: {}
 
-  toad-scheduler@3.1.0:
+  toad-scheduler@4.2.0:
     dependencies:
-      croner: 8.1.2
+      croner: 10.0.1
 
   toidentifier@1.0.1: {}
 
