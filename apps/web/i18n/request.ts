@@ -2,7 +2,7 @@ import { getRequestConfig } from 'next-intl/server';
 import { routing } from './routing';
 import ptBR from '../messages/pt-BR.json';
 import en from '../messages/en.json';
-import type { Locale } from '@/lib/i18n';
+import { STATIC_NOW, type Locale } from '@/lib/i18n';
 
 const messages: Record<Locale, typeof ptBR> = {
   'pt-BR': ptBR,
@@ -22,5 +22,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
   return {
     locale,
     messages: messages[locale as Locale],
+    // Sem isto o next-intl põe `new Date()` de cada render no payload RSC, e
+    // toda regeneração da ISR vira escrita cobrada. Ver `STATIC_NOW`.
+    now: STATIC_NOW,
   };
 });

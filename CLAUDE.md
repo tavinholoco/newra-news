@@ -353,6 +353,34 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Fora da linha das fases (2026-09-19): dois e-mails de cota, e toda
+  regeneração da ISR era cobrada por um `new Date()` que ninguém lia.** Item
+  **82**. O Render avisou **629 de 750 h** — e o e-mail nomeia o "segundo
+  serviço" que o §9.0 do `docs/setup.md` suspeitava: **`NetsheetEngine`**, no
+  mesmo workspace; a suspensão de 19/09 foi **entre 13:00 e 17:23 UTC** (a
+  Home regenerou às 13:00:06 com a API respondendo). A Vercel avisou **75% de
+  ISR Writes** (150 mil de 200 mil) e 100% de imagem. **ISR Write é unidade
+  de 8 KB e conteúdo idêntico não cobra** — mas o `NextIntlClientProvider`
+  serializava `now` = `new Date()` de cada render no payload RSC, então
+  nenhuma regeneração era idêntica: Home 53 unidades, matéria 36, `/news` 28,
+  de hora em hora nos dois idiomas ≈ **5.100 unidades/dia ≈ 150 mil em 30
+  dias**, sem um visitante. Entrou `STATIC_NOW` (`lib/i18n.ts`), o
+  `sitemap.ts` sem `lastModified: new Date()`, e — achado ao vivo — **os dois
+  sitemaps deixaram de regenerar vazios com a API fora** (`sitemap.xml` tinha
+  caído de 386 para 10 URLs e o news sitemap de 612 para 0, com 200 e
+  `HIT`): `nullUnlessPublishing` neles, porque 5xx na revalidação mantém o
+  documento anterior e 200 vazio o substitui. Guarda nova
+  (`isr-determinism.test.ts`) e a `api-failure` varrendo toda a superfície
+  com `revalidate`. **866 → 881 no web.** O que o PR **não** resolve: as
+  horas do Render (fixar `now` não muda quantas vezes a API acorda — o
+  `revalidate = 3600` das listagens e o `news-sitemap` a 900 s são os
+  despertadores, §16 do plano), a partilha com o NetsheetEngine e a cota de
+  imagem. **A promoção não deve acontecer com a API suspensa**: o build da
+  Vercel a chama e falha de propósito. **Só o painel diz:** Render → Billing
+  → horas por serviço; Vercel → Usage → ISR Writes *by project* (o time tem
+  **cinco** projetos) e o gráfico diário de imagem (o Hobby não tem ciclo —
+  "30 dias", sem a doc dizer se janela móvel ou a partir do estouro).
+
 - **Promoção `dev → main` (2026-09-19, #215, `4efbacd`): as sete fases do
   plano de observabilidade estão no ar, e cada rodada do CI foi lida.**
   Item **81**. 68 commits / 29 PRs, três migrations aplicadas em 01:07:02
@@ -1216,7 +1244,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.165 em 174 suites (**1.299 API em 89** + **866 web em 85** — todos
+- **Testes:** 2.180 em 175 suites (**1.299 API em 89** + **881 web em 86** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
