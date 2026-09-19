@@ -7993,6 +7993,106 @@ o primeiro campo lido é quem lança (`toLocaleString` de `undefined`), não o
 reprovações. **840 → 866 no web (82 → 85 suítes); 1.295 na API.** Branch
 `observability/fase-7b-error-boundaries`, base `dev`.
 
+### 80. A verificação pós-merge da 7b, e o lote da promoção medido: a Fase 7 não deve nada, e o lote começa na 4 ✅ 2026-09-19
+
+> Sobre a árvore mergeada (`79655d1`, #213 — mergeado em 19/09 00:08 UTC,
+> os oito checks verdes; Gitleaks em **`0 commits scanned`** no push do
+> merge, décima medição). A pergunta de sempre — *o que ficou de fora?* —
+> por quatro enumerações, e uma quinta que a pergunta do dono do projeto
+> impôs: **falta alguma coisa da Fase 7 antes da promoção `dev → main`?**
+
+**As enumerações, e o que está em ordem:** quem lê `error.digest` (só a
+casca, com guarda); todo `error.tsx` sob `app/` mais o `global-error.tsx`
+passam pela casca (guarda do `state-matrix`, vista reprovando na fase);
+prosa dizendo "quatro `error.tsx` que nunca leem `error`" ou "não existe
+`global-error.tsx`" fora do registro histórico — **nenhuma** (a §1 do plano
+é a inspeção de 01/09, datada, e fica); diagramas, READMEs e `docs/api.md`
+sobre boundary — só a `docs/api.md` da 7c, correta. Suíte inteira verde na
+árvore mergeada: **1.295 na API, 866 no web.**
+
+#### O que ficou de fora, e entrou aqui
+
+- **O §18 não tinha linha para "error boundary novo".** As guardas existem
+  desde a 7b (casca única, `applyStoredTheme()` pela chamada, `h1` só na
+  casca, chaves literais); a tabela do que cada mudança custa não as
+  nomeava — e é a tabela que uma sessão fria lê antes de criar um
+  `error.tsx`. Entrou, com o que **nenhuma** guarda cobre (armadilha 41).
+- **Três frases do plano diziam que o lote da promoção "começa na Fase 3".**
+  A 3 foi promovida em **09/09 no #168** (`d092987` é ancestral da `main`;
+  `setNotFoundHandler` está lá) — o primeiro PR do lote é o **#175**, o
+  pós-merge dela. O corpo do PR de promoção escrito a partir daquelas frases
+  anunciaria como novidade uma taxonomia que está no ar há dez dias.
+  Corrigidas as três (§11 duas vezes, §19), e a nota do §2 que dizia "a
+  próxima é a Fase 3" desde 07/09 — dez fases depois de ela ter fechado,
+  numa tabela que afirma não descrever progresso.
+- **A dependência da 7b na 7c não estava na tabela do §2** (`1 (7a) · 4
+  (7c)`); entrou `· 7c (7b)`.
+- **A armadilha 41 entrou no `CLAUDE.md` raiz**, na lista das que já
+  custaram caro: é comportamento do Next que vai morder de novo na primeira
+  página ISR nova, e a lista da raiz é a que toda sessão lê.
+
+#### O lote da promoção, medido — e a resposta à pergunta
+
+**A Fase 7 não deve nada.** A §11 fecha quatro coisas — o crash mostra
+"algo deu errado", o `digest` não é descartado, o crash é contado, e o
+crash no layout raiz não mostra o padrão do Next — e as três subfases
+estão mergeadas (7a #160, 7c #211, 7b #213), cada uma com as guardas do
+§18 e o pós-merge feito. O que sobra é **decisão sua**, registrada com
+gatilho no §16: o erro de servidor nas duas páginas ISR de detalhe
+(armadilha 41), que é ISR/SEO e não boundary. Nada a fazer antes de
+promover.
+
+**O que a promoção `dev → main` carrega, medido em 19/09:**
+
+- `dev..main` = **0** (a `main` não tem nada que a `dev` não tenha);
+  `main..dev` = **66 commits, 30 PRs**, do #175 ao #213 — as Fases 4 (a/b),
+  5 (a/b/c), 8, 11 (a/b/c), 6, 7c e 7b, os seus pós-merges, o ciclo de vida
+  dos containers (#183), a guarda do content-type (#175), e dois bumps do
+  Dependabot contra a `dev` (#194 `fastify-plugin` 5 → 6, **dependência de
+  produção da API**, CI verde; #196 SHAs de actions).
+- **Três migrations aplicam juntas** no `migrate.yml` do push da `main`:
+  `20260910120000_add_error_events`,
+  `20260912180000_add_audit_and_uptime_drop_ai_tokens_used` (com o `DROP
+  COLUMN` decidido no 5a) e `20260915180000_add_source_health`. O
+  `schema.prisma` muda em 291 linhas. Todas replayadas no Postgres local nas
+  suas fases.
+- **Nenhuma variável de ambiente nova**: `render.yaml` e os dois
+  `.env.example` não diferem entre as branches (o `LOG_LEVEL` da Fase 1 já
+  foi no #168). Nada a configurar no Render nem na Vercel antes.
+- **Os 13 PNGs de `apps/web/.admin-captures/`** continuam rastreados na
+  `main` (`git ls-tree … | git check-ignore --stdin` os lista, todos os 13)
+  e **não** na `dev` (0) — o `git rm --cached` do 5c viaja na promoção, como
+  o aviso do `CLAUDE.md` previa.
+- **O `dependabot.yml` da `dev` tem sete `ignore` de major a mais que o da
+  `main`** (react 19 e os `@types`, `@types/node` 26, `typescript` 7,
+  `@vitejs/plugin-react` 6 — a segunda rodada, #200). Como o Dependabot lê a
+  branch padrão, esses sete **nunca valeram**: até a promoção ele pode
+  reabrir qualquer um contra a `dev`. A promoção resolve; se ela esperar,
+  é PR só com o arquivo, como o #193.
+- **O que muda de comportamento em produção com a promoção** — para o
+  ritual saber o que olhar: o `ErrorEvent` passa a ser gravado (flush de
+  30 s, `onClose` com prazo), o heartbeat do `DailyUptime` no `server.ts`,
+  a etapa 9.5 das invariantes e a escrita de `SourceHealth` no pipeline
+  diário, `POST /api/errors/client` e o reporter dos boundaries, o
+  `outcome` derivado nas duas portas de listagem, e as três abas do admin
+  lendo tudo isso. **A janela do desencontro dos deploys** (Vercel antes do
+  Render) está coberta no web por `withOutcome` e pelos estados
+  "indisponível" das abas (armadilha 37) — e é o smoke da `main` que a
+  mede.
+- **Depois do deploy, além do ritual dos três** (Lighthouse, baseline,
+  smoke): a **primeira leitura honesta das três abas contra dado de
+  produção** — a dívida da Fase 11 da V2 que só a credencial de admin de
+  produção fecha —, e o `/api/errors/client` respondendo `202` no ar (o
+  smoke manda corpo vazio e mede o `400`).
+
+**Fora do git, uma nota de higiene:** `.claude/worktrees/` tem duas cópias
+paradas do repositório de 05/09 (`newra-pipeline-news-collection-…` e
+`observability-plan`), ignoradas e sem registro em `git worktree list` —
+um `grep` no diretório do projeto acha o plano de duas semanas atrás dentro
+delas. Apagar é decisão de quem as criou.
+
+**Sem teste novo: prosa.** 1.295 na API, 866 no web.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
