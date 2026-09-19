@@ -94,6 +94,15 @@ baseline continuam manuais, e estão logo abaixo.
 > mesmo dia. Mudança no `dependabot.yml` vai para a `main` num PR só com ele,
 > sem esperar a promoção. **Se voltar a aparecer PR de bump com base `main`, é
 > a versão da `main` que está velha.**
+>
+> **Terceira rodada, 19/09/2026 — três minutos depois de a promoção (#215)
+> levar a configuração à `main`:** cinco PRs contra a `dev`, três majors
+> reprovando que a lista não previa (`zod` 4 — produção da API, 258 testes;
+> `vitest` 5, que exige o vite 7; `@typescript-eslint` 8, que exige o ESLint
+> 9). Entraram no #222, direto na `main`. **E o arquivo ganhou guarda**
+> (`apps/api/tests/build/dependabot-config.test.ts`): um YAML inválido ali
+> passava por todo o CI e desligava o Dependabot em silêncio — quase
+> aconteceu, por um `@` sem aspas. Item 81.
 
 **As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
 padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
@@ -1207,7 +1216,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.161 em 173 suites (**1.295 API em 88** + **866 web em 85** — todos
+- **Testes:** 2.165 em 174 suites (**1.299 API em 89** + **866 web em 85** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

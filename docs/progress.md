@@ -8178,8 +8178,47 @@ por 24 h), os quatro sinais e o painel "Fontes" na `/admin/metrics` (a
 invariantes ("nenhuma verificação ainda" até o primeiro run com a 9.5) e a
 trilha de auditoria vazia.
 
-**Sem teste novo: prosa, sondas e três workflows lidos.** 1.295 na API,
-866 no web.
+#### A terceira rodada do Dependabot, três minutos depois — e uma guarda que nasceu de um erro meu
+
+O `dependabot.yml` chegou à `main` com a promoção e passou a valer: às
+01:09–01:11 o Dependabot abriu **cinco PRs contra a `dev`** (#216–#220), o
+que o item 80 previa. Cada um lido pelo CI:
+
+| PR | Bump | CI | Causa |
+|---|---|---|---|
+| #216 | `turbo` 2.10.12 → .13, `@types/node` 22.19 → 22.20 (grupo dev) | ✅ | minor |
+| #219 | `@testing-library/jest-dom` 6 → 7 | ✅ | major de lib de teste; suíte verde |
+| #217 | **`zod` 3 → 4** — produção da API | ❌ **258 testes** | o `fastify-type-provider-zod` da árvore não fala zod 4: toda rota com schema em 500, OpenAPI sem gerar |
+| #218 | `vitest` 2 → 5 | ❌ | `ERR_PACKAGE_PATH_NOT_EXPORTED ./module-runner` — exige vite 7, que só vem com o `@vitejs/plugin-react` 6 (já ignorado) |
+| #220 | `@typescript-eslint/eslint-plugin` 7 → 8 | ❌ | cai no ESLint 8.57 antes de lintar — exige o ESLint 9 (já ignorado) |
+
+**Três majors que a lista de `ignore` não previa**, cada um acompanhando
+uma major já decidida (`fastify-type-provider-zod` + `fastify@5`; vite +
+plugin-react; ESLint 9). Entraram no **#222, direto na `main`** como o
+#193 — é a branch que o Dependabot lê —, com o motivo medido em cada
+comentário. A nota do `dependabot.yml` que dizia "a major do vitest é bump
+legítimo e fica fora de propósito" estava errada, e foi reescrita: medido,
+ela não sobe sozinha. Os dois verdes ficam para decisão; os três vermelhos
+podem ser fechados, e com a lista na `main` não reabrem.
+
+**E o erro meu, que virou guarda:** ao escrever as entradas por `node -e`
+dentro de aspas simples do Bash, as aspas de
+`'@typescript-eslint/eslint-plugin'` foram comidas — e `@` no início de um
+valor é **indicador reservado em YAML**. O arquivo ficou inválido, e **nada
+no CI acusaria**: a guarda dos workflows lê só `.github/workflows/`, e o
+Dependabot não reclama de configuração que não parseia — ele **para de
+abrir PR**, em silêncio. Vi pelo `grep` de conferência (duas linhas em vez
+de quatro), corrigi antes do merge, e escrevi
+`apps/api/tests/build/dependabot-config.test.ts`: parseia com o `yaml`
+(devDependency nova da API — já estava no lockfile por override), cobra
+`target-branch: dev` nas duas entradas (a política de 09/09), aspas em todo
+pacote com escopo (nomeando a linha), e só majors na lista de ignore. Vista
+reprovando nas quatro sobre o defeito exato. **A pergunta era de sintaxe —
+parser, não regex.** Lição de ferramenta, pela enésima vez: texto com aspas
+não passa por `node -e` em Bash; vai pelo Write.
+
+**1.295 → 1.299 na API (88 → 89 suítes); 866 no web.** Prosa, sondas, três
+workflows lidos, cinco PRs de bump lidos, uma guarda.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
