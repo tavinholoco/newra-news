@@ -177,25 +177,40 @@ updates:
       # `zod@4` é **dependência de produção da API**, e o
       # `fastify-type-provider-zod` da árvore não fala zod 4: toda rota com
       # schema respondeu 500 e a OpenAPI parou de gerar — **258 testes** no
-      # #217. Gatilho: a major do `fastify-type-provider-zod` que suporte zod 4,
-      # junto com o `fastify@5` (já acima). É trabalho próprio: os
-      # `assertContract` e o `shared-type-contract` são a guarda dessa migração.
+      # #217. Gatilho: a migração fastify 5 + zod 4 + `fastify-type-provider-zod`
+      # 7, os três juntos (a major do provider está logo abaixo). É trabalho
+      # próprio: os `assertContract` e o `shared-type-contract` são a guarda
+      # dessa migração.
       - dependency-name: zod
-        update-types: [version-update:semver-major]
+        update-types: ['version-update:semver-major']
       # `vitest@5` exige o vite 7 (`ERR_PACKAGE_PATH_NOT_EXPORTED ./module-runner`
       # no #218), e o vite só sobe junto com o `@vitejs/plugin-react` — que está
       # logo acima. A nota acima dizia que a major do vitest era "bump legítimo"
       # e ficava fora da lista de propósito; medido, ela não sobe sozinha.
       # Gatilho: vitest + vite + plugin-react num PR só, com a suíte inteira.
       - dependency-name: vitest
-        update-types: [version-update:semver-major]
+        update-types: ['version-update:semver-major']
       # `@typescript-eslint/*@8` exige o ESLint 9 — o plugin 8 sobre o 8.57 cai
       # com "Cannot use in operator to search for type" antes de lintar
       # (#220). Acompanha a major do `eslint`, já acima, na migração do ESLint.
       - dependency-name: '@typescript-eslint/eslint-plugin'
-        update-types: [version-update:semver-major]
+        update-types: ['version-update:semver-major']
       - dependency-name: '@typescript-eslint/parser'
-        update-types: [version-update:semver-major]
+        update-types: ['version-update:semver-major']
+      # **A quarta rodada, 40 minutos depois da terceira (19/09/2026, #223 e
+      # #224)** — o robô abre uma major por vez, então cada lista de ignore
+      # revela a próxima que não estava nela:
+      #
+      # `fastify-type-provider-zod@7` exige o zod 4 (`'zod/v4/core' does not
+      # provide an export named 'safeEncode'`, #224) e o fastify 5 — é o
+      # terceiro membro da migração escrita no `zod`, acima. Sobe com os dois.
+      - dependency-name: fastify-type-provider-zod
+        update-types: ['version-update:semver-major']
+      # `next-intl@4` é **dependência de produção do web** e espera um
+      # subcaminho do `next` que o 14 não tem — a suíte do web caiu na
+      # resolução de módulo (#223). É o lote do Next 15, já gatilho acima.
+      - dependency-name: next-intl
+        update-types: ['version-update:semver-major']
     groups:
       producao:
         dependency-type: production
