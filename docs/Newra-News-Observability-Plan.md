@@ -3447,6 +3447,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`code` novo, ou subclasse nova de `AppError`** | `error-taxonomy.test.ts` (Fase 3) — literal do tuple, e nenhum código sem quem o lance; a família é derivada do arquivo, então a subclasse entra na varredura sozinha |
 | **Retenção nova na etapa 8, ou número de retenção alterado** | `retention-drift.test.ts` (Fase 5) — a prosa dos dois diagramas, dos dois `CLAUDE.md` e dos dois READMEs contra as constantes dos services, nas duas direções |
 | **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
+| **Mudança no `.github/dependabot.yml`** | `apps/api/tests/build/dependabot-config.test.ts` (pós-promoção, item 81) — parseia com o `yaml`, cobra `target-branch: dev` nas duas entradas, aspas em pacote com escopo (o `@` sem aspas é indicador reservado: o arquivo fica inválido e o Dependabot **para em silêncio**), e só majors na lista de ignore. **Vai direto para a `main`, num PR só com o arquivo** — a plataforma lê a branch padrão |
 | **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` **e, desde a 7c, de cada ``fetch(`${API_BASE_URL}/…`)``** têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke; e `apps/web/tests/lib/bff-error-log.test.ts` — nenhum `catch` de `route.ts` sem `logServerError` |
 | **Rota anônima nova no BFF** (sem `proxyToApi`) | as de cima, mais a asserção do `bff-route-seam` que **nomeia** as portas anônimas (lista vazia não aprova), e a suíte irmã de `events-anonymity`/`client-error-ingest` na API — nada de identidade no schema, e a rota respondendo sem credencial |
 | **Error boundary novo no web** (`error.tsx` num segmento, ou o `global-error.tsx`) | `apps/web/tests/lib/state-matrix.test.ts` (Fase 7b) — todo `error.tsx` sob `app/[locale]` e o `global-error.tsx` desenham pela casca `components/errors/error-state` (é ela que mostra o `digest` e reporta; um boundary que a contorna nasce sem as duas coisas), e o raiz aplica o tema pela **chamada** a `applyStoredTheme()`, nunca pelo `<ThemeInit />` (armadilha 40), sem `next-intl` (armadilha 9) e lendo os JSONs direto; `apps/web/tests/components/a11y-guards.test.tsx` — o `h1` do boundary é só da casca; `i18n-messages` — as chaves continuam literais em cada arquivo. **O que nenhuma guarda cobre, e é decisão (armadilha 41):** numa página ISR o boundary não alcança erro de servidor |
@@ -3717,13 +3718,13 @@ aplica as duas migrations juntas na promoção.**
   no erro de render do cliente (armadilha 41), e o digest chega a um humano
   nas páginas `force-dynamic`; a dívida está no §16. Item **79** do
   `docs/progress.md`; as decisões no fim da §11. **Fecha a Fase 7.**
-- **Promoção `dev → main` depois da 7 ← próximo passo**, antes da 9 — o
-  `CLAUDE.md` manda. O lote desde a Fase 4 (a 3 está no ar desde o #168 de
-  09/09; o primeiro PR do lote é o #175) — **30 PRs, 66 commits, três
-  migrations** (4, 5a, 11a) aplicando juntas, nenhuma variável de ambiente
-  nova, um bump de dependência de produção (`fastify-plugin` 5 → 6, #194) e
-  os 13 PNGs desrastreados; depois, o ritual contra produção. Medido no
-  pós-merge da 7b (item 80).
+- ~~**Promoção `dev → main` depois da 7**~~ ✅ **Feita em 19/09/2026 — #215,
+  `4efbacd`**: 68 commits, 29 PRs (#175 → #214), as três migrations (4, 5a,
+  11a) aplicadas juntas em 0,2 s, a janela dos deploys em ~1 min, smoke
+  31/6 pulados, Lighthouse verde (a11y e SEO 100 nas sete), Gitleaks `0
+  commits` sobre 68. O lote medido antes está no item **80**; a promoção
+  lida rodada a rodada, no **81**. **Ficou para a credencial de produção: a
+  primeira leitura das três abas** — é a próxima coisa a fazer, antes da 9.
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 
