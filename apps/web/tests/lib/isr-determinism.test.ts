@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import requestConfig from '@/i18n/request';
 import { STATIC_NOW } from '@/lib/i18n';
@@ -48,11 +48,16 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 }
 
+/**
+ * Anda a árvore pelo `Dirent` do `readdirSync`, sem `statSync` à parte. O
+ * CodeQL (`js/file-system-race`) acusa o par "conferir e depois ler" sobre o
+ * mesmo caminho como TOCTOU; aqui o tipo da entrada vem da própria listagem.
+ */
 function collect(dir: string, out: Array<{ file: string; source: string }> = []) {
-  for (const entry of readdirSync(dir)) {
-    const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) collect(full, out);
-    else if (/\.tsx?$/.test(entry)) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collect(full, out);
+    else if (entry.isFile() && /\.tsx?$/.test(entry.name)) {
       out.push({
         file: path.relative(WEB_ROOT, full).replace(/\\/g, '/'),
         source: stripComments(readFileSync(full, 'utf8')),
@@ -94,11 +99,17 @@ describe('o `now` do next-intl está fixo', () => {
   });
 
   it('ninguém lê esse relógio — fixá-lo mentiria', () => {
-    const readers = ['app', 'components', 'lib', 'i18n']
-      .flatMap((dir) => collect(path.resolve(WEB_ROOT, dir)))
+    const files = ['app', 'components', 'lib', 'i18n'].flatMap((dir) =>
+      collect(path.resolve(WEB_ROOT, dir)),
+    );
+    const readers = files
       .filter(({ source }) => READS_INTL_CLOCK.test(source))
       .map(({ file }) => file);
 
+    // Um coletor que devolve nada passaria em tudo: a lição da guarda de
+    // `console.*` da Fase 1, cega a 481 linhas com a suíte verde.
+    expect(files.length).toBeGreaterThan(100);
+    expect(files.map(({ file }) => file)).toContain('app/[locale]/layout.tsx');
     expect(readers).toEqual([]);
   });
 

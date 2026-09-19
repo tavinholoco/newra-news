@@ -8345,6 +8345,29 @@ identidade (conferido no fonte). E o "quebre de propósito" comeu duas rodadas
 por CRLF e por `node -e` engolindo escapes: script em arquivo, com regex
 tolerante a `\r?\n`.
 
+#### O CI do PR: dois vermelhos, um deles meu
+
+- **Vercel: o build do preview falhou, e é o desenho.** A API suspensa
+  respondeu 503 e depois 429 (o roteador do Render limita quem bate num
+  serviço suspenso); a Home caiu nos dois idiomas — **já cairia sem este
+  PR**, é o `nullUnlessPublishing` dela — e os dois sitemaps caíram junto,
+  agora de propósito. Foi o primeiro build de preview desde a suspensão
+  (13:00–17:23 UTC), por isso ninguém tinha visto. Todo PR vai vermelho no
+  Vercel até a API voltar; o CI do GitHub (Lint, Test, Build sem API) é o que
+  vale para mergear na `dev`.
+- **CodeQL: `js/file-system-race` (high) no `collect` do teste novo** —
+  `statSync(full).isDirectory()` e depois `readFileSync(full)`, o check-then-
+  use que o CodeQL trata como TOCTOU. Copiado da `api-failure`, que tem o
+  mesmo — e **a `main` tem dez alertas abertos, sete deles este padrão, em
+  sete guardas que andam a árvore** (`api-failure`, `design-tokens`, `images`,
+  `seo`, `browser-surface`, `a11y-guards`, `runtime-deps`). O item 47 escreveu
+  em 05/09 que o que a análise semanal achasse "entra como trabalho próprio":
+  ninguém abriu esse trabalho, e o cheque do PR só reprova alerta **novo**, então
+  os sete nunca reprovaram nada. Aqui: `readdirSync(dir, { withFileTypes:
+  true })` e o tipo da entrada vem da listagem, sem `stat` — mais a asserção
+  que faltava, de que o coletor **acha** arquivos. Os outros sete são trabalho
+  próprio, e agora estão nomeados.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
