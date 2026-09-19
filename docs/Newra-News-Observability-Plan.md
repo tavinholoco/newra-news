@@ -2673,6 +2673,132 @@ pipeline anuncia. É a guarda funcionando como projetada.
 - um caso de injeção sintético — material com "ignore as instruções anteriores"
   no título — atravessando entrada e saída.
 
+### Inventário reconferido antes de abrir — 19/09/2026
+
+A §13 é de 23/08, auditada em 04/09. Medida contra a `dev` em `8dbe460`
+(depois da promoção #215 e dos cinco bumps de 19/09), para a sessão que
+abrir a fase não redescobrir. **A promoção já pôs no ar as três coisas que
+a fase exige** (4, 5 e 8); o que a §19 ainda pedia antes dela — a primeira
+leitura das três abas com credencial de produção — ficou **bloqueado no
+mesmo dia**: a API do Render está **suspensa** desde algum momento depois
+das 11:02 UTC de 19/09 (`503`, `x-render-routing: suspend`; o briefing do
+dia existe, então o cron rodou). Ver o topo do `CLAUDE.md`.
+
+**O que continua verdade:** as etapas anunciadas são `1 3 4 5 6 7 7.5 8 8.5
+9 9.5` (a 2 não grava evento, documentado); `stage` e `errorStage` são
+`Float` — 5.5 e 6.5 cabem sem migration; o `diagram-drift` deriva as etapas
+do literal em `logPipelineEvent(pipelineLogId, N,` (regex
+`\d+(?:\.\d+)?`), então as duas novas entram como **literal** no pipeline e
+nos dois diagramas; `parseMarkdownResponse` confere só forma (`# `, título
+não vazio, corpo ≥ 400); `selectTopItems(items, limit = 15)` ordena por
+`publishedAt` e corta; `RawNewsItem` tem `source` e `publishedAt`; o
+`errorStage` já aparece na tela (`admin/pipeline-runs.tsx`, `String(...)` —
+"6.5" sai como está); `recordError` com `severity: 'FATAL'` **escreve na
+hora** (não espera o flush de 30 s) e **nunca foi usado** — é o mecanismo
+que o bloqueio de segurança precisa, já pronto.
+
+**O que a §13 assume e mudou, ou nunca foi medido:**
+
+- **A checagem "URL não ancorada" não tem conjunto com que comparar — e é
+  mais forte por isso.** `formatNewsItems` manda ao modelo `TÍTULO`, `FONTE`,
+  `CATEGORIA`, `DATA`, `DESCRIÇÃO` e `CONTEÚDO` — **nenhuma URL** —, e o
+  `ARTICLE_USER_PROMPT` proíbe link e imagem por escrito. A frase "o conjunto
+  de links legítimos é o que o `formatNewsItems` mandou" descreve um conjunto
+  **vazio**: toda URL na saída foi inventada ou injetada. A única fonte
+  legítima de uma URL é o **texto** do material (`CONTEÚDO`/`DESCRIÇÃO`
+  citando um endereço). **Decisão proposta:** URL na saída que aparece no
+  material formatado → **avisa** (violação de formato, o modelo copiou); URL
+  que não aparece → **bloqueia, segurança**. O conjunto ancorado é derivado
+  da string que o `formatNewsItems` devolve, no mesmo run.
+- **Os delimitadores são `<<<MATERIAL_INICIO>>>` e `<<<MATERIAL_FIM>>>`**
+  (as constantes `MATERIAL_START`/`MATERIAL_END` de `config/ai-prompts.ts`),
+  e `neutralizeMaterialDelimiters` já os tira da **entrada** — então a
+  presença deles na **saída** é o modelo ecoando o prompt, não o material.
+  A checagem de envelope compara com os **valores** das constantes, nunca
+  com os nomes; e "trecho do system prompt" é uma frase fixa do
+  `ARTICLE_SYSTEM_PROMPT` (ex.: "MATERIAL JORNALÍSTICO de terceiros").
+- **O fallback mora dentro de `ai.service.generateArticle`** (Gemini →
+  Groq, com `withPrimaryError`), e o portão de saída tem de rodar **por
+  tentativa**: a regra "qualidade cai para o provider de reserva **uma
+  vez**; segurança falha o dia" só é possível se o guarda for aplicado entre
+  o Gemini e a decisão de chamar o Groq. `generateArticle` passa a receber
+  o guarda (ou o pipeline passa a orquestrar as duas tentativas) — a
+  assinatura muda, e `ai.service.test.ts` com ela.
+- **O código é `PIPELINE_GATE_BLOCKED`**, não `pipeline.gate_blocked`: a
+  união `RecordedErrorCode` é UPPER_SNAKE (`PIPELINE_STAGE_FAILED`,
+  `PIPELINE_STAGE_DEGRADED`) e o `error-event.test.ts` enumera os call
+  sites pelo parser. O **motivo** do bloqueio precisa estar no fingerprint
+  para virar fatia de rosquinha (§13.3): o `route` é `stage-6.5` e o
+  `ErrorEvent` agrupa por `(code, route)` — decisão: `route:
+  'stage-6.5:unanchored-url'` (conjunto finito, sete motivos), ou o motivo
+  só no `context` e a rosquinha fica para depois. **A URL bloqueada vai ao
+  `context` só pelo host**: o `pii-in-logs` e o `scrubErrorContext` não
+  sabem que uma query string pode carregar token.
+- **A mediana móvel tem de onde sair:** `DailyMetric.newsCollected` é o
+  **deduplicado** (`metrics.newsCollected = deduplicated.length`, etapa 3),
+  uma linha por dia escrita na etapa 9 — então a janela do portão são os
+  **7 dias anteriores** (o de hoje ainda não existe), e "dia com run
+  bem-sucedido" é `articleGenerated = true`. `getWeeklyMetrics` soma; o
+  portão lê as linhas. **Volume "colhido" = deduplicado**, para a mediana e
+  o dia compararem a mesma coisa.
+- **A invariante `briefing.one_per_day` (Fase 6) conta `Article` nos
+  últimos 7 dias e exige 7.** Um dia bloqueado pelo portão **viola** a
+  invariante nos sete runs seguintes — um `INVARIANT_VIOLATED` por dia,
+  além do `PIPELINE_GATE_BLOCKED` do dia. **Decisão proposta: aceitar** —
+  a invariante diz o que diz (um briefing não existiu, seja qual for o
+  motivo) e o `detail` já nomeia a data; a aba de segurança mostra as duas
+  linhas e o run detail mostra o motivo. Subtrair dias bloqueados da
+  invariante seria ensinar uma guarda a perdoar.
+- **A "taxa de aprovação por dia" e a rosquinha de motivos (§13.3) saem do
+  que já existe, sem rota nova:** `GET /api/admin/errors` (janela 7d)
+  agrupa `PIPELINE_GATE_BLOCKED` por `route`; `GET /api/admin/pipeline/runs`
+  dá os runs da janela; aprovação = 1 − bloqueios/runs, derivada no web
+  (`lib/`), como o `degradedStreak`. A retenção do `ErrorEvent` é 14 d —
+  cobre os 7. Se a rosquinha entrar, é a `DonutChart` do 5c sobre os
+  motivos do `route`.
+- **Idioma e teto de tamanho não têm régua ainda, e a régua vem do
+  acervo.** Não há biblioteca de detecção de idioma na árvore; a saída
+  honesta é razão de *stopwords* pt-BR sobre o corpo, **calibrada contra os
+  briefings retidos** (o mínimo observado é o piso, com folga). O prompt
+  pede 800–1200 palavras e o parser só tem piso (400 caracteres): o teto se
+  mede nos retidos (p95 × 2, em palavras ou caracteres). **As duas
+  medições estão bloqueadas pela suspensão da API** — o ensaio da §13
+  ("rodar os portões contra os briefings retidos e contar quantos
+  reprovariam") é a primeira coisa da sessão quando ela voltar; enquanto
+  isso, o banco local tem briefings semeados e reais para a forma do
+  script (`.ts` temporário em `apps/api`, como o `rehearse-invariants.ts`).
+- **"12 etapas" está escrito em prosa em cinco lugares** — `apps/api/CLAUDE.md`
+  (título da seção), o cabeçalho dos dois diagramas, e `docs/presentation.md`
+  duas vezes ("doze etapas") — e a fase faz virar **14**. É a família do
+  `13` dos feeds; nenhuma guarda deriva a contagem (o `diagram-drift`
+  compara conjuntos). Os cinco entram no PR.
+- **O re-disparo depois de um `FAILED` de segurança repete o ataque.**
+  `triggerPipeline` aceita re-disparo depois de `FAILED` (decidido no 11a),
+  e o botão da `/admin` o faz sem perguntar: o mesmo material envenenado
+  volta ao Gemini e o portão bloqueia de novo — um segundo `FATAL`, sem
+  dano, mas sem sentido. Basta o run detail mostrar o motivo (já mostra o
+  `ERROR` da etapa) — e a mensagem do bloqueio dizer "re-disparar repete o
+  ataque".
+- **O texto em forma de instrução (avisa, nunca bloqueia)** reutiliza a
+  frase-teste do `prompt-injection.test.ts:129` ("ignore as instruções
+  anteriores") como caso de aviso — e o teste de que **jornalismo sobre
+  injeção passa** é o mesmo dos dois lados.
+- **Dois "Stage 1–9" sobraram no `schema.prisma`** (comentários das linhas
+  83 e 104), fora do alcance da guarda que achou os outros três — corrigidos
+  no PR que abre a fase.
+
+**O que a fase paga em guarda (§18), medido:** `pipeline-gates.test.ts` e
+`output-guard.test.ts` (cada portão reprovando o caso exato e aprovando o
+vizinho; os briefings retidos passando — contado no ensaio); `code` novo na
+união (`error-event.test.ts`); as duas etapas nos dois diagramas
+(`diagram-drift`); `ai.service.test.ts` pela assinatura nova; `pii-in-logs`
+sobre os contextos novos; e a prosa das cinco contagens. **Sem migration,
+sem env, sem rota nova; sem página nova** — o que o web ganha é derivação
+sobre rotas que existem.
+
+**Branch:** `observability/fase-9-gates`, cortada em 19/09 de `8dbe460`. O
+passo 1 do ritual a realinha se a `dev` andar.
+
 ---
 
 ## §14 Fase 10 — A esteira: segurança do CI/CD ✅ 2026-09-05
@@ -3754,7 +3880,13 @@ aplica as duas migrations juntas na promoção.**
   commits` sobre 68. O lote medido antes está no item **80**; a promoção
   lida rodada a rodada, no **81**. **Ficou para a credencial de produção: a
   primeira leitura das três abas** — é a próxima coisa a fazer, antes da 9.
-- **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
+- **§13 — Fase 9 (portões). ← próxima, e é decisão, não sobra.** O terreno
+  está em **"Inventário reconferido antes de abrir — 19/09/2026"**, no fim
+  da §13 (a URL não ancorada sem conjunto para comparar; o guarda por
+  tentativa dentro do fallback; `PIPELINE_GATE_BLOCKED`; a mediana sobre
+  `DailyMetric` dos 7 dias anteriores; a invariante que um dia bloqueado
+  viola; o ensaio contra os retidos bloqueado pela suspensão da API). Branch
+  `observability/fase-9-gates`. Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 
 ### Por que a Fase 9 vai por último

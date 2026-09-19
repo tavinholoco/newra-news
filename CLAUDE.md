@@ -381,6 +381,43 @@ a suíte de unidade, que roda sem rede.
   **cinco** projetos) e o gráfico diário de imagem (o Hobby não tem ciclo —
   "30 dias", sem a doc dizer se janela móvel ou a partir do estouro).
 
+- 🔴 **A API do Render está suspensa (2026-09-19, medido às 17:23 UTC):
+  `503` com `x-render-routing: suspend` em `/api/health`.** O briefing de
+  19/09 existe na home, então o cron das 11:00 UTC rodou — e a Home ainda
+  regenerou às 13:00:06 com a API respondendo, então a suspensão é de **entre
+  13:00 e 17:23 UTC** (item 82). **O que o leitor vê:** as páginas já geradas continuam
+  no ar pela ISR (`/pt-BR`, `/news` em 200), mas **toda página ainda não
+  gerada responde a 500 estática do Next** — inclusive
+  `/pt-BR/article/2026-09-19`, o briefing do dia, que a home linka
+  (armadilha 41, ao vivo). Filtro do acervo, conta, favoritos e admin não
+  respondem; **o cron de amanhã vai falhar** (`warmApi` recebe 503 e devolve
+  "não acordou"), como em 01/09. **A conta que não batia com o §9.0 do
+  `docs/setup.md` fechou pelo e-mail do Render (item 82):** as 750 h são do
+  workspace, e ele tem **dois** serviços free — a API e o `NetsheetEngine`.
+  Quanto é de cada um só Billing → free instance hours diz; é a **segunda
+  vez** (29/08), e a `DailyUptime` da Fase 5 começou a contar às 01:08 de
+  19/09 — cedo demais para ter ajudado. **A primeira leitura das três abas de
+  admin e o ensaio da Fase 9 contra os briefings retidos ficam bloqueados
+  até ela voltar.**
+
+- **Onde estamos no plano de observabilidade (2026-09-19): só a Fase 9
+  resta, e o terreno dela está pronto.** Depois da promoção (#215) e dos
+  pós-merges (#221, #227, #230) e dos cinco bumps do Dependabot (#225,
+  #226, #228, #229 mergeados; os majors que não entram estão no `ignore`
+  com motivo medido), a `dev` está 16 commits à frente da `main` e zero
+  atrás, CI verde. **A Fase 9 é a próxima** — §13 do plano, com o
+  **"Inventário reconferido antes de abrir — 19/09/2026"** no fim da seção:
+  a checagem de URL não tem conjunto ancorado (o `formatNewsItems` não manda
+  URL e o prompt proíbe link — toda URL na saída é inventada ou injetada),
+  o guarda de saída tem de rodar **por tentativa** dentro do fallback
+  Gemini → Groq, o código é `PIPELINE_GATE_BLOCKED`, a mediana sai do
+  `DailyMetric.newsCollected` dos 7 dias anteriores, um dia bloqueado viola
+  a invariante `briefing.one_per_day` (aceito), "12 etapas" está em prosa
+  em cinco lugares, e o ensaio contra os briefings retidos espera a API.
+  Branch `observability/fase-9-gates`, cortada de `8dbe460` e rebaseada
+  em 19/09 sobre o PR #231 (item 82), para nascer alinhada com a `dev`
+  depois do merge dele.
+
 - **Promoção `dev → main` (2026-09-19, #215, `4efbacd`): as sete fases do
   plano de observabilidade estão no ar, e cada rodada do CI foi lida.**
   Item **81**. 68 commits / 29 PRs, três migrations aplicadas em 01:07:02
