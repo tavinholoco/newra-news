@@ -335,6 +335,23 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Verificação pós-merge da 7b (2026-09-19): a Fase 7 não deve nada, e o
+  lote da promoção foi medido.** Item **80**. Sobre `79655d1` (#213):
+  nenhuma prosa envelhecida sobre os boundaries fora do registro histórico,
+  suíte verde, Gitleaks `0 commits`, décima. **Achados:** o §18 não tinha
+  linha para "error boundary novo" (entrou, com o que nenhuma guarda cobre
+  — armadilha 41, que também entrou na lista da raiz abaixo); **três frases
+  do plano diziam que o lote "começa na Fase 3"** — a 3 está no ar desde o
+  #168 de 09/09, o lote começa no #175. **O lote, medido:** `dev..main` = 0,
+  **66 commits / 30 PRs** (Fases 4, 5, 8, 11, 6, 7c, 7b + pós-merges +
+  `fastify-plugin` 5 → 6), **três migrations juntas** (4, 5a, 11a — uma com
+  `DROP COLUMN`), **nenhuma env nova**, os 13 PNGs saindo da `main`, e sete
+  `ignore` do Dependabot que só passam a valer quando chegarem à `main`.
+  **Nada da Fase 7 a fazer antes de promover** — o que sobra (o erro de
+  servidor nas páginas ISR) é decisão, com gatilho no §16. Depois do
+  deploy: o ritual dos três, mais a primeira leitura das três abas contra
+  produção.
+
 - **Fora da linha das fases (2026-09-17): a Fase 7b fechou na `dev` — o
   `digest` chega a um humano, e com ela a Fase 7 inteira.** §11.2, item
   **79**. Os quatro `error.tsx` declaravam `error` e nunca o liam; hoje os
@@ -1434,6 +1451,22 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   tentativas, com `private, no-cache, no-store`, enquanto a Home respondia
   `HIT` com `Age: 1491`. `generateStaticParams` devolvendo `[]` é o que liga a
   ISR sem assar nada no build. Guarda em `tests/lib/rendering-mode.test.ts`.
+- **`error.tsx` não alcança erro de servidor numa página ISR — a resposta é a
+  500 estática do Next, preta e sem estilo, em qualquer navegação.** Medido
+  na Fase 7b do plano de observabilidade, três vezes: com a API parada
+  (`/news/[id]` produz dois `digest` no log — um do `generateMetadata`, um do
+  corpo — e a 500), com um `throw` no corpo por navegação direta (HTTP 500,
+  mesma tela) e pela navegação de cliente a partir do acervo (o RSC devolve
+  500 e o roteador cai para navegação dura). Render de **geração** que lança é
+  "a geração falhou", não "renderize o boundary": o `error.tsx` do segmento só
+  entra no erro de render do **cliente**, que não tem `digest`, e o
+  `global-error.tsx` é para o layout. Onde o `digest` chega a um humano é nas
+  páginas `force-dynamic` (admin, conta, favoritos). O inventário de duas
+  sessões dizia que a página "cai no `news/error.tsx`" — era dedução. **Ao
+  afirmar que um boundary alcança um erro, provoque o erro e olhe a tela**:
+  o `admin:capture` tem `breakBff` para o erro de cliente, e um `throw`
+  guardado por variável de ambiente (nunca commitado) serve para o de
+  servidor. Dívida com gatilho no §16 do plano; armadilha 41.
 - **`redirect()` de server component em rota com `loading.tsx` vira `<meta
   refresh>`, não 307.** O `loading.tsx` do segmento faz o Next despachar a
   casca na hora; quando o `redirect()` resolve, a resposta já começou e não há

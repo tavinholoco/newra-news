@@ -106,7 +106,7 @@ independentes**, que não se bloqueiam:
 | 4 | `ErrorEvent` | §8 | substrato | **sim** | 1, 3 |
 | 5 | As telas: Métricas e Segurança | §9 | painel | não | 2, 4 |
 | 6 | Invariantes | §10 | qualidade | não | 4, 5 |
-| 7 | Erro do cliente | §11 | cliente | não | 1 (7a) · 4 (7c) |
+| 7 | Erro do cliente | §11 | cliente | não | 1 (7a) · 4 (7c) · 7c (7b) |
 | 8 | O log de sucesso | §12 | qualidade | não | 2 |
 | 9 | Os dois portões da IA | §13 | qualidade | não | 1, **4** |
 | 10 | Segurança do CI/CD | §14 | esteira | não | — |
@@ -118,8 +118,9 @@ não depende de nada neste plano.
 
 > **A 10 e a 1 foram entregues em 05/09/2026; a 2 e a 7a, em 07/09.** O estado
 > de cada fase vive na tabela da ordem, no §19, e no cabeçalho da seção de cada
-> uma — esta tabela aqui descreve a **forma** do plano, não o progresso. **O
-> bloco 1 fechou; a próxima é a Fase 3** (§7, a taxonomia), que abre a espinha.
+> uma — esta tabela aqui descreve a **forma** do plano, não o progresso.
+> Quem diz qual é a próxima é o §19; esta nota dizia "a próxima é a Fase 3"
+> até 19/09/2026, dez fases depois de ela ter fechado.
 >
 > **Duas coisas que o bloco 1 deixou fora do plano e que a Fase 3 herda o
 > contexto:** as duas *critical* do `next` aceitas com alcance medido
@@ -1846,10 +1847,11 @@ união + normalizador de rota com conjunto derivado do `app/` do web (7c);
 reporte "uma vez por montagem" com `fetch` mockado (7b). **Sem migration, sem
 env nova** — a única variável envolvida (`API_BASE_URL` do BFF) já existe.
 
-**Depois da 7:** promoção `dev → main` (o lote inteiro desde a 3: taxonomia,
-`ErrorEvent`, as telas, o log de sucesso, a saúde por fonte, as invariantes,
-o erro do cliente) com as **três migrations** da 4, do 5a e do 11a aplicando
-juntas; o ritual contra produção; e só então a **9**, que o `CLAUDE.md` manda
+**Depois da 7:** promoção `dev → main` (o lote inteiro desde a **4** — a 3
+foi promovida em 09/09 no #168, e o pós-merge dela, #175, é o primeiro do
+lote: `ErrorEvent`, as telas, o log de sucesso, a saúde por fonte, as
+invariantes, o erro do cliente) com as **três migrations** da 4, do 5a e do
+11a aplicando juntas; o ritual contra produção; e só então a **9**, que o `CLAUDE.md` manda
 não levar dentro de um lote.
 
 **Branch:** `observability/fase-7c-client-error-ingest`, cortada em 16/09 de
@@ -2171,9 +2173,10 @@ ao remontar), `error-state.test.tsx` (6, inclusive `inset`),
 motivo). Seis quebras de propósito, seis reprovações. **840 → 866 no web
 (82 → 85 suítes); 1.295 na API, sem mudança.**
 
-**Depois da 7b: a promoção `dev → main`** (o lote inteiro desde a 3, com
-as três migrations da 4, do 5a e do 11a), o ritual contra produção, e só
-então a **9**.
+**Depois da 7b: a promoção `dev → main`** (o lote desde a Fase 4 — a 3 já
+está no ar desde o #168 —, com as três migrations da 4, do 5a e do 11a), o
+ritual contra produção, e só então a **9**. O pós-merge (item 80) mediu o
+lote e o que a promoção carrega.
 
 ---
 
@@ -3446,6 +3449,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`action` nova na trilha de auditoria** | `audit.service.test.ts` (Fase 5) — literal do tuple `AUDIT_ACTIONS`, e nenhum membro sem quem o grave |
 | **Rota nova no BFF do web** (`app/api/**/route.ts`) | `apps/api/tests/security/bff-route-seam.test.ts` (pós-merge do 5c) — o caminho e o método de cada `proxyToApi` **e, desde a 7c, de cada ``fetch(`${API_BASE_URL}/…`)``** têm de casar com uma rota registrada; `apps/web/tests/lib/admin-surface.test.ts` (`requireRole: 'ADMIN'` sob `app/api/admin`); `apps/web/tests/lib/hand-written-lists.test.ts` — toda rota `GET` atrás de sessão na lista de 401 do smoke; e `apps/web/tests/lib/bff-error-log.test.ts` — nenhum `catch` de `route.ts` sem `logServerError` |
 | **Rota anônima nova no BFF** (sem `proxyToApi`) | as de cima, mais a asserção do `bff-route-seam` que **nomeia** as portas anônimas (lista vazia não aprova), e a suíte irmã de `events-anonymity`/`client-error-ingest` na API — nada de identidade no schema, e a rota respondendo sem credencial |
+| **Error boundary novo no web** (`error.tsx` num segmento, ou o `global-error.tsx`) | `apps/web/tests/lib/state-matrix.test.ts` (Fase 7b) — todo `error.tsx` sob `app/[locale]` e o `global-error.tsx` desenham pela casca `components/errors/error-state` (é ela que mostra o `digest` e reporta; um boundary que a contorna nasce sem as duas coisas), e o raiz aplica o tema pela **chamada** a `applyStoredTheme()`, nunca pelo `<ThemeInit />` (armadilha 40), sem `next-intl` (armadilha 9) e lendo os JSONs direto; `apps/web/tests/components/a11y-guards.test.tsx` — o `h1` do boundary é só da casca; `i18n-messages` — as chaves continuam literais em cada arquivo. **O que nenhuma guarda cobre, e é decisão (armadilha 41):** numa página ISR o boundary não alcança erro de servidor |
 | **Página nova em `apps/web/app/[locale]`** (além das três de "Página nova no web") | `apps/api/tests/utils/web-route.test.ts` (7c) — o `WEB_ROUTE_PATTERNS` do normalizador do erro do cliente tem de ganhar a linha, nas duas direções; e o `diagram-drift`, pelo mesmo helper (`tests/helpers/web-routes.ts`) |
 | **Resposta de sucesso com status fora de `200/201/204`** | `shared-type-contract.test.ts` varre todo `2\d\d` desde a 7c — antes o `202` passava sem contrato (armadilha 38) |
 | **Campo novo por rota em `GET /api/metrics/http`** | `assertContract` do `httpMetricsResponseSchema` contra `HttpRouteMetrics`; e a forma antiga no web (`api-health.test.tsx`, "draws a dash, never NaN") — armadilha 37 |
@@ -3714,8 +3718,12 @@ aplica as duas migrations juntas na promoção.**
   nas páginas `force-dynamic`; a dívida está no §16. Item **79** do
   `docs/progress.md`; as decisões no fim da §11. **Fecha a Fase 7.**
 - **Promoção `dev → main` depois da 7 ← próximo passo**, antes da 9 — o
-  `CLAUDE.md` manda. O lote inteiro desde a Fase 3, com as três migrations
-  (4, 5a, 11a) aplicando juntas; depois, o ritual contra produção.
+  `CLAUDE.md` manda. O lote desde a Fase 4 (a 3 está no ar desde o #168 de
+  09/09; o primeiro PR do lote é o #175) — **30 PRs, 66 commits, três
+  migrations** (4, 5a, 11a) aplicando juntas, nenhuma variável de ambiente
+  nova, um bump de dependência de produção (`fastify-plugin` 5 → 6, #194) e
+  os 13 PNGs desrastreados; depois, o ritual contra produção. Medido no
+  pós-merge da 7b (item 80).
 - **§13 — Fase 9 (portões).** **Por último, e é decisão, não sobra.** Com a 8
   entregue, das três coisas que ela exige no ar (abaixo) só falta a promoção.
 
