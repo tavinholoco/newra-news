@@ -1,6 +1,19 @@
 import { Prisma, prisma } from '@newranews/database';
 import type { PipelineEventLevel } from '@newranews/database';
+import {
+  PIPELINE_DEGRADED_CODE,
+  PIPELINE_FAILED_CODE,
+  recordError,
+} from './error-event.service';
+import type { ErrorCategory } from '../utils/errors';
 import { baseLogger } from '../utils/logger';
+import type { RunOutcome } from '@newranews/types';
+import {
+  degradedStages,
+  deriveRunOutcome,
+  isDegradingWarn,
+  type OutcomeEvent,
+} from './run-outcome';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +46,10 @@ export interface DevLogSummary {
   completedAt: string | null;
   durationSeconds: number | null;
   eventCount: number;
+  /** Fase 8: o desfecho derivado dos `WARN` do run. `null` enquanto `RUNNING`. */
+  outcome: RunOutcome | null;
+  /** Fase 8: as etapas cujo `WARN` contou, em ordem. Ver `run-outcome.ts`. */
+  degradedBy: number[];
 }
 
 export interface DevLogsResult {
@@ -98,12 +115,103 @@ export function extractErrorDetail(error: unknown): PipelineErrorDetail {
   return detail;
 }
 
+/**
+ * A etapa como escopo da falha — a peça do fingerprint que separa "a coleta
+ * falhou" de "a newsletter falhou".
+ *
+ * Conjunto finito por construção: são as etapas que o pipeline anuncia, e o
+ * `diagram-drift.test.ts` já as enumera a partir da fonte. **Sem contagem
+ * escrita aqui de propósito** — o número de etapas anunciadas já divergiu do
+ * número de etapas do plano, e as duas prosas estavam certas.
+ */
+function stageScope(stage: number): string {
+  return `stage-${stage}`;
+}
+
+/**
+ * A categoria de uma falha de etapa, inferida do que `extractErrorDetail` já
+ * sabe.
+ *
+ * É inferência, e o comentário diz isso de propósito: os providers ainda lançam
+ * `Error` cru — a taxonomia da Fase 3 não os alcança —, então o provider sai da
+ * mensagem. **Gatilho para apagar esta função:** converter `gemini`, `newsdata`,
+ * `resend` e o `pipeline.service` para `AppError`, que é a dívida que a Fase 3
+ * deixou escrita. Aí a categoria vem do erro, e não de um palpite sobre o
+ * texto dele.
+ *
+ * **O `warnings` da etapa 1 é `upstream` por construção.** A primeira versão
+ * lia só `context.provider` e classificava *"Collection degraded"* — um feed
+ * em `ETIMEDOUT`, a NewsData fora do ar — como `internal`, porque o provider
+ * ali está dentro de cada `FetchWarning`, não no topo. Achado da verificação
+ * pós-merge da Fase 4: a classe de falha mais frequente do pipeline era a que
+ * a categoria descrevia errado.
+ */
+function categoryForStageFailure(context?: Record<string, unknown>): ErrorCategory {
+  if (Array.isArray(context?.warnings)) return 'upstream';
+  const provider = typeof context?.provider === 'string' ? context.provider : undefined;
+  if (provider === 'prisma') return 'database';
+  if (provider !== undefined) return 'upstream';
+  return 'internal';
+}
+
+/**
+ * Põe a falha de etapa no buffer do `ErrorEvent`. Síncrona e sem lançar, como
+ * o `recordError` que ela chama.
+ *
+ * **Dois códigos, e não um com duas severidades**, porque a diferença é de
+ * natureza: `ERROR` aborta o run e `WARN` é etapa não-crítica que falhou
+ * sozinha (a newsletter, o cleanup, a renormalização). São os dois estados que
+ * pedem ações diferentes de quem lê a tela.
+ *
+ * **O `WARN` que não degrada não vira falha** (pós-merge da Fase 8). O da
+ * etapa 1 dispara para qualquer aviso de colheita, e `feed-empty` está entre
+ * eles — a classe "publicou devagar", que o item 46 tirou de `pipelineErrors`
+ * e a Fase 8 tirou do desfecho. Este era o terceiro consumidor da linha e o
+ * único a gravar todo `WARN`: a tabela de falhas da `/admin/security` dizia
+ * `PIPELINE_STAGE_DEGRADED · stage-1` no domingo de um feed de saúde, com o
+ * desfecho do mesmo run em `SUCCESS`. O `PipelineEvent` continua sendo escrito
+ * — é o rastro da sequência de dias vazios, que a Fase 11 lê.
+ */
+function recordPipelineEvent(
+  pipelineLogId: string,
+  stage: number,
+  level: PipelineEventLevel,
+  message: string,
+  context?: Record<string, unknown>,
+): void {
+  if (level === 'INFO') return;
+  if (level === 'WARN' && !isDegradingWarn({ stage, level, context: context ?? null })) return;
+
+  recordError({
+    origin: 'PIPELINE',
+    severity: level === 'ERROR' ? 'ERROR' : 'WARN',
+    code: level === 'ERROR' ? PIPELINE_FAILED_CODE : PIPELINE_DEGRADED_CODE,
+    category: categoryForStageFailure(context),
+    message,
+    route: stageScope(stage),
+    // Explícito, e não pelo `AsyncLocalStorage`: o enterro do run morto roda
+    // fora do contexto do run, e o id está na mão de quem chama.
+    pipelineLogId,
+    // `statusCode` do provedor quando `extractErrorDetail` conseguiu inferi-lo;
+    // é HTTP de terceiro, não da nossa resposta.
+    statusCode: typeof context?.statusCode === 'number' ? context.statusCode : null,
+  });
+}
+
 function toJsonRecord(value: unknown): Record<string, unknown> | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'object') return null;
   return value as Record<string, unknown>;
 }
 
+/**
+ * O resumo de um run, com o desfecho. (Fase 8)
+ *
+ * `events` são os eventos que a derivação precisa — os `WARN` do run bastam,
+ * mas a lista inteira também serve, porque `degradedStages` filtra por nível.
+ * A listagem passa os `WARN` que leu numa consulta só; o detalhe passa os
+ * eventos que já traz.
+ */
 function toSummary(
   log: {
     id: string;
@@ -117,6 +225,7 @@ function toSummary(
     completedAt: Date | null;
     _count: { events: number };
   },
+  events: OutcomeEvent[],
 ): DevLogSummary {
   return {
     id: log.id,
@@ -134,15 +243,58 @@ function toSummary(
         )
       : null,
     eventCount: log._count.events,
+    outcome: deriveRunOutcome(log, events),
+    degradedBy: degradedStages(events),
   };
+}
+
+/**
+ * Os `WARN` dos runs de uma página, agrupados por run — **uma consulta, não uma
+ * por run.**
+ *
+ * A listagem trazia `_count.events` e nada mais, e o desfecho é função sobre o
+ * run **e** seus avisos. Só o `WARN` interessa: o `INFO` é o caminho feliz (a
+ * maioria das ~15 linhas de um run) e o `ERROR` já está no `status`. Com o
+ * pipeline rodando uma vez por dia, são poucas linhas por página — o índice
+ * `(pipelineLogId, createdAt)` do `PipelineEvent` é o que a serve.
+ */
+async function warnEventsByRun(ids: string[]): Promise<Map<string, OutcomeEvent[]>> {
+  const byRun = new Map<string, OutcomeEvent[]>();
+  if (ids.length === 0) return byRun;
+
+  const events = await prisma.pipelineEvent.findMany({
+    where: { pipelineLogId: { in: ids }, level: 'WARN' },
+    select: { pipelineLogId: true, stage: true, level: true, context: true },
+  });
+  for (const event of events) {
+    const list = byRun.get(event.pipelineLogId) ?? [];
+    list.push({ stage: event.stage, level: event.level, context: event.context });
+    byRun.set(event.pipelineLogId, list);
+  }
+  return byRun;
 }
 
 // ── Escrita (pipeline) ──────────────────────────────────────────────────────
 
 /**
- * Registra um evento da pipeline (Stage 1–9, nível, mensagem e contexto JSON).
+ * Registra um evento da pipeline (etapa 0 a 9.5, nível, mensagem e contexto
+ * JSON).
  * Nunca lança: observabilidade não pode quebrar o pipeline — falha de
  * persistência vira uma linha de `warn` no log, e nada além disso.
+ *
+ * ## O que a Fase 4 acrescentou: `WARN` e `ERROR` também viram `ErrorEvent`
+ *
+ * A fiação fica **aqui, e não em cada `catch` de etapa**, pelo mesmo motivo
+ * que a pôs dentro do `logAppError` do outro lado: este é o único ponto por
+ * onde toda etapa anuncia que algo deu errado, e enumerar `catch` à mão é a
+ * forma de guarda que este projeto já viu falhar por omissão. Etapa nova entra
+ * sozinha.
+ *
+ * **O que isso responde, e o `PipelineLog` não respondia:** *"a etapa 8.5 falha
+ * há três dias?"*. O run guarda o desfecho de um dia; o `ErrorEvent` coalesce a
+ * mesma falha ao longo da retenção, com contagem.
+ *
+ * **`INFO` não grava** — é o caminho feliz, e é a maioria das linhas de um run.
  */
 export async function logPipelineEvent(
   pipelineLogId: string,
@@ -151,6 +303,8 @@ export async function logPipelineEvent(
   message: string,
   context?: Record<string, unknown>,
 ): Promise<void> {
+  recordPipelineEvent(pipelineLogId, stage, level, message, context);
+
   try {
     await prisma.pipelineEvent.create({
       data: {
@@ -204,9 +358,17 @@ export async function getDevLogs(
     prisma.pipelineLog.count({ where }),
   ]);
 
+  // Os avisos de todos os runs das duas listas, de uma vez: o run que está em
+  // `recentErrors` também precisa do seu `degradedBy`.
+  const warnings = await warnEventsByRun([
+    ...new Set([...runs, ...recentErrors].map((run) => run.id)),
+  ]);
+  const summarize = (run: (typeof runs)[number]): DevLogSummary =>
+    toSummary(run, warnings.get(run.id) ?? []);
+
   return {
-    runs: runs.map(toSummary),
-    recentErrors: recentErrors.map(toSummary),
+    runs: runs.map(summarize),
+    recentErrors: recentErrors.map(summarize),
     total,
   };
 }
@@ -226,7 +388,9 @@ export async function getDevLogDetail(
 
   const { events, ...rest } = log;
   return {
-    log: toSummary({ ...rest, _count: { events: events.length } }),
+    // O detalhe já carrega todos os eventos: o desfecho sai deles, sem segunda
+    // consulta.
+    log: toSummary({ ...rest, _count: { events: events.length } }, events),
     events: events.map((event) => ({
       id: event.id,
       stage: event.stage,

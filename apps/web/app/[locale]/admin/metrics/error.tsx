@@ -1,9 +1,15 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui/button';
+import { ErrorState } from '@/components/errors/error-state';
 
+/**
+ * `layout='inset'`: este boundary renderiza dentro da casca do
+ * `admin/layout.tsx`, que já dá o `container-editorial` — o único dos
+ * quatro em que um contêiner próprio seria a duplicação da armadilha 11.
+ */
 export default function DashboardError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -13,14 +19,14 @@ export default function DashboardError({
   const tCommon = useTranslations('common');
 
   return (
-    <div className='mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-4 py-32 sm:px-6 lg:px-8'>
-      <h1 className='font-display text-2xl font-bold text-foreground'>
-        {t('dashboardTitle')}
-      </h1>
-      <p className='text-muted-foreground'>
-        {t('dashboardDesc')}
-      </p>
-      <Button onClick={reset}>{tCommon('retry')}</Button>
-    </div>
+    <ErrorState
+      layout='inset'
+      title={t('dashboardTitle')}
+      description={t('dashboardDesc')}
+      retryLabel={tCommon('retry')}
+      digestLabel={t('digestLabel')}
+      error={error}
+      reset={reset}
+    />
   );
 }

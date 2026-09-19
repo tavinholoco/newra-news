@@ -20,8 +20,18 @@ export interface DashboardToday {
   newsCollected: number;
   articleGenerated: boolean;
   aiProvider: string | null;
+  /** Milissegundos — o `durationSeconds` dos runs é segundo. */
   pipelineDuration: number | null;
   pipelineErrors: number;
+  /**
+   * As duas fontes de ingestão do dia (§4.3 do plano de observabilidade, a
+   * rosquinha "ingestão por fonte"). Gravadas desde a V1, serializadas só a
+   * partir da Fase 5.
+   */
+  newsApiCount: number;
+  rssCount: number;
+  /** Linhas apagadas pela etapa 8 no run do dia. */
+  cleanupCount: number;
 }
 
 export interface DashboardMetrics {

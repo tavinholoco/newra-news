@@ -47,6 +47,10 @@ vi.mock('toad-scheduler', () => ({
 }));
 
 import { triggerPipeline } from '../../src/services/pipeline.service';
+import {
+  pendingErrorEvents,
+  resetErrorEventBuffer,
+} from '../../src/services/error-event.service';
 import { AsyncTask, CronJob } from 'toad-scheduler';
 import fastifySchedule from '@fastify/schedule';
 import { runDailyPipelineTask, registerDailyPipelineJob } from '../../src/jobs/daily-pipeline.job';
@@ -198,6 +202,29 @@ describe('registerDailyPipelineJob', () => {
     expect(app.log.info).toHaveBeenCalledWith(
       expect.stringContaining('0 8 * * *'),
     );
+  });
+
+  it('records the trigger failure durably — before a run exists there is no PipelineLog', async () => {
+    // Até a verificação pós-merge da Fase 4, um `triggerPipeline` que lançasse
+    // aqui deixava só a linha de `app.log.error` — que rola para fora. `stage-0`
+    // é a convenção do pipeline para "sobre o run inteiro".
+    resetErrorEventBuffer();
+    const app = makeMockApp();
+    await registerDailyPipelineJob(app);
+
+    const [, , errorHandler] = vi.mocked(AsyncTask).mock.calls[0] as [
+      string,
+      () => Promise<void>,
+      (err: unknown) => void,
+    ];
+    errorHandler(new Error('P1001: database unreachable'));
+
+    const [event] = pendingErrorEvents();
+    expect(app.log.error).toHaveBeenCalledWith(expect.stringContaining('[cron] task failed'));
+    expect(event?.origin).toBe('PIPELINE');
+    expect(event?.code).toBe('PIPELINE_STAGE_FAILED');
+    expect(event?.route).toBe('stage-0');
+    expect(event?.message).toContain('P1001');
   });
 
   it('should throw a clear error when CronJob constructor throws', async () => {

@@ -28,7 +28,11 @@
 - GET /api/articles — listar artigos (com os campos de auditoria, sem `sources`)
 - GET /api/articles/:date — artigo por data (YYYY-MM-DD) + `sources`
 - GET /api/articles/latest — artigo mais recente + `sources`
-- POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min)
+- POST /api/jobs/daily-pipeline — trigger do pipeline (Bearer token, rate limit: 20 req/min).
+  **`x-actor-id` opcional** — o `User.id` de quem clicou no painel, que o BFF
+  põe e o cron do Next repassa; com ele a rota grava `pipeline.triggered` no
+  `AuditEvent`. O cron da Vercel não o manda, e o disparo agendado não é ação
+  de ninguém. Fase 5 do plano de observabilidade
 - POST /api/jobs/renormalize-news — a mesma renormalização da etapa 8.5, sob
   demanda (Bearer `JOB_SECRET`). **O pipeline já faz isso todo dia** — esta rota
   serve para *inspecionar* (`dryRun`, o padrão, devolve o relatório sem gravar)
@@ -42,14 +46,20 @@
 - GET /api/metrics/product — **admin**: métricas de **produto** (`ProductEvent`)
   — audiência, leitura, cliques por origem, categorias e buscas sem resultado.
   `days` de 1 a 90 (o teto é a retenção do evento cru)
-- GET /api/metrics/http — **admin**: error rate, taxa de 4xx e latência
-  (p50/p95/p99/max) do processo que está no ar, mais a lista por rota. As duas
-  métricas técnicas da §26, que até a Fase 9 ninguém produzia. **Em memória** —
-  ver "Observabilidade da API" abaixo
+- GET /api/metrics/http — **admin**: os quatro sinais de ouro. Error rate,
+  taxa de 4xx e latência (p50/p95/p99/max) do processo que está no ar, mais a
+  lista por rota — **em memória**, ver "Observabilidade da API" abaixo — e,
+  desde a Fase 5, **`saturation`**: memória residente / 512 MB, atraso do
+  event loop, e as horas do plano no mês (soma do `DailyUptime`) / 750
 - POST /api/auth/upsert — cria o usuário no primeiro sign-in. Exige JWT com
   `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
   lote de 1 a 20, rate limit 30/min). Ver "Eventos de produto" abaixo
+- POST /api/errors/client — o relato de um error boundary do web (**pública e
+  anônima**, rate limit 10/min — um balde só para o site, decidido). Vira
+  uma linha de `ErrorEvent` com `origin: WEB` e o **padrão da página** no
+  `route`; responde **202**. Ver "O erro do cliente" abaixo. Fase 7c do
+  plano de observabilidade
 - GET /api/admin/pipeline/runs — **admin (JWT + role ADMIN)**: os últimos runs
   do pipeline + os que falharam, com os mesmos filtros do `/api/dev/logs`
   (`status`, `since`, `limit`). **Mesma consulta e mesmo schema** — o que muda é
@@ -57,9 +67,24 @@
 - GET /api/admin/pipeline/runs/:pipelineId — **admin**: o run com os eventos por
   etapa. **Tudo sob `/api/admin` é admin-only por construção** — `authPlugin` e
   `requireAdmin` registram uma vez no grupo, e há guarda enumerando o roteador
+- GET /api/admin/errors — **admin**: o `ErrorEvent` **agrupado por
+  fingerprint** na janela (`window` = `24h` | `7d`), com contagem, horas,
+  `lastRequestId` e as três distribuições (categoria, severidade, origem). A
+  primeira leitura da tabela da Fase 4. Fase 5
+- GET /api/admin/audit — **admin**: a trilha de ação de admin, mais recente
+  primeiro (`days` ≤ 365, `limit` ≤ 200). Só o `actorId`, nunca e-mail. Fase 5
+- GET /api/admin/sources — **admin**: a saúde de cada fonte, um dia de cada
+  vez — a série de `fetched`, `kept`, desfecho e latência por fonte na janela
+  (`days` ≤ 90, o teto é a retenção). Só os dias com linha; "não tentada" é
+  ausência, derivada no web. Fase 11
+- GET /api/admin/invariants — **admin**: o último relatório de invariantes —
+  o evento da **etapa 9.5** do run mais recente, **lido, nunca recalculado**
+  (doze consultas em 0.1 vCPU não podem ser disparadas por um F5). `data:
+  null` antes do primeiro run com a etapa. Fase 6
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
-- GET /dev/dashboard — página HTML dev-only: runs, erros e status dos providers.
+- GET /dev/dashboard — página HTML dev-only: runs (com o **desfecho** da Fase 8,
+  não o `status`), erros e status dos providers.
   **`?secret=` saiu na Fase 9** — segredo em query string entra em log de acesso,
   histórico e `Referer`. Entra por `Authorization: Bearer` (curl) ou por
   `POST /dev/dashboard/session` (o formulário da página), que devolve um cookie
@@ -67,9 +92,13 @@
 
 ## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
 
-**A garantia é do grupo, não da rota.** `routes/admin/pipeline.ts` registra o
-`authPlugin` e um `preHandler` com `requireAdmin` uma vez; toda rota do grupo
-nasce protegida sem ninguém lembrar de repetir a linha. É o gêmeo, do lado da
+**A garantia é do grupo, não da rota.** `routes/admin/index.ts` registra o
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os cinco subgrupos
+(`pipeline`, `errors`, `audit`, `sources`, `invariants`) herdam o hook — hook de contexto pai vale para
+todo `register` abaixo dele. Toda rota do grupo nasce protegida sem ninguém
+lembrar de repetir a linha; **na Fase 2 as duas linhas moravam em
+`pipeline.ts`**, e subiram para o pai quando a Fase 5 pôs dois subgrupos ao
+lado. É o gêmeo, do lado da
 API, do que o `admin/layout.tsx` faz do lado do web — e tem guarda:
 `authorization-matrix.test.ts` enumera o `printRoutes()`, filtra o prefixo e
 cobra `access: 'admin'` de cada linha, com uma asserção separada exigindo que o
@@ -144,13 +173,37 @@ denunciava a divergência. Ao mexer no `select` de um serviço, confira o schema
 - Tem `Cache-Control` editorial: as facetas não mudam ao virar a página, então
   ficam fora da listagem para não recalcular dois `groupBy` a cada paginação.
 
-## Pipeline Diário (10 etapas)
+## Pipeline Diário (12 etapas)
 Coleta → Normalização → Deduplicação → Persistência →
 Seleção → Geração IA → Persistência Artigo → Newsletter → Cleanup →
-**Renormalização** → Métricas
+**Renormalização** → Métricas → **Invariantes**
 
 Cleanup: News >30 dias, PipelineLogs >30 dias, Articles >90 dias,
-**ProductEvents >90 dias** (por `occurredAt`)
+**ProductEvents >90 dias** (por `occurredAt`), **ErrorEvents >14 dias** (por
+`windowStart`), **AuditEvents >365 dias** (por `createdAt` — mais que
+qualquer outra tabela, porque log de segurança responde pergunta feita meses
+depois) e **SourceHealth >90 dias** (por `day` — como o Article, para cruzar
+"o briefing daquele dia" com "quem o alimentou")
+
+> **Cada um desses números está escrito em prosa em quatro documentos que a
+> etapa não abre**, e há guarda: `tests/docs/retention-drift.test.ts` compara
+> esta linha, os dois diagramas do pipeline e o `packages/database/CLAUDE.md`
+> com as constantes de retenção de cada service. É a família do `13` dos
+> feeds — número que descreve código quer guarda derivada do código. **As
+> três de News, PipelineLog e Article moram em `services/retention.ts`** desde
+> a Fase 6 — a suíte de invariantes as lê, e não pode importar o pipeline.
+
+**A etapa 9.5 (invariantes, Fase 6 do plano de observabilidade) pergunta o
+que nenhuma etapa perguntava: "o que deveria ter acontecido aconteceu?".**
+Doze consultas agregadas depois de a 9 gravar a métrica do dia — a retenção de
+cada uma das sete tabelas que a 8 expurga, um briefing por dia, todo briefing
+da semana com fontes, nenhum run morto em `RUNNING`, todo dia com run
+`SUCCESS` com a sua `DailyMetric`, a newsletter chegando a alguém quando havia
+assinante. **Violação não degrada o run**: o relatório inteiro é o `context`
+de um `INFO`, e cada violação é um `ErrorEvent` com `origin: INVARIANT` e o
+id da invariante no `route` — uma linha por invariante por run. O que degrada
+é a suíte não conseguir perguntar (uma consulta que lança sai como `ERROR` no
+resultado, e a etapa emite `WARN`). Ver "As invariantes", abaixo.
 
 **A etapa 8.5 (renormalização) é o que faz uma correção de regra alcançar o que
 já está gravado.** Consertar a ingestão só conserta o que entra; sem ela, uma
@@ -160,6 +213,45 @@ dia seguinte a qualquer mudança de regra — sem ninguém lembrar de disparar n
 Vem **depois** do cleanup de propósito: renormalizar linha que acabou de ser
 apagada é trabalho jogado fora. É idempotente, então em regime ela varre e não
 escreve nada.
+
+**O desfecho de um run não é o `status` — é derivado dos eventos** (Fase 8 do
+plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
+pipeline não é: 7.5, 8, 8.5, 9 e 9.5 falham com `WARN` e o run segue `SUCCESS`,
+o fallback para o Groq é `WARN` da etapa 6, a colheita degradada é `WARN` da
+etapa 1. `deriveRunOutcome` devolve `SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`
+(`null` em `RUNNING`) e `degradedStages` lista as etapas — **sem coluna**: coluna
+pediria migration e divergiria dos eventos no primeiro `catch` esquecido
+(§17.19). Regras que não são óbvias:
+
+- **Todo `WARN` conta, menos o `feed-empty` da etapa 1.** A linha mora em
+  `run-outcome.ts` (`isDegradingFetchWarning` sobre um aviso, `isDegradingWarn`
+  sobre um evento) e tem **três consumidores**: o `pipelineErrors` da etapa 1,
+  o desfecho, e o `ErrorEvent` que `logPipelineEvent` grava — este era o
+  único fora dela até o pós-merge da Fase 8, e chamava de
+  `PIPELINE_STAGE_DEGRADED` o domingo de um feed de saúde. Com "zero `WARN`",
+  o fim de semana de um feed de saúde seria dia degradado e o estado deixaria
+  de informar.
+- **`degradedBy` tem duas contas que têm de bater:** o pipeline o monta
+  enquanto corre (é o que o evento final da etapa 9 grava) e a API o deriva dos
+  eventos na leitura. Há teste cobrando a concordância por cenário, e
+  `tests/services/run-outcome-wiring.test.ts` cobra a **fiação** pelo parser:
+  todo `logPipelineEvent(…, 'WARN', …)` dentro do run tem o `degradedBy.push`
+  da mesma etapa no mesmo bloco — a etapa nova da Fase 9 que escrever o aviso
+  e esquecer o `push` reprova aqui.
+- **O evento final da etapa 9 resume o run** (`collected`, `sources`, `deduped`,
+  `persisted`, `selected`, `provider`, `model`, `promptVersion`, `briefingId`,
+  `briefingChars`, `sourcesCited`, `newsletter`, `renormalized`, `invariants`,
+  `degradedBy`, `durationMs`). `newsletter`, `renormalized` e `invariants`
+  valem `'failed'` quando a etapa lançou: o service da newsletter não distingue
+  "pulado" de "zero assinantes"; `invariants` é `{ checked, violated,
+  errored }`.
+- **A listagem lê os `WARN` dos runs da página numa consulta** (`warnEventsByRun`),
+  e o detalhe deriva dos eventos que já traz. O schema é um só nas duas portas.
+- **`NEVER_RAN` não existe aqui.** A API lista o que existe; quem deriva o dia
+  sem run é a faixa de 30 dias do web, pela ausência num dia UTC.
+- **`run-outcome.ts` não importa nada de runtime**, de propósito: importável
+  pelo pipeline sem arrastar os providers, e imune ao automock do
+  `news-fetcher.service` nas suítes do pipeline.
 
 ## Ingestão: higiene de texto e categoria
 
@@ -500,9 +592,108 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
   a razão vai para o log, com o nome do provider. **A URL da sonda nunca entra na
   linha** — ela carrega a chave, e depender do redator seria depender de ele
   conhecer aquele valor.
+- **`app.inject()` não passa pelo parser HTTP, e isso já enganou uma guarda.**
+  O `light-my-request` entrega o objeto de headers direto ao Fastify; o parser do
+  Node **apara o espaço em branco do fim** do valor de um header. A guarda do
+  `content-type` provava a defesa com `application/json<TAB>` — forma que o fio
+  **nunca entrega**. Onde a coisa em teste é o tratamento de um header cru, teste
+  por porta efêmera, não por `inject`. E note que **um status compartilhado por
+  duas origens não prova de quem é a resposta**: o Fastify devolve 415 sozinho
+  para aquele header, e o que distingue é a frase fixa do nosso hook contra a
+  dele, que **ecoa o header forjado de volta**. Item 58 do `docs/progress.md`.
 - **`ErrorContext` é `Record<string, escalar>` de propósito.** O `context` vai
   para o log e, na Fase 4, para uma coluna; objeto aninhado é como um segundo
   erro inteiro entra sem passar por redação nenhuma.
+
+## O registro durável de falha (Fase 4 do plano de observabilidade)
+
+`src/services/error-event.service.ts` e o `model ErrorEvent`. Fecha o buraco de
+que **o único vestígio de um 500 era uma linha do stdout do Render** — que rola
+para fora, não sobrevive a um deploy e não responde "isto já aconteceu antes?".
+
+| Peça | Papel |
+|---|---|
+| `services/error-event.service.ts` | o buffer, o fingerprint, o flush e o expurgo |
+| `plugins/error-events.ts` | o intervalo de 30 s e o flush no `onClose` |
+| `utils/errors.ts` (`logAppError`) | a fiação do lado da API |
+| `services/pipeline-event.service.ts` (`logPipelineEvent`) | a fiação do lado do pipeline |
+
+Regras que não são óbvias no código:
+
+- **`recordError` é síncrona por contrato, e há teste sobre a forma da função.**
+  Ela muta um `Map` e retorna `undefined`. Escrever no banco dentro do
+  tratamento de um erro *de banco* é falha auto-amplificante — e o dia em que
+  ela virar `async`, alguém acrescenta um `await` no handler e põe a ida ao
+  banco no caminho que já falhou.
+- **Uma linha por `(fingerprint, hora)`**, com `count`. Um 500 que dispara
+  10.000 vezes numa hora é uma linha: a tabela cresce com *falhas distintas ×
+  24*, nunca com o tráfego.
+- **O fingerprint é `origin:severity:code:route`**, e as quatro peças são de
+  conjunto finito. A **severidade entrou na implementação**, fora do desenho: o
+  pipeline registra a mesma etapa como `WARN` e como `ERROR`, e sem ela as duas
+  colidiriam com a segunda apagando a gravidade da primeira.
+- **`route` é escopo, não só rota**: o padrão da rota na API, `stage-8.5` no
+  pipeline. URL crua ou id de recurso trocariam o teto por "uma linha por
+  notícia" — há guarda pelo parser cobrando que nenhum `code` chegue interpolado
+  ao `recordError`.
+- **O nível decide o que vira linha, e `debug` não vira.** É `logLevelFor`
+  outra vez: um 404 em `/news/:id` é resultado normal, e gravá-lo encheria a
+  tela com a única falha que não é falha. **Gatilho para mudar:** a primeira vez
+  que a pergunta for "que endereço estão pedindo e não existe?".
+- **A fiação mora nos dois pontos únicos**, `logAppError` e `logPipelineEvent`,
+  e não nos `catch`. Enumerar `catch` à mão é a forma de guarda que este projeto
+  já viu falhar por omissão. **Exceção declarada:** o ramo do 500 cru no
+  `app.ts`, que não passa por `logAppError` porque não é `AppError` — e é a
+  falha mais grave que a API sabe produzir, então a chamada é explícita ali.
+- **A mensagem e o `context` passam por `scrubMessage`/`scrubErrorContext`, do
+  `utils/logger.ts`.** São as mesmas funções do serializer, e não uma cópia: o
+  modo de falha de uma segunda cópia é a coluna vazar, de forma **durável**, o
+  segredo que o log aprendeu a esconder.
+- **O flush do `onClose` tem prazo (`ERROR_EVENT_CLOSE_TIMEOUT_MS`).** Esperar
+  sem limite põe uma ida ao banco no caminho do desligamento, e a hora em que há
+  erro acumulado é justamente a hora em que o banco é o suspeito. Medido ao
+  escrever a fase: sem prazo, uma suíte de rota travou o `afterAll` em 10 s.
+- **A falha do flush é escrita pelo `baseLogger` direto**, nunca por
+  `logAppError` — aquele chama `recordError`, e o laço se fecharia exatamente
+  quando o banco está fora. Há teste sobre isso.
+- **`code` e `category` são texto no banco**, e o conjunto fechado mora em
+  `utils/errors.ts`. Enum do Postgres cobraria uma migration por código novo, e
+  cada fase seguinte do plano acrescenta pelo menos um.
+- **`origin: WEB` ganhou o seu produtor na Fase 7c** — `CLIENT_ERROR`, um
+  código só, com o **padrão da página** (`/[locale]/news/[id]`) no `route`;
+  ver "O erro do cliente", abaixo. `INVARIANT` ganhou o seu na Fase 6:
+  `INVARIANT_VIOLATED`, com o id da invariante no `route`. As quatro origens
+  do enum escrevem, e o `route` tem quatro formas — todas de conjunto finito.
+- **O `WARN` que não degrada não vira `ErrorEvent`** (pós-merge da Fase 8):
+  `recordPipelineEvent` pergunta a `isDegradingWarn` antes de gravar, então o
+  aviso da etapa 1 só com `feed-empty` fica no `PipelineEvent` e fora da
+  tabela de falhas. É a mesma linha do desfecho e do `pipelineErrors`.
+- **`pipelineLogId` vem do `AsyncLocalStorage`** que o `runPipeline` abre, e é o
+  **último visto** dentro da janela. Por isso não é chave estrangeira: uma FK
+  afirmaria um vínculo que o coalescimento torna falso, e impediria o expurgo do
+  run.
+- **A categoria de uma falha de etapa é inferida do provider**, porque os
+  providers ainda lançam `Error` cru. **Gatilho para apagar a inferência:**
+  converter `gemini`, `newsdata`, `resend` e o `pipeline.service` para
+  `AppError` — a dívida que a Fase 3 deixou escrita. A *"Collection degraded"*
+  da etapa 1 é `upstream` por construção: o provider mora dentro de cada
+  `FetchWarning`, não no topo do `context`, e a primeira inferência a chamava de
+  `internal`.
+- **`code` é tipo, não `string`** — `RecordedErrorCode`, a união dos literais
+  da taxonomia com as cinco constantes do service. Um `code` interpolado deixa
+  de compilar; a guarda pelo parser continua porque enumera os call sites.
+- **`pipelineLogId` é explícito quando quem chama sabe**, e `logPipelineEvent`
+  sempre soube. O `AsyncLocalStorage` é reserva: o enterro do run morto roda
+  fora do contexto do run, e pela reserva sozinha gravava `null`.
+- **`routePatternOf` (`utils/request-route.ts`) é o único lugar que escreve
+  `'unmatched'`.** O balde é chave no mapa de métricas e no `route` do
+  `ErrorEvent`; havia seis cópias, e a guarda reprova a sétima.
+- **Três falhas que não tinham registro, e agora têm:** o Gemini falhando com
+  o Groq entregando (`WARN` da etapa 6 — o run continua `SUCCESS` e
+  `pipelineErrors` não muda; é o que a Fase 8 lê como `SUCCESS_DEGRADED`); o `catch` final
+  do pipeline quando o próprio `update` para `FAILED` falha (o evento vai para o
+  buffer **antes** da ida ao banco); e o disparo interno do cron falhando antes
+  de existir run (`stage-0`, a convenção para "o run inteiro").
 
 ## Observabilidade da API
 
@@ -518,10 +709,299 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
   saúde e seria ausência de amostra.
 - **A chave é o padrão da rota** (`GET /api/news/:id`), nunca a URL. URL crua
   seria uma linha por notícia e um mapa sem teto.
+- **O 4xx sai por rota desde a Fase 7c** (`clientErrorRate` em cada linha de
+  `routes`). O contador existia desde a Fase 9 e nunca saía do processo — só
+  o global era servido —, então o gatilho escrito das duas portas anônimas
+  ("429 em `POST /api/events` dentro desta rota") não era atribuível: um 429
+  ali era indistinguível de um 404 em `/news`. Medido ao escrever a 7c, com
+  teste que enche o balde e lê o snapshot.
 - **Os percentis vêm de histograma**, então são o **teto do balde** em que o
   percentil cai. O `max` é o valor real, e é ele que denuncia o cold start.
 - **O `x-request-id` de quem chama é respeitado**, o que permite seguir uma
   requisição do BFF até aqui. O BFF ainda não o envia — costura da Fase 11.
+- **A saturação é a única parte da resposta que vai ao banco** (Fase 5), e só
+  ao `DailyUptime`. Memória e event loop são leitura de processo; ver "A
+  trilha de auditoria e a saturação", abaixo.
+
+## A trilha de auditoria e a saturação (Fase 5 do plano de observabilidade)
+
+O PR 5b: quem escreve `AuditEvent` e `DailyUptime` (tabelas do 5a), a leitura
+do `ErrorEvent`, e o quarto sinal de ouro.
+
+| Peça | Papel |
+|---|---|
+| `services/audit.service.ts` | `AUDIT_ACTIONS` (o conjunto fechado), `recordAuditEvent`, a leitura e o expurgo de 365 d |
+| `services/uptime.service.ts` | o crédito de segundos por dia UTC, o tique, o flush com prazo e a soma do mês |
+| `plugins/uptime-heartbeat.ts` | o intervalo de 5 min e o `onClose` — **registrado no `server.ts`** |
+| `services/error-summary.service.ts` | a soma por fingerprint na janela — o **leitor** do `ErrorEvent`, separado do escritor |
+| `services/saturation.service.ts` | memória, event loop (`plugins/observability.ts`) e horas do plano, com teto e razão |
+| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos (quatro desde a Fase 11, cinco desde a 6) |
+
+Regras que não são óbvias no código:
+
+- **A API não vê quem disparou o pipeline, e foi medido.** A cadeia do botão é
+  BFF (sessão) → `GET /api/cron/daily-news` (`CRON_SECRET`) →
+  `POST /api/jobs/daily-pipeline` (`JOB_SECRET`), sem usuário. O BFF põe o
+  `User.id` em `x-actor-id`, o cron repassa, a rota grava. **Cabeçalho, não
+  corpo**: o primeiro salto é `GET`, e um `body` no `POST` quebraria todo
+  chamador que hoje não manda nenhum (o validador recebe `null`, e
+  `.default({})` só cobre `undefined`). **Não é schema de `headers`** do
+  Fastify: o `validatorCompiler` do type provider devolve o objeto parseado e
+  o Fastify o põe no lugar de `request.headers` — um `z.object` ali apagaria
+  o `authorization`. Lido à mão, **depois** do `assertJobSecret`.
+- **Valor malformado é 400, não silêncio.** Só o BFF escreve o cabeçalho, então
+  um valor errado é bug nosso; ignorá-lo dispararia o pipeline e perderia a
+  linha sem sinal. `ACTOR_ID_INVALID` é `internal` num 400 pela regra da Fase
+  3 — a linha tem de existir em produção.
+- **`action` é literal do tuple, e todo membro tem quem o grave.** Mesma regra
+  e mesma guarda pelo parser do `ErrorEvent.code`
+  (`tests/services/audit.service.test.ts`). `targetId` só quando a ação criou
+  ou tocou algo — no disparo, só com `outcome: 'started'`; nos outros dois o
+  id do run existente vai no `context`.
+- **`recordAuditEvent` nunca lança, e a falha vira `ErrorEvent`.** A ação já
+  aconteceu; falhar a resposta mentiria. Ao contrário do flush do
+  `ErrorEvent`, aqui registrar a própria falha não fecha laço nenhum
+  (`AUDIT_WRITE_FAILED`, com a ação como escopo).
+- **`requireSubject` mora em `plugins/auth.ts`**, ao lado do `requireAdmin`. O
+  `DELETE /api/news/:id` precisava do `sub` e já havia duas cópias da
+  conferência; a de `favorites` virou a função, a de `account` continua própria
+  porque também exige o e-mail. O ator é conferido **antes** de apagar.
+- **O heartbeat vive no `server.ts`, não no `buildApp`.** O `buildApp` roda em
+  toda suíte, e um `onClose` que vai ao banco custaria o prazo inteiro em cada
+  uma — contra um banco que não existe no CI. É o mesmo lugar do cron interno,
+  pela mesma razão; a fiação tem guarda pelo parser.
+- **Outbound-only.** O heartbeat escreve no banco e não faz HTTP nenhum: o que
+  mantém o Render acordado é tráfego **de entrada**, e um timer batendo no
+  próprio `/api/health` seria o keep-alive de volta — o que gastou 744 h.
+- **O crédito é de segundos inteiros, com o resto guardado.** Arredondar a cada
+  cinco minutos derivaria; a travessia da meia-noite divide entre os dois dias.
+  Um tique que falha **não avança o crédito** — o seguinte tenta o intervalo
+  inteiro. E não vira `ErrorEvent`: quando este `upsert` falha o banco está
+  fora, e toda rota que responde 500 já grava a causa.
+- **O lag do event loop sai sem a resolução.** `monitorEventLoopDelay` registra
+  o intervalo entre disparos de um timer de 10 ms, não o excesso — em regime o
+  p50 cru é ≈ 10 ms (≈ 25 no Windows), o que leria como lentidão. O que sai é
+  `max(0, percentil − resolução)`; o `max` fica até o processo reiniciar, e é
+  ele que teria acusado os 45 s de 03/09.
+- **O leitor do `ErrorEvent` agrega em memória, com teto.** A tabela é
+  coalescida por construção (`fingerprints × 168` linhas em 7 d), e o
+  `groupBy` do Prisma não devolve mensagem nem `lastRequestId`. Teto de 5.000
+  linhas com `truncated`; **gatilho:** p95 da rota > 1.000 ms.
+- **`byCategory` traz as seis categorias sempre**, na ordem da taxonomia, com
+  zero onde não houve — a rosquinha tem fatias fixas e a janela vazia tem forma
+  completa.
+- **As retenções da etapa 8 viraram constantes nomeadas**
+  (`NEWS_RETENTION_DAYS`, `PIPELINE_LOG_RETENTION_DAYS`,
+  `ARTICLE_RETENTION_DAYS`), e a prosa que as repete tem guarda —
+  `tests/docs/retention-drift.test.ts`, sobre os dois diagramas e os dois
+  `CLAUDE.md`.
+
+## A saúde por fonte (Fase 11 do plano de observabilidade)
+
+`services/source-health.service.ts`, o `model SourceHealth` (PR 11a) e
+`GET /api/admin/sources`. Fecha: o pipeline sabia hoje qual fonte falhou e
+esquecia amanhã — o aviso por fonte da etapa 1 morria com o run —, e a fonte
+que definha (entregava 20, passou a entregar 2) não falha nunca, então não
+deixava aviso nenhum. **Uma linha por `(source, dia)`**: `fetched`, `kept`,
+desfecho, `failureReason`, `latencyMs`, e o run que a escreveu.
+
+| Peça | Papel |
+|---|---|
+| `providers/news/rss.provider.ts` | `outcomes` — um desfecho por feed configurado, com `fetched` e `latencyMs` (o `failures` de 03/09 virou isto) |
+| `services/news-fetcher.service.ts` | `sources: SourceFetch[]` — os 12 feeds mais o balde `newsdata`; **os `warnings` são derivados daqui**, e `FETCH_WARNING_KINDS` virou tuple |
+| `services/source-health.service.ts` | `outcomeForSource`, `countKeptBySource`, `buildSourceHealthRows`, a escrita numa transação, o expurgo de 90 d e a leitura |
+| `services/pipeline.service.ts` | a escrita **depois da etapa 4**, num `try` cujo `catch` é `WARN` da 4 |
+
+Regras que não são óbvias no código:
+
+- **`kept` é "a URL entrou em `News` naquele dia"**, e não "sobreviveu ao
+  dedup" (o dedup da etapa 3 é por URL; dois veículos com a mesma pauta têm
+  URLs diferentes) nem "novo antes deste run" (o segundo run do dia só existe
+  depois de um `FAILED`, e um `FAILED` na 6 já escreveu as fontes com números
+  honestos — contar "novo antes do run" no segundo zeraria tudo e o
+  `deleteMany` + `createMany` gravaria isso por cima). Uma consulta pelas URLs
+  do run lendo o `createdAt`, **depois** do `createMany`.
+- **A atribuição é por identidade do objeto, nunca por `source`.** O
+  `RawNewsItem.source` de um item da NewsData é o nome do veículo, que pode
+  ser "G1" — e o dedup fica com a **primeira** ocorrência de uma URL, com a
+  NewsData antes do RSS em `allItems`. Uma matéria do G1 que a NewsData
+  também trouxe conta para `newsdata`: é a contribuição *marginal* de cada
+  fonte dada a ordem em que o pipeline as consome, e é o número que responde
+  "de que eu realmente dependo". O limite honesto está escrito no service.
+- **A escrita é depois da etapa 4, não na 1**, porque `kept` só existe ali; e
+  **não aborta o run** — o `catch` é `WARN` da etapa 4 com `degradedBy.push(4)`
+  (o `run-outcome-wiring` cobra), e a tabela de fontes ficar sem o dia é
+  informação, não falha. Zero fontes não toca no banco: um `deleteMany`
+  seguido de nada apagaria o dia que um run anterior escreveu.
+- **`SourceOutcome` tem três valores, e "não tentada" é ausência de linha**
+  — a fonte removida de `rss-sources.ts`, o dia sem run, o run que morreu
+  antes da 4. O web deriva, como faz com o `NEVER_RAN`; a API não emite um
+  quarto valor. A tabela aviso → desfecho (`provider-failed`/`feed-failed` →
+  `FAILED`; `provider-empty`/`feed-empty` → `EMPTY`; sem aviso → `OK`) tem
+  guarda nos dois sentidos em `tests/services/source-health.test.ts`, e a
+  escrita tem guarda **pelo parser**: uma transação de duas instruções, sem
+  laço — treze `upsert` numa instância de 0.1 vCPU é a forma de problema de
+  03/09.
+- **O provider de RSS cronometra, inclusive a rejeição**: um timeout mede
+  30 s, e "a Superinteressante demora 28 s" é o dia anterior ao `ETIMEDOUT`.
+  Para a NewsData a latência é do provider inteiro (oito categorias em
+  paralelo).
+- **A leitura devolve o que a tabela tem** — só os dias com linha, agrupados
+  por fonte numa consulta. Médias, variação, sequência de falhas e o dia não
+  tentado são derivados no web (PR 11c), como o desfecho por dia da Fase 8.
+  `days` ≤ 90, que é a retenção: pedir mais devolveria dias que o expurgo já
+  esvaziou.
+
+## As invariantes (Fase 6 do plano de observabilidade)
+
+`services/invariants.service.ts`, a etapa 9.5 do pipeline e
+`GET /api/admin/invariants`. Fecha: as etapas 7.5, 8, 8.5 e 9 engolem a própria
+falha de propósito, para o run terminar, e nada perguntava depois se o que
+elas deveriam ter deixado está lá — a retenção podia parar por um mês e o
+primeiro sintoma seria a conta do Neon; o dia sem briefing de 01/09/2026 teve
+como único sinal o briefing ausente.
+
+| Peça | Papel |
+|---|---|
+| `services/invariants.service.ts` | a tabela de definições (`INVARIANT_IDS`, `RETENTION_INVARIANTS`), `runInvariants`, o `recordError` por violação, `invariantRunSchema` e a leitura `getLatestInvariantReport` |
+| `services/pipeline.service.ts` | a etapa 9.5, entre o `upsert` da 9 e o `SUCCESS`, com `invariants` no resumo |
+| `services/retention.ts` · `services/run-outcome.ts` (`STALE_RUN_MS`) · `utils/event-loop.ts` (`yieldToEventLoop`) | os três exports que a suíte precisava e que moravam em módulos que ela não pode importar |
+| `routes/admin/invariants.ts` | a porta: lê o último evento da 9.5, nunca roda a suíte |
+
+Regras que não são óbvias no código:
+
+- **São doze, e não as onze do inventário — nem as nove da §10.** A etapa 8
+  expurga **sete** tabelas e a lista tinha retenção para seis: faltava
+  `retention.article`. A guarda deriva a contagem do `Promise.all` do cleanup
+  (pelo parser), para a próxima tabela com expurgo não nascer sem a invariante
+  ao lado. O orçamento da §10 ("no máximo 10 consultas") virou **tempo**
+  (`INVARIANTS_BUDGET_MS`, 2 s, no relatório para a tela dizer quanto sobrou)
+  e **forma**: `aggregate`, `count`, ou `findMany` de **uma** coluna e ≤ 31
+  linhas — guarda pelo parser sobre todo `prisma.*` do arquivo. Medido em
+  16/09/2026 contra o banco local: **65 ms** (381 na primeira conexão).
+- **O limiar de retenção é `retention + 1` dia, e o dia a mais é a folga entre
+  dois runs, não tolerância.** Com o expurgo funcionando o mínimo é
+  `≥ now − retention` com sobra; se a etapa 8 de hoje falhou (com o próprio
+  `WARN`), o mínimo é o corte de **ontem**, na fronteira; no segundo dia sem
+  expurgo a violação é certa. O que ela pega é o `deleteMany` que roda e não
+  apaga — e reprova no dia seguinte. Tabela vazia (`null`) passa.
+- **Violação não degrada o run; a pergunta que não pôde ser feita, sim.** O
+  run não é o que falhou — o que falhou é o que uma etapa anterior deveria ter
+  feito. Cada violação é `recordError({ origin: 'INVARIANT', severity:
+  'WARN', code: INVARIANT_VIOLATED, route: <id>, category: 'contract' })`
+  (a categoria da taxonomia para "o dado não casa com o prometido —
+  invariante"), com o relógio da suíte; o `PipelineEvent` da 9.5 é `INFO`. Uma
+  consulta que lança vira `status: 'ERROR'` naquele resultado, as outras
+  continuam, e a etapa sai `WARN` com `degradedBy.push(9.5)`. **O que não
+  pode é a violação virar os dois** — a linha vermelha mora na tabela de
+  falhas e no painel, não no desfecho do dia.
+- **A suíte cede o event loop antes de cada consulta**, pelo mesmo
+  `yieldToEventLoop` da etapa 8.5, e o teste pergunta **em que ponto** o loop
+  girou (armadilha 4 do §17) — suíte de invariante é o que vira varredura sem
+  ninguém perceber, e o sintoma seria o `SIGTERM` de 03/09, não um teste lento.
+- **`metrics.day_recorded` não é uma consulta agregada em Prisma.** Agrupar
+  `startedAt` por dia pede `date_trunc`; a saída honesta são dois `findMany` de
+  uma coluna (≤ 31 linhas cada) comparados em memória, com a chave em **dia
+  UTC** (a armadilha do `Article.date`). O run de hoje ainda está `RUNNING` na
+  9.5, então o dia de hoje fica de fora — a métrica dele acabou de ser gravada
+  pela 9, e o `WARN` dela é quem fala se não foi.
+- **`pipeline.no_stale_running` deixa o run corrente de fora** (`id: { not:
+  pipelineLogId }`): ele está `RUNNING` porque está rodando. E usa o
+  `STALE_RUN_MS` do `triggerPipeline` — que **mudou de módulo** para
+  `run-outcome.ts` (puro) porque o `invariants.service` não pode importar o
+  pipeline: é o pipeline que o importa. Pelo mesmo motivo `NEWS`,
+  `PIPELINE_LOG` e `ARTICLE_RETENTION_DAYS` foram para `services/retention.ts`
+  e `yieldToEventLoop` para `utils/event-loop.ts` — os dois com o motivo
+  escrito no cabeçalho. Exportar do lugar antigo fecharia um ciclo, e a suíte
+  de invariantes arrastaria o grafo inteiro dos providers.
+- **O número da etapa é literal (`9.5`) nas chamadas do pipeline**, como toda
+  etapa, porque o `diagram-drift` deriva as etapas anunciadas dos literais;
+  `INVARIANTS_STAGE` é o que a leitura usa, com teste cobrando a igualdade.
+- **A rota lê o evento e nunca roda a suíte** — `findFirst` por `stage` e
+  `createdAt`, os dois com índice. O `context` é parseado com o **mesmo**
+  `invariantRunSchema` que a resposta declara; um `context` que não parseia é
+  contrato quebrado entre quem grava e quem lê (os dois moram no mesmo
+  arquivo) e sai como 500 com `category: 'contract'`, nunca como "nenhuma
+  verificação". `data: null` é o estado do primeiro deploy.
+- **`newsletter.delivered` conta dias com `total > 0` e `sent = 0`.** `total`
+  é quantos assinantes estavam ativos na hora do envio — dia sem assinante não
+  conta. É a frase "a newsletter não entrega a assinante real" do `CLAUDE.md`
+  da raiz, como número numa tela.
+- **O ensaio contra o banco local antes de ligar a etapa (armadilha 18)
+  reprovou quatro, nenhuma pela invariante**: `retention.news` e
+  `retention.pipelineLog` porque o acervo local é anterior à migration e nunca
+  passou pela etapa 8 (como a §10 previu); `briefing.one_per_day` e
+  `briefing.has_sources` por causa do seed, que criava um briefing só, sem
+  fontes — e aí é o seed que se ajusta: sete dias de briefing com três fontes
+  cada, e o evento da 9.5 em todo run semeado.
+
+## O erro do cliente (Fase 7c do plano de observabilidade)
+
+`POST /api/errors/client`, `services/client-error.service.ts` e
+`utils/web-route.ts`. Fecha: um crash de render no web mostrava "algo deu
+errado", descartava o `digest` que localizaria o stack do servidor, e não era
+contado em lugar nenhum — `origin: WEB` estava no enum desde a Fase 4 sem
+ninguém escrever nele. Quem chama é o reporter dos error boundaries (Fase 7b),
+pelo BFF anônimo `app/api/errors/client/route.ts`.
+
+| Peça | Papel |
+|---|---|
+| `routes/errors/schemas.ts` | o corpo (`ClientErrorReport`, com `assertContract`) e o `202 { accepted: true }` |
+| `routes/errors/index.ts` | a porta: 10/min, sem sessão, `recordClientError(body, request.id)` |
+| `services/client-error.service.ts` | o relato vira `recordError` com `origin: WEB`, `CLIENT_ERROR`, o padrão da página no `route`, `digest` e `path` no `context` |
+| `utils/web-route.ts` | `WEB_ROUTE_PATTERNS` (o `app/[locale]` do web, digitado aqui com guarda derivada da árvore) e `webRoutePatternOf` |
+
+Regras que não são óbvias no código:
+
+- **Endpoint dedicado, não um 15º evento de produto.** O `/api/events` tem
+  catálogo guardado e um balde já insuficiente; relato de falha competindo
+  com pageview pelo mesmo limite é a armadilha 10 do §17. E o `track()` é
+  fire-and-forget sem retorno — certo para analytics, errado para erro, onde
+  se quer ver o 429.
+- **O `route` é o padrão da página, e a API é quem normaliza.** Um client
+  component só tem `window.location.pathname` (uma linha por notícia), e o
+  App Router não expõe o padrão casado. `webRoutePatternOf` troca o idioma
+  por `[locale]`, UUID por `[id]` e `YYYY-MM-DD` por `[date]`, e pergunta ao
+  conjunto; o que não casa vai para o **mesmo `unmatched`** do
+  `routePatternOf` (importado — a guarda de literal solto reprova a cópia).
+  A lista é digitada na API porque produção não tem os arquivos do web; o
+  que a impede de apodrecer é `tests/utils/web-route.test.ts`, que lê toda
+  `page.tsx` e cobra igualdade nas duas direções.
+- **Um código só (`CLIENT_ERROR`), `severity: ERROR`, `category: internal`.**
+  Dois erros distintos na mesma página colapsam numa linha por hora, com a
+  mensagem do primeiro — o teto vale mais que a distinção, e a tabela de
+  falhas tem busca. `digest` e o `path` cru vão no `context`: são
+  diagnóstico, não identidade. O `requestId` é o da **ingestão**, não o da
+  requisição que falhou; a correlação com o log do servidor é o `digest`.
+- **O balde de 10/min é um só para o site inteiro, e é decisão.** O BFF é
+  anônimo e não repassa o IP do leitor. A alternativa (o BFF escrever
+  `x-forwarded-for`) mudaria a semântica do `trustProxy: 1` e foi recusada:
+  o décimo primeiro leitor a tropeçar na mesma tela no mesmo minuto recebe
+  429, mas o erro que dez viram já está na tabela. **Gatilho:** 429 nesta
+  rota no `clientErrorRate` por rota de `GET /api/metrics/http` — que passou
+  a existir nesta fase, porque antes o 4xx por rota não saía do processo.
+- **`202`, e o corpo é `{ accepted: true }`.** O relato entra no **buffer**
+  do `ErrorEvent` e vai ao banco no flush de 30 s; `201` mentiria. Ninguém lê
+  este corpo (o reporter é fire-and-forget), então ele está na lista de
+  exceções do `shared-type-contract` — e **aquela guarda só varria
+  `200|201|204`**: o `202` passou por ela sem uma linha vermelha até a
+  varredura virar `2\d\d`. Status de sucesso é a classe, não três números.
+- **O amplificador de escrita tem três defesas, todas medidas juntas** em
+  `tests/security/client-error-ingest.test.ts`: dez relatos distintos da
+  mesma página são **uma** entrada com `count: 10` (o coalescimento da Fase
+  4), o décimo primeiro é 429 com o buffer intacto (o balde), e `z.object`
+  descarta o que o schema não declara (`userId`, `email`, um stack). O
+  `scrubMessage` do `recordError` é quem limita o **conteúdo** da mensagem —
+  ela é texto do navegador.
+- **O balde é real no `inject`.** A suíte de rota esbarrou nele na décima
+  primeira requisição; cada chamada dela sai de um `x-forwarded-for` próprio
+  (`trustProxy: 1` o lê), e o teto tem o próprio teste.
+- **A costura com o BFF lê o `fetch` cru desde esta fase.** As duas rotas
+  anônimas do web não passam por `proxyToApi`, e o `bff-route-seam` só
+  enumerava aquele — um `/errors/clientt` passaria nos dois CIs. Hoje a
+  forma ``fetch(`${API_BASE_URL}/…`)`` entra com o `method` do objeto de
+  opções; o que aponta para uma variável de ambiente inteira (o
+  `BACKEND_JOB_URL` do cron) fica de fora com o motivo escrito.
 
 ## As guardas que enumeram a superfície
 
@@ -533,6 +1013,9 @@ novo: **enumeram a superfície e exigem decisão para cada item.**
 | `tests/routes/api-docs-drift.test.ts` | as rotas do roteador | linha na `docs/api.md` |
 | `tests/routes/response-schema-contract.test.ts` | as colunas do Prisma | campo no schema de resposta, ou motivo escrito |
 | `tests/security/authorization-matrix.test.ts` | as rotas do roteador | linha na matriz de autorização |
+| `tests/docs/retention-drift.test.ts` | as retenções da etapa 8 (constantes) | o número certo em cada frase que o repete |
+| `tests/security/bff-route-seam.test.ts` | os `proxyToApi` **e os `fetch` crus para `${API_BASE_URL}`** do BFF do web (pelo parser: caminho como padrão + método) | uma rota registrada para cada um — a costura que faltava, achada no pós-merge do 5c; as duas portas anônimas entraram na Fase 7c |
+| `tests/utils/web-route.test.ts` | as `page.tsx` de `apps/web/app/[locale]` (`helpers/web-routes.ts`, o mesmo helper do `diagram-drift`) | um padrão em `WEB_ROUTE_PATTERNS` para cada página, e nenhum a mais — o conjunto de saída do normalizador do erro do cliente (Fase 7c) |
 
 **Cada uma tem uma asserção que segura as outras**: um parser que devolvesse
 lista vazia faria a guarda passar para sempre, então há um teste afirmando que a

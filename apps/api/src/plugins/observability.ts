@@ -1,5 +1,8 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
+import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
+import type { EventLoopLag } from '@newranews/types';
+import { routePatternOf } from '../utils/request-route';
 
 /**
  * As duas métricas técnicas que a §26 do plano promete — **error rate** e **API
@@ -54,6 +57,15 @@ export interface HttpMetricsSnapshot {
     route: string;
     count: number;
     errorRate: number;
+    /**
+     * 4xx / total **por rota** — desde a Fase 7c. O contador existia desde a
+     * Fase 9 e nunca saía do processo: só o `clientErrorRate` global era
+     * servido, e um 429 no `POST /api/events` era indistinguível de um 404
+     * em `/news`. O gatilho escrito das duas portas anônimas ("429 nesta rota
+     * dentro de `/api/metrics/http`") só passou a ser observável com este
+     * campo.
+     */
+    clientErrorRate: number;
     avgMs: number;
     p95Ms: number;
     maxMs: number;
@@ -156,11 +168,72 @@ export function getHttpMetrics(now: Date = new Date()): HttpMetricsSnapshot {
         route: r.route,
         count: r.count,
         errorRate: ratio(r.errors, r.count),
+        clientErrorRate: ratio(r.clientErrors, r.count),
         avgMs: r.count === 0 ? 0 : Math.round(r.totalMs / r.count),
         p95Ms: percentileFromBuckets(r.buckets, 0.95),
         maxMs: r.maxMs,
       }))
       .sort((a, b) => b.count - a.count),
+  };
+}
+
+/**
+ * **O atraso do event loop — a terceira medida de saturação da §3.1.**
+ *
+ * `monitorEventLoopDelay` custa quase nada (um timer de libuv, sem `ref`) e
+ * teria acusado os 45 s de 03/09/2026 **antes** do `SIGTERM`: o health check de
+ * 5 s falhou porque o loop estava parado, e este histograma é exatamente a
+ * métrica que descreve isso. O `max` fica gravado até o processo reiniciar —
+ * "esta instância viu uma parada de 45 s" é o que se quer ler.
+ *
+ * ## O que o histograma mede, e por que se subtrai a resolução
+ *
+ * Ele registra o **intervalo entre dois disparos** de um timer de
+ * `resolution` ms — não o excesso. Em regime, o p50 é ≈ `resolution` (mais a
+ * granularidade do relógio do sistema, ~15 ms no Windows); um p50 de "10 ms"
+ * numa tela leria como lentidão onde não há nenhuma. O que sai daqui é
+ * `max(0, percentil − resolution)`: o quanto o loop **atrasou** além do que o
+ * timer pediu, que é o que "lag" significa. O `resolutionMs` viaja junto para
+ * quem quiser refazer a conta.
+ *
+ * Singleton de módulo, como `stats`: o `buildApp` roda em toda suíte, e o
+ * histograma não pode ser criado duas vezes nem segurar o processo — a chamada
+ * é idempotente e o handle é `unref`ado pelo próprio Node.
+ */
+export const EVENT_LOOP_RESOLUTION_MS = 10;
+
+let eventLoopDelay: IntervalHistogram | undefined;
+
+export function startEventLoopMonitor(): void {
+  if (eventLoopDelay) return;
+  eventLoopDelay = monitorEventLoopDelay({ resolution: EVENT_LOOP_RESOLUTION_MS });
+  eventLoopDelay.enable();
+}
+
+/** Nanossegundo → milissegundo, já sem a resolução. Só para leitura. */
+function lagOf(nanos: number): number {
+  return Math.max(0, Math.round(nanos / 1e6 - EVENT_LOOP_RESOLUTION_MS));
+}
+
+export function getEventLoopLag(): EventLoopLag {
+  const h = eventLoopDelay;
+  if (!h || h.count === 0) {
+    return {
+      resolutionMs: EVENT_LOOP_RESOLUTION_MS,
+      samples: 0,
+      lagMs: { p50: 0, p95: 0, p99: 0, max: 0 },
+    };
+  }
+
+  return {
+    resolutionMs: EVENT_LOOP_RESOLUTION_MS,
+    samples: h.count,
+    lagMs: {
+      p50: lagOf(h.percentile(50)),
+      p95: lagOf(h.percentile(95)),
+      p99: lagOf(h.percentile(99)),
+      max: lagOf(h.max),
+    },
   };
 }
 
@@ -175,6 +248,8 @@ export function getHttpMetrics(now: Date = new Date()): HttpMetricsSnapshot {
 export const observabilityPlugin = fp(async function observabilityPlugin(
   app: FastifyInstance,
 ) {
+  startEventLoopMonitor();
+
   app.addHook('onRequest', async (request, reply) => {
     // Quem gera o id e o `genReqId` do `buildApp` (e ele que o pino usa em toda
     // linha de log); aqui ele so vai para a resposta.
@@ -184,7 +259,7 @@ export const observabilityPlugin = fp(async function observabilityPlugin(
   app.addHook('onResponse', async (request, reply) => {
     // `routeOptions.url` é o **padrão** (`/api/news/:id`). A URL crua traria um
     // id por linha, e o mapa cresceria sem teto.
-    const route = request.routeOptions?.url ?? 'unmatched';
+    const route = routePatternOf(request);
     recordHttpResponse(
       `${request.method} ${route}`,
       reply.statusCode,

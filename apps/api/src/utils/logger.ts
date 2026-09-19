@@ -91,14 +91,29 @@ function truncateStack(stack: string): string {
 const scrub = (text: string): string => redactSecrets(redactEmails(text));
 
 /**
+ * Texto livre pronto para sair daqui: redigido e truncado.
+ *
+ * **Exportada porque o `ErrorEvent` da Fase 4 grava a mesma mensagem numa
+ * coluna**, e uma segunda cópia da regra de redação seria um segundo lugar
+ * para ela divergir — com o modo de falha do lado errado (a coluna vaza o
+ * segredo que o log aprendeu a esconder, e vaza de forma **durável**).
+ */
+export function scrubMessage(text: string): string {
+  return truncate(scrub(text), MAX_MESSAGE_CHARS);
+}
+
+/**
  * O `context` de um {@link AppError}, achatado e redigido.
  *
  * O tipo `ErrorContext` já limita o que entra a escalar, e é ali que a regra
  * mora; esta função é a segunda metade dela, para o valor que chega por um
  * `as` ou de fora do TypeScript. Descarta por lista de permissão — o mesmo
  * critério do serializer abaixo, e pelo mesmo motivo.
+ *
+ * Exportada como `scrubErrorContext` pelo mesmo motivo do `scrubMessage`: a
+ * coluna `context` do `ErrorEvent` passa por aqui antes de existir.
  */
-function scrubContext(context: unknown): Record<string, unknown> | undefined {
+export function scrubErrorContext(context: unknown): Record<string, unknown> | undefined {
   if (typeof context !== 'object' || context === null || Array.isArray(context)) {
     return undefined;
   }
@@ -148,7 +163,7 @@ export function redactingErrSerializer(error: unknown): Record<string, unknown> 
     // `catch (e)` recebe o que foi lançado, e nem tudo que se lança é `Error`.
     return {
       name: 'NonError',
-      message: truncate(scrub(String(error)), MAX_MESSAGE_CHARS),
+      message: scrubMessage(String(error)),
     };
   }
 
@@ -161,7 +176,7 @@ export function redactingErrSerializer(error: unknown): Record<string, unknown> 
   };
   const out: Record<string, unknown> = {
     name: err.name,
-    message: truncate(scrub(err.message), MAX_MESSAGE_CHARS),
+    message: scrubMessage(err.message),
   };
 
   if (typeof err.stack === 'string') out.stack = truncateStack(scrub(err.stack));
@@ -169,7 +184,7 @@ export function redactingErrSerializer(error: unknown): Record<string, unknown> 
   if (err.statusCode !== undefined) out.statusCode = err.statusCode;
   if (typeof err.category === 'string') out.category = err.category;
 
-  const context = scrubContext(err.context);
+  const context = scrubErrorContext(err.context);
   if (context !== undefined) out.context = context;
 
   if (err.cause !== undefined) {
@@ -177,9 +192,9 @@ export function redactingErrSerializer(error: unknown): Record<string, unknown> 
       err.cause instanceof Error
         ? {
             name: err.cause.name,
-            message: truncate(scrub(err.cause.message), MAX_MESSAGE_CHARS),
+            message: scrubMessage(err.cause.message),
           }
-        : { name: 'NonError', message: truncate(scrub(String(err.cause)), MAX_MESSAGE_CHARS) };
+        : { name: 'NonError', message: scrubMessage(String(err.cause)) };
   }
 
   return out;

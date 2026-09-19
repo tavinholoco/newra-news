@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { verifyAuthJwt } from '../utils/jwt';
 import { AppError, ForbiddenError, UnauthorizedError, logAppError } from '../utils/errors';
+import { routePatternOf } from '../utils/request-route';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -77,8 +78,12 @@ export async function authPlugin(app: FastifyInstance, opts: AuthPluginOptions =
       error instanceof AppError
         ? error
         : new UnauthorizedError('Invalid or missing token', { cause: error });
+    // `requestId` porque é o que liga a linha do `ErrorEvent` à do log — e
+    // esta é a porta de maior volume da API (todo 401 passa aqui). Era a única
+    // que não o passava; achado da verificação pós-merge da Fase 4.
     logAppError(request.log, denial, {
-      route: request.routeOptions?.url ?? 'unmatched',
+      route: routePatternOf(request),
+      requestId: request.id,
     });
     return reply.status(401).send({ error: 'Invalid or missing token' });
   };
@@ -132,6 +137,31 @@ export function requireAdmin(request: FastifyRequest): void {
   if (request.user?.role !== 'ADMIN') {
     throw new ForbiddenError('Admin access required');
   }
+}
+
+/**
+ * O `sub` de uma sessão que já passou pelo `preHandler` — ou a recusa.
+ *
+ * Chegar aqui exige assinatura válida, e quem assina é o BFF: um token sem
+ * `sub` é sessão inutilizável **emitida por nós**, daí `category: 'internal'`
+ * (o leitor está logado e toda rota de conta responde 401, em silêncio — ver
+ * `AUTH_SESSION_INCOMPLETE` em `utils/errors.ts`).
+ *
+ * Havia duas cópias desta conferência (`routes/favorites`, `routes/account`), e
+ * a Fase 5 precisava de uma terceira — o `DELETE /api/news/:id` passou a gravar
+ * **quem** apagou, e auditoria sem ator não é auditoria. Três cópias inline é o
+ * padrão que a revisão da Fase 9 desfez para o `requireAdmin`; a de `account`
+ * continua própria porque também exige o e-mail.
+ */
+export function requireSubject(request: FastifyRequest): string {
+  const sub = request.user?.sub;
+  if (!sub) {
+    throw new UnauthorizedError('Invalid or missing token', {
+      code: 'AUTH_SESSION_INCOMPLETE',
+      category: 'internal',
+    });
+  }
+  return sub;
 }
 
 export default fp(authPlugin);

@@ -29,16 +29,31 @@ const parser = new Parser<Record<string, never>, CustomItem>({
   },
 });
 
-/** Uma fonte cujo `fetchSource` lançou — timeout, DNS, XML inválido. */
-export interface RssFeedFailure {
+/**
+ * O desfecho de **um** feed configurado — uma entrada por fonte, sempre.
+ *
+ * Até a Fase 11 do plano de observabilidade o provider devolvia só as
+ * falhas, e `fetchAll` descobria o feed vazio comparando os nomes presentes
+ * nos itens com `rssSources`: quem não devolvia item não aparecia em lugar
+ * nenhum do resultado. Com uma entrada por fonte, o vazio é `fetched: 0`
+ * sem `failure`, e `fetchAll` deriva os avisos daqui em vez de reconstruí-los.
+ * É também o que a `SourceHealth` grava — `fetched` e `latencyMs` não existiam
+ * em lugar nenhum antes disto.
+ */
+export interface RssFeedOutcome {
   source: string;
-  detail: string;
+  /** Itens depois do filtro de título/conteúdo. Zero quando falhou. */
+  fetched: number;
+  /** Do `fetch` ao parse; quando falhou, o tempo até a exceção (um timeout mede 30 s). */
+  latencyMs: number;
+  /** A mensagem da exceção, quando o feed lançou — timeout, DNS, XML inválido. */
+  failure?: string;
 }
 
 export interface RssFetchResult {
   items: RawNewsItem[];
-  /** Ver `RssFeedFailure`. Vazio no caminho comum, onde as doze respondem. */
-  failures: RssFeedFailure[];
+  /** Um por fonte configurada, na ordem de `sources`. */
+  outcomes: RssFeedOutcome[];
 }
 
 /**
@@ -51,54 +66,74 @@ export interface RssFetchResult {
  * NXDOMAIN desde que a Reuters desligou os feeds públicos, e toda execução do
  * pipeline gastava uma resolução de DNS fadada a falhar.
  *
- * **`failures` é o que faltava para fechar essa distinção de vez.** Em
- * 03/09/2026 três feeds (Superinteressante, Veja Saúde, Drauzio Varella)
+ * **O desfecho por feed é o que faltava para fechar essa distinção de vez.**
+ * Em 03/09/2026 três feeds (Superinteressante, Veja Saúde, Drauzio Varella)
  * estavam em `ETIMEDOUT` havia dois dias e chegavam a `fetchAll` idênticos a
  * um feed que só publicou devagar — porque a rejeição já tinha sido engolida
- * aqui dentro antes de subir. Devolver as duas listas separadas é o que
- * permite `fetchAll` classificar "não respondeu" (`feed-failed`, conta como
- * erro do run) diferente de "respondeu e não tinha nada" (`feed-empty`, não
- * conta — ver o cabeçalho de `FetchWarningKind`).
+ * aqui dentro antes de subir. Uma entrada por fonte, com a exceção quando
+ * houve, é o que permite `fetchAll` classificar "não respondeu"
+ * (`feed-failed`, conta como erro do run) diferente de "respondeu e não tinha
+ * nada" (`feed-empty`, não conta — ver o cabeçalho de `FetchWarningKind`).
+ *
+ * **E cronometra**, desde a Fase 11 do plano de observabilidade: o
+ * `allSettled` descartava o tempo, e "a Superinteressante demora 28 s para
+ * responder" é o dia anterior ao `ETIMEDOUT` — visível só se alguém medir.
  *
  * O aviso por fonte continua saindo no log do Render, ao lado do resto da
  * execução. **Não vira teste de rede**: uma suíte que bate nos doze feeds
  * reprovaria no dia em que um publisher espirrasse, e gate que falha por
  * motivo alheio é gate que se aprende a ignorar.
  */
-export async function fetchFromRssWithFailures(
+export async function fetchFromRssWithOutcomes(
   sources: RssSource[] = rssSources,
 ): Promise<RssFetchResult> {
-  const results = await Promise.allSettled(sources.map((source) => fetchSource(source)));
+  const settled = await Promise.all(sources.map((source) => timedSettled(() => fetchSource(source))));
 
-  const failures: RssFeedFailure[] = [];
-
-  results.forEach((result, index) => {
+  const outcomes: RssFeedOutcome[] = settled.map(({ result, latencyMs }, index) => {
     const name = sources[index]?.name ?? 'desconhecida';
     if (result.status === 'rejected') {
-      baseLogger.warn({ feed: name, err: result.reason }, '[rss] feed falhou');
-      failures.push({
+      baseLogger.warn({ feed: name, latencyMs, err: result.reason }, '[rss] feed falhou');
+      return {
         source: name,
-        detail: result.reason instanceof Error ? result.reason.message : String(result.reason),
-      });
-    } else if (result.value.length === 0) {
-      baseLogger.warn({ feed: name }, '[rss] feed rendeu zero itens');
+        fetched: 0,
+        latencyMs,
+        failure: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      };
     }
+    if (result.value.length === 0) {
+      baseLogger.warn({ feed: name, latencyMs }, '[rss] feed rendeu zero itens');
+    }
+    return { source: name, fetched: result.value.length, latencyMs };
   });
 
-  const items = results
+  const items = settled
+    .map(({ result }) => result)
     .filter((r): r is PromiseFulfilledResult<RawNewsItem[]> => r.status === 'fulfilled')
     .flatMap((r) => r.value);
 
-  return { items, failures };
+  return { items, outcomes };
 }
 
 /**
- * Atalho para quem só precisa dos itens. Descarta `failures` — quem precisa
+ * `Promise.allSettled` de um só, com o relógio ao lado. O tempo é medido
+ * também na rejeição — é o que diz se o feed caiu na hora ou esperou o
+ * timeout inteiro, e as duas coisas pedem ações diferentes.
+ */
+async function timedSettled<T>(
+  run: () => Promise<T>,
+): Promise<{ result: PromiseSettledResult<T>; latencyMs: number }> {
+  const startedAt = Date.now();
+  const [result] = await Promise.allSettled([run()]);
+  return { result: result as PromiseSettledResult<T>, latencyMs: Date.now() - startedAt };
+}
+
+/**
+ * Atalho para quem só precisa dos itens. Descarta `outcomes` — quem precisa
  * distinguir feed que falhou de feed que veio vazio usa
- * `fetchFromRssWithFailures` diretamente (é o que `fetchAll` faz).
+ * `fetchFromRssWithOutcomes` diretamente (é o que `fetchAll` faz).
  */
 export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<RawNewsItem[]> {
-  return (await fetchFromRssWithFailures(sources)).items;
+  return (await fetchFromRssWithOutcomes(sources)).items;
 }
 
 async function fetchFeedXml(url: string): Promise<string> {

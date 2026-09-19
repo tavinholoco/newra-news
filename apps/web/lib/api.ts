@@ -23,7 +23,14 @@ import type {
   NewsFacets,
   PipelineRunDetail,
   PipelineRunStatus,
+  PipelineRunSummary,
   PipelineRunsResponse,
+  HttpMetrics,
+  ErrorSummary,
+  ErrorSummaryWindow,
+  AuditTrail,
+  SourceHealthReport,
+  InvariantReport,
 } from '@newranews/types';
 import {
   API_TIMEOUT_MS,
@@ -489,9 +496,47 @@ export async function getPipelineRuns(
   if (params.limit !== undefined) search.set('limit', String(params.limit));
 
   const query = search.toString();
-  return fetchWebApi<PipelineRunsResponse>(
+  const res = await fetchWebApi<PipelineRunsResponse>(
     `/api/admin/pipeline/runs${query ? `?${query}` : ''}`,
   );
+  return {
+    ...res,
+    data: {
+      runs: res.data.runs.map(withOutcome),
+      recentErrors: res.data.recentErrors.map(withOutcome),
+    },
+  };
+}
+
+/**
+ * O run como a tela o lê, mesmo vindo de uma API que ainda não sabe o desfecho.
+ *
+ * **A janela entre os dois deploys, e o preview da `dev`.** O web e a API
+ * publicam juntos na promoção e não terminam juntos; e o preview da `dev` na
+ * Vercel fala com a API de **produção**, que só ganha a Fase 8 na promoção —
+ * até lá, todo run chega sem `outcome` e sem `degradedBy`, e a faixa de
+ * desfechos morreria num `undefined.length` na primeira renderização. Achado
+ * do pós-merge da Fase 8: o contrato diz que os dois campos existem, e o
+ * contrato é da versão que ainda não está no ar.
+ *
+ * O fallback é o que a API antiga sabia dizer: o `status`, que para um run
+ * fechado é o desfecho sem a nuance do degradado — e não `null`, que a faixa
+ * leria como `RUNNING`. Uma vez só, na fronteira, para a tela não carregar
+ * `??` em cada leitura.
+ */
+function withOutcome(run: PipelineRunSummary): PipelineRunSummary {
+  const legacy = run as Partial<Pick<PipelineRunSummary, 'outcome' | 'degradedBy'>> &
+    Omit<PipelineRunSummary, 'outcome' | 'degradedBy'>;
+  return {
+    ...run,
+    outcome:
+      legacy.outcome !== undefined
+        ? legacy.outcome
+        : legacy.status === 'RUNNING'
+          ? null
+          : legacy.status,
+    degradedBy: legacy.degradedBy ?? [],
+  };
 }
 
 /** Detalhe de um run (admin): o resumo mais os eventos por etapa. */
@@ -501,7 +546,7 @@ export async function getPipelineRunDetail(
   const res = await fetchWebApi<ApiResponse<PipelineRunDetail>>(
     `/api/admin/pipeline/runs/${pipelineId}`,
   );
-  return res.data;
+  return { ...res.data, log: withOutcome(res.data.log) };
 }
 
 /** Remove uma notícia (admin). */
@@ -510,6 +555,83 @@ export async function deleteNewsAdmin(id: string): Promise<DeleteNewsResult> {
     `/api/admin/news/${id}`,
     { method: 'DELETE' },
   );
+  return res.data;
+}
+
+// ── Observabilidade (admin) — Fase 5 do plano, PR 5c ─────────────────────
+// As três leituras que o 5b abriu na API e que, até aqui, não tinham leitor.
+
+/**
+ * Os quatro sinais de ouro — latência, tráfego, erro e saturação.
+ *
+ * Os três primeiros são **da janela do processo** que está no ar (`since`,
+ * `uptimeSeconds`): zeram a cada deploy e a cada hibernação. A saturação do
+ * plano é a exceção — vem do `DailyUptime` e fala do mês —, e **pode vir
+ * `null`** quando o banco não respondeu; a tela desenha "indisponível".
+ */
+export async function getHttpMetrics(): Promise<HttpMetrics> {
+  const res = await fetchWebApi<ApiResponse<HttpMetrics>>('/api/admin/http-metrics');
+  return res.data;
+}
+
+/** As falhas registradas na janela, agrupadas por fingerprint. */
+export async function getErrorSummary(window: ErrorSummaryWindow): Promise<ErrorSummary> {
+  const res = await fetchWebApi<ApiResponse<ErrorSummary>>(
+    `/api/admin/errors?window=${window}`,
+  );
+  return res.data;
+}
+
+/**
+ * A trilha de ação de admin, mais recente primeiro.
+ *
+ * `total` é a janela inteira; `events` é o que o `limit` cortou — os dois
+ * viajam juntos para a tela dizer "50 de 312", e não "50".
+ */
+export async function getAuditTrail(
+  params: { days?: number; limit?: number } = {},
+): Promise<AuditTrail> {
+  const search = new URLSearchParams();
+  if (params.days !== undefined) search.set('days', String(params.days));
+  if (params.limit !== undefined) search.set('limit', String(params.limit));
+
+  const query = search.toString();
+  const res = await fetchWebApi<ApiResponse<AuditTrail>>(
+    `/api/admin/audit${query ? `?${query}` : ''}`,
+  );
+  return res.data;
+}
+
+/**
+ * A saúde de cada fonte na janela — a série crua por fonte (§15 do plano de
+ * observabilidade, Fase 11). Só os dias com linha: o dia "não tentado", as
+ * médias e a sequência de falhas são derivados em `lib/source-days.ts`.
+ *
+ * **Rota nova, e o preview da `dev` fala com a API de produção** (armadilha
+ * 37): até a promoção ela responde 404, o `proxyToApi` repassa o status, e
+ * `fetchWebApi` lança — a tela desenha "indisponível" sobre o `isError`. Não
+ * há campo a preencher na fronteira porque a resposta inteira é nova.
+ */
+export async function getSourceHealth(days: number): Promise<SourceHealthReport> {
+  const res = await fetchWebApi<ApiResponse<SourceHealthReport>>(
+    `/api/admin/sources?days=${days}`,
+  );
+  return res.data;
+}
+
+/**
+ * O último relatório de invariantes — o evento da etapa 9.5 do run mais
+ * recente (§10 do plano de observabilidade, Fase 6). `null` antes do primeiro
+ * run com a etapa: "nenhuma verificação ainda" é estado, e a tela o diz.
+ *
+ * **Rota nova, e o preview da `dev` fala com a API de produção** (armadilha
+ * 37): até a promoção ela responde 404 ali, o `proxyToApi` repassa o status,
+ * `fetchWebApi` lança e o painel desenha "indisponível" sobre o `isError` —
+ * que é diferente de `null`. Não há campo a preencher na fronteira porque a
+ * resposta inteira é nova.
+ */
+export async function getInvariantReport(): Promise<InvariantReport | null> {
+  const res = await fetchWebApi<ApiResponse<InvariantReport | null>>('/api/admin/invariants');
   return res.data;
 }
 

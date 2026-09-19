@@ -144,6 +144,18 @@ export function formatCount(value: number, locale = 'pt-BR'): string {
   return value.toLocaleString(locale);
 }
 
+/**
+ * Uma lista em prosa, com a conjunção do locale: `6 e 7.5`, `6, 7.5 e 8.5`
+ * (`6 and 7.5` em inglês).
+ *
+ * Para o `degradedBy` de um run (Fase 8): as etapas são identificadores, não
+ * quantidades — `7.5` é "a newsletter" e fica escrito assim nos dois idiomas,
+ * então quem chama passa a lista já em texto.
+ */
+export function formatList(items: string[], locale = 'pt-BR'): string {
+  return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(items);
+}
+
 /** 'gemini' → 'Gemini' (primeira letra maiúscula, resto intacto). */
 export function formatProviderName(provider: string | null | undefined): string {
   if (!provider) return '—';
@@ -165,4 +177,112 @@ export function readingTimeFromText(
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   if (words === 0) return 0;
   return Math.ceil(words / wordsPerMinute);
+}
+
+// ── Observabilidade (Fase 5 do plano, PR 5c) ──────────────────────────────
+
+/**
+ * A variação entre dois números, para o chip de KPI (§4.2 do plano de
+ * observabilidade): `+12,5%`, `−3%`, `0%`.
+ *
+ * **Devolve `null` quando não há como comparar** — sem linha de base, ou linha
+ * de base zero. É o chip que **não** aparece, e não um "+∞%": um número sem
+ * comparação honesta é pior que nenhum, e a §9 já mediu que o medidor que
+ * mente para o otimista é o caso ruim.
+ *
+ * O sinal sai sempre (`signDisplay: 'exceptZero'`), porque é ele que carrega a
+ * informação — `12,5%` sozinho não diz se subiu ou caiu.
+ */
+export function formatDeltaPercent(
+  current: number | null | undefined,
+  baseline: number | null | undefined,
+  locale = 'pt-BR',
+): string | null {
+  if (current === null || current === undefined) return null;
+  if (baseline === null || baseline === undefined || baseline === 0) return null;
+  const ratio = (current - baseline) / Math.abs(baseline);
+  if (!Number.isFinite(ratio)) return null;
+
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    signDisplay: 'exceptZero',
+    maximumFractionDigits: 1,
+  }).format(ratio);
+}
+
+/** Bytes → megabytes inteiros com unidade (`98 MB`). Para a saturação de memória. */
+export function formatMegabytes(bytes: number, locale = 'pt-BR'): string {
+  return `${Math.round(bytes / 1_048_576).toLocaleString(locale)} MB`;
+}
+
+/**
+ * Milissegundos de latência → `42 ms` ou `4,9 s`.
+ *
+ * Diferente de `formatPipelineDuration`, que arredonda ao segundo: aqui a
+ * escala útil começa em dezenas de milissegundos (p50 de rota), e "0s" para um
+ * p95 de 250 ms apagaria justamente o número que a tela existe para mostrar.
+ */
+export function formatMilliseconds(ms: number, locale = 'pt-BR'): string {
+  if (ms >= 1000) {
+    return `${(ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
+  }
+  return `${Math.round(ms).toLocaleString(locale)} ms`;
+}
+
+/** Horas do plano → `305 h`. Sem casa decimal: a folga do plano se mede em horas. */
+export function formatHours(hours: number, locale = 'pt-BR'): string {
+  return `${Math.round(hours).toLocaleString(locale)} h`;
+}
+
+/**
+ * Uma razão 0–1 → percentual inteiro, **com teto visual em 999%**.
+ *
+ * `formatPercent` serve para taxa (0–1 por construção). Uma razão de
+ * saturação pode passar de 1 — foi exatamente o que suspendeu a API em
+ * 29/08/2026 — e é essencial que a tela diga "104%" em vez de "100%".
+ */
+export function formatRatio(ratio: number, locale = 'pt-BR'): string {
+  const clamped = Math.min(Math.max(ratio, 0), 9.99);
+  return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(
+    clamped,
+  );
+}
+
+/**
+ * Segundos de processo de pé → `3 h 12 min`, `45 min`, `30 s`.
+ *
+ * `formatRunDuration` fala de um run (segundos a minutos); o `uptimeSeconds`
+ * do `/api/metrics/http` fala de horas, e "192m 03s" não é como ninguém lê
+ * uma instância que acordou de manhã.
+ */
+export function formatUptime(seconds: number, locale = 'pt-BR'): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (hours > 0) return `${hours.toLocaleString(locale)} h ${minutes} min`;
+  if (minutes > 0) return `${minutes} min`;
+  return `${total} s`;
+}
+
+/** Taxa 0–1 → percentual com até duas casas (`0,08%`), para taxa de erro de HTTP. */
+export function formatRate(rate: number, locale = 'pt-BR'): string {
+  return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 }).format(rate);
+}
+
+/**
+ * Um **dia de calendário** (`YYYY-MM-DD`) → `01 de set.`, curto, para o eixo
+ * de uma série.
+ *
+ * Lê em UTC pela mesma razão do `formatArticleDate`: o `byDay` do
+ * `/api/metrics/product` agrupa por `toISOString().slice(0, 10)`, então a
+ * chave é o dia UTC, e `new Date('2026-09-01')` lido no fuso local vira
+ * 31/08 em qualquer fuso negativo — o Brasil é um. A série inteira deslocaria
+ * um dia para trás, em silêncio.
+ */
+export function formatCalendarDay(dateString: string, locale = 'pt-BR'): string {
+  return new Date(dateString).toLocaleDateString(locale, {
+    timeZone: 'UTC',
+    day: '2-digit',
+    month: 'short',
+  });
 }

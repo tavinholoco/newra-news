@@ -127,11 +127,15 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 
 ## 4. Banco de dados local
 
-O `docker-compose.yml` sobe **PostgreSQL 16** e **pgAdmin 4**:
+O `docker-compose.yml` sobe **PostgreSQL 16** — e, atrás do profile `tools`,
+o **pgAdmin 4**:
 
 ```bash
-# Subir PostgreSQL + pgAdmin em background
+# Subir o PostgreSQL em background (o `pnpm dev` faz isto sozinho — ver 4.1)
 docker compose up -d
+
+# (Opcional) Subir também o pgAdmin
+docker compose --profile tools up -d
 
 # Gerar o Prisma Client
 pnpm db:generate
@@ -185,7 +189,48 @@ nomenclatura, expand-and-contract e rollback — na §37 do
 | Serviço | URL | Credenciais |
 |---------|-----|-------------|
 | PostgreSQL | `localhost:5432` | `user` / `password` / db `newranews` |
-| pgAdmin | `http://localhost:5050` | `admin@newranews.com` / `admin` |
+| pgAdmin (`--profile tools`) | `http://localhost:5050` | `admin@newranews.com` / `admin` |
+
+### 4.1 O container vive enquanto a sessão de dev vive — 12/09/2026
+
+**O banco sobe com o dev server da API e para com ele.** `pnpm --filter
+@newranews/api dev` (e por extensão `pnpm dev` e a configuração `api` do
+`.claude/launch.json`) passa por `scripts/dev-with-db.mjs`: `docker compose up
+-d --wait postgres` antes — o `--wait` espera o `pg_isready` do `healthcheck`,
+então a API nunca nasce antes do banco —, e `docker compose stop postgres`
+quando o dev server sai. O compose tem `restart: "no"`: **abrir o Docker
+Desktop não ressuscita nada.**
+
+**Por que isto existe.** Medido em 12/09/2026 numa máquina de 16 GB: 84% da RAM
+em uso, 7,5 GB de pagefile, e o Docker respondendo por 2,85 GB com **doze
+containers de pé — um deste projeto**. O `newranews-db` gastava 38 MB, mas
+ficava ligado por dias sem uso, e é o que impede o Resource Saver do Docker
+Desktop (4.24+) de pausar a VM: ele só pausa com **zero** containers por 5 min.
+Container esquecido custa a VM inteira, não os 38 MB.
+
+**O que o wrapper cobre e o que não cobre.** Saída normal, Ctrl+C e fechar a
+janela do terminal — nos três o `stop` roda. **Kill forçado não**: medido, o
+`preview_stop` do painel do editor mata a árvore sem sinal (zero processos
+`node` sobrando, API fora do ar) e o container continua `Up`. Quem cobre isso
+é o vigia:
+
+```bash
+# uma vez por máquina — tarefa agendada, a cada 5 min, escondida
+powershell -ExecutionPolicy Bypass -File scripts/docker-idle-stop.ps1 -Install
+```
+
+A regra dele: se o Docker está respondendo, há container rodando **há mais de
+3 minutos** (para não cair na janela entre o `up` do wrapper e o `tsx` existir)
+e **não existe processo de dev server** (`node.exe`/`turbo.exe` rodando `tsx
+watch`, `turbo dev`, `next dev`, `vite`, `prisma studio`…), para **todos** os
+containers, de todos os projetos — é uma máquina de desenvolvimento, e
+container sem dev server é container esquecido. Nunca abre o Docker Desktop.
+Escreve em `%LOCALAPPDATA%\docker-idle-stop.log` só quando para algo.
+`-DryRun` diz o que pararia; `-Uninstall` remove a tarefa.
+
+> **O que se ganha:** container só enquanto há trabalho, e ~5 min depois do
+> último dev server morrer a VM do Docker é pausada pelo Resource Saver — o
+> `vmmemWSL` (2,85 GB naquela medição) volta para o Windows.
 
 ---
 

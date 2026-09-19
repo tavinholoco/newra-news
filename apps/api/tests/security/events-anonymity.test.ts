@@ -6,11 +6,12 @@ import { productEventSchema } from '../../src/routes/events/schemas';
 /**
  * **Identidade no payload de evento reprova — a guarda que a §11.S pediu.**
  *
- * A rota de eventos é a única pública que **escreve** no banco, e ela é anônima
- * por decisão de produto, não por descuido: sem sessão, sem JWT e sem
- * identificador entre visitas. É o que sustenta o legítimo interesse da §4 em
- * vez de exigir consentimento, e é o que define o que a tabela `ProductEvent`
- * é juridicamente.
+ * A rota de eventos foi a primeira pública que **escreve** no banco (a segunda
+ * é o `POST /api/errors/client` da Fase 7c, com a guarda irmã em
+ * `client-error-ingest.test.ts`), e ela é anônima por decisão de produto, não
+ * por descuido: sem sessão, sem JWT e sem identificador entre visitas. É o que
+ * sustenta o legítimo interesse da §4 em vez de exigir consentimento, e é o
+ * que define o que a tabela `ProductEvent` é juridicamente.
  *
  * **O risco não é ataque, é deriva.** Um `userId` acrescentado "para melhorar a
  * métrica" muda a natureza da tabela inteira, e nada no PR seguinte lembraria

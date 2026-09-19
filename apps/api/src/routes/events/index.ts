@@ -59,6 +59,12 @@ export async function eventsRoutes(app: FastifyInstance) {
        * de instrumentação nova — `GET /api/metrics/http` conta por rota e por
        * classe de status desde a Fase 9. **429 em `POST /api/events` ali é a
        * medida de quanto está sendo perdido.**
+       *
+       * **E só passou a ser legível por rota na Fase 7c.** O contador de 4xx
+       * por rota existia e nunca saía do processo — só o `clientErrorRate`
+       * global era servido, e um 429 aqui era indistinguível de um 404 em
+       * `/news`. O `clientErrorRate` por rota do snapshot é o que faz a frase
+       * acima ser verdade.
        */
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
       schema: {

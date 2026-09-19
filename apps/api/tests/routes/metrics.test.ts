@@ -76,6 +76,11 @@ const mockDashboard = {
     aiProvider: 'gemini',
     pipelineDuration: 11000,
     pipelineErrors: 0,
+    // As três colunas que a Fase 5 pôs no schema — o serializador responde
+    // 500 se o serviço não as entregar, e é isso que este fixture testa.
+    newsApiCount: 30,
+    rssCount: 20,
+    cleanupCount: 7,
   },
   lastWeek: mockWeekly,
   lastMonth: {

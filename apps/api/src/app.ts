@@ -27,14 +27,18 @@ import { metricsAdminRoutes } from './routes/metrics/admin';
 import { metricsHttpRoutes } from './routes/metrics/http';
 import { newsletterRoutes } from './routes/newsletter';
 import { eventsRoutes } from './routes/events';
+import { clientErrorRoutes } from './routes/errors';
 import { authRoutes } from './routes/auth';
 import { favoritesRoutes } from './routes/favorites';
 import { accountRoutes } from './routes/account';
-import { adminPipelineRoutes } from './routes/admin/pipeline';
+import { adminRoutes } from './routes/admin';
 import { devLogsRoutes } from './routes/dev/logs';
 import { devDashboardRoutes } from './routes/dev/dashboard';
 import { AppError, logAppError } from './utils/errors';
+import { errorEventsPlugin } from './plugins/error-events';
+import { UNHANDLED_CODE, recordError } from './services/error-event.service';
 import { baseLogger } from './utils/logger';
+import { UNMATCHED_ROUTE, routePatternOf } from './utils/request-route';
 
 export async function buildApp() {
   const app = Fastify({
@@ -98,6 +102,10 @@ export async function buildApp() {
   // Observabilidade primeiro: o `onResponse` tem de ver inclusive a resposta
   // que o rate limit recusou — 429 e resposta, e e justamente a que interessa.
   await app.register(observabilityPlugin);
+  // O buffer do `ErrorEvent` e o seu flush. Antes das rotas porque o `onClose`
+  // que ele registra tem de estar no lugar qualquer que seja o caminho até o
+  // desligamento.
+  await app.register(errorEventsPlugin);
   // Rate-limit depois: usa onRoute hook que precisa estar ativo antes das rotas serem registradas
   await app.register(rateLimitPlugin);
   // Swagger depois: suas rotas herdam o rate-limit
@@ -143,7 +151,7 @@ export async function buildApp() {
           code: 'CONTENT_TYPE_REJECTED',
           category: 'authorization',
         }),
-        { route: request.routeOptions?.url ?? 'unmatched' },
+        { route: routePatternOf(request), requestId: request.id },
       );
       return reply.status(415).send({ error: 'Unsupported Media Type' });
     }
@@ -189,10 +197,10 @@ export async function buildApp() {
      * rota. Os dois campos respondem perguntas diferentes e nenhum substitui o
      * outro.
      */
-    const route = request.routeOptions?.url ?? 'unmatched';
+    const route = routePatternOf(request);
 
     if (error instanceof AppError) {
-      logAppError(request.log, error, { route });
+      logAppError(request.log, error, { route, requestId: request.id });
       return reply.status(error.statusCode).send({ error: error.message });
     }
 
@@ -205,6 +213,41 @@ export async function buildApp() {
       { err: error, reqId: request.id, route, url: request.url },
       'unhandled error',
     );
+    /**
+     * **O 500 cru também vira linha na tabela, e é o que mais precisa.**
+     *
+     * Este ramo é o erro que ninguém escolheu devolver — Prisma, undici, um
+     * `TypeError` — e portanto o que menos se sabe explicar depois. Ele não
+     * passa por `logAppError` (não é `AppError`, e transformá-lo em um mudaria
+     * a resposta), então o registro é explícito aqui: a mesma armadilha 29
+     * relida do outro lado — o que responde fora do caminho comum precisa ser
+     * enumerado à mão.
+     *
+     * `code: UNHANDLED` é constante, e por isso o fingerprint continua com
+     * teto: quem separa uma dessas falhas de outra é a `route`.
+     *
+     * **O `name` e o `code` do próprio erro vão no `context`**, e é o que torna
+     * a linha legível sem abrir o log: `PrismaClientKnownRequestError` +
+     * `P1001` diz "banco inalcançável", `TypeError` + `ECONNREFUSED`
+     * (via `cause`) diz "a API de fora não respondeu". A mensagem, redigida e
+     * truncada, nem sempre diz. Achado da verificação pós-merge da Fase 4.
+     */
+    const cause = (error as { cause?: unknown }).cause;
+    recordError({
+      origin: 'API',
+      severity: 'ERROR',
+      code: UNHANDLED_CODE,
+      category: 'internal',
+      message: error.message,
+      route,
+      statusCode,
+      requestId: request.id,
+      context: {
+        name: error.name,
+        code: typeof error.code === 'string' ? error.code : null,
+        cause: cause instanceof Error ? `${cause.name}: ${cause.message}` : null,
+      },
+    });
     return reply
       .status(500)
       .send({ error: 'Internal server error', requestId: request.id });
@@ -225,7 +268,7 @@ export async function buildApp() {
    */
   app.setNotFoundHandler((request, reply) => {
     request.log.debug(
-      { route: 'unmatched', method: request.method, url: request.url },
+      { route: UNMATCHED_ROUTE, method: request.method, url: request.url },
       'route not found',
     );
     return reply.status(404).send({ error: 'Not Found' });
@@ -260,6 +303,11 @@ export async function buildApp() {
   // evento de lixo e o schema, nao a sessao.
   await app.register(eventsRoutes, { prefix: '/api/events' });
 
+  // O erro do cliente (§11.3 do plano de observabilidade). A segunda porta
+  // publica e anonima, pelo mesmo motivo — e um endpoint proprio, para o
+  // relato de falha nao competir com o pageview pelo balde do analytics.
+  await app.register(clientErrorRoutes, { prefix: '/api/errors' });
+
   await app.register(authRoutes, { prefix: '/api/auth' });
 
   await app.register(favoritesRoutes, { prefix: '/api/favorites' });
@@ -269,11 +317,13 @@ export async function buildApp() {
    * **Tudo sob `/api/admin` é ADMIN**, e a garantia é do grupo, não da rota.
    *
    * O `authPlugin` e o `requireAdmin` registram uma vez dentro de
-   * `adminPipelineRoutes`; o `authorization-matrix.test.ts` enumera o roteador,
-   * filtra este prefixo e cobra `access: 'admin'` de cada linha. É o gêmeo, do
-   * lado da API, do que o `admin/layout.tsx` faz do lado do web.
+   * `adminRoutes` (`routes/admin/index.ts`), e os três subgrupos — pipeline,
+   * erros e auditoria — herdam o `preHandler`; o
+   * `authorization-matrix.test.ts` enumera o roteador, filtra este prefixo e
+   * cobra `access: 'admin'` de cada linha. É o gêmeo, do lado da API, do que o
+   * `admin/layout.tsx` faz do lado do web.
    */
-  await app.register(adminPipelineRoutes, { prefix: '/api/admin/pipeline' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
 
   // Observabilidade (dev-only) — protegida por JOB_SECRET, sem exposição pública
   await app.register(devLogsRoutes, { prefix: '/api/dev' });

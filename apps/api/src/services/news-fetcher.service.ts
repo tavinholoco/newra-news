@@ -1,11 +1,20 @@
 import { Category } from '@newranews/database';
 import { rssSources } from '../config/rss-sources';
 import { fetchFromNewsData } from '../providers/news/newsdata.provider';
-import { fetchFromRssWithFailures } from '../providers/news/rss.provider';
+import { fetchFromRssWithOutcomes, type RssFeedOutcome } from '../providers/news/rss.provider';
 import type { RawNewsItem } from '../providers/types';
 import { baseLogger } from '../utils/logger';
 
 const ALL_CATEGORIES = Object.values(Category) as Category[];
+
+/**
+ * O nome do balde do agregador em `SourceFetch.source`, em `FetchWarning.source`
+ * e na `SourceHealth`. A NewsData entra como **uma** fonte e agrega dezenas de
+ * veículos — o limite honesto da §15 do plano de observabilidade; o
+ * `RawNewsItem.source` dela é o nome do veículo, e é por isso que a
+ * atribuição por fonte não pode ler aquele campo (ver `countKeptBySource`).
+ */
+export const NEWSDATA_SOURCE = 'newsdata';
 
 /**
  * O que pode dar errado na etapa 1 sem derrubá-la.
@@ -23,9 +32,21 @@ const ALL_CATEGORIES = Object.values(Category) as Category[];
  * dois dias e saíam como `feed-empty` — a mesma classe de "publicou devagar" —
  * porque o `Promise.allSettled` interno do RSS provider já tinha engolido a
  * rejeição antes de esta função decidir a classificação. Ver
- * `fetchFromRssWithFailures`.
+ * `fetchFromRssWithOutcomes`.
+ *
+ * **Tuple, e não só tipo**, desde a Fase 11: cada classe mapeia para um
+ * `SourceOutcome` da `SourceHealth`, e a guarda (`source-health.test.ts`)
+ * enumera as classes em tempo de execução para cobrar a tabela nos dois
+ * sentidos — o idioma do `AUDIT_ACTIONS`.
  */
-export type FetchWarningKind = 'provider-failed' | 'provider-empty' | 'feed-failed' | 'feed-empty';
+export const FETCH_WARNING_KINDS = [
+  'provider-failed',
+  'provider-empty',
+  'feed-failed',
+  'feed-empty',
+] as const;
+
+export type FetchWarningKind = (typeof FETCH_WARNING_KINDS)[number];
 
 export interface FetchWarning {
   kind: FetchWarningKind;
@@ -35,11 +56,36 @@ export interface FetchWarning {
   detail?: string;
 }
 
+/** Espelho de `SourceKind` do schema, sem importar o enum para dentro da coleta. */
+export type SourceFetchKind = 'RSS' | 'AGGREGATOR';
+
+/**
+ * O que **uma fonte configurada** rendeu neste run — uma entrada por fonte,
+ * sempre: os 12 feeds de `rss-sources.ts` mais o balde `newsdata`. (Fase 11
+ * do plano de observabilidade)
+ *
+ * É o dado bruto de que `warnings` é derivado e de que a `SourceHealth` é
+ * escrita. Fonte que não está aqui não foi tentada — e não há valor para isso
+ * de propósito: "não tentada" é ausência, como o `NEVER_RAN` do run.
+ */
+export interface SourceFetch {
+  source: string;
+  kind: SourceFetchKind;
+  /** Itens depois do filtro do provider. Zero quando falhou. */
+  fetched: number;
+  /** Do `fetch` ao parse; para o agregador, o provider inteiro (oito categorias em paralelo). */
+  latencyMs: number;
+  /** A mensagem da exceção, quando a fonte — ou o provider por cima dela — lançou. */
+  failure?: string;
+}
+
 export interface FetchResult {
   newsDataItems: RawNewsItem[];
   rssItems: RawNewsItem[];
   allItems: RawNewsItem[];
   warnings: FetchWarning[];
+  /** Ver `SourceFetch`. */
+  sources: SourceFetch[];
 }
 
 /**
@@ -50,97 +96,144 @@ export interface FetchResult {
  * Render e o run seguia para `SUCCESS` idêntico a um dia bom. As `warnings`
  * são o mesmo aviso em forma que a etapa 1 consegue gravar no `PipelineEvent`
  * e contar em `DailyMetric.pipelineErrors`; ver `runPipeline`.
+ *
+ * **Desde a Fase 11 os avisos são derivados de `sources`**, e não o contrário:
+ * o provider de RSS devolve um desfecho por feed configurado, então o feed
+ * vazio deixou de ser descoberto por subtração ("quem não está nos itens nem
+ * nas falhas") e passou a ser lido — `fetched: 0` sem `failure`.
  */
 export async function fetchAll(): Promise<FetchResult> {
-  const warnings: FetchWarning[] = [];
-
-  const [newsDataResult, rssResult] = await Promise.allSettled([
-    fetchFromNewsData(ALL_CATEGORIES),
-    fetchFromRssWithFailures(),
+  const [newsData, rss] = await Promise.all([
+    timedSettled(() => fetchFromNewsData(ALL_CATEGORIES)),
+    timedSettled(() => fetchFromRssWithOutcomes()),
   ]);
 
-  const newsDataItems = collect('newsdata', newsDataResult, warnings);
+  const sources: SourceFetch[] = [];
+  const warnings: FetchWarning[] = [];
 
-  let rssItems: RawNewsItem[] = [];
-
-  if (rssResult.status === 'rejected') {
-    // O outer `allSettled` só rejeita se algo estourar antes do
-    // `Promise.allSettled` interno do provider — na prática não acontece,
-    // porque `fetchFromRssWithFailures` engole toda rejeição por feed. Fica
-    // por simetria com o `newsdata`, cujo provider pode mesmo lançar cedo
-    // (ex.: `NEWSDATA_API_KEY` ausente).
-    baseLogger.warn({ err: rssResult.reason }, '[pipeline] rss fetch failed');
-    warnings.push({
-      kind: 'provider-failed',
-      source: 'rss',
-      detail: rssResult.reason instanceof Error ? rssResult.reason.message : String(rssResult.reason),
+  // ── NewsData: um balde, um desfecho ────────────────────────────────────
+  let newsDataItems: RawNewsItem[] = [];
+  if (newsData.result.status === 'rejected') {
+    const failure = reasonOf(newsData.result.reason);
+    baseLogger.warn(
+      { provider: NEWSDATA_SOURCE, err: newsData.result.reason },
+      '[pipeline] provider fetch failed',
+    );
+    warnings.push({ kind: 'provider-failed', source: NEWSDATA_SOURCE, detail: failure });
+    sources.push({
+      source: NEWSDATA_SOURCE,
+      kind: 'AGGREGATOR',
+      fetched: 0,
+      latencyMs: newsData.latencyMs,
+      failure,
     });
   } else {
-    const { items, failures } = rssResult.value;
+    newsDataItems = newsData.result.value;
+    if (newsDataItems.length === 0) {
+      baseLogger.warn({ provider: NEWSDATA_SOURCE }, '[pipeline] provider rendeu zero itens');
+      warnings.push({ kind: 'provider-empty', source: NEWSDATA_SOURCE });
+    }
+    sources.push({
+      source: NEWSDATA_SOURCE,
+      kind: 'AGGREGATOR',
+      fetched: newsDataItems.length,
+      latencyMs: newsData.latencyMs,
+    });
+  }
+
+  // ── RSS: doze feeds, doze desfechos ────────────────────────────────────
+  let rssItems: RawNewsItem[] = [];
+  if (rss.result.status === 'rejected') {
+    // O outer `allSettled` só rejeita se algo estourar antes do
+    // `Promise.allSettled` interno do provider — na prática não acontece,
+    // porque `fetchFromRssWithOutcomes` engole toda rejeição por feed. Fica
+    // por simetria com o `newsdata`, cujo provider pode mesmo lançar cedo
+    // (ex.: `NEWSDATA_API_KEY` ausente).
+    //
+    // **Cada feed configurado sai como falho, com a razão do provider**: o
+    // provider caiu por cima deles, e uma fonte que não pôde ser tentada por
+    // culpa nossa não é uma fonte que respondeu vazio. O aviso é um só, do
+    // provider — repetir doze `feed-failed` afogaria a linha que diz o que
+    // aconteceu.
+    const failure = reasonOf(rss.result.reason);
+    baseLogger.warn({ err: rss.result.reason }, '[pipeline] rss fetch failed');
+    warnings.push({ kind: 'provider-failed', source: 'rss', detail: failure });
+    for (const source of rssSources) {
+      sources.push({
+        source: source.name,
+        kind: 'RSS',
+        fetched: 0,
+        latencyMs: rss.latencyMs,
+        failure,
+      });
+    }
+  } else {
+    const { items, outcomes } = rss.result.value;
     rssItems = items;
+    sources.push(...outcomes.map(toSourceFetch));
+
+    const failed = outcomes.filter((outcome) => outcome.failure !== undefined);
+    const empty = outcomes.filter((outcome) => outcome.failure === undefined && outcome.fetched === 0);
 
     // **A fonte que lançou é erro de verdade, e cada uma vira uma linha.**
     // Timeout, DNS, XML inválido — o feed não conseguiu responder, o que é bem
     // diferente de responder e não ter nada. Ver o cabeçalho de
     // `FetchWarningKind` para o episódio que expôs a lacuna.
-    for (const failure of failures) {
-      warnings.push({ kind: 'feed-failed', source: failure.source, detail: failure.detail });
+    for (const outcome of failed) {
+      warnings.push({ kind: 'feed-failed', source: outcome.source, detail: outcome.failure });
     }
 
-    // **Um aviso por feed configurado que respondeu e não tinha nada.** A
-    // lista sai da própria `rssSources` — comparar contra os nomes presentes
-    // (nos itens **e** nas falhas) é o único jeito de ver a fonte que sumiu,
-    // porque quem não devolve item não aparece em lugar nenhum do resultado.
-    // Foi assim que a `Reuters` ficou na lista com zero itens até 24/08/2026.
-    //
-    // **Não conta como erro do run** (ver `runPipeline`): fonte especializada
-    // fica legitimamente vazia em dia comum. Marcar isso como erro faria todo
-    // dia acender a luz, e luz que acende todo dia é luz que se aprende a
-    // ignorar.
-    if (items.length > 0 || failures.length > 0) {
-      const accountedFor = new Set([
-        ...items.map((item) => item.source),
-        ...failures.map((failure) => failure.source),
-      ]);
-      for (const source of rssSources) {
-        if (accountedFor.has(source.name)) continue;
-        baseLogger.warn({ feed: source.name }, '[pipeline] rss: feed rendeu zero itens');
-        warnings.push({ kind: 'feed-empty', source: source.name });
+    if (items.length > 0 || failed.length > 0) {
+      // **Um aviso por feed configurado que respondeu e não tinha nada.** Foi
+      // assim que a `Reuters` ficou na lista com zero itens até 24/08/2026 —
+      // hoje o provider diz, e não é preciso deduzir por subtração.
+      //
+      // **Não conta como erro do run** (ver `runPipeline`): fonte especializada
+      // fica legitimamente vazia em dia comum. Marcar isso como erro faria todo
+      // dia acender a luz, e luz que acende todo dia é luz que se aprende a
+      // ignorar.
+      for (const outcome of empty) {
+        baseLogger.warn({ feed: outcome.source }, '[pipeline] rss: feed rendeu zero itens');
+        warnings.push({ kind: 'feed-empty', source: outcome.source });
       }
     } else {
       // As doze responderam, nenhuma lançou, e nenhuma trouxe item — o caso
-      // que a análise por feed não cobre sozinha (comparar contra
-      // `rssSources` já cobriria isto com doze `feed-empty` idênticos, e a
-      // repetição afogaria o que de fato aconteceu: o provider inteiro veio
-      // mudo no mesmo instante, um padrão que pede suspeita sobre a coleta
-      // como um todo, não sobre cada fonte).
+      // que a análise por feed não cobre sozinha (doze `feed-empty` idênticos
+      // afogariam o que de fato aconteceu: o provider inteiro veio mudo no
+      // mesmo instante, um padrão que pede suspeita sobre a coleta como um
+      // todo, não sobre cada fonte). Os desfechos por fonte continuam `EMPTY`
+      // um a um — é o que a `SourceHealth` grava.
       baseLogger.warn({ provider: 'rss' }, '[pipeline] provider rendeu zero itens');
       warnings.push({ kind: 'provider-empty', source: 'rss' });
     }
   }
 
-  return { newsDataItems, rssItems, allItems: [...newsDataItems, ...rssItems], warnings };
+  return { newsDataItems, rssItems, allItems: [...newsDataItems, ...rssItems], warnings, sources };
 }
 
-function collect(
-  provider: 'newsdata' | 'rss',
-  result: PromiseSettledResult<RawNewsItem[]>,
-  warnings: FetchWarning[],
-): RawNewsItem[] {
-  if (result.status === 'rejected') {
-    baseLogger.warn({ provider, err: result.reason }, '[pipeline] provider fetch failed');
-    warnings.push({
-      kind: 'provider-failed',
-      source: provider,
-      detail: result.reason instanceof Error ? result.reason.message : String(result.reason),
-    });
-    return [];
-  }
+function toSourceFetch(outcome: RssFeedOutcome): SourceFetch {
+  return {
+    source: outcome.source,
+    kind: 'RSS',
+    fetched: outcome.fetched,
+    latencyMs: outcome.latencyMs,
+    ...(outcome.failure !== undefined ? { failure: outcome.failure } : {}),
+  };
+}
 
-  if (result.value.length === 0) {
-    baseLogger.warn({ provider }, '[pipeline] provider rendeu zero itens');
-    warnings.push({ kind: 'provider-empty', source: provider });
-  }
+function reasonOf(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
+}
 
-  return result.value;
+/**
+ * `Promise.allSettled` de um só, com o relógio ao lado — o mesmo do provider
+ * de RSS, aqui no nível de provider. Para a NewsData é o tempo das oito
+ * categorias em paralelo, que é o que "a NewsData está lenta" significa.
+ */
+async function timedSettled<T>(
+  run: () => Promise<T>,
+): Promise<{ result: PromiseSettledResult<T>; latencyMs: number }> {
+  const startedAt = Date.now();
+  const [result] = await Promise.allSettled([run()]);
+  return { result: result as PromiseSettledResult<T>, latencyMs: Date.now() - startedAt };
 }

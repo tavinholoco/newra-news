@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DashboardMetrics } from '@newranews/types';
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import { renderWithIntl } from '@/tests/utils';
+import { httpMetrics, sourceHealthReport } from '@/tests/fixtures/observability';
 
 const mockMetrics: DashboardMetrics = {
   today: {
@@ -13,6 +14,10 @@ const mockMetrics: DashboardMetrics = {
     // Milissegundos, como o backend grava (`Date.now() - startedAt`).
     pipelineDuration: 27_000,
     pipelineErrors: 0,
+    // As três colunas que a Fase 5 do plano de observabilidade pôs no contrato.
+    newsApiCount: 300,
+    rssCount: 191,
+    cleanupCount: 12,
   },
   lastWeek: {
     period: {
@@ -20,10 +25,11 @@ const mockMetrics: DashboardMetrics = {
       end: '2026-08-15T23:59:59.999Z',
     },
     totalDays: 7,
-    avgNewsPerDay: 489.7,
+    // 491 sobre 436,4 é +12,5% — o número da §4.2 do plano, de propósito.
+    avgNewsPerDay: 436.4,
     totalArticlesGenerated: 7,
     pipelineSuccessRate: 1,
-    avgPipelineDuration: 65_000,
+    avgPipelineDuration: 30_000,
     newsByCategory: { WORLD: 3484, TECHNOLOGY: 345, ECONOMY: 128 },
     aiProviderUsage: { gemini: 6, groq: 1 },
   },
@@ -35,12 +41,28 @@ const mockMetrics: DashboardMetrics = {
   },
 };
 
-function mockFetchSuccess() {
+/**
+ * **O `fetch` é roteado pela URL**, porque a tela faz três consultas: as
+ * métricas do pipeline, os quatro sinais da API e a saúde por fonte. Um mock
+ * que devolvesse o mesmo corpo para todas entregaria `DashboardMetrics` a quem
+ * espera `HttpMetrics`, e o painel de sinais quebraria lendo `saturation` de um
+ * objeto que não a tem — falha sem relação com o que o teste mede. **Foi o que
+ * aconteceu na Fase 11**: o painel de fontes leu `sources.map` de um
+ * `DashboardMetrics` e derrubou a suíte inteira, antes de esta linha existir.
+ */
+function mockFetchSuccess(metrics: DashboardMetrics = mockMetrics) {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ data: mockMetrics }),
+    vi.fn().mockImplementation((url: string) => {
+      const data = url.includes('/api/admin/http-metrics')
+        ? httpMetrics
+        : url.includes('/api/admin/sources')
+          ? sourceHealthReport
+          : metrics;
+      return Promise.resolve({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ data }),
+      });
     }),
   );
 }
@@ -59,33 +81,84 @@ afterEach(() => {
 });
 
 describe('DashboardClient', () => {
-  it('should render the daily summary with formatted values', async () => {
+  it('opens with the KPI row: value, variation and the baseline it is measured against', async () => {
     mockFetchSuccess();
     renderWithClient(<DashboardClient initialData={mockMetrics} />);
 
-    expect(await screen.findAllByText('Notícias coletadas')).not.toHaveLength(0);
-    expect(screen.getByText('491')).toBeInTheDocument();
-    expect(screen.getByText('Gerado')).toBeInTheDocument();
-    expect(screen.getAllByText('Gemini').length).toBeGreaterThan(0);
-    expect(screen.getByText('27s')).toBeInTheDocument();
+    const kpi = await screen.findByRole('region', { name: 'Indicadores principais' });
+
+    expect(within(kpi).getByText('Notícias coletadas hoje')).toBeInTheDocument();
+    expect(within(kpi).getByText('491')).toBeInTheDocument();
+    expect(within(kpi).getByText('+12,5%')).toBeInTheDocument();
+    expect(within(kpi).getAllByText('vs. média 7 d')).toHaveLength(2);
+
+    // Duração caiu de 30 s para 27 s: −10%, e é melhora — a cor diz isso.
+    expect(within(kpi).getByText('27s')).toBeInTheDocument();
+    const duration = within(kpi).getByText('-10%');
+    expect(duration.className).toContain('text-success');
+
+    // Média de 7 d abaixo da de 30 d: piora, em vermelho.
+    const avg = within(kpi).getByText('-11,5%');
+    expect(avg.className).toContain('text-danger');
+    expect(within(kpi).getByText('vs. média 30 d')).toBeInTheDocument();
   });
 
-  it('should render weekly, category, provider and monthly sections', async () => {
+  it('leaves the success-rate card without a chip — there is no honest 30-day pair for it', async () => {
+    mockFetchSuccess();
+    renderWithClient(<DashboardClient initialData={mockMetrics} />);
+
+    const kpi = await screen.findByRole('region', { name: 'Indicadores principais' });
+    const card = within(kpi).getByText('Taxa de sucesso (7 d)').closest('[data-slot="card"]');
+
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText('100%')).toBeInTheDocument();
+    expect(within(card as HTMLElement).queryByText(/vs\./)).toBeNull();
+  });
+
+  it('renders today with the ingestion donut and the cleanup count', async () => {
+    mockFetchSuccess();
+    renderWithClient(<DashboardClient initialData={mockMetrics} />);
+
+    expect(await screen.findByText('Gerado')).toBeInTheDocument();
+    expect(screen.getAllByText('Gemini').length).toBeGreaterThan(0);
+    expect(screen.getByText('Linhas apagadas')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+
+    // As duas fontes de ingestão, gravadas desde a V1 e nunca desenhadas.
+    const donut = screen.getByRole('img', { name: 'Ingestão por fonte' });
+    expect(donut).toBeInTheDocument();
+    expect(screen.getByText('NewsData')).toBeInTheDocument();
+    expect(screen.getByText('300')).toBeInTheDocument();
+    expect(screen.getByText('RSS')).toBeInTheDocument();
+    expect(screen.getByText('191')).toBeInTheDocument();
+  });
+
+  it('draws category and provider as donuts with a legend, and keeps the monthly cards', async () => {
     mockFetchSuccess();
     renderWithClient(<DashboardClient initialData={mockMetrics} />);
 
     expect(await screen.findByText('Últimos 7 dias')).toBeInTheDocument();
-    expect(screen.getByText('100%')).toBeInTheDocument();
-    expect(
-      screen.getByText('Notícias por categoria (7 dias)'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('IA utilizada (7 dias)')).toBeInTheDocument();
-    expect(screen.getByText('Últimos 30 dias')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Notícias por categoria (7 dias)' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'IA utilizada (7 dias)' })).toBeInTheDocument();
+    // Legenda com valor e porcentagem: 3.484 de 3.957 é 88%.
     expect(screen.getByText('3.484')).toBeInTheDocument();
+    expect(screen.getByText('88%')).toBeInTheDocument();
+    expect(screen.getByText('Últimos 30 dias')).toBeInTheDocument();
+    expect(screen.getByText('14.800')).toBeInTheDocument();
+  });
+
+  it('shows the four signals of the API from their own query', async () => {
+    mockFetchSuccess();
+    renderWithClient(<DashboardClient initialData={mockMetrics} />);
+
+    expect(await screen.findByText('Os quatro sinais da API')).toBeInTheDocument();
+    // 305 h sobre 750 h: 41%, e a rota mais chamada na tabela.
+    expect(await screen.findByText('41%')).toBeInTheDocument();
+    expect(screen.getByText('GET /api/news')).toBeInTheDocument();
   });
 
   it('should show a pending message when the pipeline has not run today', async () => {
-    mockFetchSuccess();
+    mockFetchSuccess({ ...mockMetrics, today: null });
     renderWithClient(
       <DashboardClient initialData={{ ...mockMetrics, today: null }} />,
     );
@@ -93,6 +166,10 @@ describe('DashboardClient', () => {
     expect(
       await screen.findByText(/pipeline ainda não rodou hoje/i),
     ).toBeInTheDocument();
+    // Sem run de hoje os dois cartões de "hoje" ficam sem número e sem chip.
+    const kpi = screen.getByRole('region', { name: 'Indicadores principais' });
+    expect(within(kpi).getAllByText('—')).toHaveLength(2);
+    expect(within(kpi).queryByText('vs. média 7 d')).toBeNull();
   });
 
   it('should show an error message when the API fails', async () => {

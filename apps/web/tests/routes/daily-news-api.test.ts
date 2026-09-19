@@ -149,7 +149,46 @@ describe('GET /api/cron/daily-news', () => {
     const [url, init] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit];
     expect(url).toBe(JOB_URL);
     expect(init.method).toBe('POST');
+    // Igualdade exata de propósito: o cron da Vercel não manda ator, e o
+    // disparo agendado **não** pode chegar à API com um `x-actor-id` inventado.
     expect(init.headers).toEqual({ Authorization: `Bearer ${JOB_SECRET}` });
+  });
+
+  /**
+   * **O ator atravessa (Fase 5 do plano de observabilidade).** O botão do
+   * painel reentra por aqui com `x-actor-id`; esta rota só repassa — quem sabe
+   * quem clicou é o BFF, e quem grava a trilha é a API.
+   */
+  it('forwards the x-actor-id of a manual trigger to the API, and nothing else of the caller', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          outcome: 'started',
+          pipelineId: 'pipeline-1',
+          startedAt: '2026-08-25T11:00:00.000Z',
+        }),
+      }),
+    );
+
+    await GET(
+      new Request('http://localhost:3000/api/cron/daily-news', {
+        headers: {
+          authorization: `Bearer ${CRON_SECRET}`,
+          'x-actor-id': 'aaaaaaaa-0000-0000-0000-000000000001',
+          // Um cabeçalho qualquer do chamador não atravessa: só o ator.
+          cookie: 'next-auth.session-token=segredo',
+        },
+      }),
+    );
+
+    const [, init] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit];
+    expect(init.headers).toEqual({
+      Authorization: `Bearer ${JOB_SECRET}`,
+      'x-actor-id': 'aaaaaaaa-0000-0000-0000-000000000001',
+    });
   });
 
   it('returns 401 and does not revalidate when the CRON_SECRET is missing', async () => {

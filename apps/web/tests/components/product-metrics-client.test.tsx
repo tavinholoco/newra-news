@@ -62,8 +62,10 @@ describe('ProductMetricsClient', () => {
     // duas conclui que tem audiência recorrente sem ter.
     renderWithIntl(<ProductMetricsClient />);
 
+    // Casamento exato: "Sessões por dia" (a série da Fase 5) também contém
+    // "Sessões", e não é cartão de audiência.
     const rotulos = screen
-      .getAllByText(/Assinantes|Contas|Sessões/)
+      .getAllByText(/^(Assinantes|Contas|Sessões)$/)
       .map((el) => el.textContent);
 
     expect(rotulos).toEqual(['Assinantes', 'Contas', 'Sessões']);

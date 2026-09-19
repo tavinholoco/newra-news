@@ -1,15 +1,7 @@
 import { prisma } from '@newranews/database';
+import type { DashboardMetrics, WeeklyMetrics } from '@newranews/types';
 
-export interface WeeklyMetrics {
-  period: { start: string; end: string };
-  totalDays: number;
-  avgNewsPerDay: number;
-  totalArticlesGenerated: number;
-  pipelineSuccessRate: number;
-  avgPipelineDuration: number | null;
-  newsByCategory: Record<string, number>;
-  aiProviderUsage: Record<string, number>;
-}
+export type { DashboardMetrics, WeeklyMetrics };
 
 export interface MonthlyMetrics {
   period: { month: string };
@@ -20,23 +12,6 @@ export interface MonthlyMetrics {
   failureDays: number;
   newsApiTotal: number;
   rssTotal: number;
-}
-
-export interface DashboardMetrics {
-  today: {
-    newsCollected: number;
-    articleGenerated: boolean;
-    aiProvider: string | null;
-    pipelineDuration: number | null;
-    pipelineErrors: number;
-  } | null;
-  lastWeek: WeeklyMetrics;
-  lastMonth: {
-    totalNewsCollected: number;
-    totalArticlesGenerated: number;
-    avgNewsPerDay: number;
-    failureDays: number;
-  };
 }
 
 export async function getWeeklyMetrics(referenceDate: Date): Promise<WeeklyMetrics> {
@@ -160,6 +135,9 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
           aiProvider: todayRow.aiProvider,
           pipelineDuration: todayRow.pipelineDuration,
           pipelineErrors: todayRow.pipelineErrors,
+          newsApiCount: todayRow.newsApiCount,
+          rssCount: todayRow.rssCount,
+          cleanupCount: todayRow.cleanupCount,
         }
       : null,
     lastWeek: weekMetrics,

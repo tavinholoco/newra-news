@@ -11,6 +11,8 @@ import {
   devLogSummarySchema,
   pipelineEventSchema,
 } from '../../src/routes/dev/schemas';
+import { dashboardTodaySchema } from '../../src/routes/metrics/schemas';
+import { sourceDaySchema } from '../../src/routes/admin/schemas';
 
 /**
  * **O que não está no schema não existe** — e agora há guarda.
@@ -80,6 +82,36 @@ const OMITTED: Record<string, Record<string, string>> = {
     // ~19 linhas é ruído.
     pipelineLogId: 'o evento já vem dentro do run que o possui',
   },
+  /**
+   * **O `DailyMetric` entrou na Fase 5 do plano de observabilidade**, e é
+   * literalmente o defeito para o qual este teste foi escrito, no modelo que
+   * ele nunca cobriu: `newsApiCount`, `rssCount` e `cleanupCount` eram
+   * gravadas desde a V1, carregadas pelo `metrics.service` e descartadas pelo
+   * serializador do `dashboardMetricsSchema` — sem erro, sem teste vermelho.
+   * A extensão forçou a decisão sobre as três (entram) e sobre o
+   * `aiTokensUsed` (saiu por migration, no 5a).
+   *
+   * O schema comparado é o do bloco `today`, que é o único lugar em que uma
+   * linha do `DailyMetric` sai inteira; `lastWeek` e `lastMonth` são
+   * agregados sobre várias linhas, e agregado não é coluna.
+   */
+  DailyMetric: {
+    id: 'a linha é "hoje" por construção; a chave não diz nada que o nome do bloco já não diga',
+    date: 'idem — o bloco chama-se `today`, e a data é a de quem lê',
+    newsByCategory: 'sai agregada em `lastWeek.newsByCategory`, onde a tela a desenha',
+    createdAt: 'instante de gravação da linha, sem leitor na interface',
+  },
+  /**
+   * **A `SourceHealth` entrou na Fase 11 do plano de observabilidade**, no PR
+   * da API — o 11a era só schema, e este teste só alcança model com rota. O
+   * schema comparado é o do **dia** dentro da série: `source` e `kind` são da
+   * fonte que possui a linha, e a chave é `(source, day)` por construção.
+   */
+  SourceHealth: {
+    id: 'a identidade é `(source, day)`; a chave não diz nada que a série já não diga',
+    source: 'o dia já vem dentro da fonte que o possui',
+    kind: 'idem — é atributo da série, não do dia',
+  },
 };
 
 describe('9.1 — o schema de resposta declara o que o modelo tem', () => {
@@ -89,6 +121,8 @@ describe('9.1 — o schema de resposta declara o que o modelo tem', () => {
     ['BriefingSource', briefingSourceSchema],
     ['PipelineLog', devLogSummarySchema],
     ['PipelineEvent', pipelineEventSchema],
+    ['DailyMetric', dashboardTodaySchema],
+    ['SourceHealth', sourceDaySchema],
   ])('%s', (modelName, schema) => {
     const declared = new Set(schemaKeys(schema as z.ZodObject<z.ZodRawShape>));
     const omitted = OMITTED[modelName] ?? {};
@@ -116,6 +150,13 @@ describe('9.1 — o schema de resposta declara o que o modelo tem', () => {
     // devolvesse lista vazia faria as duas asserções novas passarem para sempre.
     expect(scalarColumns('PipelineLog')).toContain('errorDetail');
     expect(scalarColumns('PipelineEvent')).toContain('pipelineLogId');
+    // E o da Fase 5: as três que o serializador descartava por nove fases.
+    expect(scalarColumns('DailyMetric')).toContain('cleanupCount');
+    // O `aiTokensUsed` saiu por migration no 5a — se voltar ao schema, esta
+    // guarda cobra a decisão de novo, que é o ponto.
+    expect(scalarColumns('DailyMetric')).not.toContain('aiTokensUsed');
+    // E a da Fase 11: a coluna que decide trocar provedor tem de sair.
+    expect(scalarColumns('SourceHealth')).toContain('kept');
   });
 
   it('carries the sources only on the detail schema', () => {

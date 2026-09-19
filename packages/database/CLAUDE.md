@@ -18,12 +18,18 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - PipelineLog → Logs de execução do pipeline (retenção: 30 dias)
 - PipelineEvent → Eventos por etapa de uma execução do pipeline, com nível e contexto (sem cleanup próprio — removidos em cascata junto do PipelineLog)
 - User → Contas autenticadas, com papel de acesso (USER/ADMIN); criado/atualizado por upsert no login
-- Favorite → Vínculo entre usuário e notícia favoritada (único por par userId+newsId)
+- Favorite → Item salvo pelo leitor. Alcança **duas** coisas — notícia e briefing —, por isso a chave é `userId+itemType+itemId` e `itemId` é ponteiro fraco, sem FK
+- UserPreference → Preferências do leitor (categorias e tema). Tabela própria, e não colunas em `User`, porque `upsertUser` roda a cada sign-in
 - Subscriber → Inscritos na newsletter, com status e token único para descadastro
 - NewsletterLog → Resultado do envio diário da newsletter (um registro por data: total/enviados/falhos)
 - DailyMetric → Métricas diárias (retenção: indefinida)
+- ProductEvent → Evento de produto, anônimo por construção (retenção: 90 dias, por `occurredAt`)
+- ErrorEvent → Falha registrada de forma durável, **uma linha por `(fingerprint, hora)`** e não por ocorrência (retenção: 14 dias, por `windowStart`)
+- AuditEvent → Ação de admin — quem disparou o pipeline, quem apagou o quê. **Uma linha por ocorrência**, ao contrário do `ErrorEvent`; `actorId` é `User.id` sem FK (a trilha sobrevive ao ator) e `action` é texto com o conjunto fechado no código (retenção: 365 dias, por `createdAt` — aplicada pela etapa 8 desde o PR 5b)
+- DailyUptime → Segundos em que a API esteve de pé, **uma linha por dia UTC, incrementada** pelo heartbeat (PR 5b). É o acumulador das horas do plano do Render, que `process.uptime()` não sabe dar desde que a API dorme e acorda (retenção: indefinida)
+- SourceHealth → A saúde de cada fonte de notícia, **uma linha por `(source, dia)`** — `fetched` é o que a fonte trouxe, `kept` é o que entrou no acervo naquele dia (a coluna que decide trocar provedor), `outcome` é `OK`/`EMPTY`/`FAILED` e "não tentada" é ausência de linha. `source` é texto sem FK (a fonte removida de `rss-sources.ts` continua na série) e `pipelineLogId` aponta o run que escreveu a linha, sem FK. O último run do dia representa o dia: `deleteMany` + `createMany` numa transação, depois da etapa 4 (retenção: 90 dias, por `day` — aplicada pela etapa 8 desde o PR 11b)
 
-> O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) só apaga News, Article e PipelineLog — os demais models não têm política de retenção.
+> O cleanup (Stage 8 de `apps/api/src/services/pipeline.service.ts`) apaga News (30d), PipelineLog (30d), Article (90d), ProductEvent (90d), ErrorEvent (14d), AuditEvent (365d) e SourceHealth (90d). PipelineEvent sai em cascata com o run; os demais models não têm política de retenção. **Os números desta linha têm guarda** — `apps/api/tests/docs/retention-drift.test.ts` os compara com as constantes dos services.
 
 ## Enums
 - ArticleStatus: DRAFT, PUBLISHED, FAILED
@@ -32,6 +38,16 @@ Nenhum outro package deve importar @prisma/client diretamente.
 - PipelineEventLevel: INFO, WARN, ERROR
 - SubscriberStatus: ACTIVE, UNSUBSCRIBED
 - UserRole: USER, ADMIN
+- FavoriteItemType: NEWS, ARTICLE
+- ThemePreference: LIGHT, DARK, SYSTEM
+- ErrorOrigin: API, PIPELINE, WEB, INVARIANT
+- ErrorSeverity: WARN, ERROR, FATAL
+- SourceKind: RSS, AGGREGATOR
+- SourceOutcome: OK, EMPTY, FAILED
+
+> `ErrorEvent.code` e `ErrorEvent.category` são **texto**, não enum do banco: o conjunto fechado mora em `apps/api/src/utils/errors.ts`, com guarda derivada do parser. Repeti-lo aqui cobraria uma migration por código novo.
+
+> A lista acima e a de Models são guardadas por `apps/api/tests/docs/schema-docs-drift.test.ts`, que as compara com o `schema.prisma`. Ela nasceu achando quatro ausências de meses — `UserPreference`, `ProductEvent`, `FavoriteItemType` e `ThemePreference`.
 
 ## Regras
 - Toda alteração no schema requer uma migration: `pnpm db:migrate -- --name <nome>`
@@ -41,11 +57,15 @@ Nenhum outro package deve importar @prisma/client diretamente.
   - Baseline e passo a passo: docs/db-baseline.md
   - Estratégia completa: §37 de docs/Newra-News-V2-Frontend-Redesign-Plan.md
 - Após alterar o schema, sempre rodar `pnpm db:generate`
+- `pnpm --filter @newranews/database typecheck` tipa `src/` **e** `prisma/*.ts` (seed e cleanup). O `build` tipa só `src/`, e `tsx` não tipa nada — até 12/09/2026 uma coluna removida do schema e esquecida no seed passava por lint, typecheck e suíte, e só morria em runtime no `dev-bootstrap.sh`
 - Índices definidos no schema para queries frequentes (category, publishedAt, date)
 - O campo Article.date é @unique — apenas um artigo por dia
 - DailyMetric.date é @unique — usa upsert para evitar duplicatas
+- DailyUptime.date é @unique — o heartbeat usa upsert com `increment`, nunca create
 - NewsletterLog.date é @unique — apenas um envio registrado por dia
 - Seed deve criar dados realistas para todas as categorias
+- **O seed também popula `ErrorEvent`, `AuditEvent` e `DailyUptime`** (decidido no PR 5c, 14/09/2026): são as três tabelas que o `admin:capture` fotografa na `/admin` e na `/admin/security`, e sem elas a captura sai com o arco das horas em zero, a rosquinha de erro vazia e a trilha sem linha. Determinístico e idempotente como o resto — `upsert` pela chave natural ou por id fixo; o ator da trilha é o id sintético da sessão forjada pelo script
+- **O seed cria sete dias de briefing, cada um com três `BriefingSource`, e o evento da etapa 9.5 em todo run semeado** (Fase 6, 16/09/2026). O ensaio das invariantes contra o banco local reprovou `briefing.one_per_day` e `briefing.has_sources` por causa do seed antigo — um briefing só, sem fontes —, e o plano manda ajustar o seed, não a invariante. Idempotente nas duas pontas: o briefing por `date`, as fontes só quando o briefing não tem nenhuma (o que conserta o de hoje num banco semeado antes), e o evento da 9.5 acrescentado ao run `SUCCESS` que não o tem (índice 20 no id do evento). O relatório de hoje traz **uma** violação — a retenção do acervo, que é o que a suíte mede de verdade num banco local anterior à migration — para o painel ter a linha vermelha na captura
 
 ## Padrão de Export
 O PrismaClient é exportado como singleton:

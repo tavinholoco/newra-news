@@ -1,4 +1,13 @@
-import { PrismaClient, Category } from '@prisma/client';
+import {
+  PrismaClient,
+  Category,
+  ErrorOrigin,
+  ErrorSeverity,
+  PipelineEventLevel,
+  PipelineStatus,
+  SourceKind,
+  SourceOutcome,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -111,21 +120,74 @@ async function main() {
   }
   console.log(`  News: ${newsCreated} created (${newsItems.length - newsCreated} already existed)`);
 
-  const existingArticle = await prisma.article.findUnique({ where: { date: today } });
-  if (!existingArticle) {
-    await prisma.article.create({
-      data: {
-        title: 'Panorama do Dia: IA na saúde, política digital e ciência brasileira em destaque',
-        summary: 'No cenário de hoje, a inteligência artificial avança nos hospitais públicos, o Congresso debate regulação das big techs e cientistas da USP anunciam descoberta promissora no combate ao câncer.',
-        content: `## Tecnologia e Saúde\n\nA inteligência artificial chegou aos hospitais públicos brasileiros com força total. Um novo sistema de análise de exames reduz em 60% o tempo de diagnóstico, demonstrando como a tecnologia pode democratizar o acesso à medicina de qualidade.\n\n## Cenário Político\n\nNo Congresso, avança o projeto de regulação das big techs. O texto aprovado na Câmara prevê multas significativas para plataformas que descumprirem as novas regras, sinalizando uma postura mais firme do Brasil no debate global sobre soberania digital.\n\n## Economia\n\nO Banco Central manteve a Selic estável, surpreendendo analistas. A decisão reflete a cautela do Copom diante de um cenário externo ainda incerto e pressões inflacionárias internas.\n\n## Ciência Nacional\n\nPesquisadores da USP anunciaram a descoberta de uma molécula com potencial anticancerígeno extraída da biodiversidade amazônica. A pesquisa reforça a importância estratégica da proteção da Amazônia.\n\n## Síntese\n\nO dia foi marcado pela intersecção entre tecnologia, ciência e debates institucionais. O Brasil demonstra capacidade de inovar enquanto enfrenta desafios econômicos e políticos que moldarão o país nos próximos meses.`,
-        date: today,
-        newsCount: newsItems.length,
-      },
-    });
-    console.log('  Article: 1 created for today');
-  } else {
-    console.log('  Article: already exists for today');
+  // Sete dias de briefing, cada um com fontes — e não só o de hoje. As duas
+  // invariantes de briefing da Fase 6 (`briefing.one_per_day` e
+  // `briefing.has_sources`) perguntam pelos últimos sete dias, e o ensaio
+  // contra o banco local antes de ligar a etapa 9.5 reprovou as duas por causa
+  // do seed antigo: um briefing só, sem `BriefingSource`. O plano manda ajustar
+  // o seed, não a invariante. O de hoje é o texto completo; os seis anteriores
+  // são corpo curto, o bastante para a tela de detalhe e para o histórico.
+  // Idempotente: o briefing por `date` (é `@unique`), as fontes só quando o
+  // briefing não tem nenhuma — o que também conserta o de hoje num banco
+  // semeado antes desta mudança.
+  const todayContent = `## Tecnologia e Saúde\n\nA inteligência artificial chegou aos hospitais públicos brasileiros com força total. Um novo sistema de análise de exames reduz em 60% o tempo de diagnóstico, demonstrando como a tecnologia pode democratizar o acesso à medicina de qualidade.\n\n## Cenário Político\n\nNo Congresso, avança o projeto de regulação das big techs. O texto aprovado na Câmara prevê multas significativas para plataformas que descumprirem as novas regras, sinalizando uma postura mais firme do Brasil no debate global sobre soberania digital.\n\n## Economia\n\nO Banco Central manteve a Selic estável, surpreendendo analistas. A decisão reflete a cautela do Copom diante de um cenário externo ainda incerto e pressões inflacionárias internas.\n\n## Ciência Nacional\n\nPesquisadores da USP anunciaram a descoberta de uma molécula com potencial anticancerígeno extraída da biodiversidade amazônica. A pesquisa reforça a importância estratégica da proteção da Amazônia.\n\n## Síntese\n\nO dia foi marcado pela intersecção entre tecnologia, ciência e debates institucionais. O Brasil demonstra capacidade de inovar enquanto enfrenta desafios econômicos e políticos que moldarão o país nos próximos meses.`;
+  const BRIEFING_DAYS = 7;
+  const SOURCES_PER_BRIEFING = 3;
+  let articlesCreated = 0;
+  let sourcesCreated = 0;
+  for (let daysAgo = 0; daysAgo < BRIEFING_DAYS; daysAgo++) {
+    const date = new Date(today);
+    date.setUTCDate(date.getUTCDate() - daysAgo);
+
+    let article = await prisma.article.findUnique({ where: { date } });
+    if (!article) {
+      article = await prisma.article.create({
+        data: daysAgo === 0
+          ? {
+              title: 'Panorama do Dia: IA na saúde, política digital e ciência brasileira em destaque',
+              summary: 'No cenário de hoje, a inteligência artificial avança nos hospitais públicos, o Congresso debate regulação das big techs e cientistas da USP anunciam descoberta promissora no combate ao câncer.',
+              content: todayContent,
+              date,
+              newsCount: newsItems.length,
+            }
+          : {
+              title: `Panorama do Dia: o que marcou ${date.toISOString().slice(0, 10)}`,
+              summary: 'Um dia de tecnologia, política e ciência — o resumo das notícias que o pipeline selecionou.',
+              content: `## O dia em três eixos\n\nTecnologia, política e ciência dividiram a atenção. As matérias selecionadas pelo pipeline apontam para um cenário em movimento, com decisões institucionais e avanços de pesquisa no mesmo dia.\n\n## Síntese\n\nBriefing semeado para o histórico local — o de hoje traz o texto completo.`,
+              date,
+              newsCount: newsItems.length,
+            },
+      });
+      articlesCreated++;
+    }
+
+    const sourceCount = await prisma.briefingSource.count({ where: { articleId: article.id } });
+    if (sourceCount === 0) {
+      // Rotaciona pelas notícias do seed para cada briefing citar um trio
+      // diferente; `newsId` é ponteiro fraco, resolvido pela URL como no
+      // pipeline, e fica nulo se a notícia não estiver no banco.
+      const picked = Array.from({ length: SOURCES_PER_BRIEFING }, (_, position) => {
+        const item = newsItems[(daysAgo * SOURCES_PER_BRIEFING + position) % newsItems.length];
+        if (!item) throw new Error('seed: no news item to cite');
+        return { item, position };
+      });
+      for (const { item, position } of picked) {
+        const news = await prisma.news.findFirst({ where: { sourceUrl: item.sourceUrl }, select: { id: true } });
+        await prisma.briefingSource.create({
+          data: {
+            articleId: article.id,
+            newsId: news?.id ?? null,
+            position,
+            title: item.title,
+            source: item.source,
+            sourceUrl: item.sourceUrl,
+          },
+        });
+        sourcesCreated++;
+      }
+    }
   }
+  console.log(`  Article: ${articlesCreated} created (${BRIEFING_DAYS - articlesCreated} already existed), ${sourcesCreated} BriefingSource rows`);
 
   // 30 dias de métricas do pipeline. Sem elas a `/dashboard` fica inteira em
   // zero e o `category-bars` — que consome `--chart-1..5` — não desenha barra
@@ -158,7 +220,6 @@ async function main() {
         articleGenerated: true,
         pipelineDuration: 24_000 + ((daysAgo * 1300) % 12_000),
         aiProvider: daysAgo % 5 === 0 ? 'groq' : 'gemini',
-        aiTokensUsed: 8_200 + ((daysAgo * 310) % 3_000),
         pipelineErrors: 0,
         newsApiCount,
         rssCount,
@@ -168,6 +229,456 @@ async function main() {
     metricsCreated++;
   }
   console.log(`  DailyMetric: ${metricsCreated} created (${30 - metricsCreated} already existed)`);
+
+  // ── Observabilidade (Fase 5 do plano, PR 5c) ────────────────────────────
+  // As três tabelas que o `admin:capture` fotografa na `/admin` e na
+  // `/admin/security`. O 5a e o 5b deixaram a decisão para cá, e ela é sim:
+  // sem elas a captura sai com o arco das horas em zero, a rosquinha de erro
+  // vazia e a trilha sem linha — e é justamente o estado que ninguém precisa
+  // fotografar. Determinístico e idempotente, como o resto: `upsert` pela
+  // chave natural (data, `(fingerprint, hora)`) ou por id fixo.
+
+  // DailyUptime: o mês corrente até hoje, ~9 h ligada por dia — o retrato de
+  // uma API que dorme e acorda (desde 01/09 não há keep-alive). Hoje é parcial.
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const secondsToday = Math.floor((now.getTime() - today.getTime()) / 1000);
+  let uptimeCreated = 0;
+  for (let date = new Date(monthStart); date <= today; date.setUTCDate(date.getUTCDate() + 1)) {
+    const isToday = date.getTime() === today.getTime();
+    const seconds = isToday ? Math.min(32_400, secondsToday) : 32_400;
+    const existing = await prisma.dailyUptime.findUnique({ where: { date: new Date(date) } });
+    if (existing) continue;
+    await prisma.dailyUptime.create({ data: { date: new Date(date), seconds } });
+    uptimeCreated++;
+  }
+  console.log(`  DailyUptime: ${uptimeCreated} created`);
+
+  // ErrorEvent: quatro falhas distintas nas últimas 24 h, com baldes por hora
+  // — o suficiente para a rosquinha ter três fatias e a tabela ter o que
+  // ordenar. Os códigos são os da taxonomia da API (`utils/errors.ts`).
+  const thisHour = new Date(now);
+  thisHour.setUTCMinutes(0, 0, 0);
+  const hoursAgo = (hours: number) => new Date(thisHour.getTime() - hours * 3_600_000);
+  const errorEvents = [
+    ...[
+      [1, 12],
+      [2, 7],
+      [5, 3],
+    ].map(([hours, count]) => ({
+      fingerprint: 'API:WARN:AUTH_TOKEN_INVALID:/api/account',
+      windowStart: hoursAgo(hours!),
+      origin: ErrorOrigin.API,
+      severity: ErrorSeverity.WARN,
+      code: 'AUTH_TOKEN_INVALID',
+      category: 'authorization',
+      count: count!,
+      route: '/api/account',
+      statusCode: 401,
+      message: 'Invalid or missing token',
+      firstRequestId: `seed-${hours}-first`,
+      lastRequestId: `seed-${hours}-last`,
+    })),
+    {
+      fingerprint: 'API:WARN:NOT_FOUND:unmatched',
+      windowStart: hoursAgo(3),
+      origin: ErrorOrigin.API,
+      severity: ErrorSeverity.WARN,
+      code: 'NOT_FOUND',
+      category: 'validation',
+      count: 25,
+      route: 'unmatched',
+      statusCode: 404,
+      message: 'Route not found',
+      firstRequestId: 'seed-404-first',
+      lastRequestId: 'seed-404-last',
+    },
+    {
+      fingerprint: 'PIPELINE:WARN:feed-failed:stage-1',
+      windowStart: hoursAgo(now.getUTCHours() >= 11 ? now.getUTCHours() - 11 : 13),
+      origin: ErrorOrigin.PIPELINE,
+      severity: ErrorSeverity.WARN,
+      code: 'feed-failed',
+      category: 'upstream',
+      count: 3,
+      route: 'stage-1',
+      statusCode: null,
+      message: 'Feed Veja Saúde: ETIMEDOUT',
+      firstRequestId: null,
+      lastRequestId: null,
+    },
+    {
+      fingerprint: 'API:ERROR:INTERNAL:/api/news/:id',
+      windowStart: hoursAgo(8),
+      origin: ErrorOrigin.API,
+      severity: ErrorSeverity.ERROR,
+      code: 'INTERNAL',
+      category: 'internal',
+      count: 1,
+      route: '/api/news/:id',
+      statusCode: 500,
+      message: 'Unexpected error',
+      firstRequestId: 'seed-500',
+      lastRequestId: 'seed-500',
+    },
+  ];
+  let errorsCreated = 0;
+  for (const event of errorEvents) {
+    const existing = await prisma.errorEvent.findUnique({
+      where: { fingerprint_windowStart: { fingerprint: event.fingerprint, windowStart: event.windowStart } },
+    });
+    if (existing) continue;
+    await prisma.errorEvent.create({
+      data: { ...event, firstSeenAt: event.windowStart, lastSeenAt: new Date(event.windowStart.getTime() + 35 * 60_000) },
+    });
+    errorsCreated++;
+  }
+  console.log(`  ErrorEvent: ${errorsCreated} created (${errorEvents.length - errorsCreated} already existed)`);
+
+  // AuditEvent: três ações do mesmo ator — o id sintético que o
+  // `admin:capture` usa na sessão forjada, para a trilha mostrar "você".
+  const actorId = '00000000-0000-4000-8000-000000000000';
+  const auditEvents = [
+    {
+      id: '00000000-0000-4000-8000-00000000a001',
+      actorId,
+      action: 'pipeline.triggered',
+      targetId: '00000000-0000-4000-8000-00000000c001',
+      outcome: 'started',
+      requestId: 'seed-audit-1',
+      context: { pipelineId: '00000000-0000-4000-8000-00000000c001' },
+      createdAt: new Date(today.getTime() + 11 * 3_600_000 + 5 * 60_000),
+    },
+    {
+      id: '00000000-0000-4000-8000-00000000a002',
+      actorId,
+      action: 'pipeline.triggered',
+      targetId: null,
+      outcome: 'already-succeeded-today',
+      requestId: 'seed-audit-2',
+      context: { pipelineId: '00000000-0000-4000-8000-00000000c001' },
+      createdAt: new Date(today.getTime() + 16 * 3_600_000 + 25 * 60_000),
+    },
+    {
+      id: '00000000-0000-4000-8000-00000000a003',
+      actorId,
+      action: 'news.deleted',
+      targetId: '00000000-0000-4000-8000-00000000d001',
+      outcome: 'deleted',
+      requestId: 'seed-audit-3',
+      context: null,
+      createdAt: new Date(today.getTime() - 2 * 24 * 3_600_000 + 14 * 3_600_000),
+    },
+  ];
+  let auditCreated = 0;
+  for (const event of auditEvents) {
+    const existing = await prisma.auditEvent.findUnique({ where: { id: event.id } });
+    if (existing) continue;
+    await prisma.auditEvent.create({
+      data: { ...event, context: event.context ?? undefined },
+    });
+    auditCreated++;
+  }
+  console.log(`  AuditEvent: ${auditCreated} created (${auditEvents.length - auditCreated} already existed)`);
+
+  // ── Pipeline (Fase 8 do plano) ──────────────────────────────────────────
+  // Os runs dos últimos 30 dias, com os eventos de que o desfecho precisa.
+  // Sem eles a faixa de desfechos da `/admin` fotografa 30 quadrados vazados
+  // — o estado que ninguém precisa ver —, e a lista de execuções sai vazia.
+  // O retrato é o do produto medido: quase todo dia `SUCCESS`; a cada cinco
+  // dias o Gemini caiu e o Groq entregou (o mesmo ritmo do `aiProvider` das
+  // métricas acima, para as duas telas contarem a mesma história); um dia em
+  // que a newsletter falhou; um dia `FAILED` na etapa 6; e **três dias sem
+  // run** (17–19 dias atrás), que é o buraco de 29–31/08/2026 — a API suspensa
+  // por horas do plano —, para a faixa ter o que o `NEVER_RAN` existe para
+  // mostrar. Determinístico e idempotente: id fixo por dia, `create` só quando
+  // não existe.
+  //
+  // O run de hoje é o `...c001` que a trilha de auditoria acima referencia —
+  // é o que faz o link "run existente" da trilha resolver.
+  const runId = (daysAgo: number) =>
+    `00000000-0000-4000-8000-00000000c0${(daysAgo + 1).toString(16).padStart(2, '0')}`;
+  const eventId = (daysAgo: number, index: number) =>
+    `00000000-0000-4000-8000-0000000e${(daysAgo + 1).toString(16).padStart(2, '0')}${index.toString(16).padStart(2, '0')}`;
+  const NEVER_RAN_DAYS = new Set([17, 18, 19]);
+  // O briefing de hoje existe (criado acima); os dos outros dias não, e o
+  // resumo diz isso com `null` em vez de inventar um id.
+  const todayArticle = await prisma.article.findUnique({ where: { date: today } });
+  const FAILED_DAY = 8;
+  const NEWSLETTER_FAILED_DAY = 3;
+
+  // O relatório da etapa 9.5, na forma de `InvariantRun` (Fase 6). Os
+  // números são os do ensaio de 16/09/2026 contra o banco local: doze
+  // consultas em ~380 ms, e só a retenção do acervo reprovando no run de
+  // hoje — os outros dias saem limpos, para a faixa de histórico não ser um
+  // muro vermelho.
+  const invariantsReport = (daysAgo: number, now: Date) => {
+    const iso = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+    const oldest = (id: string, retention: number, observedDaysAgo: number) => ({
+      id,
+      status: observedDaysAgo > retention + 1 ? 'VIOLATED' : 'OK',
+      measure: 'oldest',
+      observed: iso(observedDaysAgo),
+      expected: iso(retention + 1),
+      detail: null,
+      error: null,
+      durationMs: 4 + (id.length % 5),
+    });
+    const count = (id: string, observed: number, expected: number) => ({
+      id,
+      status: observed === expected ? 'OK' : 'VIOLATED',
+      measure: 'count',
+      observed,
+      expected,
+      detail: null,
+      error: null,
+      durationMs: 6 + (id.length % 7),
+    });
+    const results = [
+      oldest('retention.news', 30, daysAgo === 0 ? 47 : 29),
+      oldest('retention.pipelineLog', 30, 29),
+      oldest('retention.article', 90, 6),
+      oldest('retention.productEvent', 90, 2),
+      oldest('retention.errorEvent', 14, 2),
+      oldest('retention.auditEvent', 365, 4),
+      oldest('retention.sourceHealth', 90, 29),
+      count('briefing.one_per_day', 7, 7),
+      count('briefing.has_sources', 0, 0),
+      count('pipeline.no_stale_running', 0, 0),
+      count('metrics.day_recorded', 0, 0),
+      count('newsletter.delivered', 0, 0),
+    ];
+    return {
+      checked: results.length,
+      violated: results.filter((result) => result.status === 'VIOLATED').length,
+      errored: 0,
+      durationMs: 380 - ((daysAgo * 17) % 90),
+      budgetMs: 2_000,
+      results,
+    };
+  };
+
+  let runsCreated = 0;
+  for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+    if (NEVER_RAN_DAYS.has(daysAgo)) continue;
+
+    const id = runId(daysAgo);
+    const existing = await prisma.pipelineLog.findUnique({ where: { id } });
+    if (existing) {
+      // Run semeado antes da Fase 6: recebe o evento da 9.5 que não tinha, para
+      // o painel de invariantes não ficar em "nenhuma verificação ainda" num
+      // banco que já era semeado. Só nos que terminaram — o run `FAILED` na 6
+      // nunca chega à 9.5. Índice 20 no id do evento, fora dos que o seed já usa.
+      if (existing.status === PipelineStatus.SUCCESS) {
+        const has95 = await prisma.pipelineEvent.count({ where: { pipelineLogId: id, stage: 9.5 } });
+        if (has95 === 0) {
+          const at25 = new Date(existing.startedAt.getTime() + 25_000);
+          await prisma.pipelineEvent.create({
+            data: {
+              id: eventId(daysAgo, 20),
+              pipelineLogId: id,
+              stage: 9.5,
+              level: PipelineEventLevel.INFO,
+              message: 'Invariants checked',
+              context: invariantsReport(daysAgo, at25),
+              createdAt: at25,
+            },
+          });
+        }
+      }
+      continue;
+    }
+
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - daysAgo);
+    // O cron das 11:00 UTC; o de hoje às 11:05, que é quando a trilha diz que
+    // alguém o disparou.
+    const startedAt = new Date(day.getTime() + 11 * 3_600_000 + (daysAgo === 0 ? 5 * 60_000 : 10_000));
+    const at = (seconds: number) => new Date(startedAt.getTime() + seconds * 1000);
+    const failed = daysAgo === FAILED_DAY;
+    const fallback = !failed && daysAgo % 5 === 0;
+    const newsletterFailed = daysAgo === NEWSLETTER_FAILED_DAY;
+    const collected = 320 + ((daysAgo * 14) % 120) + 60 + ((daysAgo * 3) % 20);
+    const durationMs = 24_000 + ((daysAgo * 1300) % 12_000);
+
+    type SeedEvent = { stage: number; level: PipelineEventLevel; message: string; context: object; at: Date };
+    const events: SeedEvent[] = [
+      { stage: 1, level: PipelineEventLevel.INFO, message: 'News collected', context: { newsDataCount: 60, rssCount: collected - 60, total: collected }, at: at(4) },
+      { stage: 3, level: PipelineEventLevel.INFO, message: 'News deduplicated', context: { before: collected, after: collected - 12 }, at: at(5) },
+      { stage: 4, level: PipelineEventLevel.INFO, message: 'News persisted', context: { count: collected - 40, skipped: 28 }, at: at(6) },
+      { stage: 5, level: PipelineEventLevel.INFO, message: 'Top items selected for AI', context: { count: 15 }, at: at(6) },
+    ];
+
+    if (failed) {
+      events.push(
+        { stage: 6, level: PipelineEventLevel.WARN, message: 'Primary provider failed before fallback', context: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503 }, at: at(20) },
+        { stage: 6, level: PipelineEventLevel.ERROR, message: 'Groq API error: 404 Not Found', context: { message: 'Groq API error: 404 Not Found', provider: 'groq', statusCode: 404 }, at: at(22) },
+      );
+    } else {
+      if (fallback) {
+        events.push({ stage: 6, level: PipelineEventLevel.WARN, message: 'Primary provider failed, fallback served', context: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503, fallbackProvider: 'groq' }, at: at(18) });
+      }
+      events.push(
+        { stage: 6, level: PipelineEventLevel.INFO, message: 'Article generated', context: { provider: fallback ? 'groq' : 'gemini', modelVersion: fallback ? 'openai/gpt-oss-20b' : 'gemini-2.5-flash', promptVersion: 'v2' }, at: at(19) },
+        { stage: 7, level: PipelineEventLevel.INFO, message: 'Article persisted', context: { sources: 15 }, at: at(20) },
+        newsletterFailed
+          ? { stage: 7.5, level: PipelineEventLevel.WARN, message: 'Newsletter failed (non-critical)', context: { message: 'Resend API error 500: internal error', provider: 'resend', statusCode: 500 }, at: at(21) }
+          : { stage: 7.5, level: PipelineEventLevel.INFO, message: 'Daily newsletter sent', context: { total: 3, sent: 3, failed: 0 }, at: at(21) },
+        { stage: 8, level: PipelineEventLevel.INFO, message: 'Cleanup completed', context: { deleted: (daysAgo * 7) % 40, productEvents: 0, errorEvents: 0, auditEvents: 0 }, at: at(22) },
+        { stage: 8.5, level: PipelineEventLevel.INFO, message: 'Stored news renormalized', context: { scanned: 8190, textChanged: 0, imageRecovered: 0, categoryChanged: 0, categorySkipped: 0 }, at: at(23) },
+        { stage: 9, level: PipelineEventLevel.INFO, message: 'Daily metrics recorded', context: { durationMs }, at: at(24) },
+        // A etapa 9.5 (Fase 6): o relatório de invariantes inteiro no
+        // `context`, na forma que `invariants.service.ts` grava e lê. O de
+        // hoje traz uma violação — a retenção do acervo, que é o que a suíte
+        // mede de verdade num banco local anterior à migration — para o
+        // painel da `/admin/security` ter a linha vermelha na captura.
+        { stage: 9.5, level: PipelineEventLevel.INFO, message: 'Invariants checked', context: invariantsReport(daysAgo, at(24)), at: at(25) },
+        {
+          stage: 9,
+          level: PipelineEventLevel.INFO,
+          message: 'Pipeline completed successfully',
+          context: {
+            collected,
+            sources: 45,
+            deduped: collected - 12,
+            persisted: collected - 40,
+            selected: 15,
+            provider: fallback ? 'groq' : 'gemini',
+            model: fallback ? 'openai/gpt-oss-20b' : 'gemini-2.5-flash',
+            promptVersion: 'v2',
+            briefingId: daysAgo === 0 ? (todayArticle?.id ?? null) : null,
+            briefingChars: 6_200 + ((daysAgo * 173) % 900),
+            sourcesCited: 15,
+            newsletter: newsletterFailed ? 'failed' : { total: 3, sent: 3, failed: 0 },
+            renormalized: { scanned: 8190, changed: 0 },
+            invariants: { checked: 12, violated: daysAgo === 0 ? 1 : 0, errored: 0 },
+            degradedBy: [...(fallback ? [6] : []), ...(newsletterFailed ? [7.5] : [])],
+            durationMs,
+          },
+          at: at(25),
+        },
+      );
+    }
+
+    await prisma.pipelineLog.create({
+      data: {
+        id,
+        status: failed ? PipelineStatus.FAILED : PipelineStatus.SUCCESS,
+        // O `newsCount` e o `articleId` só são gravados na etapa 7: o run que
+        // falhou na 6 fica com os dois vazios, como em produção.
+        newsCount: failed ? 0 : collected - 12,
+        articleId: daysAgo === 0 ? (todayArticle?.id ?? null) : null,
+        startedAt,
+        completedAt: at(failed ? 22 : Math.round(durationMs / 1000)),
+        ...(failed
+          ? {
+              error: 'Groq API error: 404 Not Found',
+              errorStage: 6,
+              errorDetail: {
+                message: 'Groq API error: 404 Not Found',
+                provider: 'groq',
+                statusCode: 404,
+                primaryError: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503 },
+              },
+            }
+          : {}),
+        events: {
+          create: events.map((event, index) => ({
+            id: eventId(daysAgo, index),
+            stage: event.stage,
+            level: event.level,
+            message: event.message,
+            context: event.context,
+            createdAt: event.at,
+          })),
+        },
+      },
+    });
+    runsCreated++;
+  }
+  console.log(`  PipelineLog: ${runsCreated} created (${30 - NEVER_RAN_DAYS.size - runsCreated} already existed)`);
+
+  // ── Saúde por fonte (Fase 11 do plano, PR 11a) ──────────────────────────
+  // Uma linha por (fonte, dia) nos mesmos 30 dias dos runs acima — os três
+  // dias sem run não têm linha nenhuma (o pipeline não escreveu), e o dia
+  // `FAILED` na etapa 6 **tem**, porque a escrita acontece depois da 4: é a
+  // distinção que a tela precisa mostrar. Os nomes espelham `rss-sources.ts`
+  // (15/09/2026) mais o balde `newsdata`; são texto, não FK, de propósito.
+  //
+  // As duas histórias que os gatilhos da §15 existem para pegar estão aqui:
+  // a Superinteressante em `FAILED` há três dias (o `ETIMEDOUT` de 03/09,
+  // que também aparece 12–13 dias atrás com a Veja Saúde e o Drauzio), e a
+  // Trivela **definhando** — `kept` de ~12 por dia caindo para ~2 na última
+  // semana, sem falhar nunca. Os dois feeds de saúde ficam `EMPTY` no fim de
+  // semana, que é o normal que não pode acender luz. Determinístico e
+  // idempotente: `createMany` com `skipDuplicates` sobre a chave `(source, day)`.
+  type SeedSource = { name: string; kind: SourceKind; fetched: number; keptRatio: number; latencyMs: number };
+  const seedSources: SeedSource[] = [
+    { name: 'newsdata', kind: SourceKind.AGGREGATOR, fetched: 62, keptRatio: 0.7, latencyMs: 740 },
+    { name: 'G1', kind: SourceKind.RSS, fetched: 50, keptRatio: 0.6, latencyMs: 420 },
+    { name: 'Folha de S.Paulo', kind: SourceKind.RSS, fetched: 30, keptRatio: 0.55, latencyMs: 610 },
+    { name: 'BBC Brasil', kind: SourceKind.RSS, fetched: 24, keptRatio: 0.65, latencyMs: 380 },
+    { name: 'TechCrunch', kind: SourceKind.RSS, fetched: 20, keptRatio: 0.5, latencyMs: 890 },
+    { name: 'InfoMoney', kind: SourceKind.RSS, fetched: 40, keptRatio: 0.45, latencyMs: 1_150 },
+    { name: 'Valor Econômico', kind: SourceKind.RSS, fetched: 35, keptRatio: 0.4, latencyMs: 970 },
+    { name: 'ESPN Brasil', kind: SourceKind.RSS, fetched: 25, keptRatio: 0.6, latencyMs: 530 },
+    { name: 'Trivela', kind: SourceKind.RSS, fetched: 18, keptRatio: 0.65, latencyMs: 2_100 },
+    { name: 'Olhar Digital', kind: SourceKind.RSS, fetched: 22, keptRatio: 0.55, latencyMs: 640 },
+    { name: 'Superinteressante', kind: SourceKind.RSS, fetched: 10, keptRatio: 0.8, latencyMs: 1_900 },
+    { name: 'Veja Saúde', kind: SourceKind.RSS, fetched: 8, keptRatio: 0.75, latencyMs: 1_400 },
+    { name: 'Drauzio Varella', kind: SourceKind.RSS, fetched: 6, keptRatio: 0.8, latencyMs: 1_250 },
+  ];
+  const FEED_TIMEOUT_MS = 30_000;
+  const TIMED_OUT = 'fetch failed: ETIMEDOUT';
+  const FAILED_SOURCE_DAYS: Record<string, number[]> = {
+    Superinteressante: [0, 1, 2, 12, 13],
+    'Veja Saúde': [12, 13],
+    'Drauzio Varella': [12, 13],
+  };
+  const WEEKEND_EMPTY = new Set(['Veja Saúde', 'Drauzio Varella']);
+
+  const sourceRows: {
+    source: string;
+    kind: SourceKind;
+    day: Date;
+    fetched: number;
+    kept: number;
+    outcome: SourceOutcome;
+    failureReason: string | null;
+    latencyMs: number;
+    pipelineLogId: string;
+  }[] = [];
+  for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+    if (NEVER_RAN_DAYS.has(daysAgo)) continue;
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - daysAgo);
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6;
+
+    for (const [index, source] of seedSources.entries()) {
+      const failed = FAILED_SOURCE_DAYS[source.name]?.includes(daysAgo) ?? false;
+      const empty = !failed && weekend && WEEKEND_EMPTY.has(source.name);
+      // A Trivela definha: inteira até 10 dias atrás, e daí a menos de um
+      // quarto — é o `kept` médio de 7 dias abaixo de 30% do de 30.
+      const withering = source.name === 'Trivela' && daysAgo < 10;
+      const wobble = ((daysAgo * 7 + index * 3) % 9) - 4;
+      const fetched = failed || empty ? 0 : Math.max(1, source.fetched + wobble - (withering ? 12 : 0));
+      const kept = failed || empty ? 0 : Math.min(fetched, Math.round(fetched * source.keptRatio) - (withering ? 2 : 0));
+
+      sourceRows.push({
+        source: source.name,
+        kind: source.kind,
+        day: new Date(day),
+        fetched,
+        kept: Math.max(0, kept),
+        outcome: failed ? SourceOutcome.FAILED : empty ? SourceOutcome.EMPTY : SourceOutcome.OK,
+        failureReason: failed ? TIMED_OUT : null,
+        latencyMs: failed ? FEED_TIMEOUT_MS : source.latencyMs + wobble * 15,
+        pipelineLogId: runId(daysAgo),
+      });
+    }
+  }
+  const sourceHealth = await prisma.sourceHealth.createMany({ data: sourceRows, skipDuplicates: true });
+  console.log(`  SourceHealth: ${sourceHealth.count} created (${sourceRows.length - sourceHealth.count} already existed)`);
 
   console.log('Seed completed successfully.');
 }

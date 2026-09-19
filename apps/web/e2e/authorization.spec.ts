@@ -57,6 +57,14 @@ test.describe('BFF sem sessão', () => {
     // ficam pulados —, então rota de admin nova entra aqui no mesmo PR.
     '/api/admin/pipeline/runs',
     '/api/admin/pipeline/runs/aaaaaaaa-0000-0000-0000-000000000001',
+    // Fase 5 (PR 5c): as três leituras da aba de segurança e dos sinais.
+    '/api/admin/errors',
+    '/api/admin/audit',
+    '/api/admin/http-metrics',
+    // Fase 11 (PR 11c): a saúde por fonte.
+    '/api/admin/sources',
+    // Fase 6: o último relatório de invariantes.
+    '/api/admin/invariants',
   ]) {
     test(`${route} responde 401 com o corpo de erro do produto`, async ({ request }) => {
       const response = await request.get(route);
@@ -91,6 +99,24 @@ test.describe('BFF sem sessão', () => {
      * local sem backend. Nenhum dos três é uma porta se fechando para quem não
      * se identificou, e é isso que este teste protege.
      */
+    expect([401, 403]).not.toContain(response.status());
+  });
+
+  test('o relato de erro do cliente continua anônimo — a segunda porta sem sessão', async ({
+    request,
+  }) => {
+    // Fase 7c do plano de observabilidade. O `ErrorEvent` não tem dado
+    // pessoal em coluna nenhuma; um 401 aqui seria alguém pondo dono no
+    // relato. **O corpo é vazio de propósito**, como o lote vazio do teste
+    // acima: um relato válido gravaria uma falha falsa na tabela de produção
+    // a cada push na `main`. O que se espera é o 400 do schema — e os outros
+    // códigos são legítimos pelo mesmo motivo: 429 é o balde de 10/min do
+    // site inteiro, 502 é a API sem responder num build local.
+    const response = await request.post('/api/errors/client', {
+      data: {},
+      failOnStatusCode: false,
+    });
+
     expect([401, 403]).not.toContain(response.status());
   });
 });

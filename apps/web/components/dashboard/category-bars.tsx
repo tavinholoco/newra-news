@@ -2,20 +2,20 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { toDateFormatLocale } from '@/lib/i18n';
-
-const BAR_COLORS = [
-  'bg-chart-1',
-  'bg-chart-2',
-  'bg-chart-3',
-  'bg-chart-4',
-  'bg-chart-5',
-] as const;
+import { chartColor } from './chart-colors';
 
 interface CategoryBarsProps {
   data: Record<string, number>;
   labels?: Record<string, string>;
 }
 
+/**
+ * Barras horizontais **ordenadas por valor** — a maior em cima.
+ *
+ * A ordenação é a razão de o componente existir, e por isso ele **não** ganhou
+ * um parâmetro para preservá-la: série temporal, que precisa da ordem dada, é o
+ * `SeriesBars` (§9 do plano de observabilidade).
+ */
 export function CategoryBars({ data, labels }: CategoryBarsProps) {
   const t = useTranslations('dashboard');
   const locale = useLocale();
@@ -40,7 +40,7 @@ export function CategoryBars({ data, labels }: CategoryBarsProps) {
           </span>
           <div className='h-2.5 flex-1 overflow-hidden rounded-full bg-muted'>
             <div
-              className={`h-full rounded-full ${BAR_COLORS[index % BAR_COLORS.length]}`}
+              className={`h-full rounded-full ${chartColor(index).bg}`}
               style={{ width: `${(count / max) * 100}%` }}
               role='img'
               aria-label={`${labels?.[key] ?? key}: ${count}`}

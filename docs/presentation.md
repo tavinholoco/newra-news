@@ -68,11 +68,14 @@ sequência do pipeline e fluxo de dados.
 - **Monorepo Turborepo + pnpm** — quatro packages compartilhados (`database`,
   `types`, `eslint-config`, `tsconfig`); tipagem única, sem duplicação entre
   os apps.
-- **Pipeline de onze etapas** — nove numeradas (coleta, normalização, dedup por
+- **Pipeline de doze etapas** — nove numeradas (coleta, normalização, dedup por
   URL, persistência, seleção das 15 mais recentes, geração por IA, artigo,
-  cleanup aos 30 dias, métricas) mais duas intercaladas: a **7.5**, que envia a
-  newsletter, e a **8.5**, que **reaplica as regras de ingestão ao acervo já
-  gravado**. A 8.5 é a que faz uma correção de regra valer para o passado —
+  cleanup aos 30 dias, métricas) mais três intercaladas: a **7.5**, que envia a
+  newsletter, a **8.5**, que **reaplica as regras de ingestão ao acervo já
+  gravado**, e a **9.5**, que **confere as invariantes** — doze consultas
+  agregadas perguntando se o que as etapas anteriores deveriam ter deixado
+  está lá (retenção, um briefing por dia, run morto, métrica do dia,
+  newsletter). A 8.5 é a que faz uma correção de regra valer para o passado —
   sem ela, consertar a ingestão só conserta o que entra a partir de amanhã.
 - **Idempotência por dia** — o disparo do pipeline distingue `started`,
   `already-running` e `already-succeeded-today`, e o painel diz qual foi. Antes
@@ -158,7 +161,7 @@ categorias preenchidas.
    estaticamente por idioma, com metadados localizados.
 5. **Explore o código** nesta ordem:
    `docs/diagrams/system-architecture.mermaid` →
-   `apps/api/src/services/pipeline.service.ts` (as onze etapas) →
+   `apps/api/src/services/pipeline.service.ts` (as doze etapas) →
    `apps/api/src/providers/` (`newsdata`, `rss`, `gemini`, `groq`) →
    `apps/api/src/providers/news/feed-text.ts` (a separação de dek e corpo) →
    `apps/web/app/[locale]/page.tsx` (ISR) → `apps/web/lib/auth.ts` e

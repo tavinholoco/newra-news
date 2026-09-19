@@ -135,6 +135,31 @@ describe('guardas de acessibilidade', () => {
       expect(semProp).toEqual([]);
       expect(cards.length).toBe(3);
     });
+
+    it('o boundary de erro é o `h1` da tela, e só a casca única o fixa', () => {
+      /**
+       * Um error boundary **substitui** a página — o `h1` dela vai embora
+       * junto. O título do boundary é, portanto, o único heading da tela, e
+       * tem de ser `h1`: um `h2` solto é o `heading-order` que já reprovou
+       * duas vezes. A casca (`components/errors/error-state`, Fase 7b do
+       * plano de observabilidade) é quem o fixa; os cinco boundaries passam
+       * o texto por prop e não escrevem heading nenhum.
+       */
+      const casca = SOURCES.find(({ file }) => file === 'components/errors/error-state.tsx');
+      expect(casca?.source).toMatch(/<h1[\s>]/);
+      expect(casca?.source).not.toMatch(/<h[2-6][\s>]/);
+
+      const boundaries = SOURCES.filter(({ file }) =>
+        /^app\/(?:.*\/)?error\.tsx$|^app\/global-error\.tsx$/.test(file),
+      );
+      expect(boundaries.length).toBeGreaterThanOrEqual(5);
+
+      const comHeadingProprio = boundaries
+        .filter(({ source }) => /<h[1-6][\s>]/.test(source))
+        .map(({ file }) => file);
+
+      expect(comHeadingProprio).toEqual([]);
+    });
   });
 
   describe('foco', () => {

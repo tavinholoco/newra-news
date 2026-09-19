@@ -154,6 +154,12 @@ payload (o JWT é assinado pelo frontend com o role vindo da sessão, que segue
 **Resposta 404:** `{ "error": "News not found" }` — notícia inexistente.  
 **Resposta 400:** `id` não é UUID válido.
 
+> **Deixa rastro desde a Fase 5 do plano de observabilidade.** Cada chamada
+> grava um `AuditEvent` com `action: "news.deleted"`, o `sub` da sessão como
+> `actorId`, o id pedido como `targetId` e `outcome: "deleted" | "not-found"`
+> — o 404 também é ação de admin. Lê-se em `GET /api/admin/audit`. A gravação
+> nunca falha a resposta: a exclusão já aconteceu quando ela roda.
+
 ---
 
 ## Editorial
@@ -390,7 +396,9 @@ a notícia é removida.
 Dispara o pipeline de coleta de notícias e geração do artigo.
 
 **Rate limit:** 20 req/min  
-**Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`
+**Header obrigatório:** `Authorization: Bearer <JOB_SECRET>`  
+**Header opcional:** `x-actor-id: <User.id>` — o admin que clicou, quando o
+disparo é manual (ver abaixo)
 
 O processamento é assíncrono — o endpoint retorna imediatamente com o ID do
 pipeline, **e com o que ele de fato fez**.
@@ -435,6 +443,24 @@ existia.
 ```json
 { "error": "Invalid or missing token" }
 ```
+
+**Resposta 400:** `{ "error": "Invalid x-actor-id header" }` — o cabeçalho
+veio e não é UUID.
+
+> **Quem disparou, e como a API fica sabendo (Fase 5 do plano de
+> observabilidade).** A API não vê sessão nenhuma nesta rota: a cadeia do
+> botão do painel é BFF (sessão ADMIN) → `GET /api/cron/daily-news`
+> (`CRON_SECRET`) → esta rota (`JOB_SECRET`), e o disparo chegava sem usuário.
+> O BFF passou a mandar `x-actor-id` com o `User.id` da sessão, o cron do Next
+> o repassa, e esta rota grava um `AuditEvent` com `action:
+> "pipeline.triggered"`, o `outcome` acima, `targetId` igual ao `pipelineId`
+> **só quando `outcome` é `started`** (nos outros dois desfechos o id é de um
+> run que já existia, e vai no `context`). O cron da Vercel não manda o
+> cabeçalho e **não** produz linha — só um humano com sessão ADMIN produz.
+>
+> A confiança é a do `JOB_SECRET`: só quem o tem chega a ler o cabeçalho, e
+> quem o tem já dispara o pipeline à vontade. Valor malformado é bug do BFF, e
+> responde 400 em vez de disparar e perder a linha em silêncio.
 
 ---
 
@@ -653,7 +679,10 @@ ADMIN.
       "articleGenerated": true,
       "aiProvider": "gemini",
       "pipelineDuration": 11000,
-      "pipelineErrors": 0
+      "pipelineErrors": 0,
+      "newsApiCount": 30,
+      "rssCount": 20,
+      "cleanupCount": 7
     },
     "lastWeek": { ...weeklyMetrics },
     "lastMonth": {
@@ -665,6 +694,12 @@ ADMIN.
   }
 }
 ```
+
+> **`newsApiCount`, `rssCount` e `cleanupCount` saem desde a Fase 5 do plano
+> de observabilidade.** O `DailyMetric` as grava desde a V1 e o schema nunca
+> as declarou — o serializador as descartava em silêncio. São a rosquinha
+> "ingestão por fonte" (§4.3) e o cartão do expurgo. `pipelineDuration` é
+> **milissegundo**; o `durationSeconds` de `/api/admin/pipeline/runs` é segundo.
 
 ---
 
@@ -710,10 +745,11 @@ origem, truncado em 100). É mais uma razão para a rota ser admin-only. Teto de
 
 ### GET /api/metrics/http (admin)
 
-As duas métricas técnicas que a §26 do plano promete — **error rate** e **API
-latency** — na única forma em que elas existem: a janela do processo que está no
-ar. Até a Fase 9 não havia instrumentação nenhuma, e os dois números eram uma
-promessa sem produtor.
+Os **quatro sinais de ouro** (§3.1 do plano de observabilidade). Latência,
+tráfego e erro existem desde a Fase 9, na única forma em que existem: a janela
+do processo que está no ar. **Saturação** entrou na Fase 5 — memória residente,
+atraso do event loop e as horas do plano no mês —, e é o sinal que faltava nos
+três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
 
 **Resposta 200:**
 ```json
@@ -726,11 +762,38 @@ promessa sem produtor.
     "clientErrorRate": 0.012,
     "latencyMs": { "avg": 42, "p50": 50, "p95": 250, "p99": 500, "max": 4903 },
     "routes": [
-      { "route": "GET /api/news", "count": 812, "errorRate": 0, "avgMs": 38, "p95Ms": 100, "maxMs": 940 }
-    ]
+      { "route": "GET /api/news", "count": 812, "errorRate": 0, "clientErrorRate": 0.0012, "avgMs": 38, "p95Ms": 100, "maxMs": 940 }
+    ],
+    "saturation": {
+      "memory": { "rssBytes": 98304000, "heapUsedBytes": 41000000, "heapTotalBytes": 60000000, "limitBytes": 536870912, "ratio": 0.1831 },
+      "eventLoop": { "resolutionMs": 10, "samples": 35912, "lagMs": { "p50": 0, "p95": 2, "p99": 11, "max": 45210 } },
+      "plan": { "month": "2026-09", "monthStart": "2026-09-01T00:00:00.000Z", "secondsUsed": 1098000, "hoursUsed": 305, "limitHours": 750, "ratio": 0.4067 }
+    }
   }
 }
 ```
+
+> **`saturation.plan` é a única parte que vem do banco, e a única que fala do
+> mês — e por isso a única que pode vir `null`.** Com o banco fora (ou nos
+> primeiros minutos de uma promoção, antes de o `migrate.yml` aplicar), a rota
+> continua respondendo os outros três sinais e `plan: null`; ela é em memória
+> de propósito, para responder justamente quando o banco é o problema. É a
+> soma do `DailyUptime` no mês de calendário UTC — a tabela que um
+> heartbeat de cinco minutos incrementa enquanto o processo está de pé, e que o
+> `SIGTERM` fecha. `process.uptime()` não serve: desde 01/09 a API dorme e
+> acorda várias vezes por dia, e cada acordada zera o contador. `ratio` acima
+> de 1 é o que suspendeu a API em 29/08/2026. `memory.ratio` é RSS sobre os
+> 512 MB do plano; `eventLoop.lagMs` é o atraso **além** da resolução do timer
+> (10 ms), então em regime o p50 é ~0 e o `max` guarda a pior parada que esta
+> instância viu.
+
+> **`clientErrorRate` por rota existe desde a Fase 7c, e é onde o gatilho das
+> duas portas anônimas se lê.** O contador de 4xx por rota existia desde a
+> Fase 9 e nunca saía do processo — só o global era servido —, então "429 em
+> `POST /api/events` dentro desta rota", escrito como gatilho desde então, não
+> era observável: um 429 ali era indistinguível de um 404 em `/news`. Hoje um
+> `clientErrorRate` subindo em `POST /api/events` ou em `POST /api/errors/client`
+> é o balde compartilhado do site dizendo que alguém ficou de fora.
 
 > **`since` e `uptimeSeconds` não são enfeite.** A janela é em memória: **zera a
 > cada deploy e a cada hibernação** (o plano free do Render dorme com ~15 min
@@ -1114,6 +1177,73 @@ dias e briefing aos 90 — não há job manual a disparar.
 
 ---
 
+## Erro do cliente
+
+> O caminho de ingestão da §11.3 do plano de observabilidade (Fase 7c). Um
+> error boundary do web relata o crash de render para cá, e o relato vira uma
+> linha do `ErrorEvent` com `origin: WEB` — a mesma tabela que a
+> `/admin/security` lê. **Endpoint dedicado, e não um 15º tipo de evento de
+> produto:** relato de falha não compete com pageview pelo balde do analytics.
+> **Pública e anônima** como o `/api/events`, e pelo mesmo motivo é chata com
+> o corpo.
+
+### POST /api/errors/client
+
+Rate limit próprio: **10 req/min** — e é **um balde só para o site inteiro**,
+porque o caminho real é navegador → BFF do Next → API, e o BFF anônimo não
+repassa o IP do leitor. Decidido, não esquecido: o décimo primeiro leitor a
+tropeçar na mesma tela no mesmo minuto recebe 429, mas o erro que dez viram já
+está na tabela — o coalescimento por fingerprint faz o `count` ser aproximado
+de qualquer forma. **Gatilho:** 429 nesta rota dentro de `GET /api/metrics/http`.
+
+**Body:**
+
+```json
+{
+  "message": "Cannot read properties of undefined (reading 'title')",
+  "digest": "1234567890",
+  "path": "/pt-BR/news/3f2a9c1e-7b4d-4e8a-9c2b-1d5e6f7a8b9c"
+}
+```
+
+Tipado em `packages/types` como `ClientErrorReport`, com guarda de compilação
+ao lado do schema.
+
+| Campo | Regra | Por quê |
+|---|---|---|
+| `message` | 1 a 300 caracteres | `error.message`, truncado no cliente; aqui é o teto que o servidor aceita. Passa por `scrubMessage` antes de virar linha — é texto do navegador |
+| `digest` | opcional, até 64 | o `digest` do Next, que **só existe em erro de server component** — é a chave para o stack no log do servidor. Um crash no cliente chega sem ele |
+| `path` | pathname: começa em `/`, sem `?` e sem `#`, até 512 | a query carregaria o termo de busca (mesma regra do `/api/events`). É o único ponteiro quando não há `digest` |
+
+**Sem stack** — o do navegador é minificado e não localiza nada. **Sem
+identidade** — `z.object` descarta qualquer campo não declarado, e há guarda
+afirmando isso pelo schema.
+
+**O que vira linha:** `origin: WEB`, `severity: ERROR`, `code: CLIENT_ERROR`,
+`category: internal`, e o **`route` é o padrão da página, nunca o `path` cru**
+— a API normaliza `/pt-BR/news/3f2a…` para `/[locale]/news/[id]`, contra o
+conjunto derivado das `page.tsx` do web; o que não casa vai para `unmatched`.
+`digest` e o `path` cru vão no `context`. Dois erros distintos na mesma página
+na mesma hora são **uma** linha, com a mensagem do primeiro.
+
+**Resposta 202:** `{ "data": { "accepted": true } }`
+
+`202` e não `201`: o relato entrou no **buffer** do `ErrorEvent`, que vai ao
+banco a cada 30 s (ou no desligamento, com prazo). Nada foi criado no instante
+da resposta.
+
+**Resposta 400:** `message` vazia ou acima do teto, `digest` acima do teto,
+`path` com query, com fragmento ou sem a barra inicial. **Nada é gravado.**
+
+**Resposta 429:** o balde de 10/min — e é o único código desta rota que o
+cliente tem motivo para ver.
+
+**Não leva `Cache-Control`**, pela mesma razão do `/api/events`.
+
+**Retenção:** a do `ErrorEvent` — 14 dias, pela etapa 8 do pipeline diário.
+
+---
+
 ## Pipeline (admin)
 
 > **A mesma consulta do `/api/dev/logs`, por outra porta.** As rotas abaixo
@@ -1164,7 +1294,9 @@ dias e briefing aos 90 — não há job manual a disparar.
         "startedAt": "ISO string",
         "completedAt": "ISO string | null",
         "durationSeconds": 90,
-        "eventCount": 5
+        "eventCount": 5,
+        "outcome": "SUCCESS | SUCCESS_DEGRADED | FAILED | null",
+        "degradedBy": [6, 7.5]
       }
     ],
     "recentErrors": [ "...runs com status FAILED" ]
@@ -1172,6 +1304,34 @@ dias e briefing aos 90 — não há job manual a disparar.
   "meta": { "total": 31 }
 }
 ```
+
+**`outcome` e `degradedBy` são derivados na leitura, não colunas** (Fase 8 do
+plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
+pipeline não é: quatro etapas engolem a própria falha com `WARN` e o run segue
+`SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas), o
+fallback para o Groq é um `WARN` da etapa 6, a colheita degradada é um `WARN`
+da etapa 1 e, desde a Fase 11, a escrita da saúde por fonte que falhou é um
+`WARN` da etapa 4. A regra:
+
+| `outcome` | Quando |
+|---|---|
+| `SUCCESS` | `status: SUCCESS` e nenhum `WARN` que conte |
+| `SUCCESS_DEGRADED` | `status: SUCCESS` e pelo menos um `WARN` que conte |
+| `FAILED` | `status: FAILED` |
+| `null` | `status: RUNNING` — ainda não há desfecho |
+
+**Todo `WARN` conta, com uma exceção:** o da etapa 1 (`Collection degraded`)
+carrega `warnings[]`, e só conta se algum aviso for mais que `feed-empty` —
+um feed que publicou nada num dia é a classe "publicou devagar", e marcá-la
+como degradação faria `SUCCESS_DEGRADED` virar o estado normal. `degradedBy` é
+a lista das etapas cujo `WARN` contou, em ordem e sem repetição (vazia quando
+não houve; preenchida também num run `FAILED`, porque a colheita degradada
+antes da falha continua verdade). A listagem lê os `WARN` dos runs da página
+numa consulta só; o detalhe deriva dos eventos que já traz.
+
+**O dia em que nada rodou não está aqui.** A API lista o que existe; quem
+deriva `NEVER_RAN` é a faixa de 30 dias da `/admin`, pela ausência de run num
+dia UTC.
 
 `recentErrors` **não** é um recorte de `runs`: é o mesmo filtro com
 `status: 'FAILED'`, então uma falha de três dias atrás aparece ali mesmo quando
@@ -1187,8 +1347,29 @@ recorte inteiro sem filtrar por status.
 
 ### GET /api/admin/pipeline/runs/:pipelineId
 
-Detalhe de um run: o resumo mais os **eventos por etapa** (Stage 1–9, nível
-INFO/WARN/ERROR, mensagem e contexto JSON).
+Detalhe de um run: o resumo mais os **eventos por etapa** (0 a 9.5 — a 0 é o
+run inteiro, no enterro do run morto; a 9.5 é a suíte de invariantes, com o
+relatório no `context` —, nível INFO/WARN/ERROR, mensagem e contexto JSON).
+
+**O evento final da etapa 9 (`Pipeline completed successfully`) resume o run**
+(Fase 8) — é a linha que o detalhe abre primeiro:
+
+```json
+{
+  "collected": 389, "sources": 45, "deduped": 377, "persisted": 349, "selected": 15,
+  "provider": "gemini", "model": "gemini-2.5-flash", "promptVersion": "v2",
+  "briefingId": "uuid", "briefingChars": 6412, "sourcesCited": 15,
+  "newsletter": { "total": 3, "sent": 3, "failed": 0 },
+  "renormalized": { "scanned": 8190, "changed": 0 },
+  "degradedBy": [],
+  "durationMs": 24815
+}
+```
+
+`newsletter` e `renormalized` valem `"failed"` quando a etapa lançou — o
+service da newsletter não distingue "pulado por idempotência" de "zero
+assinantes" (devolve os números do log do dia nos dois casos), então
+"devolveu" e "lançou" é a única distinção que a etapa sabe fazer.
 
 **Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
 **Rate limit:** o global, 100 req/min
@@ -1216,6 +1397,271 @@ INFO/WARN/ERROR, mensagem e contexto JSON).
 
 **Erros:** `401` sem sessão · `403` sem `role: ADMIN` · `404` id inexistente ·
 `400` id fora do formato UUID
+
+### GET /api/admin/errors
+
+O `ErrorEvent` da Fase 4, **agrupado por fingerprint** na janela — a primeira
+leitura da tabela, e o que a aba de segurança (`/admin/security`) desenha.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query:** `window` = `24h` (padrão) | `7d`
+
+**Resposta 200:** tipada em `packages/types` como `ApiResponse<ErrorSummary>`.
+
+```json
+{
+  "data": {
+    "window": { "key": "24h", "hours": 24, "since": "ISO string", "until": "ISO string" },
+    "total": 1042,
+    "distinctFingerprints": 6,
+    "byCategory": [
+      { "category": "upstream", "count": 1000 },
+      { "category": "database", "count": 0 },
+      { "category": "validation", "count": 0 },
+      { "category": "authorization", "count": 40 },
+      { "category": "contract", "count": 0 },
+      { "category": "internal", "count": 2 }
+    ],
+    "bySeverity": [ { "severity": "WARN", "count": 1040 }, { "severity": "ERROR", "count": 2 }, { "severity": "FATAL", "count": 0 } ],
+    "byOrigin": [ { "origin": "API", "count": 42 }, { "origin": "PIPELINE", "count": 1000 }, { "origin": "WEB", "count": 0 }, { "origin": "INVARIANT", "count": 0 } ],
+    "groups": [
+      {
+        "fingerprint": "API:WARN:AUTH_TOKEN_INVALID:/api/account",
+        "origin": "API",
+        "severity": "WARN",
+        "code": "AUTH_TOKEN_INVALID",
+        "category": "authorization",
+        "route": "/api/account",
+        "statusCode": 401,
+        "message": "Invalid or missing token",
+        "count": 40,
+        "hours": 3,
+        "firstSeenAt": "ISO string",
+        "lastSeenAt": "ISO string",
+        "lastRequestId": "uuid",
+        "pipelineLogId": null
+      }
+    ],
+    "truncated": false
+  }
+}
+```
+
+**A janela é alinhada à hora cheia.** A tabela guarda um balde por hora, então
+`since` é a hora cheia que contém `until − 24 h` (ou `− 7 d`): "as últimas N
+horas, mais o que sobrar da hora em que começam". Comparar contra `until −
+24 h` cru deixava o primeiro balde de fora inteiro — até 59 min de "24h"
+sumiam (verificação pós-merge do 5b). O `since` da resposta é o valor de fato
+usado.
+
+Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
+`hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
+crônico), e `message`, `lastSeenAt` e `lastRequestId` são da hora mais
+recente. **`route` é o escopo da falha, e tem quatro formas** — o padrão da
+rota na API (`/api/news/:id`, nunca a URL), a etapa no pipeline (`stage-8.5`),
+desde a Fase 6 o id da invariante (`retention.news`) quando `origin` é
+`INVARIANT`, e desde a Fase 7c o **padrão da página do web**
+(`/[locale]/news/[id]`, nunca o pathname) quando `origin` é `WEB`; as quatro
+são conjuntos finitos, que é o que dá teto à tabela. `byCategory` traz **sempre as seis** categorias da taxonomia, na
+ordem dela, com zero onde não houve — a rosquinha tem fatias fixas. `groups`
+vem mais recente primeiro.
+
+> **A agregação é em memória, com teto de 5.000 linhas lidas** (`truncated`
+> avisa). A tabela é coalescida por construção — uma linha por
+> `(fingerprint, hora)` —, então 7 dias são no máximo *fingerprints × 168*
+> linhas, e o §16 do plano já dá o gatilho de fingerprint granular demais em
+> 2.000 linhas em 14 dias. **Gatilho para mudar a leitura:** p95 desta rota
+> acima de 1.000 ms no `/api/metrics/http`.
+
+**Erros:** `400` `window` fora de `24h`/`7d` · `401` sem sessão · `403` sem
+`role: ADMIN`
+
+### GET /api/admin/audit
+
+A trilha de ação de admin: quem disparou o pipeline, quem apagou o quê. Uma
+linha por ocorrência, mais recente primeiro.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query:** `days` (1 a 365, padrão 30 — o teto é a retenção) · `limit` (1 a
+200, padrão 50)
+
+**Resposta 200:** tipada como `ApiResponse<AuditTrail>`.
+
+```json
+{
+  "data": {
+    "window": { "days": 30, "since": "ISO string" },
+    "total": 312,
+    "events": [
+      {
+        "id": "uuid",
+        "actorId": "uuid",
+        "action": "pipeline.triggered",
+        "targetId": "uuid | null",
+        "outcome": "started",
+        "requestId": "uuid | null",
+        "context": { "pipelineId": "uuid", "startedAt": "ISO string" },
+        "createdAt": "ISO string"
+      }
+    ]
+  }
+}
+```
+
+`total` conta a janela inteira, não o tamanho de `events`. **Só o `actorId`
+sai** — nenhum e-mail, como a tabela: quem precisar do nome junta com `User`
+na tela. As ações existentes são `pipeline.triggered` (`outcome` = o do
+disparo; `targetId` só quando `started`) e `news.deleted` (`outcome` =
+`deleted` | `not-found`); o conjunto fechado mora em
+`services/audit.service.ts`, com guarda.
+
+**Erros:** `400` `days`/`limit` fora do intervalo · `401` sem sessão · `403`
+sem `role: ADMIN`
+
+---
+
+### GET /api/admin/sources
+
+A saúde de cada fonte de notícia, um dia de cada vez — a série de `fetched`,
+`kept`, desfecho e latência por fonte na janela (§15 do plano de
+observabilidade, Fase 11). É o que responde "há quantos dias a
+Superinteressante está fora?", "esta fonte entrega menos do que entregava?" e
+"vale a pena trocar este provedor?".
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+**Query:** `days` (1 a 90, padrão 30 — o teto é a retenção)
+
+**Resposta 200:** tipada como `ApiResponse<SourceHealthReport>`.
+
+```json
+{
+  "data": {
+    "window": { "days": 30, "since": "ISO string", "until": "ISO string" },
+    "sources": [
+      {
+        "source": "Superinteressante",
+        "kind": "RSS",
+        "days": [
+          {
+            "day": "2026-09-15T00:00:00.000Z",
+            "outcome": "FAILED",
+            "fetched": 0,
+            "kept": 0,
+            "latencyMs": 30000,
+            "failureReason": "fetch failed: ETIMEDOUT",
+            "pipelineLogId": "uuid"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Uma linha por `(source, dia)`, escrita depois da etapa 4 do pipeline; o
+último run do dia representa o dia.** `source` é o `name` de
+`rss-sources.ts` ou `newsdata` (`kind: AGGREGATOR` — a NewsData entra como
+**uma** fonte e agrega dezenas de veículos); `fetched` é o que a fonte trouxe
+no run; **`kept` é quantos desses entraram no acervo naquele dia** — a coluna
+que decide trocar provedor, e nunca maior que `fetched`; `outcome` é `OK` ·
+`EMPTY` (respondeu e não tinha nada — o normal de feed especializado, não
+degrada o run) · `FAILED` (lançou, ou o provider caiu por cima dela);
+`failureReason` só em `FAILED`, redigida; `pipelineLogId` é o run que
+escreveu a linha, sem FK.
+
+**Só os dias com linha saem.** "Não tentada" — a fonte removida da lista, o
+dia sem run, o run que morreu antes da etapa 4 — é a **ausência** de linha,
+derivada no web como o `NEVER_RAN` do run; a API não emite um quarto valor.
+Toda fonte com linha na janela aparece, inclusive a que saiu de
+`rss-sources.ts` no meio dela: a série termina no dia da remoção. `since` e
+`until` são meia-noite UTC do primeiro e do último dia, inclusive; `day`
+lê-se em UTC, como `Article.date`. Médias, variação e sequência de falhas
+são derivadas no web.
+
+**Erros:** `400` `days` fora do intervalo · `401` sem sessão · `403` sem
+`role: ADMIN`
+
+### GET /api/admin/invariants
+
+O último relatório de invariantes — o evento da **etapa 9.5** do run mais
+recente (§10 do plano de observabilidade, Fase 6). Uma invariante é a pergunta
+"o que deveria ter acontecido aconteceu?", feita por consulta agregada uma vez
+por run, depois de a etapa 9 gravar a métrica do dia: a retenção de cada
+tabela que a etapa 8 expurga, um briefing por dia, o run morto em `RUNNING`, o
+dia com run e sem `DailyMetric`, a newsletter que não entrega.
+
+**A rota lê o evento; nunca roda a suíte.** Atualizar a tela não pode disparar
+doze consultas em 0.1 vCPU — a suíte roda uma vez por run, e é o pipeline quem
+paga.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+
+**Resposta 200:** tipada como `ApiResponse<InvariantReport | null>`.
+
+```json
+{
+  "data": {
+    "checkedAt": "ISO string",
+    "pipelineLogId": "uuid",
+    "checked": 12,
+    "violated": 1,
+    "errored": 0,
+    "durationMs": 61,
+    "budgetMs": 2000,
+    "results": [
+      {
+        "id": "retention.news",
+        "status": "VIOLATED",
+        "measure": "oldest",
+        "observed": "2026-07-01T09:00:00.000Z",
+        "expected": "2026-08-16T11:01:00.000Z",
+        "detail": null,
+        "error": null,
+        "durationMs": 5
+      },
+      {
+        "id": "metrics.day_recorded",
+        "status": "OK",
+        "measure": "count",
+        "observed": 0,
+        "expected": 0,
+        "detail": null,
+        "error": null,
+        "durationMs": 7
+      }
+    ]
+  }
+}
+```
+
+**`data` é `null` antes do primeiro run com a etapa** — "nenhuma verificação
+ainda" é estado, não erro. `checkedAt` é o `createdAt` do evento e
+`pipelineLogId` o run em que a suíte rodou. `results` vem sempre completo, na
+ordem da tabela de definições (`services/invariants.service.ts`): as **doze**
+são `retention.news` · `retention.pipelineLog` · `retention.article` ·
+`retention.productEvent` · `retention.errorEvent` · `retention.auditEvent` ·
+`retention.sourceHealth` · `briefing.one_per_day` · `briefing.has_sources` ·
+`pipeline.no_stale_running` · `metrics.day_recorded` · `newsletter.delivered`.
+
+`status` é `OK` · `VIOLATED` · `ERROR` — o terceiro é a pergunta que não pôde
+ser feita (a consulta lançou; `error` traz a mensagem, redigida), e é o único
+que degrada o run. `measure` diz como ler os dois números: `count` compara
+`observed` com `expected` por igualdade; `oldest` é o instante mais antigo na
+tabela (ISO, `null` na tabela vazia), que tem de ser `>= expected` — o limiar é
+a retenção mais um dia. `detail` lista o que faltou quando há lista (os dias
+sem métrica). `durationMs` de cada uma e da suíte; `budgetMs` é o teto da §10
+(2 s), e estourá-lo é uma invariante que virou varredura.
+
+**Cada violação é também um `ErrorEvent`** (`origin: INVARIANT`, `WARN`,
+`code: INVARIANT_VIOLATED`, `route` = o id) — aparece em `GET
+/api/admin/errors`, uma linha por invariante por run.
+
+**Erros:** `401` sem sessão · `403` sem `role: ADMIN` · `500` quando o
+`context` do evento não parseia (contrato quebrado entre quem grava e quem lê)
 
 ---
 
@@ -1255,7 +1701,9 @@ INFO/WARN/ERROR, mensagem e contexto JSON).
         "startedAt": "ISO string",
         "completedAt": "ISO string | null",
         "durationSeconds": 90,
-        "eventCount": 5
+        "eventCount": 5,
+        "outcome": "SUCCESS | SUCCESS_DEGRADED | FAILED | null",
+        "degradedBy": [6, 7.5]
       }
     ],
     "recentErrors": [ ...runs com status FAILED ]
@@ -1264,10 +1712,14 @@ INFO/WARN/ERROR, mensagem e contexto JSON).
 }
 ```
 
+`outcome` e `degradedBy` são os da Fase 8, derivados na leitura — a regra está
+em `GET /api/admin/pipeline/runs`, que compartilha o schema com esta porta.
+
 ### GET /api/dev/logs/:pipelineId
 
-Detalhe completo de um run: log resumido + **eventos por etapa** (Stage 1–9,
-nível INFO/WARN/ERROR, mensagem e contexto JSON).
+Detalhe completo de um run: log resumido + **eventos por etapa** (0 a 9.5,
+nível INFO/WARN/ERROR, mensagem e contexto JSON — a mesma lista da porta de
+admin).
 
 **Auth:** `Authorization: Bearer <JOB_SECRET>`  
 **Rate limit:** 60 req/min

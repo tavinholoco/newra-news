@@ -1,7 +1,16 @@
 %% Diagrama Entidade-Relacionamento — Newra News
 %% ---
-%% Atualizado em 01/09/2026: as 12 tabelas do `schema.prisma`, depois das
-%% Fases 0–12 da V2. O de 16/08 documentava quatro.
+%% Atualizado em 15/09/2026: **todas** as tabelas do `schema.prisma` — o de
+%% 16/08 documentava quatro, e o de 01/09 ganhou as oito que faltavam. A
+%% ERROR_EVENT entrou com a Fase 4 do plano de observabilidade; AUDIT_EVENT e
+%% DAILY_UPTIME com a Fase 5, que também tirou o `aiTokensUsed` de
+%% DAILY_METRIC — e a guarda passou a comparar **coluna a coluna**, porque a
+%% comparação por entidade deixava a coluna morta no desenho. SOURCE_HEALTH
+%% entrou com a Fase 11 (PR 11a).
+%% ---
+%% A contagem saiu daqui de propósito: número que descreve uma coleção apodrece
+%% no primeiro `model` novo, e quem garante que este desenho está completo é o
+%% `diagram-drift.test.ts`, que compara com a lista do schema.
 %% ---
 %% **Duas relações são chave estrangeira de verdade**, as duas com
 %% `onDelete: Cascade` — BRIEFING_SOURCE → ARTICLE e PIPELINE_EVENT →
@@ -14,7 +23,10 @@
 %% PipelineStatus (RUNNING · SUCCESS · FAILED) · PipelineEventLevel
 %% (INFO · WARN · ERROR) · SubscriberStatus (ACTIVE · UNSUBSCRIBED) ·
 %% UserRole (USER · ADMIN) · FavoriteItemType (NEWS · ARTICLE) ·
-%% ThemePreference (LIGHT · DARK · SYSTEM).
+%% ThemePreference (LIGHT · DARK · SYSTEM) · ErrorOrigin (API · PIPELINE ·
+%% WEB · INVARIANT) · ErrorSeverity (WARN · ERROR · FATAL) · SourceKind
+%% (RSS · AGGREGATOR) · SourceOutcome (OK · EMPTY · FAILED — "não tentada" é
+%% ausência de linha, derivada no web como o NEVER_RAN do run).
 erDiagram
     NEWS {
         string id PK "uuid"
@@ -134,7 +146,6 @@ erDiagram
         boolean articleGenerated
         int pipelineDuration "ms, nullable"
         string aiProvider "gemini ou groq, nullable"
-        int aiTokensUsed "nullable"
         int pipelineErrors
         int newsApiCount "NewsData.io"
         int rssCount
@@ -153,16 +164,72 @@ erDiagram
         datetime createdAt
     }
 
+    ERROR_EVENT {
+        string id PK "uuid"
+        string fingerprint "identidade — origin + severity + code + route"
+        datetime windowStart "hora cheia UTC — 1 linha por falha por hora"
+        ErrorOrigin origin "API · PIPELINE · WEB · INVARIANT"
+        ErrorSeverity severity "WARN · ERROR · FATAL"
+        string code "literal de ERROR_CODES — texto, não enum do banco"
+        string category "literal de ERROR_CATEGORIES"
+        int count "ocorrências coalescidas na janela"
+        string route "escopo: padrão da rota na API, etapa no pipeline"
+        int statusCode "nullable"
+        string message "redigida e truncada"
+        string firstRequestId "as duas pontas da janela — acham a linha do log"
+        string lastRequestId
+        string pipelineLogId "último run visto — aproximado, sem FK"
+        json context "amostra escalar, nullable"
+        datetime firstSeenAt
+        datetime lastSeenAt
+    }
+
+    AUDIT_EVENT {
+        string id PK "uuid"
+        string actorId "User.id — ponteiro lógico, sem FK: a trilha sobrevive ao ator"
+        string action "conjunto fechado no código — texto, não enum do banco"
+        string targetId "notícia apagada ou run disparado, nullable"
+        string outcome "o que a rota devolveu — separa clicou de aconteceu, nullable"
+        string requestId "acha a linha do log, nullable"
+        json context "amostra escalar, nullable"
+        datetime createdAt "1 linha por ocorrência — auditoria não coalesce"
+    }
+
+    DAILY_UPTIME {
+        string id PK "uuid"
+        datetime date UK "dia UTC — 1 linha por dia, incrementada pelo heartbeat"
+        int seconds "acumulado do dia; soma do mês / 750 h é o arco do plano"
+        datetime updatedAt
+    }
+
+    SOURCE_HEALTH {
+        string id PK "uuid"
+        string source "name de rss-sources.ts ou newsdata — texto, sem FK: a fonte removida continua na série"
+        SourceKind kind "RSS · AGGREGATOR"
+        datetime day "dia UTC — 1 linha por (fonte, dia), e o último run do dia representa o dia"
+        int fetched "itens que a fonte trouxe no run"
+        int kept "dos fetched, quantos entraram no acervo naquele dia — a coluna que decide trocar provedor"
+        SourceOutcome outcome "OK · EMPTY · FAILED"
+        string failureReason "redigida e truncada, nullable"
+        int latencyMs "do fetch ao parse, nullable"
+        string pipelineLogId "o run que escreveu a linha — sem FK, nullable"
+    }
+
     ARTICLE ||--o{ BRIEFING_SOURCE : "sources — FK, cascade"
     PIPELINE_LOG ||--o{ PIPELINE_EVENT : "events — FK, cascade"
 
     BRIEFING_SOURCE }o--o| NEWS : "sourceUrl (lógica)"
     PIPELINE_LOG }o--o| ARTICLE : "articleId (lógica)"
+    ERROR_EVENT }o--o| PIPELINE_LOG : "pipelineLogId — último visto, sem FK"
+    SOURCE_HEALTH }o--o| PIPELINE_LOG : "pipelineLogId — o run que escreveu a linha, sem FK"
     NEWSLETTER_LOG }o--o| ARTICLE : "articleId (lógica)"
     ARTICLE ||--o| DAILY_METRIC : "1 briefing por dia ↔ 1 métrica por dia"
 
     USER ||--o| USER_PREFERENCE : "userId (lógica)"
     USER ||--o{ FAVORITE : "userId (lógica)"
     USER ||--o| SUBSCRIBER : "userId (lógica, nullable)"
+    USER ||--o{ AUDIT_EVENT : "actorId (lógica — sem FK de propósito)"
     FAVORITE }o--o| NEWS : "itemId quando itemType = NEWS"
     FAVORITE }o--o| ARTICLE : "itemId quando itemType = ARTICLE"
+    AUDIT_EVENT }o--o| NEWS : "targetId quando action = news.deleted"
+    AUDIT_EVENT }o--o| PIPELINE_LOG : "targetId quando action = pipeline.triggered"

@@ -44,17 +44,26 @@ const SRC_DIR = join(__dirname, '../../src');
  * o mesmo `weeklyMetricsSchema` é reusado dentro de `dashboardMetricsSchema`,
  * que é o que a tela de admin lê e que tem asserção própria. A entrada aqui é
  * sobre a rota `/api/metrics/weekly`, que nenhuma tela chama.
+ *
+ * **`httpMetricsResponseSchema` saiu desta lista na Fase 5.** O motivo escrito
+ * era "lida por operador, sem tela"; no instante em que a saturação passou a
+ * existir para ser desenhada, o motivo deixou de ser verdade — e a terceira
+ * asserção abaixo é o que impede a exceção de sobreviver ao contrato.
  */
 const WITHOUT_SHARED_TYPE: Record<string, string> = {
   removeFavoriteResponseSchema: 'booleano de confirmação, declarado inline no web',
   unsubscribeResponseSchema: 'booleano de confirmação, declarado inline no web',
+  // O reporter do web (Fase 7b) é fire-and-forget com `keepalive` e nunca lê
+  // o corpo — dentro de um error boundary, ler a resposta é uma segunda chance
+  // de falhar. O **corpo da requisição** tem contrato (`ClientErrorReport`,
+  // asserido em `routes/errors/schemas.ts`); a resposta não tem leitor.
+  clientErrorAcceptedSchema: 'booleano de aceite (202); o reporter do cliente não lê a resposta',
   sendNewsletterResponseSchema: 'disparo de job, sem consumidor no web',
   jobTriggerResponseSchema: 'disparo de job, sem consumidor no web',
   renormalizeResponseSchema: 'disparo de job, sem consumidor no web',
   pipelineStatusResponseSchema: 'status de job, lido por operador',
   healthResponseSchema: 'sonda de plataforma (Render), sem consumidor no web',
   providersHealthResponseSchema: 'sonda de operador, sem consumidor no web',
-  httpMetricsResponseSchema: 'observabilidade lida por operador, sem tela',
   weeklyMetricsResponseSchema: 'rota sem tela; o mesmo schema é coberto dentro do dashboard',
   monthlyMetricsResponseSchema: 'rota sem tela, sem tipo compartilhado equivalente',
 };
@@ -132,8 +141,14 @@ function collectSuccessResponseSchemas(): string[] {
     .filter((file) => !file.endsWith('schemas.ts'))
     .flatMap((file) => responseBlocks(stripComments(readFileSync(file, 'utf8'))))
     .flatMap((block) =>
-      [...block.matchAll(/\b(?:200|201|204)\s*:\s*([A-Za-z_$][\w$]*)/g)].map(
-        (match) => match[1] as string,
+      // **Todo `2xx`, e não uma lista de três.** A primeira versão varria
+      // `200|201|204`, e o `202` do `POST /api/errors/client` (Fase 7c)
+      // passou por ela sem uma linha vermelha — uma rota nova com resposta
+      // de sucesso fora da lista nascia sem contrato e sem ninguém perceber,
+      // que é exatamente o buraco que esta suíte existe para fechar. Status
+      // de sucesso é a classe, não três números.
+      [...block.matchAll(/\b(2\d\d)\s*:\s*([A-Za-z_$][\w$]*)/g)].map(
+        (match) => match[2] as string,
       ),
     );
 

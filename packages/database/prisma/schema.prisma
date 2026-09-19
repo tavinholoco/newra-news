@@ -87,16 +87,25 @@ model PipelineLog {
   startedAt   DateTime        @default(now())
   completedAt DateTime?
   events      PipelineEvent[]
+
+  /// A consulta que toda leitura de run faz: os últimos, por data de início —
+  /// `getDevLogs` ordena por `startedAt desc`, e a etapa 8 apaga por
+  /// `startedAt`. Esta tabela viveu nove fases **sem índice nenhum**, com o
+  /// Postgres varrendo tudo para devolver 30 linhas.
+  @@index([startedAt])
+  /// A dos dois filtros que existem: `recentErrors` (só `FAILED`, na mesma
+  /// ordem) e a idempotência do disparo (`SUCCESS`/`RUNNING` dentro do dia).
+  @@index([status, startedAt])
 }
 
 model PipelineEvent {
-  id            String              @id @default(uuid())
+  id            String             @id @default(uuid())
   pipelineLogId String
-  stage         Float               // Stage 1–9 (ex.: 7.5 = newsletter)
+  stage         Float // Stage 1–9 (ex.: 7.5 = newsletter)
   level         PipelineEventLevel
   message       String
   context       Json?
-  createdAt     DateTime            @default(now())
+  createdAt     DateTime           @default(now())
 
   pipelineLog PipelineLog @relation(fields: [pipelineLogId], references: [id], onDelete: Cascade)
 
@@ -202,7 +211,6 @@ model DailyMetric {
   articleGenerated Boolean  @default(false)
   pipelineDuration Int?
   aiProvider       String?
-  aiTokensUsed     Int?
   pipelineErrors   Int      @default(0)
   newsApiCount     Int      @default(0)
   rssCount         Int      @default(0)
@@ -239,6 +247,91 @@ model ProductEvent {
   @@index([type, occurredAt])
   /// A do expurgo, e a de "o que aconteceu neste dia".
   @@index([occurredAt])
+}
+
+/// Falha registrada de forma durável (§8 do plano de observabilidade).
+///
+/// **Uma linha por `(fingerprint, windowStart)`, nunca por ocorrência.** Um 500
+/// que dispara 10.000 vezes numa hora é *uma* linha com `count: 10000`. O que
+/// isso compra é o teto: a tabela cresce com *falhas distintas × 24*, e não com
+/// o tráfego — que é a diferença entre caber num plano free e não caber.
+///
+/// **O custo vai escrito aqui porque é real: não dá para reconstruir a
+/// ocorrência individual.** O que sobrevive é `count`, as duas pontas da janela
+/// (`firstRequestId`/`lastRequestId`, que acham a linha de log correspondente)
+/// e um `context` amostrado. Quem precisar da ocorrência exata vai ao log —
+/// enquanto ele ainda existir, que é justamente o problema que esta tabela
+/// resolve.
+///
+/// **Sem FK para `PipelineLog`, e o motivo não é a cascata.** O `ErrorEvent`
+/// vive 14 dias e o `PipelineLog` 30, então o erro sempre morre primeiro e uma
+/// cascata nunca alcançaria linha viva. O motivo é o coalescimento: uma linha
+/// cobre uma hora e pode acumular ocorrências de mais de um run, então
+/// `pipelineLogId` é o **último visto** — um ponteiro aproximado, não uma
+/// relação. Uma FK afirmaria um vínculo que a agregação torna falso, e o banco
+/// passaria a impedir o expurgo do run por causa dele.
+///
+/// **`code` e `category` são texto, não enum do Postgres.** O conjunto fechado
+/// mora em `apps/api/src/utils/errors.ts`, com guarda derivada do parser
+/// (`error-taxonomy.test.ts`); repeti-lo aqui criaria uma segunda fonte de
+/// verdade e cobraria uma migration por código novo — cada fase seguinte deste
+/// plano acrescenta pelo menos um. E `origin: PIPELINE` traz falha de terceiro,
+/// que não passa pelo tuple da API.
+///
+/// Retenção de 14 dias, executada pela etapa 8 do pipeline diário — e são 14,
+/// não 30, porque esta tabela responde *"o que está quebrado agora"*, enquanto
+/// `PipelineLog` e `DailyMetric` respondem *"estava quebrado no mês passado"*.
+/// Quem escreve é `services/error-event.service.ts`, sempre pelo buffer.
+model ErrorEvent {
+  id          String        @id @default(uuid())
+  /// Identidade da falha: o que separa uma de outra ao agrupar. Derivado de
+  /// `origin`, `severity`, `code` e `route` — nunca de id de recurso, que
+  /// trocaria o teto da tabela por "uma linha por notícia".
+  ///
+  /// **A `severity` entrou na implementação**, e não estava no desenho: o
+  /// pipeline registra a mesma etapa como `WARN` (degradou) e como `ERROR`
+  /// (abortou), e sem ela as duas cairiam na mesma linha — com a segunda
+  /// apagando a gravidade da primeira na tela.
+  fingerprint String
+  /// Hora cheia em UTC. É a segunda metade da chave do upsert.
+  windowStart DateTime
+  origin      ErrorOrigin
+  severity    ErrorSeverity
+  /// Literal de `ERROR_CODES` quando vem da API; nome de falha do pipeline nos
+  /// outros casos.
+  code        String
+  /// Literal de `ERROR_CATEGORIES`.
+  category    String
+
+  count Int @default(1)
+
+  /// **O padrão da rota (`/api/news/:id`), nunca a URL crua.** A URL traria o
+  /// id e a query string para dentro de uma coluna indexada, e cada uma viraria
+  /// um fingerprint próprio.
+  route          String?
+  statusCode     Int?
+  /// Já redigida e truncada na escrita — a redação é a mesma do logger.
+  message        String
+  /// As duas pontas da janela, que é o que liga esta linha ao log.
+  firstRequestId String?
+  lastRequestId  String?
+  /// Último run visto, sem FK (ver acima).
+  pipelineLogId  String?
+  /// Amostra escalar da circunstância (`ErrorContext`), não objeto aninhado.
+  context        Json?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  /// O alvo do upsert, e é ele que impede a segunda linha da mesma falha na
+  /// mesma hora. Serve também a busca por prefixo de `fingerprint`, e é por
+  /// isso que **não** existe um `@@index([fingerprint])` ao lado.
+  @@unique([fingerprint, windowStart])
+  /// A do expurgo e a da tela: a janela de 24 h / 7 d.
+  @@index([windowStart])
+  /// As duas dimensões pelas quais o painel da Fase 5 filtra.
+  @@index([origin, windowStart])
+  @@index([severity, windowStart])
 }
 
 enum Category {
@@ -289,4 +382,198 @@ enum ThemePreference {
   LIGHT
   DARK
   SYSTEM
+}
+
+/// De onde a falha veio. Enum de verdade — ao contrário de `code`, este
+/// conjunto é da forma do sistema, não da taxonomia que cresce a cada fase.
+enum ErrorOrigin {
+  API
+  PIPELINE
+  WEB
+  INVARIANT
+}
+
+/// `FATAL` é o que escreve na hora, sem passar pelo buffer: são poucos por dia,
+/// e perder um para um `SIGTERM` é perder o único registro do que matou o
+/// processo — que é exatamente a forma do incidente de 03/09/2026.
+enum ErrorSeverity {
+  WARN
+  ERROR
+  FATAL
+}
+
+/// De que tipo é a fonte. `AGGREGATOR` é a NewsData.io, que entra como **uma**
+/// fonte e agrega dezenas de veículos — o limite honesto da §15: dividi-la
+/// por veículo é pré-requisito só no dia em que a decisão for trocá-la por
+/// outro agregador.
+enum SourceKind {
+  RSS
+  AGGREGATOR
+}
+
+/// O desfecho de uma fonte num dia. `EMPTY` é a fonte que respondeu e não
+/// tinha nada — o normal de feed especializado em dia comum, e o que **não**
+/// degrada o run (`feed-empty`); `FAILED` é a que lançou, ou o provider que
+/// caiu por cima dela. "Não tentada" não está aqui: é a ausência de linha.
+enum SourceOutcome {
+  OK
+  EMPTY
+  FAILED
+}
+
+/// Ação de admin registrada de forma durável — quem disparou o pipeline, quem
+/// apagou o quê (§9 do plano de observabilidade, decidido em 12/09/2026).
+///
+/// **É o `authz_admin` do vocabulário do OWASP (§3.2)**, e até esta tabela uma
+/// notícia apagada não deixava rastro de quem a apagou: `request.user.sub`
+/// chegava à rota e morria com a resposta. A linha de log do Render é o único
+/// outro registro, e ela rola para fora.
+///
+/// **Uma linha por ocorrência — ao contrário do `ErrorEvent`, de propósito.**
+/// Auditoria existe para responder *qual* clique, de *quem*, *quando*;
+/// coalescer por hora apagaria exatamente isso. O teto vem de outro lugar: só
+/// um humano com sessão ADMIN produz linha, então a tabela cresce com cliques
+/// de admin, e não com tráfego.
+///
+/// **`actorId` sem FK para `User`**, como todo `userId` deste schema
+/// (`Favorite`, `UserPreference`, `Subscriber`). Aqui há um motivo a mais: a
+/// trilha tem de sobreviver ao ator. Não há exclusão de conta no produto hoje,
+/// e quando houver, o registro de quem apagou o quê não pode sumir junto. E
+/// **só o id** — nenhum e-mail: quem precisar do nome junta com `User` na
+/// leitura, e a tabela fica sem dado pessoal, como o `ErrorEvent`.
+///
+/// **`action` é texto, não enum do Postgres**, pela mesma regra do
+/// `ErrorEvent.code`: o conjunto fechado mora no código, com guarda, e cada
+/// mutação de admin nova acrescentaria um valor — enum aqui cobraria uma
+/// migration por ação, além da rota e das três guardas que ela já custa.
+///
+/// **Quem escreve é a API, no PR 5b** — e o disparo do pipeline exige que o
+/// BFF encaminhe o ator, porque a cadeia sessão → `CRON_SECRET` →
+/// `JOB_SECRET` chega à API sem usuário nenhum. O `actorId` é obrigatório de
+/// propósito: linha de auditoria sem ator não é auditoria.
+///
+/// Retenção de 365 dias, na etapa 8 — mais que qualquer outra tabela, porque
+/// log de segurança responde perguntas feitas meses depois.
+model AuditEvent {
+  id        String  @id @default(uuid())
+  /// `User.id` de quem agiu — ponteiro lógico, sem FK (ver acima).
+  actorId   String
+  /// Literal do conjunto fechado do código (`pipeline.triggered`,
+  /// `news.deleted`, …), nunca interpolado.
+  action    String
+  /// O alvo, quando há: o id da notícia apagada, o `PipelineLog.id` do run
+  /// disparado. Nulo quando a ação não criou nada (disparo que devolveu
+  /// `already-succeeded-today`).
+  targetId  String?
+  /// O desfecho que a rota devolveu — o `outcome` do disparo, `deleted` ou
+  /// `not-found` na exclusão. É o que separa "clicou" de "aconteceu".
+  outcome   String?
+  /// O `x-request-id` da requisição, que acha a linha de log.
+  requestId String?
+  /// Amostra escalar, não objeto aninhado — mesma regra do `ErrorEvent`.
+  context   Json?
+
+  createdAt DateTime @default(now())
+
+  /// A da tela (mais recentes primeiro) e a do expurgo.
+  @@index([createdAt])
+}
+
+/// Segundos em que a API esteve de pé, por dia UTC — o acumulador das horas
+/// do plano (§3.1 e §4.3 do plano de observabilidade, decidido em 12/09/2026).
+///
+/// **O teto que suspendeu a API em 29/08/2026 era uma métrica de saturação
+/// que ninguém observava**: 750 h/mês no plano free do Render, e o keep-alive
+/// gastava 744. Desde 01/09 a API dorme e acorda várias vezes por dia, o que
+/// resolve a conta e destrói a única medida que existia — `process.uptime()`
+/// zera a cada acordada, então "horas do mês" não é derivável dele, e o
+/// `uptimeSeconds` do `/api/metrics/http` fala só desta instância.
+///
+/// **Uma linha por dia, incrementada** — não uma amostra por acordada. O
+/// heartbeat (PR 5b) faz `upsert` do dia com `increment` do delta desde o
+/// último tique, e o `onClose` grava o resto com o mesmo prazo do flush do
+/// `ErrorEvent`. A perda máxima por `SIGKILL` é um intervalo de heartbeat; a
+/// soma do mês dividida por 750 é o arco de saturação, e a linha de hoje é
+/// incompleta por definição.
+///
+/// **Não é coluna do `DailyMetric`, de propósito.** Aquela linha nasce na
+/// etapa 9 do pipeline, uma vez por dia, e o seed também a cria; um heartbeat
+/// escrevendo nela a cada cinco minutos seria um segundo escritor com outra
+/// cadência na mesma linha. Uma tabela de duas colunas custa menos que essa
+/// disputa.
+///
+/// Mais de uma instância soma na mesma linha, que é como o Render cobra.
+///
+/// Retenção indefinida, como o `DailyMetric` — 365 linhas por ano.
+model DailyUptime {
+  id      String   @id @default(uuid())
+  /// Dia de calendário à meia-noite UTC, como `DailyMetric.date`.
+  date    DateTime @unique
+  /// Acumulado do dia. Cabe em `Int` com folga: o máximo é 86.400.
+  seconds Int      @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+/// A saúde de cada fonte de notícia, um dia de cada vez (§15 do plano de
+/// observabilidade, Fase 11 — decidido em 15/09/2026).
+///
+/// **O pipeline sabe hoje qual fonte falhou, e esquece amanhã.** O aviso por
+/// fonte da etapa 1 (`FetchWarning`) vira o `context` de um `PipelineEvent` e
+/// morre com o run: "há quantos dias a Superinteressante está fora?" exigia
+/// ler os eventos de N dias e cruzar à mão — em 03/09/2026 a resposta era
+/// "dois", e só apareceu porque alguém foi olhar. E a fonte que definha —
+/// entregava 20 por dia e passou a entregar 2 — não falha nunca, então não
+/// deixa aviso nenhum. Esta tabela é a memória que faltava: **uma linha por
+/// `(source, dia)`**, diária porque a colheita é diária.
+///
+/// **`kept` é a coluna que faz a tabela valer.** `fetched` é o que a fonte
+/// publicou; `kept` é o que ela **acrescentou ao acervo** — o item cuja URL
+/// entrou em `News` naquele dia. Uma fonte que republica o que outra já deu
+/// tem `fetched` alto e `kept` perto de zero, e é a que se troca primeiro
+/// (§17.25). Não é "sobreviveu à deduplicação da etapa 3": aquele dedup é por
+/// URL, e dois veículos com a mesma pauta têm URLs diferentes.
+///
+/// **`source` é texto, sem FK e sem enum**, de propósito: é o `name` de
+/// `rss-sources.ts` ou `newsdata`, e a fonte removida da lista continua na
+/// série — o web desenha o dia sem linha como "não tentada", como faz com o
+/// dia sem run (`NEVER_RAN`). Por isso `SourceOutcome` tem **três** valores e
+/// não quatro: "não tentada" é ausência, e a API nunca a emite.
+///
+/// **O último run do dia representa o dia** (a regra da Fase 8): a escrita é
+/// `deleteMany` do dia + `createMany`, numa transação — duas instruções, não
+/// treze `upsert`. Uma por run, depois da etapa 4, porque `kept` só existe
+/// depois de o `createMany` de `News` decidir o que era novo.
+///
+/// Retenção de 90 dias, executada pela etapa 8 — mais que os 14 do
+/// `ErrorEvent` e os 30 do `PipelineLog`, porque "esta fonte vale a pena?" é
+/// pergunta trimestral; e igual à do `Article`, para cruzar "o briefing
+/// daquele dia" com "quem o alimentou". 90 dias × 13 fontes ≈ 1.170 linhas.
+model SourceHealth {
+  id            String        @id @default(uuid())
+  /// `name` de `rss-sources.ts`, ou `newsdata` — o balde do agregador.
+  source        String
+  kind          SourceKind
+  /// Dia de calendário à meia-noite UTC, como `DailyMetric.date`.
+  day           DateTime
+  /// Itens que **esta fonte** trouxe no run, depois do filtro do provider.
+  fetched       Int           @default(0)
+  /// Dos `fetched`, quantos entraram no acervo naquele dia. Nunca maior que
+  /// `fetched`.
+  kept          Int           @default(0)
+  outcome       SourceOutcome
+  /// Já redigida e truncada; `null` quando `outcome` não é `FAILED`.
+  failureReason String?
+  /// Do `fetch` ao parse, por feed; para o agregador, o provider inteiro.
+  latencyMs     Int?
+  /// O run que escreveu a linha — sem FK, como no `ErrorEvent`: o run vive 30
+  /// dias e esta linha 90, então o ponteiro sobrevive a quem aponta.
+  pipelineLogId String?
+
+  /// O alvo do `deleteMany` + `createMany` e a chave da série por fonte. Serve
+  /// a busca por fonte sozinha, e é por isso que **não** há um
+  /// `@@index([source, day])` ao lado (§17.12).
+  @@unique([source, day])
+  /// A da janela (30 dias, todas as fontes) e a do expurgo.
+  @@index([day])
 }

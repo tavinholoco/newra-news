@@ -14,6 +14,7 @@ import type {
   NewsFacets,
   NewsletterStatus,
   UserPreferences,
+  ErrorSummaryWindow,
 } from '@newranews/types';
 import {
   getNews,
@@ -34,7 +35,13 @@ import {
   deleteNewsAdmin,
   getPipelineRuns,
   getPipelineRunDetail,
+  getHttpMetrics,
+  getErrorSummary,
+  getAuditTrail,
+  getSourceHealth,
+  getInvariantReport,
 } from '@/lib/api';
+import { OUTCOME_WINDOW_DAYS } from '@/lib/outcome-days';
 
 // ── Query Key Factories ──────────────────────────────────────────────
 
@@ -108,6 +115,23 @@ export const pipelineKeys = {
   runs: (limit: number) => [...pipelineKeys.all, 'runs', limit] as const,
   detail: (pipelineId: string) =>
     [...pipelineKeys.all, 'detail', pipelineId] as const,
+};
+
+/**
+ * As três leituras de observabilidade da Fase 5 (PR 5c), cada uma na sua
+ * subárvore de `['admin']` — pelo mesmo motivo de `pipelineKeys`: invalidar
+ * uma não recarrega as outras.
+ *
+ * A janela entra na chave onde há janela (`errors`, `audit`), senão trocar de
+ * 24 h para 7 d mostraria a contagem anterior enquanto a nova não chega — e
+ * quem lê concluiria que a semana teve os mesmos erros que o dia.
+ */
+export const observabilityKeys = {
+  http: () => [...adminKeys.all, 'http-metrics'] as const,
+  errors: (window: ErrorSummaryWindow) => [...adminKeys.all, 'errors', window] as const,
+  audit: (days: number) => [...adminKeys.all, 'audit', days] as const,
+  sources: (days: number) => [...adminKeys.all, 'sources', days] as const,
+  invariants: () => [...adminKeys.all, 'invariants'] as const,
 };
 
 // ── News Hooks ───────────────────────────────────────────────────────
@@ -331,11 +355,22 @@ export function useDeleteNews() {
   });
 }
 
-/** Quantos runs a lista da `/admin` mostra. §6.2 do plano de observabilidade. */
-export const PIPELINE_RUNS_LIMIT = 20;
+/**
+ * Quantos runs a consulta pede: a janela da faixa de desfechos inteira, com
+ * folga para mais de um run por dia (o cron e um disparo manual). É o teto do
+ * `limit` da rota, e cabe: a etapa 8 apaga `PipelineLog` aos 30 dias, então a
+ * tabela inteira raramente passa de ~40 linhas.
+ */
+export const PIPELINE_RUNS_LIMIT = 100;
 
 /**
- * Os últimos runs do pipeline, mais os que falharam.
+ * Os últimos runs do pipeline, mais os que falharam — **a janela de 30 dias
+ * inteira, numa requisição** (Fase 8).
+ *
+ * A lista mostra as últimas 20 (`PIPELINE_RUNS_SHOWN`, no componente); a faixa de desfechos precisa
+ * de todos os runs da janela para dizer qual dia não rodou. Uma consulta serve
+ * as duas leituras, e é o `OUTCOME_WINDOW_DAYS` que define o `since`: a faixa
+ * e a listagem falam do mesmo recorte por construção.
  *
  * **Sem `refetchInterval`, e é decisão medida.** Aba de admin deixada aberta
  * com polling é tráfego constante contra um plano que cobra tempo ligado: o
@@ -348,7 +383,7 @@ export const PIPELINE_RUNS_LIMIT = 20;
 export function usePipelineRuns(limit = PIPELINE_RUNS_LIMIT) {
   return useQuery({
     queryKey: pipelineKeys.runs(limit),
-    queryFn: () => getPipelineRuns({ limit }),
+    queryFn: () => getPipelineRuns({ since: OUTCOME_WINDOW_DAYS, limit }),
   });
 }
 
@@ -365,6 +400,70 @@ export function usePipelineRunDetail(pipelineId: string) {
   return useQuery({
     queryKey: pipelineKeys.detail(pipelineId),
     queryFn: () => getPipelineRunDetail(pipelineId),
+  });
+}
+
+// ── Observabilidade (Fase 5 do plano, PR 5c) ──────────────────────────────
+// **Nenhum dos três tem `refetchInterval`**, e é a mesma decisão medida do
+// `usePipelineRuns`: aba de admin aberta com polling é tráfego constante contra
+// um plano que cobra tempo ligado (armadilha 3 do §17). Recarregar a página é o
+// gesto — e é o único que existe, de propósito.
+
+/**
+ * Os quatro sinais de ouro. A mesma chave serve o arco da `/admin` e o painel
+ * de sinais da `/admin/metrics`: quem abrir as duas abas na mesma sessão faz
+ * uma requisição, não duas.
+ */
+export function useHttpMetrics() {
+  return useQuery({
+    queryKey: observabilityKeys.http(),
+    queryFn: () => getHttpMetrics(),
+  });
+}
+
+/** As falhas registradas na janela, agrupadas por fingerprint. */
+export function useErrorSummary(window: ErrorSummaryWindow) {
+  return useQuery({
+    queryKey: observabilityKeys.errors(window),
+    queryFn: () => getErrorSummary(window),
+    // Trocar a janela mantém a tabela anterior no lugar enquanto a nova chega —
+    // sem isto ela pisca para o esqueleto e volta, e os filtros perdem o foco.
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Quantas linhas da trilha a tela pede. Abaixo do teto da API (200). */
+export const AUDIT_TRAIL_LIMIT = 100;
+
+/** A trilha de ação de admin na janela, mais recente primeiro. */
+export function useAuditTrail(days: number) {
+  return useQuery({
+    queryKey: observabilityKeys.audit(days),
+    queryFn: () => getAuditTrail({ days, limit: AUDIT_TRAIL_LIMIT }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * A saúde por fonte na janela (Fase 11 do plano). Sem `refetchInterval`,
+ * pela mesma decisão dos três acima; a janela é a da faixa do run, 30 dias.
+ */
+export function useSourceHealth(days: number) {
+  return useQuery({
+    queryKey: observabilityKeys.sources(days),
+    queryFn: () => getSourceHealth(days),
+  });
+}
+
+/**
+ * O último relatório de invariantes (Fase 6 do plano). Sem janela e sem
+ * `refetchInterval`: a suíte roda uma vez por run, e é o pipeline quem paga —
+ * recarregar a página é o gesto.
+ */
+export function useInvariantReport() {
+  return useQuery({
+    queryKey: observabilityKeys.invariants(),
+    queryFn: () => getInvariantReport(),
   });
 }
 

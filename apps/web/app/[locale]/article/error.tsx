@@ -1,9 +1,10 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui/button';
+import { ErrorState } from '@/components/errors/error-state';
 
 export default function ArticleError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -13,14 +14,13 @@ export default function ArticleError({
   const tCommon = useTranslations('common');
 
   return (
-    <div className='mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-4 py-32 sm:px-6 lg:px-8'>
-      <h1 className='font-display text-2xl font-bold text-foreground'>
-        {t('articlesTitle')}
-      </h1>
-      <p className='text-muted-foreground'>
-        {t('articlesDesc')}
-      </p>
-      <Button onClick={reset}>{tCommon('retry')}</Button>
-    </div>
+    <ErrorState
+      title={t('articlesTitle')}
+      description={t('articlesDesc')}
+      retryLabel={tCommon('retry')}
+      digestLabel={t('digestLabel')}
+      error={error}
+      reset={reset}
+    />
   );
 }

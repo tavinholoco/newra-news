@@ -32,6 +32,9 @@ vi.mock('@newranews/database', async (importOriginal) => {
       news: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
       article: { upsert: vi.fn(), deleteMany: vi.fn() },
       productEvent: { deleteMany: vi.fn() },
+      errorEvent: { deleteMany: vi.fn(), upsert: vi.fn() },
+      auditEvent: { deleteMany: vi.fn() },
+      sourceHealth: { deleteMany: vi.fn(), createMany: vi.fn() },
       briefingSource: { deleteMany: vi.fn(), createMany: vi.fn() },
       dailyMetric: { upsert: vi.fn() },
       pipelineEvent: { create: vi.fn() },
@@ -48,12 +51,19 @@ vi.mock('../../src/services/news-renormalizer.service', () => ({
 vi.mock('../../src/services/newsletter.service', () => ({
   sendDailyNewsletter: vi.fn(),
 }));
+// A etapa 9.5 (Fase 6) tem suíte própria. Sem o mock, as doze consultas cedem
+// o event loop uma a uma e o `settle()` de um `setImmediate` volta antes de o
+// run virar SUCCESS: o teste leria uma lista de status vazia.
+vi.mock('../../src/services/invariants.service', () => ({
+  runInvariants: vi.fn(),
+}));
 
 import { prisma } from '@newranews/database';
 import { fetchAll, type FetchWarning } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
+import { runInvariants } from '../../src/services/invariants.service';
 
 const item = (url: string) => ({
   title: 'Notícia',
@@ -71,6 +81,7 @@ const fetchResult = {
   rssItems: [item('https://bbc.com/1')],
   allItems: [item('https://g1.com/1'), item('https://bbc.com/1')],
   warnings: [],
+  sources: [],
 };
 
 /** Espera o `void runPipeline(...)` que o `triggerPipeline` dispara. */
@@ -93,6 +104,10 @@ beforeEach(() => {
   vi.mocked(prisma.article.upsert).mockResolvedValue({ id: 'article-1' } as never);
   vi.mocked(prisma.article.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.productEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.errorEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.auditEvent.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.sourceHealth.deleteMany).mockResolvedValue({ count: 0 });
+  vi.mocked(prisma.sourceHealth.createMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.briefingSource.deleteMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.briefingSource.createMany).mockResolvedValue({ count: 0 });
   vi.mocked(prisma.dailyMetric.upsert).mockResolvedValue({} as never);
@@ -108,12 +123,21 @@ beforeEach(() => {
     dryRun: false,
     scanned: 0,
     textChanged: 0,
+    imageRecovered: 0,
     categoryChanged: 0,
     categorySkipped: 0,
     transitions: [],
     sample: [],
   });
   vi.mocked(sendDailyNewsletter).mockResolvedValue({ total: 0, sent: 0, failed: 0 });
+  vi.mocked(runInvariants).mockResolvedValue({
+    checked: 12,
+    violated: 0,
+    errored: 0,
+    durationMs: 48,
+    budgetMs: 2_000,
+    results: [],
+  });
 });
 
 describe('9.4 — a etapa crítica falha: o que para junto', () => {

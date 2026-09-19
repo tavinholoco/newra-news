@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PipelineRunSummary } from '@newranews/types';
@@ -39,6 +39,8 @@ const successRun: PipelineRunSummary = {
   completedAt: '2026-09-06T11:00:45.000Z',
   durationSeconds: 45,
   eventCount: 19,
+  outcome: 'SUCCESS',
+  degradedBy: [],
 };
 
 const failedRun: PipelineRunSummary = {
@@ -57,6 +59,17 @@ const failedRun: PipelineRunSummary = {
   },
   completedAt: null,
   durationSeconds: null,
+  outcome: 'FAILED',
+  degradedBy: [],
+};
+
+// O run que o `status` esconde por construção: briefing gerado, e a
+// newsletter e o Gemini falharam pelo caminho.
+const degradedRun: PipelineRunSummary = {
+  ...successRun,
+  id: 'dddddddd-0000-0000-0000-000000000004',
+  outcome: 'SUCCESS_DEGRADED',
+  degradedBy: [6, 7.5],
 };
 
 function mockRuns(
@@ -367,5 +380,159 @@ describe('PipelineRuns — a lista e o detalhe', () => {
       screen.getByText('Não foi possível carregar os eventos desta execução.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Últimas execuções')).toBeInTheDocument();
+  });
+});
+
+/**
+ * **Fase 8 — o desfecho com mais de dois valores, e o dia que não rodou.**
+ *
+ * `SUCCESS` é binário e o pipeline não é: um run pode ter seis coisas erradas e
+ * reportar sucesso. O que esta tela ganha é o `SUCCESS_DEGRADED` com a etapa
+ * que engoliu a falha, a faixa de 30 dias com o `NEVER_RAN` vazado, e o
+ * batimento positivo — "último briefing há N h". §12 do plano.
+ */
+describe('PipelineRuns — o desfecho (Fase 8)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-06T15:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('calls a degraded run by its name, in the cards and in the row', () => {
+    mockRuns([degradedRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    // No cartão de status e na pílula da linha (a legenda da faixa também o
+    // nomeia): nenhum "Sucesso" seco sobre um run que saiu pelo Groq com a
+    // newsletter falhada — o único "Sucesso" da tela é o da legenda.
+    expect(screen.getAllByText('Sucesso degradado').length).toBeGreaterThanOrEqual(3);
+    const status = screen.getByText('Status').parentElement as HTMLElement;
+    expect(within(status).getByText('Sucesso degradado')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Sucesso$/)).toHaveLength(1);
+  });
+
+  it('says which stages swallowed their failure', () => {
+    // `degradedBy` é o que faz o desfecho ser acionável em vez de decorativo.
+    mockRuns([degradedRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Degradado pelas etapas 6 e 7.5')).toBeInTheDocument();
+  });
+
+  it('uses the singular for a single stage', () => {
+    mockRuns([{ ...degradedRun, degradedBy: [8.5] }]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Degradado pela etapa 8.5')).toBeInTheDocument();
+  });
+
+  it('does not mention degradation on a clean run', () => {
+    mockRuns([successRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.queryByText(/Degradado/)).not.toBeInTheDocument();
+  });
+
+  it('draws one square per day of the window, and the day without a run as NEVER_RAN', () => {
+    mockRuns([successRun, failedRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    const strip = screen.getByRole('list', { name: 'Desfecho do pipeline por dia, últimos 30 dias' });
+    const squares = within(strip).getAllByRole('listitem');
+    expect(squares).toHaveLength(30);
+
+    // Hoje (06/09) tem o run de 11:00; o dia anterior não tem nada — e "não
+    // rodou" não é "falhou".
+    expect(within(strip).getByText('06 de set.: Sucesso')).toBeInTheDocument();
+    expect(within(strip).getByText('05 de set.: Não rodou')).toBeInTheDocument();
+    expect(within(strip).queryByText('05 de set.: Falhou')).not.toBeInTheDocument();
+  });
+
+  it('names the degrading stages inside the square of a degraded day', () => {
+    mockRuns([degradedRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    const strip = screen.getByRole('list', { name: /Desfecho do pipeline por dia/ });
+    expect(
+      within(strip).getByText('06 de set.: Sucesso degradado — Degradado pelas etapas 6 e 7.5'),
+    ).toBeInTheDocument();
+  });
+
+  it('tells how long ago the last briefing came out', () => {
+    // 11:00:45 → 15:00 são 3 h 59 min. É o "batimento positivo" do §12: a
+    // ausência de run vira observável antes de qualquer gráfico.
+    mockRuns([successRun]);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Último briefing há 3 h 59 min')).toBeInTheDocument();
+  });
+
+  it('measures the age from the last run that produced a briefing, not from the last run', () => {
+    // O último run falhou às 11:00 de hoje; o último **briefing** é o de ontem.
+    const yesterday = {
+      ...successRun,
+      id: 'eeeeeeee-0000-0000-0000-000000000005',
+      startedAt: '2026-09-05T11:00:00.000Z',
+      completedAt: '2026-09-05T11:00:45.000Z',
+    };
+    const failedToday = { ...failedRun, startedAt: '2026-09-06T11:00:00.000Z' };
+    mockRuns([failedToday, yesterday], [failedToday], 2);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Último briefing há 27 h 59 min, atrasado')).toBeInTheDocument();
+  });
+
+  it('says so when no briefing came out in the window', () => {
+    mockRuns([failedRun], [failedRun], 1);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Nenhum briefing nos últimos 30 dias.')).toBeInTheDocument();
+  });
+
+  it('names the streak when three runs in a row were degraded by the same stage — the §12 trigger', () => {
+    // O gatilho que a fase criou, medido em vez de contado na faixa.
+    const degradedOn = (day: number) => ({
+      ...degradedRun,
+      id: `dddddddd-0000-0000-0000-0000000000${String(day).padStart(2, '0')}`,
+      startedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:00.000Z`,
+      completedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:45.000Z`,
+      degradedBy: [6],
+    });
+    mockRuns([degradedOn(6), degradedOn(5), degradedOn(4)], [], 3);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getByText('Degradado pela etapa 6 há 3 execuções seguidas')).toBeInTheDocument();
+  });
+
+  it('says nothing about a streak below the trigger', () => {
+    const degradedOn = (day: number) => ({
+      ...degradedRun,
+      id: `dddddddd-0000-0000-0000-0000000000${String(day).padStart(2, '0')}`,
+      startedAt: `2026-09-${String(day).padStart(2, '0')}T11:00:00.000Z`,
+      degradedBy: [6],
+    });
+    mockRuns([degradedOn(6), degradedOn(5)], [], 2);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.queryByText(/execuções seguidas/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the visible list at 20 rows while the strip reads the whole window', () => {
+    // A listagem pede a janela inteira (até 100 runs) para a faixa; a lista
+    // continua mostrando as 20 últimas, e o total é o do recorte.
+    const runs = Array.from({ length: 25 }, (_, index) => ({
+      ...successRun,
+      id: `aaaaaaaa-0000-0000-0000-0000000000${String(index).padStart(2, '0')}`,
+      startedAt: new Date(Date.UTC(2026, 8, 6 - index, 11)).toISOString(),
+      completedAt: new Date(Date.UTC(2026, 8, 6 - index, 11, 0, 45)).toISOString(),
+    }));
+    mockRuns(runs, [], 25);
+    renderWithIntl(<PipelineRuns />);
+
+    expect(screen.getAllByRole('button', { name: /19 eventos/ })).toHaveLength(20);
+    expect(screen.getByText('25 execuções no total')).toBeInTheDocument();
   });
 });

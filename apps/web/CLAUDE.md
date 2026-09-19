@@ -21,7 +21,15 @@
   em `app/[locale]/`; o `not-found.tsx` raiz renderiza `<html>`/`<body>` e
   `ThemeInit` próprios (fora de qualquer layout de idioma) — e **é ele que
   atende todo endereço errado**, inclusive os com prefixo de idioma, porque
-  caminho sem arquivo de rota não cai dentro de `[locale]`
+  caminho sem arquivo de rota não cai dentro de `[locale]`. **A exceção
+  sancionada é o `app/global-error.tsx`** (Fase 7b do plano de
+  observabilidade): é o boundary do crash no layout de idioma, renderiza o
+  próprio `<html>`/`<body>` com o `not-found.tsx` de modelo — **menos o
+  `<ThemeInit />`**, que é `<script>` inline e não executa quando é o React
+  quem o insere num client component (armadilha 40); lá o tema é
+  `applyStoredTheme()` num `useEffect`, e as strings saem dos JSONs lidos
+  direto, no idioma do pathname (`useTranslations` sem provider lança dentro
+  do boundary; uma cópia fixa das frases derivaria dos JSONs em silêncio)
 - **Revalidação on-demand** — `app/api/cron/daily-news/route.ts` chama
   `revalidatePath('/[locale]', 'layout')` + `revalidatePath('/sitemap.xml')`
   após o trigger do pipeline. **Gotcha:** o cache do Next grava as tags com o
@@ -245,10 +253,24 @@ Regras que não são óbvias no código:
 - /[locale]/favorites → Salvos: notícias e briefings numa lista só
   - o guard de sessão vive em `app/[locale]/account/layout.tsx` e vale para
     todo o segmento; `/favorites` é a exceção fora dele, com o guard próprio
-- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) —
-  disparo do pipeline, **os três painéis de execução** (`admin/pipeline-runs`) e
-  a lista de notícias
-- /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`)
+- /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) — a
+  **saúde da API agora** (`admin/api-health`: o arco das horas do plano, memória
+  e event loop), o disparo do pipeline, **a faixa de desfechos de 30 dias com o
+  batimento "último briefing há N h"** (`admin/outcome-strip`, Fase 8 do plano
+  de observabilidade), **os três painéis de execução** (`admin/pipeline-runs`)
+  e a lista de notícias
+- /[locale]/admin/metrics → Métricas do pipeline (CSR via proxy `/api/admin/metrics`):
+  a linha de KPI com variação, rosquinhas de categoria, provider e ingestão,
+  as métricas de produto com a série por dia, **o painel "Fontes"**
+  (`dashboard/source-health-panel`, via `/api/admin/sources` — Fase 11 do
+  plano de observabilidade) e **os quatro sinais da API**
+  (`dashboard/golden-signals`, via `/api/admin/http-metrics`)
+- /[locale]/admin/security → **Logs e segurança** (Fase 5 do plano de
+  observabilidade, PR 5c): as falhas registradas por fingerprint com busca,
+  filtros e colunas ordenáveis (`/api/admin/errors`), a rosquinha de erro por
+  categoria, **o painel de invariantes** (`admin/invariants-panel`, via
+  `/api/admin/invariants` — Fase 6 do plano) e a trilha de auditoria
+  (`/api/admin/audit`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
   - **a casca do painel vive no mesmo layout**: contêiner e faixa de abas
@@ -263,7 +285,9 @@ Regras que não são óbvias no código:
     e não lista uma quarta; a `/admin` já é a aba "está tudo de pé agora?", e
     "o run de ontem falhou?" é exatamente essa pergunta. Rota nova custaria
     linha na matriz de estados, chave nos **dois** arquivos de mensagem e
-    `alternatesFor` — o `toHaveLength(15)` de `state-matrix.test.ts` fica em 15
+    `alternatesFor` — o `toHaveLength` de `state-matrix.test.ts` não se moveu
+    naquela fase; **quem o moveu, de 15 para 16, foi a `/admin/security` da
+    Fase 5**, a única página que o plano inteiro abre
   - **o detalhe de um run é linha expansível, pelo mesmo motivo**: uma `/[id]`
     pediria `loading.tsx`, `error.tsx` e `not-found.tsx`, e a matriz cobraria os
     três. A consulta de eventos só existe para o run que alguém abriu — a linha
@@ -272,10 +296,164 @@ Regras que não são óbvias no código:
     milissegundo.** Passar um pelo outro renderiza "45 ms" para um run de 45 s,
     sem erro de tipo e sem aviso. Quem formata o run é `formatRunDuration`, e há
     asserção sobre isso em `tests/components/pipeline-runs.test.tsx`
+  - **a tela fala em desfecho, não em `status`** (Fase 8): `outcome` é o que a
+    API deriva dos `WARN` do run (`SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`,
+    `null` em `RUNNING`), e `degradedBy` diz qual etapa — "Degradado pelas
+    etapas 6 e 7.5" (`formatList`, `Intl.ListFormat`, que pediu `ES2021.Intl`
+    no `lib` do tsconfig). As chaves de mensagem por desfecho estão por extenso
+    em `OUTCOME_MESSAGE_KEY` (`admin/outcome-strip`), porque chave montada em
+    runtime parece órfã
+  - **`NEVER_RAN` é derivado aqui, não na API** (`lib/outcome-days.ts`,
+    `outcomeByDay`): a API lista o que existe e não sabe emitir ausência. Um
+    quadrado por dia **UTC** (`startedAt.slice(0, 10)`, nunca o fuso do
+    navegador — a armadilha do `Article.date`), o último run a começar
+    representa o dia, e `fillCalendarDays` põe o vazado onde não houve run. A
+    consulta pede `since: 30, limit: 100` (`usePipelineRuns`) para a faixa e a
+    lista saírem de **uma** requisição; a lista corta em 20
+    (`PIPELINE_RUNS_SHOWN`, **no componente** — no `queries.ts` seria mais uma
+    chave que o `vi.mock('@/lib/queries')` das suítes esquece)
+  - **o batimento mede do último run que produziu briefing** (`lastBriefingRun`),
+    não de `runs[0]`: se o de hoje falhou, o briefing no ar é o de ontem.
+    Acima de `BRIEFING_OVERDUE_MS` (24 h) ganha "atrasado" e tom de perigo. O
+    relógio é lido no render pela regra do `PlanPaceLine` — client component
+    sobre dado de consulta, sem HTML de servidor com que divergir
+  - **na faixa, a forma carrega o estado junto com a cor**: o degradado é
+    contorno laranja com miolo fraco, não laranja cheio — no tema escuro
+    `ember-500` e `danger-400` eram a mesma cor a olho num quadrado de 20 px,
+    e só a captura no escuro viu (armadilha 35 do plano). Verde cheio é
+    sucesso, vermelho cheio é falha, vazado neutro é "não rodou", cinza cheio
+    é "rodando"
+  - **o gatilho da §12 é medido, não contado** (`degradedStreak`, pós-merge da
+    Fase 8): runs seguidos degradados pela mesma etapa — um dia sem run não
+    quebra a sequência (não diz que o provedor voltou), o run de hoje ainda
+    `RUNNING` não conta. A linha "Degradado pela etapa 6 há 3 execuções
+    seguidas" só existe a partir de `DEGRADED_STREAK_TRIGGER`
+  - **`withOutcome` em `lib/api.ts` preenche `outcome`/`degradedBy` quando a
+    API não os manda** — o preview da `dev` fala com a API de **produção**,
+    que só ganha a Fase 8 na promoção, e na promoção o web pode subir antes
+    da API; sem o fill, `run.degradedBy.length` derrubava a `/admin` do
+    preview (armadilha 37 do plano). O `status` vira o desfecho, e não `null`,
+    que a faixa leria como `RUNNING`. **Toda fase que acrescentar campo que a
+    tela lê passa por aqui, ou desenha "indisponível" sobre a ausência**
   - **sem `refetchInterval` nesta área.** Aba de admin com polling é tráfego
     constante contra um plano que cobra tempo ligado — o free do Render dá
     750 h/mês, e a API já foi suspensa uma vez por isso. O pipeline roda uma vez
     por dia; recarregar a página é o gesto certo
+  - **os gráficos são SVG inline, sem biblioteca** (§4.3 do plano de
+    observabilidade): `dashboard/donut-chart` (rosquinha, `stroke-dasharray`
+    num `<circle>`, fatia única em 100% desenhada como círculo sem recorte —
+    armadilha 15), `dashboard/series-bars` (barras **na ordem dada**, para o
+    `byDay`; o `CategoryBars` ordena por valor e é para isso que existe) e
+    `dashboard/saturation-arc` (o arco de três quartos). As cinco cores vêm de
+    `dashboard/chart-colors.ts`, nas duas formas (`bg-*` e `stroke-*`) — o
+    Tailwind só emite a utility que encontra escrita. **Da sexta fatia em
+    diante a cor repete esmaecida** (`opacity-60`): são cinco cores para até
+    oito categorias, e a primeira captura pôs Mundo e Saúde no mesmo vermelho.
+    A legenda tem largura máxima, senão o valor vai parar a 1.600 px do rótulo
+  - **a série por dia preenche a janela** (`lib/series.ts`,
+    `fillCalendarDays`): a API só devolve os dias com evento, e um dia numa
+    janela de 30 virava uma barra de largura inteira — o eixo do tempo só
+    existe se cada dia de calendário tem o seu lugar, com zero onde não houve
+    nada
+  - **`saturation.plan` nulo desenha "Indisponível", nunca zero.** É a única
+    medida que sai do banco, e zero diria que o mês está folgado justamente
+    quando não há como saber. O acento do arco segue `lib/saturation.ts`:
+    neutro até 80%, laranja de atenção até o teto, vermelho de estado depois —
+    e a linha do **ritmo do mês** (`planPace`) é o número que teria avisado
+    antes de 29/08: `hoursUsed / horas decorridas × horas do mês`, calada
+    antes de 24 h de amostra (armadilha 24)
+  - **a variação do KPI é de `lib/kpi.ts`, e `null` é cartão sem chip.**
+    `kpiDelta` só responde com linha de base honesta; a taxa de sucesso de 7 d
+    não tem par no contrato de 30 d (`lastMonth` não diz quantos dias têm
+    linha), e por isso é o único dos quatro cartões sem chip — decidido no 5c
+    contra o que a §9 pedia, com o motivo no cabeçalho do `dashboard-client`
+  - **a tabela de eventos de segurança e a lista de erros por fingerprint são
+    uma tabela só** (`admin/error-groups-table`): o dado é o mesmo — os
+    eventos da §3.2 nascem como `AppError` com categoria `authorization` e
+    vivem no `ErrorEvent`. Duas tabelas sobre as mesmas linhas seriam as duas
+    caixas vermelhas da Fase 2 em outra forma; o filtro por categoria é o que
+    separa uma leitura da outra
+  - **o painel "Fontes" da `/admin/metrics` é derivação sobre a série crua**
+    (Fase 11 do plano, PR 11c — `dashboard/source-health-panel` sobre
+    `lib/source-days.ts`, o `outcome-days.ts` desta série). A API devolve,
+    por fonte, **só os dias com linha**; tudo o mais nasce aqui: o dia **"não
+    tentada"** pela ausência (a fonte removida de `rss-sources.ts`, o dia sem
+    run, o run que morreu antes da etapa 4 — não é falha da fonte, e as duas
+    pedem ações opostas), as médias de 7 e 30 dias **sobre os dias tentados**
+    (contar o dia em que o pipeline não rodou como zero penalizaria a fonte
+    pela falha da API; `FAILED` e `EMPTY` contam zero, porque ali a fonte foi
+    perguntada), a sequência de falhas que **um dia sem linha não quebra**
+    (ninguém perguntou — a regra do `degradedStreak`), e os dois gatilhos da
+    §15 — `FAILED_STREAK_TRIGGER` (3 dias) e `WITHERING_RATIO` (`kept` de 7 d
+    abaixo de 30 % do de 30). As médias se calam abaixo de `MIN_RECENT_SAMPLE`
+    / `MIN_WINDOW_SAMPLE` (armadilha 24: `NaN` compara `false`), e a variação
+    é o `kpiDelta` de sempre — célula vazia sem linha de base, nunca um chip
+    inventado
+  - **a faixa por fonte e a do run são a mesma casca, `admin/day-strip`**
+    (extraída da `OutcomeStrip` na Fase 11): trinta `<li>` de largura fluida,
+    `sr-only` + `title`, pontas e legenda opcionais. Cada série mapeia o
+    próprio conjunto de estados para `{ fill, label }`, e a forma carrega o
+    estado (armadilha 35): na faixa por fonte `OK` é verde cheio, `FAILED`
+    vermelho cheio, `EMPTY` **cinza cheio** (a fonte foi perguntada e não
+    tinha nada) e `NOT_ATTEMPTED` **vazado** (ninguém perguntou) — dois
+    cinzas, duas formas. Numa tabela com treze faixas a legenda mora **fora**,
+    uma vez, e a faixa é `compact`
+  - **a segunda tabela ordenável do admin extraiu o cabeçalho** —
+    `admin/sortable-header` (`useSort`, `sortBy`, `SortableHeader`), que a
+    tabela de falhas do 5c passou a usar. O gesto é o da referência: clicar
+    na coluna ativa inverte; noutra, ativa **descendente**. `null` ("sem
+    amostra") ordena por último nas duas direções
+  - **"Outras" fica por último na rosquinha de contribuição**, com
+    `keepOrder`: as fatias já vêm por `kept` decrescente e a cauda somada
+    (da oitava fonte em diante, o limite da §4.3) vai ao fim — reordenada por
+    valor, a cauda de 22 % saía **em primeiro**, acima da própria NewsData.
+    E a legenda do centro é uma palavra (`novas`): "novas em 30 d" cortava
+    nas bordas do anel. Os dois achados da captura, sem sintoma de código —
+    quarta fase seguida
+  - **a rota `/api/admin/sources` é nova, e o preview da `dev` lê a API de
+    produção** (armadilha 37): até a promoção ela responde 404 ali, o
+    `proxyToApi` repassa o status, `fetchWebApi` lança, e o painel desenha
+    "indisponível" sobre o `isError` — nunca a aba inteira quebrada. Não há
+    campo a preencher na fronteira porque a resposta inteira é nova; o
+    `DashboardClient` faz **três** consultas agora, e o mock de `fetch` da
+    suíte dele roteia pela URL — um corpo só para as três derrubou a suíte
+    lendo `sources.map` de um `DashboardMetrics`
+  - **o painel de invariantes tem três estados que não são o mesmo** (Fase 6
+    do plano, `admin/invariants-panel` sobre `/api/admin/invariants`):
+    `isError` é "indisponível" (rota nova, armadilha 37 — 404 da API de
+    produção até a promoção); `data: null` é "nenhuma verificação ainda" (a
+    API responde `null` antes do primeiro run com a etapa 9.5); e o relatório
+    é a tabela com as **doze** linhas, na ordem da API. A API lê o **último
+    evento da 9.5** e nunca roda a suíte por pedido da tela — não há janela a
+    escolher, e não há `refetchInterval`. Por linha, três estados e **a forma
+    carrega o estado** (armadilha 35): `OK` ponto verde cheio, `VIOLATED`
+    vermelho cheio, `ERROR` — a pergunta que não pôde ser feita, não uma
+    resposta — contorno laranja **tracejado**. `measure` diz como formatar as
+    duas colunas: `count` é número contra número (`= 7`); `oldest` é o
+    instante mais antigo contra o admitido (`≥ 16 de ago.`), e `null` é "—"
+    (tabela vazia), nunca zero. Os rótulos por id estão por extenso em
+    `CHECK_KEY`, porque chave montada em runtime parece órfã; a tabela tem
+    `aria-label` — é a segunda tabela da aba, e um `getByRole('table')` sem
+    nome acharia duas (a suíte da aba deixa o painel em `null` por padrão)
+  - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
+    handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
+    que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)
+  - **as duas listas escritas à mão desta área têm guarda derivada do `app/`**
+    (`tests/lib/hand-written-lists.test.ts`, pós-merge do 5c): toda rota do
+    BFF com `GET` atrás de sessão está na lista de 401 do smoke
+    (`e2e/authorization.spec.ts`), e toda `page.tsx` sob `app/[locale]/admin`
+    está no `ALL_ROUTES` do `capture-admin.mjs` — nas duas direções. E **o
+    caminho que cada `proxyToApi` repassa — e, desde a Fase 7c, cada
+    ``fetch(`${API_BASE_URL}/…`)`` das duas rotas anônimas — é conferido
+    contra o roteador da API** por
+    `apps/api/tests/security/bff-route-seam.test.ts`: um literal errado no
+    BFF passava nos dois CIs e só falhava em produção
+  - **a tabela de latência por rota tem a coluna "4xx" desde a Fase 7c**
+    (`dashboard/golden-signals`): é onde o 429 das duas portas anônimas
+    (`POST /api/events`, `POST /api/errors/client`) aparece — o contador
+    existia na API desde a Fase 9 e nunca saía do processo. Até a promoção a
+    API de produção não manda o campo (armadilha 37), e a célula desenha
+    "—" sobre a ausência, nunca `NaN%`
   - **as telas de admin se fotografam com `pnpm --filter @newranews/web
     admin:capture`** (`scripts/capture-admin.mjs`). A baseline visual da §30
     exclui `/admin` porque exige sessão, então **esta área nunca esteve em
@@ -285,7 +463,15 @@ Regras que não são óbvias no código:
     `NEXTAUTH_SECRET` local **diferente do de produção**: com o mesmo valor dos
     dois lados, o token forjado aqui vale lá. Nada disso mora no app — apagar o
     arquivo deixa o produto bit a bit igual, e é isso que separa a ferramenta de
-    um atalho de autenticação (OWASP M10 / CWE-489)
+    um atalho de autenticação (OWASP M10 / CWE-489). Desde o 5c ele fotografa
+    as três abas, e o seed popula `ErrorEvent`, `AuditEvent` e `DailyUptime`
+    para a foto não sair com arco em zero e trilha vazia. **Desde a Fase 7b
+    fotografa também o error boundary** (`admin-metrics-error`): a opção
+    `breakBff` intercepta o BFF dos sinais de ouro com `routes: null`, o
+    `GoldenSignals` lança no render e o `admin/metrics/error.tsx` renderiza
+    — sem `throw` no produto. O relato do boundary **não** é interceptado:
+    com a API de pé, cada captura dessa rota grava uma linha `WEB` de verdade
+    no banco local, visível na `/admin/security` depois do flush
 
 ## SEO (Fase 7)
 
@@ -422,8 +608,12 @@ Regras que não são óbvias no código:
 | `lib/api.ts` → `ApiError` | a falha **com o status**: `null` é transporte, 404/400 é sobre o pedido |
 | `lib/api.ts` → `nullIfNotFound` | o que separa "não encontrada" de "deu erro" |
 | `lib/use-results-focus.ts` | foco + rolagem ao virar página, respeitando `prefers-reduced-motion` |
+| `app/api/errors/client/route.ts` | o repasse **anônimo** do relato de um error boundary para `POST /api/errors/client` (Fase 7c do plano de observabilidade) — modelo do `app/api/events/route.ts`: sem `proxyToApi`, só corpo e content type atravessam, o status da API (inclusive o 429) atravessa intacto, o `catch` escreve `bff.errors.client`. Quem o chama é o reporter dos boundaries (Fase 7b) |
+| `lib/report-client-error.ts` | o reporter (Fase 7b): `reportClientError` monta o `ClientErrorReport` (`message` no teto, `digest` só quando há, `path` sem query) e o manda com `keepalive`, **nunca lança** — dentro de um boundary, uma segunda exceção é a falha dupla; `useReportClientError` chama uma vez por montagem (`useRef` contra o StrictMode, como o `PageView`). Segunda exceção declarada do `bff-seam` (sem `signal`: um prazo abortaria a única tentativa) |
+| `components/errors/error-state.tsx` | a casca única dos **cinco** boundaries — os quatro `error.tsx` e o `global-error.tsx`: `h1`, descrição, botão, o `digest` em texto pequeno selecionável (o papel do `requestId` no 500 da API), e é ela que reporta. **Tudo por prop e sem next-intl**, porque o boundary raiz renderiza fora do provider; cada `error.tsx` chama o próprio `t('…')` para a chave ficar literal no arquivo. `layout='inset'` no `admin/metrics/error.tsx`, que já está dentro do contêiner do `admin/layout.tsx` (armadilha 11) |
+| `app/global-error.tsx` | o boundary raiz — o único crash que o `[locale]/error.tsx` não alcança (o do layout de idioma). Detalhe na "Restrição importante" do topo |
 | `tests/security/` | três suítes: cabeçalhos, superfície do navegador, otimizador de imagem |
-| `tests/lib/state-matrix.test.ts` | a matriz de 15 rotas × 4 estados, como asserção |
+| `tests/lib/state-matrix.test.ts` | a matriz de todas as rotas × 4 estados, como asserção — a contagem mora no `toHaveLength` dela |
 
 Regras que não são óbvias no código:
 
@@ -459,8 +649,8 @@ Regras que não são óbvias no código:
   aparece duas vezes na mesma página.
 - **A CSP carrega `'unsafe-inline'` no `script-src`, e está escrito por quê.** A
   Home tem 63 scripts inline, 61 deles chunks de Flight que mudam por rota e por
-  regeneração. Nonce exigiria cabeçalho por requisição e tornaria as 15 páginas
-  dinâmicas.
+  regeneração. Nonce exigiria cabeçalho por requisição e tornaria todas as
+  páginas dinâmicas.
 - **`connect-src` precisa da origem da API.** O navegador fala com ela direto
   (`lib/api.ts`); só o que passa pelo BFF é same-origin. Sem isso, a tela trava
   no esqueleto — em produção e só lá.
@@ -667,7 +857,8 @@ Quatro telas atrás de sessão — `/account`, `/account/preferences`,
 | Peça | Papel |
 |---|---|
 | `account/account-nav` | as quatro abas; `/favorites` entra como a quarta |
-| `admin/admin-nav` | as duas abas do painel: Painel e Métricas |
+| `admin/admin-nav` | as três abas do painel: Painel, Métricas e Logs e segurança (§4.1 do plano de observabilidade) |
+| `admin/day-strip` · `admin/sortable-header` | a casca da faixa de 30 dias e o cabeçalho ordenável — as duas peças que a Fase 11 extraiu para a segunda faixa e a segunda tabela do admin |
 | `account/profile-card` | identidade, quanto foi salvo, e a saída |
 | `account/preferences-form` | assuntos e tema |
 | `account/newsletter-settings` | inscrição no briefing diário |

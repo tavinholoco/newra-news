@@ -7,8 +7,8 @@ import {
   removeFavorite,
   type FavoriteItem,
 } from '../../services/favorite.service';
-import { NotFoundError, UnauthorizedError } from '../../utils/errors';
-import { authPlugin } from '../../plugins/auth';
+import { NotFoundError } from '../../utils/errors';
+import { authPlugin, requireSubject } from '../../plugins/auth';
 import {
   addFavoriteBodySchema,
   addFavoriteResponseSchema,
@@ -57,17 +57,6 @@ function serializeFavorite(item: FavoriteItem) {
 export async function favoritesRoutes(app: FastifyInstance) {
   await app.register(authPlugin);
 
-  const userIdOf = (sub?: string): string => {
-    // Ver o gemeo em `routes/account/index.ts`: token que passou pela
-    // verificacao de assinatura e nao traz sujeito e sessao que nos emitimos.
-    if (!sub) {
-      throw new UnauthorizedError('Invalid or missing token', {
-        code: 'AUTH_SESSION_INCOMPLETE',
-        category: 'internal',
-      });
-    }
-    return sub;
-  };
 
   app.withTypeProvider<ZodTypeProvider>().get(
     '/',
@@ -80,7 +69,7 @@ export async function favoritesRoutes(app: FastifyInstance) {
     async (request) => {
       const { page, limit, sort, type, ...filters } = request.query;
       const { data, total } = await listFavorites(
-        userIdOf(request.user?.sub),
+        requireSubject(request),
         { ...filters, type },
         { page, limit, sort },
       );
@@ -101,7 +90,7 @@ export async function favoritesRoutes(app: FastifyInstance) {
     '/ids',
     { schema: { response: { 200: favoriteIdsResponseSchema } } },
     async (request) => {
-      const data = await listFavoriteIds(userIdOf(request.user?.sub));
+      const data = await listFavoriteIds(requireSubject(request));
       return { data };
     },
   );
@@ -116,7 +105,7 @@ export async function favoritesRoutes(app: FastifyInstance) {
     },
     async (request) => {
       const { itemType, itemId } = request.body;
-      const favorite = await addFavorite(userIdOf(request.user?.sub), itemType, itemId);
+      const favorite = await addFavorite(requireSubject(request), itemType, itemId);
       if (!favorite) throw new NotFoundError(itemType === 'NEWS' ? 'News' : 'Article');
 
       return {
@@ -141,7 +130,7 @@ export async function favoritesRoutes(app: FastifyInstance) {
     },
     async (request) => {
       const { itemType, itemId } = request.params;
-      const removed = await removeFavorite(userIdOf(request.user?.sub), itemType, itemId);
+      const removed = await removeFavorite(requireSubject(request), itemType, itemId);
       if (!removed) throw new NotFoundError('Favorite');
 
       return { data: { removed: true } };

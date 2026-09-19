@@ -12,14 +12,15 @@
 ## Comandos
 - `./scripts/dev-bootstrap.sh` — **ambiente pronto do zero**: Postgres, envs locais, migrations, imagens de placeholder e seed (idempotente; não sobrescreve `.env` existente). Use em container novo antes de rodar o app ou capturar screenshots
 - `pnpm install` — instalar dependências
-- `pnpm dev` — rodar todos os apps em dev
+- `pnpm dev` — rodar todos os apps em dev. **O postgres sobe e para junto com o dev server da API** (`scripts/dev-with-db.mjs`); o vigia `scripts/docker-idle-stop.ps1 -Install` para o que escapou por kill forçado. `docs/setup.md` §4.1
 - `pnpm build` — build de produção
 - `pnpm lint` — ESLint em todo o monorepo
 - `pnpm test` — Vitest (backend + frontend). **Não precisa de banco** — assim como `lint`, `typecheck` e `build`
 - `pnpm --filter @newranews/web visual:baseline` — capturas das rotas públicas (§30 do plano V2); exige app no ar. Em ambiente com Chromium pré-instalado, exportar `CHROMIUM_PATH`. **O conjunto versionado é capturado de produção**, não do local — ver "Fechar uma fase" abaixo
 - `pnpm --filter @newranews/web admin:capture` — fotografa as telas de **admin**
-  (`/admin`, com um run expandido, e `/admin/metrics`) em 375 e 1440, claro e
-  escuro, com uma sessão forjada localmente. A baseline visual exclui essa área
+  (as três abas — `/admin`, com um run expandido, `/admin/metrics` e
+  `/admin/security`) em 375 e 1440, claro e escuro, com uma sessão forjada
+  localmente. A baseline visual exclui essa área
   porque exige sessão, então até 07/09 ela **nunca esteve em captura nenhuma** —
   e é onde as fases 5, 6, 8, 9 e 11 do plano de observabilidade trabalham. Só
   aceita localhost, e exige `NEXTAUTH_SECRET` local diferente do de produção.
@@ -49,6 +50,18 @@ qualquer PR**, senão a fase é desenvolvida contra código velho:
 git fetch origin && git push origin origin/main:refs/heads/dev
 ```
 
+> **E há um terceiro estado, que o par de comandos acima não cobre: as duas
+> à frente uma da outra.** Aconteceu em 14/09/2026 com o #193 — um PR **só de
+> configuração na `main`** (o `dependabot.yml`, que a plataforma lê da branch
+> padrão) enquanto a `dev` carregava 30 commits do plano. O `push` acima é
+> recusado (não é fast-forward), forçar apagaria a `dev`, e abrir `dev → main`
+> seria promover para sincronizar. **O certo é o inverso: mergear a `main` na
+> `dev` por um PR** (`git checkout -B chore/sync origin/dev && git merge
+> origin/main`) — o diff de conteúdo é vazio quando os dois lados já têm o
+> mesmo arquivo, e é assim que `git rev-list --count origin/dev..origin/main`
+> volta a zero. Só configuração que a plataforma lê da branch padrão justifica
+> um PR direto na `main` no meio do plano; tudo o mais espera a promoção.
+
 **O que roda em cada base — confira antes de assumir:**
 
 | Workflow | Base `dev` | Base `main` |
@@ -67,6 +80,20 @@ uma janela controlada, mas é uma janela: promova com isso em mente.
 **A promoção dispara sozinha o que precisa disparar.** `dev → main` é um push na
 `main`, então Smoke E2E e Migrate rodam sem ninguém lembrar; o Lighthouse e a
 baseline continuam manuais, e estão logo abaixo.
+
+> **O Dependabot furava esta política até 09/09/2026.** Sem `target-branch`, ele
+> abre contra o branch **padrão** do repositório — a `main` —, e foi o que
+> aconteceu: quatro PRs de bump (#174, #169, #171, #170) entraram direto na
+> branch que publica, pulando a `dev` e o preview, cada um disparando Smoke E2E e
+> um deploy. Um deles subiu `@base-ui/react` e `@tanstack/react-query`, que são
+> **dependências de produção**. Hoje as duas entradas do
+> `.github/dependabot.yml` declaram `target-branch: dev`. **E o campo só vale
+> na branch padrão** — o Dependabot lê a configuração da `main`, e a correção
+> de 09/09 tinha ficado só na `dev`: em **14/09** ele abriu **seis** PRs contra
+> a `main` de novo (#186–#191, cinco majors que não podem entrar), fechados no
+> mesmo dia. Mudança no `dependabot.yml` vai para a `main` num PR só com ele,
+> sem esperar a promoção. **Se voltar a aparecer PR de bump com base `main`, é
+> a versão da `main` que está velha.**
 
 **As duas plataformas publicam pela `main`, e isso foi conferido.** A Vercel por
 padrão; o **Render também — confirmado no painel em 05/09/2026**. Vale registrar
@@ -103,11 +130,14 @@ que não precisa ir a produção fase a fase.
   (3,5 MB)** de `apps/web/.admin-captures/`, um caminho que a `dev` ignora desde
   o PR #158 e que o `capture-admin.mjs` declara não versionar. Item **55**.
 
-> ⚠️ **Ao promover, `.gitignore` não desversiona o que já está versionado.** Os
-> 13 arquivos acima **continuam rastreados** depois do merge; a promoção precisa
-> de um `git rm --cached -r apps/web/.admin-captures` explícito. Confira também
-> se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho:
-> `git ls-tree -r --name-only origin/main | git check-ignore --stdin`.
+> ⚠️ **`.gitignore` não desversiona o que já está versionado — e a
+> sincronização `main → dev` do #200 trouxe os 13 PNGs para a `dev`, ainda
+> rastreados.** O `git rm --cached -r apps/web/.admin-captures` que este aviso
+> pedia para a promoção **foi feito no PR 5c (14/09)**, quando a captura os
+> marcou todos como modificados; a remoção viaja para a `main` na promoção
+> como qualquer outro commit. O que continua valendo é a conferência: antes de
+> promover, `git ls-tree -r --name-only origin/main | git check-ignore --stdin`
+> diz se outro artefato ignorado na `dev` entrou na `main` pelo mesmo caminho.
 
 > ⚠️ **O gatilho para promover antes do fim é a Fase 9.** Ela é a única que pode
 > **deixar o site sem briefing** (§13: portão de saída que bloqueia e não cai
@@ -275,11 +305,20 @@ a suíte de unidade, que roda sem rede.
   `ErrorEvent`, invariantes e as três abas do admin. **As Fases 10 (segurança do
   CI/CD) e 1 (o logger) fecharam em 05/09; a 2 (pipeline no admin) e a 7a (os
   `catch` do BFF) em 07/09, fechando o bloco 1; e a 3 (a taxonomia de erro) em
-  09/09, abrindo a espinha.** Continuam abertas **seis fases inteiras** (4, 5, 6,
-  8, 9 e 11) mais as subfases **7b e 7c**. A próxima é a **4**, em dois PRs
-  (migration e código). O **§19** é
-  o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma sessão
-  fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
+  09/09, abrindo a espinha; e a **4 (o `ErrorEvent`) fechou em 10/09, nos dois
+  PRs**; e a **5 fechou em 14/09, em três PRs** — o **5a (a migration) e o 5b
+  (a API) em 12/09, o 5c (o web) em 14/09**, fechando a espinha; e a **8 (o
+  log de sucesso) fechou em 15/09**, abrindo o bloco 3; e a **11 (saúde por
+  fonte) fechou em 15/09, em três PRs** — 11a (migration), 11b (API) e 11c
+  (web); e a **6 (invariantes) fechou em 16/09, num PR só**; e a **7c (o
+  caminho de ingestão do erro do cliente) fechou em 16/09, num PR só**; e a
+  **7b (os boundaries e o reporter) fechou em 17/09, num PR só — com ela a
+  Fase 7 inteira**.** Continua aberta **uma fase só** (a 9). **O próximo
+  passo é a promoção `dev → main`** e o ritual contra produção; a **9 vai
+  por último, e é decisão** (das três coisas que ela exige no ar, com a 8
+  entregue só falta a promoção).
+  O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
+  sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
   SRE, dimensões de qualidade de dado)
 - **Advisories aceitas, com motivo, data e gatilho:**
@@ -295,6 +334,316 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Verificação pós-merge da 7b (2026-09-19): a Fase 7 não deve nada, e o
+  lote da promoção foi medido.** Item **80**. Sobre `79655d1` (#213):
+  nenhuma prosa envelhecida sobre os boundaries fora do registro histórico,
+  suíte verde, Gitleaks `0 commits`, décima. **Achados:** o §18 não tinha
+  linha para "error boundary novo" (entrou, com o que nenhuma guarda cobre
+  — armadilha 41, que também entrou na lista da raiz abaixo); **três frases
+  do plano diziam que o lote "começa na Fase 3"** — a 3 está no ar desde o
+  #168 de 09/09, o lote começa no #175. **O lote, medido:** `dev..main` = 0,
+  **66 commits / 30 PRs** (Fases 4, 5, 8, 11, 6, 7c, 7b + pós-merges +
+  `fastify-plugin` 5 → 6), **três migrations juntas** (4, 5a, 11a — uma com
+  `DROP COLUMN`), **nenhuma env nova**, os 13 PNGs saindo da `main`, e sete
+  `ignore` do Dependabot que só passam a valer quando chegarem à `main`.
+  **Nada da Fase 7 a fazer antes de promover** — o que sobra (o erro de
+  servidor nas páginas ISR) é decisão, com gatilho no §16. Depois do
+  deploy: o ritual dos três, mais a primeira leitura das três abas contra
+  produção.
+
+- **Fora da linha das fases (2026-09-17): a Fase 7b fechou na `dev` — o
+  `digest` chega a um humano, e com ela a Fase 7 inteira.** §11.2, item
+  **79**. Os quatro `error.tsx` declaravam `error` e nunca o liam; hoje os
+  **cinco** boundaries (os quatro mais o `app/global-error.tsx`, que não
+  existia) passam pela casca única `components/errors/error-state` —
+  tudo por prop e sem next-intl, porque o raiz renderiza fora do provider
+  —, que desenha o `digest` em texto pequeno selecionável e chama
+  `useReportClientError` **uma vez por montagem** (`lib/report-client-error.ts`:
+  `keepalive`, nunca lança, segunda exceção do `bff-seam`). O
+  `global-error.tsx` tem o `not-found.tsx` de modelo **menos o
+  `<ThemeInit />`** — `<script>` inline não executa quando é o React quem o
+  insere (armadilha 40); o tema é `applyStoredTheme()` num efeito, e as
+  strings saem dos JSONs lidos direto, no idioma do pathname (cópia fixa
+  derivaria em silêncio). O `admin:capture` fotografa o boundary
+  como rota permanente (`admin-metrics-error`, `breakBff`). **Ensaio em
+  build de produção, os três saltos**: quatro capturas → quatro `202` →
+  a linha `WEB · CLIENT_ERROR · /[locale]/admin/metrics` com `count: 4` na
+  `/admin/security`; e o erro de servidor com "Referência do erro:
+  1475300246" na tela e o mesmo digest no `context` da linha. **O ensaio
+  corrigiu o inventário (armadilha 41): erro de servidor nas duas páginas
+  ISR de detalhe é a 500 estática do Next em qualquer navegação** — o
+  boundary de segmento só entra no erro de render do cliente; o digest
+  chega a um humano nas páginas `force-dynamic`. Dívida com gatilho no
+  §16. **840 → 866 no web; 1.295 na API.** **Próximo passo: a promoção
+  `dev → main`** e o ritual; depois, a 9.
+
+- **Verificação pós-merge da 7c (2026-09-17): o fluxo anônimo que nenhum
+  diagrama desenhava, e o `<script>` que não executa.** Item **78**. Quatro
+  enumerações sobre a árvore mergeada (`d38fb5e`, #211): quem lê `origin` e
+  `route` do `ErrorEvent` (crus, sem mapa), a prosa do "única" (nenhuma
+  sobrou), contagens de rota (nenhuma), e os diagramas — **os dois com o BFF
+  diziam "assina um JWT por requisição" e o fluxo anônimo (analytics e
+  relato de erro) nunca foi desenhado**; rótulos e aresta corrigidos, os
+  seis parseiam pelo parser do Mermaid em Node. Gitleaks `0 commits`, nona.
+  **O terreno da 7b está no fim da §11 ("Inventário da 7b, reconferido
+  depois da 7c"), e corrige o inventário de 16/09 num ponto:** o
+  `<ThemeInit />` copiado para o `global-error.tsx` **não executa** — o
+  React DOM cria `<script>` de client component via `innerHTML` de
+  propósito (armadilha 40); tema em boundary raiz é `useEffect` +
+  `applyStoredTheme()`. Mais: o `<main>` do layout de idioma não dá
+  contêiner (só o `error.tsx` de admin duplica a casca), os quatro
+  `error.tsx` são o mesmo componente, o `message` de erro de servidor é a
+  frase genérica do Next (261 chars — o `digest` é a identidade), o idioma
+  da string fixa sai do pathname, e o ensaio real vai por `page.route`
+  devolvendo `routes: null` na aba de métricas. Branch
+  `observability/fase-7b-error-boundaries`, cortada de `d38fb5e`.
+
+- **Fora da linha das fases (2026-09-16): a Fase 7c fechou na `dev` — o
+  caminho de ingestão do erro do cliente, a segunda porta anônima.** §11.3,
+  item **77**. `origin: WEB` estava no enum do `ErrorEvent` desde a Fase 4
+  sem produtor; hoje `POST /api/errors/client` (**pública e anônima** como o
+  `/api/events`, balde próprio de **10/min — um só para o site, decidido**)
+  recebe `{ message ≤ 300, digest? ≤ 64, path }` e vira uma linha com
+  `CLIENT_ERROR`, `severity: ERROR`, e **o `route` como padrão da página**
+  (`/[locale]/news/[id]`) — a API normaliza (`utils/web-route.ts`) contra um
+  conjunto com guarda derivada de toda `page.tsx` do web; o que não casa vai
+  para `unmatched`. `202 { accepted: true }` porque o relato entra no
+  buffer, não no banco. O BFF `app/api/errors/client/route.ts` repassa só
+  corpo e content type, e o 429 atravessa. **Dois achados fora do
+  inventário:** o `shared-type-contract` varria só `200|201|204` e o `202`
+  passou verde (armadilha 38 — hoje `2\d\d`); e o gatilho "429 dentro de
+  `/api/metrics/http`", escrito desde a Fase 9 para o `/api/events`, **não
+  era observável por rota** — o 4xx por rota era contado e nunca servido
+  (armadilha 39 — entrou `clientErrorRate` por rota, com a coluna "4xx" na
+  `/admin/metrics`, desenhando "—" até a promoção). O `bff-route-seam` lê o
+  `fetch` cru e nomeia as duas portas anônimas. Ensaio local de ponta a
+  ponta (BFF → API → flush → `/admin/security` com três linhas de `WEB`) e
+  captura das duas abas sem defeito visual. **1.252 → 1.295 na API, 829 →
+  840 no web.** Fica a **7b** (os boundaries e o reporter, usando esta
+  porta), depois a promoção, e a **9** por último.
+
+- **Verificação pós-merge da Fase 6 (2026-09-16): três frases que sobraram,
+  a guarda de compilação vista reprovando, e o terreno da 7.** Item **76**.
+  Quatro enumerações sobre a árvore mergeada (`1152ca0`, #209): quem lê etapa
+  por número, quem lê o `route` do `ErrorEvent`, quem lê o resumo da 9 por
+  nome (ninguém no web — o campo novo não tem leitor a quebrar), e o que a
+  costura tipo ↔ schema garante. **"Stage 1–9" sobrevivia em três lugares**
+  (as duas portas de detalhe do run na `docs/api.md` e o JSDoc de
+  `logPipelineEvent`) — velho desde a 7.5, sem guarda que alcance; e a
+  `docs/api.md` não dizia que o `route` de um `ErrorEvent` tem **três
+  formas** desde a Fase 6. Tirar um id do `z.enum` de propósito fez o `tsc`
+  acusar em dois lugares — a fiação e a peça estão guardadas. Gitleaks em
+  `0 commits scanned` no push do merge, oitava medição. **O terreno da Fase
+  7 está no fim da §11**, e a ordem é **7c antes de 7b**: o "10/min" seria
+  um balde único para o site (o BFF não repassa o IP do leitor), nada no web
+  sabe o padrão da rota atual (a API normaliza, com conjunto derivado do
+  `app/`), o BFF anônimo nasce fora do `bff-route-seam`, e o `digest` só
+  existe em erro de servidor. Branch
+  `observability/fase-7c-client-error-ingest`.
+
+- **Fora da linha das fases (2026-09-16): a Fase 6 fechou na `dev` — as
+  invariantes, "o que deveria ter acontecido aconteceu?", perguntado uma vez
+  por run.** §10, item **75**. As etapas 7.5, 8, 8.5 e 9 engolem a própria
+  falha para o run terminar, e nada perguntava depois: a retenção podia parar
+  por um mês e o primeiro sintoma seria a conta do Neon. Entrou a **etapa
+  9.5** com **doze** consultas agregadas cedendo o event loop antes de cada
+  uma — a retenção das **sete** tabelas que a 8 expurga (a lista da §10
+  tinha seis: faltava `retention.article`, e a guarda deriva a contagem do
+  `Promise.all` do cleanup), um briefing por dia, todo briefing com fontes,
+  nenhum run morto, todo dia com run com métrica, a newsletter chegando a
+  alguém. **Violação não degrada o run**: o relatório é o `context` de um
+  `INFO` e cada violação é um `ErrorEvent` com `origin: INVARIANT` e o id no
+  fingerprint (uma linha por invariante por run); o que degrada é a consulta
+  que **lança** (`status: ERROR`, `WARN` da 9.5). `GET /api/admin/invariants`
+  lê o último evento e nunca roda a suíte; o painel na `/admin/security`
+  desenha três estados por linha com a forma carregando o estado. **Ensaio
+  contra o banco local antes de ligar: quatro reprovaram, nenhuma pela
+  invariante** — duas pelo acervo local nunca expurgado (como a §10 previu),
+  duas pelo seed, que se ajustou (sete briefings com fontes, 9.5 em todo run
+  semeado); segunda passada em **65 ms**. Os três exports que a §10 pedia
+  vieram por **mudança de módulo** (`services/retention.ts`,
+  `run-outcome.ts`, `utils/event-loop.ts`) — exportar do lugar antigo
+  fecharia um ciclo. **1.197 → 1.252 na API, 822 → 829 no web.** Fica a
+  **9**, por último e por decisão; 7b e 7c abertas.
+
+- **Verificação pós-merge da Fase 11 (2026-09-16): a coleta real, o nome
+  que sobrou, e o terreno da 6.** Item **74**. Três enumerações e um ensaio
+  sobre a árvore mergeada (`4fb0127`, #205–#207). **A coleta de verdade**
+  contra os 12 feeds e a NewsData: 609 itens de 13 fontes em 2,3 s, todas
+  `OK`, latências de 1,2 a 2,0 s, `kept ≤ fetched` nas 13 e Σ`kept` =
+  deduplicados — e a **BBC traz 41 itens com 10 URLs repetidas no próprio
+  feed**, a primeira divergência entre `fetched` e `kept` por motivo interno
+  ao feed. **Dois achados de prosa:** `fetchFromRssWithFailures` mentia desde
+  o 11b (devolve `outcomes`) — hoje `fetchFromRssWithOutcomes`; e o
+  `apps/api/CLAUDE.md` dizia "10 etapas" listando 11 e "três subgrupos" com
+  quatro. Gitleaks em `0 commits scanned` no push do merge, sétima medição.
+  **O terreno da Fase 6 está no fim da §10**: as nove invariantes viraram
+  onze (o `AuditEvent` e a `SourceHealth` entraram no expurgo depois da
+  lista), `STALE_RUN_MS` e `yieldToEventLoop` não são exportados,
+  `metrics.day_recorded` não é agregado em Prisma, e "violação degrada o
+  run?" se decide antes do `WARN`. Branch `observability/fase-6-invariants`.
+
+- **Fora da linha das fases (2026-09-15): a Fase 11 fechou na `dev` — PR
+  11c, o web.** §15, item **73**. O painel "Fontes" na `/admin/metrics`:
+  a tabela por fonte (estado de hoje, novas/coletadas, médias de 7 e 30 dias,
+  variação, dias em falha, latência e a faixa de 30 dias por linha),
+  ordenável, os **dois gatilhos da §15 como alerta** ("Superinteressante está
+  em falha há 3 dias seguidos"; "Trivela está definhando: as novas por dia
+  dos últimos 7 dias são 25 % da média de 30") e a rosquinha de contribuição
+  por `kept`. **Tudo o que não é linha é derivado no web**
+  (`lib/source-days.ts`): o dia "não tentada" pela ausência, as médias
+  **sobre os dias tentados** (o dia sem run não penaliza a fonte), a
+  sequência de falhas que um dia sem linha não quebra. Duas peças extraídas
+  antes de copiar — `admin/day-strip` (a casca da faixa da Fase 8) e
+  `admin/sortable-header` (o cabeçalho da tabela do 5c). **A captura pagou
+  pela quarta fase seguida:** "Outras" saía em primeiro na rosquinha, e a
+  legenda do centro cortava no anel. "Indisponível" sobre 404 até a
+  promoção. **792 → 822 no web** (78 → 80 suítes), 1.197 na API. Continuam abertas **duas
+  fases inteiras** (6 e 9) e as subfases 7b e 7c.
+
+- **Fora da linha das fases (2026-09-15): a Fase 11 ganhou a API — PR 11b.**
+  §15, item **72**. Os quatro números que o inventário tinha medido como
+  inexistentes, cada um de um lugar decidido: **`latencyMs`** por feed e por
+  provider, medido também na rejeição (um timeout sai com 30 s — "demora
+  28 s" é o dia anterior ao `ETIMEDOUT`); **`fetched` por feed** porque o
+  provider de RSS passou a devolver `outcomes`, um por fonte configurada, e
+  `failures` deixou de existir — `fetchAll` devolve `sources` e **deriva os
+  `warnings` daí**; **`kept`** por um `findMany` do `createdAt` **depois** do
+  `createMany`, com atribuição **por identidade do objeto** (o `source` de um
+  item da NewsData é o nome do veículo, que pode ser "G1"); e **a escrita
+  depois da etapa 4**, uma transação de duas instruções num `try` cujo
+  `catch` é `WARN` da 4. Retenção de 90 d na etapa 8 e `GET
+  /api/admin/sources` devolvendo a série crua — médias, variação e o dia
+  "não tentado" são do web (11c). **Dois achados:** a fixture do
+  `pipeline.test.ts` duplicava os literais em vez de reusar os objetos, e a
+  atribuição por identidade a expôs; e o `Math.min(fetched, kept)` saiu,
+  porque um clamp esconderia o erro que a guarda `kept ≤ fetched` existe
+  para achar. **1.141 → 1.196 na API** (80 → 82 suítes).
+
+- **Fora da linha das fases (2026-09-15): a Fase 11 abriu pelo schema — PR
+  11a.** §15, item **71**. `SourceHealth`: uma linha por `(source, dia)` com
+  `fetched`, `kept`, `outcome`, `failureReason`, `latencyMs` e o
+  `pipelineLogId` sem FK — a memória que a etapa 1 não tinha ("há quantos
+  dias a Superinteressante está fora?" exigia cruzar eventos à mão). **Três
+  decisões mudaram o desenho da §15:** `SourceOutcome` tem **três** valores
+  (`NOT_ATTEMPTED` é ausência de linha, derivada no web como o `NEVER_RAN` —
+  a escrita é depois da etapa 4, e o pipeline nunca o emitiria); `kept` é "a
+  URL entrou em `News` **naquele dia**", e não "antes deste run", para o
+  re-disparo depois de um `FAILED` na 6 não sobrescrever números honestos com
+  zeros; e o `@@index([source, day])` saiu pela armadilha 12. SQL por
+  `migrate diff` entre os dois schemas, sem banco; replay no Postgres local.
+  O seed semeia 27 dias × 13 fontes com as duas histórias dos gatilhos (a
+  Superinteressante em `FAILED` há 3 dias; a Trivela com `kept` de 7 dias em
+  25 % do de 30). **Nenhum teste novo, nenhuma mudança em `src/`** — as
+  guardas derivadas do schema fizeram o trabalho, vistas reprovando nove
+  vezes. **São três PRs** (11a migration · 11b API · 11c web), como na Fase 5.
+
+- **Verificação pós-merge da Fase 8 (2026-09-15): a linha `feed-empty` tinha
+  um terceiro consumidor, e o preview lia uma API que não sabe o desfecho.**
+  Item **70**. Três enumerações sobre a árvore mergeada. **O `ErrorEvent`
+  gravava todo `WARN` como `PIPELINE_STAGE_DEGRADED`**, inclusive o da etapa
+  1 só com feeds vazios — a tabela de falhas dizia "degradado" no domingo de
+  um feed de saúde enquanto o desfecho do mesmo run dizia `SUCCESS`; hoje os
+  três consumidores chamam `isDegradingWarn`. **O `/dev/dashboard` ainda
+  imprimia `SUCCESS`** (segunda porta, mesmo contrato). **O preview da `dev`
+  quebrava a `/admin`**: o web da `dev` lê a API de **produção**, que não tem
+  `outcome`/`degradedBy`, e `run.degradedBy.length` morria — `withOutcome`
+  em `lib/api.ts` preenche na fronteira, e a lição virou a armadilha 37 do
+  plano (vale para toda fase que acrescentar campo que o web lê). Duas
+  guardas novas — `janela ≤ retenção` no `retention-drift`, e a fiação do
+  `degradedBy` pelo parser — e o **gatilho da fase medido**: "Degradado pela
+  etapa 6 há 3 execuções seguidas" (`degradedStreak`). **1.129 → 1.141 na
+  API, 781 → 792 no web.** O terreno da **Fase 11** está no fim da §15 — a
+  fase com mais desvio do inventário até aqui.
+
+- **Fora da linha das fases (2026-09-15): a Fase 8 fechou — `SUCCESS` deixou
+  de mentir, e o dia que não rodou virou estado.** §12, item **69**. O
+  `PipelineLog.status` é binário e o pipeline não é: quatro etapas engolem a
+  própria falha com `WARN` e o run segue `SUCCESS`, o fallback para o Groq é
+  `WARN` da etapa 6, a colheita degradada é `WARN` da etapa 1 — seis coisas
+  erradas cabiam num "Sucesso". Entrou o **`outcome` derivado** (`SUCCESS` ·
+  `SUCCESS_DEGRADED` · `FAILED`, `null` em `RUNNING`) com **`degradedBy`** (as
+  etapas), função pura em `services/run-outcome.ts` sobre o run e seus `WARN`
+  — **sem coluna, sem migration, sem rota nova** —, nas duas portas da
+  listagem; o **resumo no evento final da etapa 9** (colheita, modelo,
+  briefing, newsletter, `degradedBy`, duração); a **faixa de 30 dias** na
+  `/admin`, com o **`NEVER_RAN` vazado** derivado no web pela ausência de run
+  num dia UTC; e o **batimento** "Último briefing há 3 h 12 min", medido do
+  último run que produziu briefing, "atrasado" acima de 24 h. O seed semeia
+  27 runs em 30 dias, com o buraco de 29–31/08. **1.103 → 1.129 na API, 762 →
+  781 no web.**
+
+  > **A linha `feed-empty` mora num lugar só** (`isDegradingFetchWarning`):
+  > o `pipelineErrors` da etapa 1 e o desfecho a chamam. Com "zero `WARN`",
+  > como a §12 escrevia em 23/08, o fim de semana de um feed de saúde seria
+  > dia degradado e o estado deixaria de informar. E o `degradedBy` tem
+  > **duas contas que têm de bater** — o pipeline o monta enquanto corre, a
+  > API o deriva dos eventos gravados —, com teste cobrando a concordância.
+  >
+  > **A captura pagou na estreia, pela segunda fase seguida:** no tema
+  > escuro o laranja do degradado e o vermelho do falhou eram a mesma cor a
+  > olho num quadrado de 20 px. O degradado é contorno com miolo fraco — a
+  > forma carrega o estado (armadilha 35). **`pii-in-logs` reprovou uma
+  > renomeação inocente**, e está certo em fixar a forma literal do contexto
+  > da 7.5. **Gatilho que nasce, agora medível:** três dias seguidos de
+  > `SUCCESS_DEGRADED` pelo mesmo `degradedBy`.
+
+- **Verificação pós-merge do 5c (2026-09-15): nada ligava o caminho que o
+  BFF repassa à rota que a API registra.** Item **68**. Web e API eram
+  autoconsistentes e nenhum lia o outro — um `'/admin/error'` passaria nos
+  dois CIs e falharia só em produção, com 404, na classe de defeito que só o
+  smoke da `main` mede. Entrou `bff-route-seam.test.ts` na API (lê os
+  `route.ts` do web pelo parser e cobra uma linha do roteador para cada
+  `proxyToApi`, caminho como padrão e método), vista reprovando com um
+  caractere trocado. Junto: as **duas listas escritas à mão** que o 5c
+  alimentou — a de 401 do smoke e o `ALL_ROUTES` do `admin:capture` —
+  ganharam guarda derivada do `app/` (`hand-written-lists.test.ts`); e
+  **quatro campos que a API mandava e a tela descartava** (`firstSeenAt`,
+  `pipelineLogId`, `requestId`, o run do `context`) passaram a aparecer.
+  Gitleaks em `0 commits scanned` no push do merge, sexta medição. **1.099 →
+  1.103 na API, 754 → 762 no web.**
+
+- **Fora da linha das fases (2026-09-14): a Fase 5 fechou — PR 5c, o web.**
+  §9, item **67**. A `/admin/security` nasceu (a décima sexta página, e a única
+  que o plano inteiro abre) e a faixa passou a ter as **três abas do §4.1**.
+  Entraram: o **arco das horas do plano** na `/admin` — o medidor que faltava
+  em 29/08 —, com o **ritmo do mês** projetado (`hoursUsed / horas decorridas ×
+  horas do mês`, calado antes de 24 h de amostra) e `plan: null` desenhando
+  "Indisponível", nunca zero; **os quatro sinais** na `/admin/metrics`, com
+  latência por rota em tabela; a **linha de KPI com variação** (três chips de
+  quatro — a taxa de sucesso não tem par honesto no contrato de 30 dias, e um
+  cartão sem chip é melhor que um chip inventado); **rosquinhas** em SVG para
+  categoria, provider, ingestão por fonte (as duas colunas gravadas desde a V1
+  e nunca desenhadas) e erro por categoria com seis fatias fixas; o
+  `series-bars` para o `byDay` que voltava desde a Fase 8 sem leitor; a
+  **tabela de falhas** com busca, filtros, colunas ordenáveis e o
+  `lastRequestId` selecionável; a **trilha de auditoria**; e o lugar das
+  invariantes, vazio até a Fase 6. Três rotas novas no BFF, todas por
+  `proxyToApi` com `requireRole: 'ADMIN'` — cobrado pelo parser em
+  `admin-surface.test.ts`, visto reprovando sobre as três antes de ganharem o
+  papel. O `admin:capture` fotografa as três abas e o **seed passou a popular
+  `ErrorEvent`, `AuditEvent` e `DailyUptime`**. **685 → 754 testes no web.**
+
+  > **A captura achou três defeitos sem sintoma de código, na estreia da aba**
+  > — o padrão do item 50: legenda da rosquinha atravessando a página, oito
+  > categorias sobre cinco cores com Mundo e Saúde no mesmo vermelho (a
+  > repetição agora sai esmaecida), e a série por dia como um retângulo de
+  > largura inteira porque a API só devolve os dias com evento
+  > (`fillCalendarDays` preenche a janela). E os **13 PNGs do item 55 tinham
+  > chegado à `dev` pelo #200**, rastreados — desrastreados aqui.
+
+  > **Duas coisas que a §9 pedia e o 5c decidiu diferente, com o motivo no
+  > plano:** os "quatro cartões com variação" são três, porque `lastMonth` não
+  > diz quantos dias têm linha e `failureDays / 30` mentiria para o otimista
+  > nos meses com dia sem `DailyMetric`; e a "tabela de eventos de segurança"
+  > e a "lista de erros por fingerprint" são **uma** tabela, porque os eventos
+  > da §3.2 vivem no `ErrorEvent` e não há segunda tabela de onde ler.
+  >
+  > **O `byDay` é dia UTC, e a série teria lido no fuso local** —
+  > `2026-09-01` viraria 31/08 no Brasil, a série inteira um dia para trás. É
+  > a armadilha do `Article.date` em outro campo; `formatCalendarDay` lê em
+  > UTC, com teste.
 
 - 🟡 **A cota de otimização de imagem da Vercel estourou em 09/09/2026, e o
   corte que a faz caber já entrou — falta o mês virar.** Confirmado no painel:
@@ -332,6 +681,144 @@ a suíte de unidade, que roda sem rede.
   > as três revisões olharam **camadas** — servidor, navegador, costura — e
   > nenhuma olhou uma tela com dado de produção dentro. §28, "As cinco fases
   > finais".
+- **Fora da linha das fases (2026-09-12): a Fase 5 ganhou a API — PR 5b.**
+  §9, item **64**. Quem escreve as duas tabelas do 5a, quem lê o `ErrorEvent`
+  que a Fase 4 gravava e ninguém lia, e o **quarto sinal de ouro**. Entraram
+  `GET /api/admin/errors` (agrupado por fingerprint, seis fatias fixas por
+  categoria) e `GET /api/admin/audit` — **este não estava no plano**, e sem ele
+  a tabela nasceria sem leitor —, a saturação no `/api/metrics/http` (memória
+  / 512 MB, atraso do event loop já sem a resolução do timer, horas do mês /
+  750), o heartbeat do `DailyUptime` **registrado no `server.ts`** (no
+  `buildApp` custaria uma ida ao banco por suíte), as três colunas no
+  dashboard com o `response-schema-contract` no `DailyMetric`, e os 365 dias
+  do `AuditEvent` na etapa 8. **1.018 → 1.098 na API, 683 → 685 no web.**
+
+  > **O ator atravessa por cabeçalho (`x-actor-id`), e o motivo é medido.** O
+  > BFF é o único ponto da cadeia que sabe quem clicou; o primeiro salto é
+  > `GET`, um `body` no `POST` quebraria todo chamador sem corpo (o Fastify
+  > entrega `null`, e `.default({})` só cobre `undefined`), e schema de
+  > `headers` do type provider **substitui `request.headers`** — apagaria o
+  > `authorization`. Lido à mão, depois do `assertJobSecret`; malformado é 400.
+  >
+  > **A retenção em prosa ganhou guarda** (`retention-drift.test.ts`, sobre os
+  > dois diagramas, os dois `CLAUDE.md` e os dois READMEs) e as retenções de
+  > notícia, log e artigo viraram constantes — eram literais na etapa 8.
+  >
+  > **O script que verificava as guardas reprovando disse "verde" para quatro
+  > que estavam vermelhas.** ANSI do vitest no regex de `failed`, e CRLF no
+  > `server.ts`. Guarda que mede guarda também se vê falhando.
+  >
+  > **A verificação pós-merge (item 65, 13/09) achou dois defeitos na leitura
+  > nova:** a saturação tinha posto o banco no caminho do `/api/metrics/http`
+  > — a rota que é em memória justamente para responder quando o banco é o
+  > suspeito — e banco fora derrubava os quatro sinais de uma vez (hoje
+  > `saturation.plan` é `null` com `warn`); e a janela do
+  > `/api/admin/errors` cortava o balde da hora parcial, até 59 min de "24h"
+  > (piso na hora cheia). **1.099 na API.**
+
+- **Fora da linha das fases (2026-09-12): a Fase 5 abriu pelo schema — PR 5a.**
+  §9, item **62**. As duas decisões que o inventário deixava *"antes de
+  desenhar"* eram schema, e foram tomadas: a auditoria de admin é tabela
+  (`AuditEvent`, uma linha por ocorrência, `actorId` sem FK e sem e-mail,
+  `action` texto com conjunto no código, 365 dias) e as horas do plano do
+  Render são acumulador (`DailyUptime`, uma linha por dia UTC incrementada por
+  heartbeat — `process.uptime()` zera a cada acordada desde 01/09, e o arco de
+  saturação que faltava em 29/08 não tinha de onde sair). O `aiTokensUsed` saiu
+  dos três lugares. **1.015 → 1.018 na API**, nenhuma mudança em `src/`.
+
+  > **Nenhuma guarda alcançava coluna, e agora duas alcançam.** Tirar uma
+  > coluna do schema e esquecer o `DROP COLUMN` deixava a suíte inteira verde e
+  > produção com coluna morta para sempre. `migrations.test.ts` ganhou um
+  > **replay estático** (`CREATE`/`ADD`/`DROP`/`RENAME COLUMN` na ordem do
+  > deploy, contra o schema, nas duas direções) e o `diagram-drift` compara o ER
+  > **coluna a coluna** — as 13 entidades de 01/09 bateram até no atributo.
+  >
+  > **O inventário errava um fato que muda o 5b:** a API **não** vê quem
+  > disparou o pipeline — a cadeia BFF → cron → API chega com `JOB_SECRET` e
+  > usuário nenhum. O ator tem de ser encaminhado; a tabela nasceu com
+  > `actorId` obrigatório de propósito.
+  >
+  > **O SQL saiu de replay real** (`migrate diff --from-migrations` num shadow
+  > DB — o único caminho que produz `DROP COLUMN`), aplicou sobre as 30 linhas
+  > seedadas do banco local, e as seis migrations do zero dão *"No difference
+  > detected"*.
+  >
+  > **O pós-merge (item 63) achou que o seed não era tipado por ninguém:** o
+  > `packages/database` não tinha `typecheck`, o `build` tipa só `src/`, e o
+  > `tsx` não tipa — coluna removida do schema e esquecida no seed passava por
+  > lint, typecheck e suíte, e morria em runtime no `dev-bootstrap.sh`. Hoje há
+  > `tsconfig.typecheck.json` cobrindo `prisma/*.ts`, e o `turbo typecheck` tem
+  > 6 tarefas em vez de 5.
+- **Verificação pós-merge da Fase 4 (2026-09-12): quatro falhas ainda morriam
+  com a linha de log.** Item **61**. A pergunta dos itens 39, 52 e 57 — *o que
+  ficou de fora?* — respondida enumerando todo `warn`/`error` escrito fora dos
+  dois pontos únicos: 22 linhas, **quatro lacunas**. A maior é a degradação mais
+  frequente medida neste projeto — **o Gemini falhando com o Groq entregando**,
+  que deixava só uma linha de stdout — e hoje é `WARN` da etapa 6, sem tocar em
+  `pipelineErrors`. Junto: o `catch` final do pipeline gravava o `ERROR`
+  **depois** do `update` que falha quando o banco é o problema; o disparo
+  interno do cron não tinha registro; e a coleta degradada saía como `internal`
+  quando é `upstream`. **1.003 → 1.015 testes na API.**
+
+  > **Três inconsistências eram minhas, e nenhuma tinha sintoma.** O
+  > `authPlugin` — a porta de maior volume — era a única sem `requestId`; o
+  > enterro do run morto gravava `pipelineLogId: null` sobre um id que estava na
+  > mão (`recordError` lia só o `AsyncLocalStorage`, e o enterro roda fora do
+  > contexto); e a contagem "três portas", corrigida no código, ficou errada em
+  > **quatro documentos**. O `'unmatched'` estava escrito seis vezes; hoje mora
+  > em `routePatternOf`, com guarda. E o teto do `code` virou **tipo**
+  > (`RecordedErrorCode`): interpolar deixa de compilar.
+
+- **Fora da linha das fases (2026-09-10): a falha parou de morrer junto com a
+  linha de log.** A **Fase 4** (§8), nos dois PRs da ordem do §19 — **6a** só o
+  schema, **6b** o código. `ErrorEvent` grava **uma linha por
+  `(fingerprint, hora)`**, e não por ocorrência: um 500 que dispara 10.000 vezes
+  numa hora é uma linha com `count: 10000`, o que dá à tabela um teto de *falhas
+  distintas × 24* qualquer que seja o tráfego. `recordError` é **síncrona,
+  coalescente e nunca lança**; quem persiste é um intervalo de 30 s mais o
+  `onClose`, e a etapa 8 apaga aos 14 dias. Junto vieram os **dois índices que o
+  `PipelineLog` nunca teve** — zero `@@index` em nove fases, com `getDevLogs`
+  ordenando por `startedAt desc`. **967 → 1.003 testes na API.** Itens **59** e
+  **60** do `docs/progress.md`.
+
+  > **Quem escreve são dois pontos únicos, e uma exceção declarada.**
+  > `logAppError` (toda porta da API que responde erro) e `logPipelineEvent` (toda etapa) — e
+  > **não** os `catch`, porque enumerar `catch` à mão é a forma de guarda que a
+  > Fase 7a viu falhar por omissão. A exceção é o ramo do **500 cru**, que não é
+  > `AppError` e é justamente a falha que menos se sabe explicar depois.
+  >
+  > **O flush do desligamento precisou de prazo, e o teste deu o preço.** Sem
+  > limite, a suíte que não mocka o Prisma travou o `afterAll` em **10 s**; em
+  > produção o mesmo desenho entrega o processo ao `SIGKILL`, porque `close()` é
+  > o caminho do `SIGTERM` e **a hora em que há erro acumulado é a hora em que o
+  > banco é o suspeito**.
+  >
+  > **E uma guarda minha passava verde sobre o defeito que existia para achar** —
+  > sétima vez desta família. A asserção da severidade no fingerprint variava o
+  > **código** junto, então continuava verde com a severidade removida. Só
+  > apareceu porque as cinco quebras de propósito foram rodadas uma a uma.
+
+  > **A guarda nova fecha um buraco que não tinha sintoma: mudar o
+  > `schema.prisma` e esquecer a migration deixa a suíte inteira verde.** O
+  > `prisma generate` lê o *schema*, então o client tipa a tabela nova, o `tsc`
+  > aprova e todo teste passa — o erro só aparece na primeira consulta contra o
+  > banco real, que é produção, porque o `migrate.yml` aplica o que existe em
+  > `migrations/`. Hoje há conjunto derivado do schema (models, enums e os nomes
+  > de índice que a convenção do Prisma implica) cobrado contra o SQL aplicado.
+  >
+  > **E sem Docker à mão o SQL sai canônico do mesmo jeito:**
+  > `prisma migrate diff --from-empty --to-schema-datamodel` **não precisa de
+  > banco**, e devolve o que o Prisma geraria — em vez do que eu lembrei da
+  > convenção.
+  >
+  > **A segunda guarda achou seis frases falsas no `packages/database/CLAUDE.md`,
+  > todas anteriores à fase.** É o documento que uma sessão fria lê para saber o
+  > que existe no banco, e ele não citava `UserPreference` (21/08) nem
+  > `ProductEvent` (22/08), faltava dois enums, descrevia o `Favorite` pela
+  > chave que a Fase 6 aposentou e dizia que o cleanup não apaga evento de
+  > produto — que ele apaga desde a Fase 8. Lista escrita em prosa é a família
+  > do `13` dos feeds, agora por **ausência** em vez de número errado.
+
 - **Fora da linha das fases (2026-09-09): o erro que o servidor escolhe devolver
   parou de sumir, e a espinha do plano abriu.** A **Fase 3** (§7), PR 5 da ordem
   do §19. `AppError` ganhou `code`, `category`, `cause` e `context`; o primeiro
@@ -602,7 +1089,9 @@ a suíte de unidade, que roda sem rede.
   > classificou certo, `withRetry` tentou três vezes com backoff, e o fallback
   > para o Groq entregou o briefing sem perda. **Gatilho para agir:** três dias
   > seguidos de fallback (hoje são dois, medidos por
-  > `aiProviderUsage.groq` em `/api/metrics/weekly`).
+  > `aiProviderUsage.groq` em `/api/metrics/weekly`). **Desde a Fase 8 a
+  > `/admin` mede isso sozinha:** "Degradado pela etapa 6 há 3 execuções
+  > seguidas" aparece na faixa de desfechos quando o gatilho dispara.
 
 - **Fora da linha das fases (2026-09-01): os seis diagramas passaram a
   descrever o sistema que existe.** Item **adiantado da Fase 13.5**. Os quatro
@@ -681,7 +1170,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 1.647 em 139 suites (**964 API em 68** + **683 web em 71** — todos
+- **Testes:** 2.161 em 173 suites (**1.295 API em 88** + **866 web em 85** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
@@ -962,6 +1451,22 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   tentativas, com `private, no-cache, no-store`, enquanto a Home respondia
   `HIT` com `Age: 1491`. `generateStaticParams` devolvendo `[]` é o que liga a
   ISR sem assar nada no build. Guarda em `tests/lib/rendering-mode.test.ts`.
+- **`error.tsx` não alcança erro de servidor numa página ISR — a resposta é a
+  500 estática do Next, preta e sem estilo, em qualquer navegação.** Medido
+  na Fase 7b do plano de observabilidade, três vezes: com a API parada
+  (`/news/[id]` produz dois `digest` no log — um do `generateMetadata`, um do
+  corpo — e a 500), com um `throw` no corpo por navegação direta (HTTP 500,
+  mesma tela) e pela navegação de cliente a partir do acervo (o RSC devolve
+  500 e o roteador cai para navegação dura). Render de **geração** que lança é
+  "a geração falhou", não "renderize o boundary": o `error.tsx` do segmento só
+  entra no erro de render do **cliente**, que não tem `digest`, e o
+  `global-error.tsx` é para o layout. Onde o `digest` chega a um humano é nas
+  páginas `force-dynamic` (admin, conta, favoritos). O inventário de duas
+  sessões dizia que a página "cai no `news/error.tsx`" — era dedução. **Ao
+  afirmar que um boundary alcança um erro, provoque o erro e olhe a tela**:
+  o `admin:capture` tem `breakBff` para o erro de cliente, e um `throw`
+  guardado por variável de ambiente (nunca commitado) serve para o de
+  servidor. Dívida com gatilho no §16 do plano; armadilha 41.
 - **`redirect()` de server component em rota com `loading.tsx` vira `<meta
   refresh>`, não 307.** O `loading.tsx` do segmento faz o Next despachar a
   casca na hora; quando o `redirect()` resolve, a resposta já começou e não há
@@ -1189,8 +1694,13 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   segundos** devolveram 10 × 400 e **35 × 429**. O número fica em 30, e não por
   folga: com lote de 20 ele já permite 600 eventos/min, o que alcança as 200 mil
   linhas da dívida da `/metrics/product` em ~5h30 — dobrá-lo não compra
-  proteção. **Gatilho, e é observável sem instrumentação nova:** 429 em
-  `POST /api/events` dentro de `GET /api/metrics/http`.
+  proteção. **Gatilho:** 429 em `POST /api/events` dentro de
+  `GET /api/metrics/http` — **e só passou a ser legível por rota na Fase
+  7c**: esta frase dizia "observável sem instrumentação nova" desde a Fase 9,
+  e o 4xx por rota era contado e nunca servido (armadilha 39 do plano). Hoje
+  é o `clientErrorRate` de cada linha de `routes`, e a coluna "4xx" da
+  `/admin/metrics`. O `POST /api/errors/client` (7c) partilha o desenho e o
+  gatilho, com balde de 10/min.
 - **`NewsletterLog` é a única tabela do produto fora do expurgo.** Uma linha por
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser

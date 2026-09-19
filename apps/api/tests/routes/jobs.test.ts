@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { buildTestApp } from '../helpers/test-server';
 import type { FastifyInstance } from 'fastify';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { triggerPipeline } from '../../src/services/pipeline.service';
+import { ACTOR_ID_HEADER } from '../../src/routes/jobs';
 import { prisma } from '@newranews/database';
 
 vi.mock('../../src/services/pipeline.service', () => ({
@@ -19,6 +22,12 @@ vi.mock('@newranews/database', async (importOriginal) => {
     prisma: {
       pipelineLog: {
         findUnique: vi.fn(),
+      },
+      // A trilha de auditoria da Fase 5: o disparo com `x-actor-id` grava
+      // uma linha. Sem este mock o `recordAuditEvent` cairia no `catch` (ele
+      // nunca lança) e os testes abaixo passariam sem medir a linha.
+      auditEvent: {
+        create: vi.fn(),
       },
     },
   };
@@ -42,6 +51,8 @@ vi.mock('../../src/config/env', () => ({
   },
 }));
 
+const ACTOR_ID = 'dddddddd-0000-0000-0000-000000000004';
+
 describe('POST /api/jobs/daily-pipeline', () => {
   let app: FastifyInstance;
 
@@ -51,6 +62,11 @@ describe('POST /api/jobs/daily-pipeline', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  beforeEach(() => {
+    vi.mocked(prisma.auditEvent.create).mockReset().mockResolvedValue({} as never);
+    vi.mocked(triggerPipeline).mockClear();
   });
 
   describe('authentication', () => {
@@ -157,6 +173,127 @@ describe('POST /api/jobs/daily-pipeline', () => {
       });
 
       expect(triggerPipeline).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * **Quem disparou — a trilha da Fase 5.** A API não vê sessão nesta rota; o
+   * BFF põe o `User.id` em `x-actor-id` e o cron o repassa. O cron da Vercel
+   * não manda o cabeçalho, e o disparo agendado não é ação de ninguém.
+   */
+  describe('the actor header', () => {
+    it('writes an audit line for a manual trigger, with the run as target', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { authorization: 'Bearer test-secret', 'x-actor-id': ACTOR_ID },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(prisma.auditEvent.create).toHaveBeenCalledTimes(1);
+      const [arg] = vi.mocked(prisma.auditEvent.create).mock.calls[0] as [
+        { data: Record<string, unknown> },
+      ];
+      expect(arg.data).toMatchObject({
+        actorId: ACTOR_ID,
+        action: 'pipeline.triggered',
+        targetId: 'aaaaaaaa-0000-0000-0000-000000000001',
+        outcome: 'started',
+        context: { pipelineId: 'aaaaaaaa-0000-0000-0000-000000000001' },
+      });
+      // O `x-request-id` da resposta é o que liga a linha ao log.
+      expect(arg.data.requestId).toBe(res.headers['x-request-id']);
+    });
+
+    it('records the click without a target when nothing was triggered', async () => {
+      vi.mocked(triggerPipeline).mockResolvedValueOnce({
+        outcome: 'already-succeeded-today',
+        pipelineId: 'bbbbbbbb-0000-0000-0000-000000000002',
+        startedAt: '2026-08-25T11:00:00.000Z',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { authorization: 'Bearer test-secret', 'x-actor-id': ACTOR_ID },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const [arg] = vi.mocked(prisma.auditEvent.create).mock.calls[0] as [
+        { data: Record<string, unknown> },
+      ];
+      // "Clicou" fica registrado; "aconteceu", não — o id do run existente vai
+      // no `context`, nunca em `targetId`.
+      expect(arg.data).toMatchObject({
+        targetId: null,
+        outcome: 'already-succeeded-today',
+        context: { pipelineId: 'bbbbbbbb-0000-0000-0000-000000000002' },
+      });
+    });
+
+    it('writes nothing for the scheduled trigger — no header, no actor', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { authorization: 'Bearer test-secret' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a malformed actor with 400 instead of triggering and losing the line', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { authorization: 'Bearer test-secret', 'x-actor-id': 'admin-1' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body)).toEqual({ error: 'Invalid x-actor-id header' });
+      expect(triggerPipeline).not.toHaveBeenCalled();
+      expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('reads the header only after the secret — an anonymous caller learns nothing', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { 'x-actor-id': 'admin-1' },
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('still answers the trigger when the audit write fails — the run is already running', async () => {
+      vi.mocked(prisma.auditEvent.create).mockRejectedValueOnce(new Error('connection refused'));
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/jobs/daily-pipeline',
+        headers: { authorization: 'Bearer test-secret', 'x-actor-id': ACTOR_ID },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect((JSON.parse(res.body) as { outcome: string }).outcome).toBe('started');
+    });
+  });
+
+  /**
+   * **A costura.** O nome do cabeçalho é um literal nos dois apps, e os testes
+   * de cada lado são autoconsistentes: renomear de um lado deixaria os dois
+   * verdes e o ator morreria no meio do caminho, sem linha nenhuma. Esta suíte
+   * lê os dois arquivos do web que o escrevem — o mesmo que o `diagram-drift`
+   * já faz com o `app/` do web.
+   */
+  describe('the seam with the web', () => {
+    it.each([
+      'app/api/admin/run-pipeline/route.ts',
+      'app/api/cron/daily-news/route.ts',
+    ])('%s writes the same header name the API reads', (relative) => {
+      const source = readFileSync(join(__dirname, '../../../web', relative), 'utf8');
+
+      expect(source).toContain(`'${ACTOR_ID_HEADER}'`);
     });
   });
 

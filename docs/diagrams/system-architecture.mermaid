@@ -15,16 +15,17 @@ flowchart TB
         W["Next.js 14 · App Router<br/>Tailwind CSS 4 + Base UI<br/>next-intl · /pt-BR e /en"]
         PUB["Rotas de leitura<br/>(estáticas com ISR)"]
         PRIV["Rotas de conta e admin<br/>(exigem sessão)"]
-        BFF["BFF — app/api/*<br/>assina um JWT por requisição"]
+        BFF["BFF — app/api/*<br/>assina um JWT por requisição —<br/>menos /events e /errors/client, anônimas"]
         CR["API Route<br/>/api/cron/daily-news"]
         W --- PUB
         W --- PRIV
         PRIV --> BFF
+        PUB -.->|"analytics (sendBeacon) e relato de erro<br/>sem sessão, sem JWT"| BFF
     end
 
     subgraph Backend["BACKEND — Render"]
         API["Fastify 4 · TypeScript · Prisma<br/>Zod · Rate-limit · CORS · Helmet<br/>OpenAPI sempre gerado, UI só fora de produção"]
-        PL["Pipeline diário<br/>(11 etapas)"]
+        PL["Pipeline diário<br/>(12 etapas)"]
         JOBS["Cron interno · @fastify/schedule<br/>(só dispara se o processo estiver de pé)"]
         API --> PL
         JOBS --> PL
