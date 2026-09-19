@@ -169,6 +169,33 @@ updates:
       # ela que puxa o plugin.
       - dependency-name: '@vitejs/plugin-react'
         update-types: ['version-update:semver-major']
+      # **A terceira rodada, três minutos depois de a configuração chegar à
+      # `main` pela promoção de 19/09/2026 (#215) — cinco PRs contra a `dev`,
+      # três majors reprovando (#217, #218, #220).** Cada um acompanha uma
+      # major já decidida ou é migração, não bump:
+      #
+      # `zod@4` é **dependência de produção da API**, e o
+      # `fastify-type-provider-zod` da árvore não fala zod 4: toda rota com
+      # schema respondeu 500 e a OpenAPI parou de gerar — **258 testes** no
+      # #217. Gatilho: a major do `fastify-type-provider-zod` que suporte zod 4,
+      # junto com o `fastify@5` (já acima). É trabalho próprio: os
+      # `assertContract` e o `shared-type-contract` são a guarda dessa migração.
+      - dependency-name: zod
+        update-types: [version-update:semver-major]
+      # `vitest@5` exige o vite 7 (`ERR_PACKAGE_PATH_NOT_EXPORTED ./module-runner`
+      # no #218), e o vite só sobe junto com o `@vitejs/plugin-react` — que está
+      # logo acima. A nota acima dizia que a major do vitest era "bump legítimo"
+      # e ficava fora da lista de propósito; medido, ela não sobe sozinha.
+      # Gatilho: vitest + vite + plugin-react num PR só, com a suíte inteira.
+      - dependency-name: vitest
+        update-types: [version-update:semver-major]
+      # `@typescript-eslint/*@8` exige o ESLint 9 — o plugin 8 sobre o 8.57 cai
+      # com "Cannot use in operator to search for type" antes de lintar
+      # (#220). Acompanha a major do `eslint`, já acima, na migração do ESLint.
+      - dependency-name: '@typescript-eslint/eslint-plugin'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@typescript-eslint/parser'
+        update-types: [version-update:semver-major]
     groups:
       producao:
         dependency-type: production
