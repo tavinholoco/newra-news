@@ -133,9 +133,16 @@ async function main() {
   const todayContent = `## Tecnologia e Saúde\n\nA inteligência artificial chegou aos hospitais públicos brasileiros com força total. Um novo sistema de análise de exames reduz em 60% o tempo de diagnóstico, demonstrando como a tecnologia pode democratizar o acesso à medicina de qualidade.\n\n## Cenário Político\n\nNo Congresso, avança o projeto de regulação das big techs. O texto aprovado na Câmara prevê multas significativas para plataformas que descumprirem as novas regras, sinalizando uma postura mais firme do Brasil no debate global sobre soberania digital.\n\n## Economia\n\nO Banco Central manteve a Selic estável, surpreendendo analistas. A decisão reflete a cautela do Copom diante de um cenário externo ainda incerto e pressões inflacionárias internas.\n\n## Ciência Nacional\n\nPesquisadores da USP anunciaram a descoberta de uma molécula com potencial anticancerígeno extraída da biodiversidade amazônica. A pesquisa reforça a importância estratégica da proteção da Amazônia.\n\n## Síntese\n\nO dia foi marcado pela intersecção entre tecnologia, ciência e debates institucionais. O Brasil demonstra capacidade de inovar enquanto enfrenta desafios econômicos e políticos que moldarão o país nos próximos meses.`;
   const BRIEFING_DAYS = 7;
   const SOURCES_PER_BRIEFING = 3;
+  // O dia bloqueado pelo portão de entrada (Fase 9) **não tem briefing** — o
+  // run falhou na 5.5 antes da chamada de IA. É o caso que a §13 aceita de
+  // olhos abertos: os dois runs seguintes veem seis briefings em sete dias e
+  // `briefing.one_per_day` sai VIOLADA neles (abaixo, no relatório da 9.5).
+  // O mesmo dia é o `GATE_BLOCKED_DAY` da métrica e dos runs.
+  const GATE_BLOCKED_DAY = 2;
   let articlesCreated = 0;
   let sourcesCreated = 0;
   for (let daysAgo = 0; daysAgo < BRIEFING_DAYS; daysAgo++) {
+    if (daysAgo === GATE_BLOCKED_DAY) continue;
     const date = new Date(today);
     date.setUTCDate(date.getUTCDate() - daysAgo);
 
@@ -187,16 +194,14 @@ async function main() {
       }
     }
   }
-  console.log(`  Article: ${articlesCreated} created (${BRIEFING_DAYS - articlesCreated} already existed), ${sourcesCreated} BriefingSource rows`);
+  console.log(`  Article: ${articlesCreated} created (${BRIEFING_DAYS - 1 - articlesCreated} already existed; the gate-blocked day has none), ${sourcesCreated} BriefingSource rows`);
 
   // 30 dias de métricas do pipeline. Sem elas a `/dashboard` fica inteira em
   // zero e o `category-bars` — que consome `--chart-1..5` — não desenha barra
   // nenhuma, o que esconde justamente o componente que a V2 muda.
   // Determinístico, para o seed ser reprodutível: sem aleatoriedade.
   // O dia bloqueado pelo portão de entrada (Fase 9) não tem métrica: o run
-  // falhou na 5.5 e nunca chegou à 9 — como em produção. É o mesmo dia do
-  // `GATE_BLOCKED_DAY` dos runs, abaixo.
-  const GATE_BLOCKED_DAY = 2;
+  // falhou na 5.5 e nunca chegou à 9 — como em produção.
   let metricsCreated = 0;
   for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
     if (daysAgo === GATE_BLOCKED_DAY) continue;
@@ -436,7 +441,9 @@ async function main() {
   // O retrato é o do produto medido: quase todo dia `SUCCESS`; a cada cinco
   // dias o Gemini caiu e o Groq entregou (o mesmo ritmo do `aiProvider` das
   // métricas acima, para as duas telas contarem a mesma história); um dia em
-  // que a newsletter falhou; um dia `FAILED` na etapa 6; e **três dias sem
+  // que a newsletter falhou; um dia `FAILED` na etapa 6; desde a Fase 9 um
+  // dia `FAILED` na 5.5 (o portão de entrada, por volume) e um dia em que o
+  // portão de saída recusou o Gemini por idioma e o Groq serviu; e **três dias sem
   // run** (17–19 dias atrás), que é o buraco de 29–31/08/2026 — a API suspensa
   // por horas do plano —, para a faixa ter o que o `NEVER_RAN` existe para
   // mostrar. Determinístico e idempotente: id fixo por dia, `create` só quando
@@ -488,7 +495,9 @@ async function main() {
       oldest('retention.errorEvent', 14, 2),
       oldest('retention.auditEvent', 365, 4),
       oldest('retention.sourceHealth', 90, 29),
-      count('briefing.one_per_day', 7, 7),
+      // Os dois runs depois do dia bloqueado (Fase 9) veem seis briefings na
+      // janela de sete — a violação que a §13 aceita, agora visível.
+      count('briefing.one_per_day', daysAgo < GATE_BLOCKED_DAY ? 6 : 7, 7),
       count('briefing.has_sources', 0, 0),
       count('pipeline.no_stale_running', 0, 0),
       count('metrics.day_recorded', 0, 0),
@@ -651,7 +660,7 @@ async function main() {
             sourcesCited: 15,
             newsletter: newsletterFailed ? 'failed' : { total: 3, sent: 3, failed: 0 },
             renormalized: { scanned: 8190, changed: 0 },
-            invariants: { checked: 12, violated: daysAgo === 0 ? 1 : 0, errored: 0 },
+            invariants: { checked: 12, violated: (daysAgo === 0 ? 1 : 0) + (daysAgo < GATE_BLOCKED_DAY ? 1 : 0), errored: 0 },
             degradedBy: [...(fallback ? [gateRecovered ? 6.5 : 6] : []), ...(newsletterFailed ? [7.5] : [])],
             durationMs,
           },

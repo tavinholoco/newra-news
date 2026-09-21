@@ -96,7 +96,12 @@ export const UNHANDLED_CODE = 'UNHANDLED';
 /** Falha que abortou o run do pipeline (o `catch` final de `runPipelineStages`). */
 export const PIPELINE_FAILED_CODE = 'PIPELINE_STAGE_FAILED';
 
-/** Etapa não-crítica que falhou sem abortar o run — o `WARN` das etapas 7.5 a 9.5. */
+/**
+ * Um `WARN` que degradou o run sem abortá-lo — a etapa não-crítica que falhou
+ * (7.5 a 9.5), a colheita ou a saúde por fonte que não gravou (1, 4), o
+ * fallback do Groq (6) e o aviso de um portão (5.5, 6.5). O bloqueio de portão
+ * tem código próprio, abaixo.
+ */
 export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
 
 /**

@@ -171,7 +171,7 @@
         "description": "The pipeline's two gates decide whether the day's briefing reaches the front page: the entry gate (stage 5.5) measures the harvest before spending the AI call — volume against the 7-day median, three sources, one item from the last 24 h — and the exit gate (6.5) examines what the model wrote — a URL that was not in the material, the prompt envelope echoed back, language, size. Quality falls back to the reserve provider once; security fails the day, with no retry. The rate covers the last 7 days.",
         "loadError": "The gate decisions could not be loaded.",
         "alertsLabel": "Gate alerts",
-        "alertUnanchored": "{count, plural, one {# block} other {# blocks}} for an unanchored URL in the last 7 days — a one-off event: the material carried a link the model repeated. Worth a look today.",
+        "alertUrlBlock": "{count, plural, one {# block} other {# blocks}} for a URL in the briefing in the last 7 days — a one-off event: a link the material carried or the model made up. Worth a look today.",
         "alertLowApproval": "Approval rate at {rate} over the last 7 days, below 90%: the gates are loosening, or the harvest is bad.",
         "approval": "Approval (7 d)",
         "approvalHint": "Runs that passed both gates, over the closed runs in the window.",
@@ -190,11 +190,11 @@
           "freshness": "Nothing from the last 24 h",
           "duplicateRate": "High duplicate rate",
           "categoryDrift": "Category drift",
-          "unanchoredUrl": "Unanchored URL",
+          "unanchoredUrl": "Made-up URL",
+          "copiedUrl": "URL copied from the material",
           "envelopeLeak": "Prompt envelope leaked",
           "language": "Not in Portuguese",
           "size": "Above the size ceiling",
-          "copiedUrl": "URL copied from the material",
           "instructionText": "Instruction-like text"
         }
       },

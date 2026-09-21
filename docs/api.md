@@ -1307,11 +1307,13 @@ cliente tem motivo para ver.
 
 **`outcome` e `degradedBy` são derivados na leitura, não colunas** (Fase 8 do
 plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
-pipeline não é: quatro etapas engolem a própria falha com `WARN` e o run segue
-`SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas), o
-fallback para o Groq é um `WARN` da etapa 6, a colheita degradada é um `WARN`
-da etapa 1 e, desde a Fase 11, a escrita da saúde por fonte que falhou é um
-`WARN` da etapa 4. A regra:
+pipeline não é: cinco etapas engolem a própria falha com `WARN` e o run segue
+`SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas, 9.5
+invariantes), o fallback para o Groq é um `WARN` da etapa 6, a colheita
+degradada é um `WARN` da etapa 1, desde a Fase 11 a escrita da saúde por
+fonte que falhou é um `WARN` da etapa 4 e, desde a Fase 9, os **avisos dos
+portões** são `WARN` da 5.5 e da 6.5 — inclusive o bloqueio de qualidade do
+Gemini que o Groq recuperou. A regra:
 
 | `outcome` | Quando |
 |---|---|

@@ -43,10 +43,10 @@ const CHECK_KEY: Record<string, string> = {
   'duplicate-rate': 'security.gates.checks.duplicateRate',
   'category-drift': 'security.gates.checks.categoryDrift',
   'unanchored-url': 'security.gates.checks.unanchoredUrl',
+  'copied-url': 'security.gates.checks.copiedUrl',
   'envelope-leak': 'security.gates.checks.envelopeLeak',
   language: 'security.gates.checks.language',
   size: 'security.gates.checks.size',
-  'copied-url': 'security.gates.checks.copiedUrl',
   'instruction-text': 'security.gates.checks.instructionText',
 };
 
@@ -99,8 +99,8 @@ export function GatesPanel() {
     return key ? t(key) : motive.check;
   };
   const describeAlert = (alert: GateAlert): string =>
-    alert.kind === 'unanchored-url'
-      ? t('security.gates.alertUnanchored', { count: alert.count })
+    alert.kind === 'url-block'
+      ? t('security.gates.alertUrlBlock', { count: alert.count })
       : t('security.gates.alertLowApproval', { rate: percent.format(alert.rate) });
 
   return (
@@ -108,7 +108,7 @@ export function GatesPanel() {
       {/**
         * `role='status'`, não `alert`: é conteúdo da página, não interrupção —
         * a lição da Fase 2, e o mesmo desenho dos alertas de fonte da Fase 11.
-        * O de URL não ancorada é vermelho (é o evento único do §16); o de
+        * O de URL no briefing é vermelho (é o evento único do §16); o de
         * taxa é o laranja de atenção.
         */}
       {alerts.length > 0 && (
@@ -116,7 +116,7 @@ export function GatesPanel() {
           {alerts.map((alert) => (
             <li
               key={alert.kind}
-              className={cn('font-medium', alert.kind === 'unanchored-url' ? 'text-danger' : 'text-link')}
+              className={cn('font-medium', alert.kind === 'url-block' ? 'text-danger' : 'text-link')}
             >
               {describeAlert(alert)}
             </li>

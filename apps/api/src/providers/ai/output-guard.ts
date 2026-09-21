@@ -29,24 +29,34 @@ import type { GeneratedArticle } from '../types';
  *
  * | check | ação | o que pega |
  * |---|---|---|
- * | `unanchored-url` | **bloqueia — segurança** | URL na saída que não está no material |
+ * | `unanchored-url` | **bloqueia — segurança** | URL na saída que não está em lugar nenhum do material — inventada, ou vinda de um prompt vazado |
+ * | `copied-url` | **bloqueia — segurança** | URL na saída que **está no texto** do material — o modelo copiou o que um terceiro escreveu, e é o caminho clássico da injeção |
  * | `envelope-leak` | **bloqueia — segurança** | o delimitador do material, ou uma frase do prompt, ecoados na saída |
  * | `language` | **bloqueia — qualidade** | corpo que não está em português |
  * | `size` | **bloqueia — qualidade** | corpo acima do teto |
- * | `copied-url` | avisa | URL na saída que **está** no material — o modelo copiou, e o prompt proíbe link |
  * | `instruction-text` | avisa, **nunca bloqueia** | "ignore as instruções anteriores" e a família |
  *
- * **A URL não ancorada é a checagem mais forte, e ela é mais forte do que o
- * plano escreveu.** A §13.2 dizia que o conjunto de links legítimos era "o que
- * o `formatNewsItems` mandou para o modelo" — e o `formatNewsItems` **não
- * manda URL nenhuma**: são `TÍTULO`, `FONTE`, `CATEGORIA`, `DATA`, `DESCRIÇÃO`
- * e `CONTEÚDO`, e o `ARTICLE_USER_PROMPT` proíbe link por escrito. A única
- * forma de uma URL chegar legitimamente à saída é o **texto** do material
- * citá-la (uma descrição que diz "veja em https://…") e o modelo copiá-la —
- * que é violação de formato, e avisa. Toda outra URL foi **inventada ou
- * injetada**, e é o vetor de exfiltração e de envenenamento de SEO num site
- * que o Google Notícias indexa. Falso positivo exige que o modelo invente uma
- * URL, o que já é defeito.
+ * **Toda URL na saída bloqueia, e a checagem é mais forte do que o plano
+ * escreveu.** A §13.2 dizia que o conjunto de links legítimos era "o que o
+ * `formatNewsItems` mandou para o modelo" — e o `formatNewsItems` **não manda
+ * URL nenhuma**: são `TÍTULO`, `FONTE`, `CATEGORIA`, `DATA`, `DESCRIÇÃO` e
+ * `CONTEÚDO`, e o `ARTICLE_USER_PROMPT` proíbe link por escrito. O conjunto
+ * ancorado é **vazio**: não há URL que o modelo tenha o direito de escrever.
+ * O que o material distingue é a **procedência**, e ela vai para o motivo:
+ * `copied-url` quando a URL está no texto que um terceiro escreveu (uma
+ * descrição de feed dizendo "acesse https://…" — é assim que se injeta um
+ * link, e é assim que um modelo obediente o repete), `unanchored-url` quando
+ * não está em lugar nenhum (o modelo inventou, ou repetiu um prompt vazado).
+ * **As duas são segurança, e nenhuma cai para o provider de reserva**: o
+ * material que carrega o link é o mesmo que iria ao Groq.
+ *
+ * A primeira versão desta fase (PR #232) deixava `copied-url` em *avisa* —
+ * "violação de formato, o modelo só copiou" —, e o ensaio de atravessamento
+ * que a §13 pede (material com o link no título, saída que o repete) mostrou
+ * o que isso significava: o briefing com o link injetado ia ao ar com um
+ * `WARN`. Corrigido na verificação pós-merge. Falso positivo aqui exige que o
+ * modelo escreva uma URL, o que o prompt proíbe — um dia sem briefing é custo
+ * conhecido e reversível; um link indexado pelo Google Notícias não é.
  *
  * **O que o guarda deliberadamente não faz:** bloquear por lista de palavra.
  * O `prompt-injection.test.ts` registra por quê desde a Fase 9 da V2 — uma
@@ -65,10 +75,10 @@ import type { GeneratedArticle } from '../types';
 /** Os checks do portão de saída, como tuple — é o que entra no `route` do `ErrorEvent`. */
 export const OUTPUT_GUARD_CHECKS = [
   'unanchored-url',
+  'copied-url',
   'envelope-leak',
   'language',
   'size',
-  'copied-url',
   'instruction-text',
 ] as const;
 
@@ -269,11 +279,11 @@ export function guardArticleOutput(article: GeneratedArticle, material: string):
   const urls = urlsIn(output);
   for (const url of urls) {
     const host = hostOf(url);
-    if (material.includes(url)) {
-      warnings.push({ check: 'copied-url', detail: host });
-    } else {
-      security.push({ check: 'unanchored-url', reason: 'security', detail: host });
-    }
+    security.push({
+      check: material.includes(url) ? 'copied-url' : 'unanchored-url',
+      reason: 'security',
+      detail: host,
+    });
   }
 
   for (const marker of [MATERIAL_START, MATERIAL_END]) {

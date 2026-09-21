@@ -94,7 +94,7 @@ function truncate(text: string, max: number): string {
  * e-mail para os assinantes e a Home passa a exibir. Uma manchete construída
  * para instruir o modelo entra pela porta da notícia e sai assinada pelo site.
  *
- * A defesa tem três camadas, e esta é a segunda:
+ * A defesa tem quatro camadas, e esta é a segunda:
  *
  * 1. **fronteira declarada** — o material vai entre `MATERIAL_START` e
  *    `MATERIAL_END`, e o system prompt manda tratar tudo ali como dado;
@@ -105,7 +105,11 @@ function truncate(text: string, max: number): string {
  *    de linha some pela mesma razão: é com ela que se falsifica o rótulo de um
  *    campo do item seguinte.
  * 3. **validação da saída** — `parseMarkdownResponse` recusa resposta fora do
- *    formato (ver lá).
+ *    formato (ver lá);
+ * 4. **exame da saída bem-formada** — `guardArticleOutput`
+ *    (`output-guard.ts`, Fase 9 do plano de observabilidade), por tentativa:
+ *    URL que não estava no material e envelope ecoado falham o dia sem cair
+ *    para o provider de reserva.
  *
  * **O que esta função deliberadamente não faz:** filtrar frases suspeitas
  * ("ignore as instruções acima"). Lista de palavra proibida em texto

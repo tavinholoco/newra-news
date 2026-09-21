@@ -2821,9 +2821,10 @@ sinal da §13.3), e o seed com as duas histórias.
   (o veredito do servido), e é dele que sai o evento da 6.5.
 - **A URL não ancorada ancora no texto do material** — o conjunto de links
   que a §13.2 descrevia é vazio (o `formatNewsItems` não manda URL). URL que
-  está na string do material é `copied-url` (avisa); a que não está é
-  `unanchored-url` (bloqueia, segurança). Só `https?://` conta. O `context`
-  recebe o host, nunca a URL.
+  está na string do material é `copied-url`; a que não está é
+  `unanchored-url`. Só `https?://` conta. O `context` recebe o host, nunca a
+  URL. **O PR deixou `copied-url` em *avisa* — corrigido no pós-merge
+  (abaixo): as duas bloqueiam, por segurança.**
 - **"Ancoragem das fontes" não existe** — `BriefingSource` nasce do mesmo
   `selected` que foi ao modelo; a checagem teria o próprio argumento dos
   dois lados. Tirada da tabela com o motivo no cabeçalho do módulo.
@@ -2934,6 +2935,43 @@ sinal da §13.3), e o seed com as duas histórias.
 (13), `gates-panel` (7), `gate-checks` (2). **1.299 → 1.377 na API (89 → 91
 suítes), 881 → 904 no web (86 → 89).** Os três diagramas parseiam no
 Mermaid 11.
+
+### O que a verificação pós-merge achou — 21/09/2026
+
+Sobre a árvore mergeada (`3010757`, #232). Item **84** do `docs/progress.md`.
+
+- **`copied-url` só avisava, e isso publicava o link injetado.** A §13 pede
+  "um caso de injeção sintético — material com 'ignore as instruções
+  anteriores' no título — atravessando entrada e saída", e o PR tinha as
+  duas pontas em suítes separadas, não o atravessamento. Escrito
+  (`prompt-injection.test.ts`, camada 4: a ordem **e o link** no título do
+  item, a saída bem-formada que obedeceu), ele mostrou o que o inventário de
+  19/09 tinha decidido errado: URL que está no texto do material era "o
+  modelo copiou, violação de formato, avisa" — e o texto do material é
+  escrito por terceiros, é **a** superfície de ataque, e o `WARN` deixava o
+  briefing com o link ir ao ar. Hoje **toda URL na saída bloqueia, por
+  segurança, sem fallback**; o material só distingue a procedência, que vai
+  para o motivo (`copied-url` × `unanchored-url`). O gatilho do §16 e o
+  alerta do painel cobrem as duas. Há um teste afirmando que URL nunca é
+  aviso.
+- **Um briefing real de produção passa em todos os portões — agora como
+  guarda, não só como ensaio.** O único retido alcançável com a API suspensa
+  (18/09, na borda da Vercel) virou `tests/fixtures/briefing-2026-09-18.json`
+  — texto renderizado, com `**` e `##` restaurados (o Markdown gravado não
+  chega ao cliente; as réguas medem tokens e caracteres, que coincidem):
+  7.045 caracteres, razão de português acima do dobro do piso, zero URL.
+- **O script do ensaio não era tipado por ninguém** — `.ts` fora de `src/` e
+  `tests/`, a família do `seed.ts` do item 63. `scripts/**/*.ts` entrou no
+  `tsconfig.tests.json`; tipou limpo.
+- **Oito frases envelhecidas fora do diff**: "quatro/cinco etapas engolem"
+  (`docs/api.md`, `run-outcome.ts` e teste, `packages/types`), "três camadas"
+  da defesa do prompt (`ai-utils.ts` — são quatro), "quatro formas" do
+  `route` (`packages/types/src/observability.ts`), a doc de
+  `PIPELINE_DEGRADED_CODE` ("etapas 7.5 a 9.5" — sempre foi mais), o
+  `degradedBy` sem as duas etapas novas, e o comentário do seed. E uma
+  **contradição pré-existente entre as armadilhas 17 e 22** (a 17 dizia que
+  todo bloqueio cai para o Groq).
+- Gitleaks `0 commits scanned` no push do merge — décima terceira medição.
 
 ---
 
@@ -3485,7 +3523,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
 | Alerta ativo (e-mail/webhook) | depois de a tela existir e de sabermos qual sinal dispara de fato |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
-| Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL não ancorada, que é evento único e merece olhar no mesmo dia |
+| Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL no briefing (`unanchored-url` ou `copied-url`), que é evento único e merece olhar no mesmo dia |
 | Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto calibrado por cima (0,5 e 0,6) pedindo o número real — o `gates:rehearse` imprime o p95 |
 | **Os portões nunca foram ensaiados contra produção** | a §13 manda rodar contra os briefings retidos antes de confiar, e em 20/09/2026 o ensaio só alcançou o banco local (semeado). **Gatilho: a API voltar** — `gates:rehearse` com o `DATABASE_URL` do Neon numa sessão só; qualquer retido reprovando é o portão errado |
 | Advisory sem dono | linha na lista de exceções do `audit` com mais de **90 dias** sem revisão |
@@ -3546,8 +3584,11 @@ Não-objetivos declarados como número, nunca como item de lista.
 16. **Portão calibrado com limiar absoluto** — o acervo cresce e o número
     apodrece. Tudo relativo a mediana móvel de 7 dias.
 17. **Portão de saída sem caminho de degradação** — bloquear e morrer deixa o
-    site sem briefing. Bloqueou, cai para o provider de reserva; só se os dois
-    reprovarem é que o dia fica sem, e aí `errorStage: 6.5` diz por quê.
+    site sem briefing. Bloqueou **por qualidade**, cai para o provider de
+    reserva; só se os dois reprovarem é que o dia fica sem, e aí
+    `errorStage: 6.5` diz por quê. **Por segurança não há degradação, e é a
+    armadilha 22** — as duas linhas se leem juntas: a primeira versão desta
+    lista as escreveu como se qualquer bloqueio caísse para o Groq.
 18. **Ensaiar os portões só contra caso inventado.** É a lição da higiene de
     texto: a primeira versão descartaria 5.635 corpos e passava em teste de
     unidade. Rodar contra os briefings retidos e contar quantos reprovariam —
@@ -3744,7 +3785,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **Model novo no `schema.prisma`** | `schema-docs-drift.test.ts` (Fase 4) — a lista de models e a de enums do `packages/database/CLAUDE.md`; e `diagram-drift.test.ts`, que cobra a entidade no ER |
 | Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia (visto reprovando na Fase 9); `run-outcome-wiring.test.ts` — o `WARN` da etapa nova tem o `degradedBy.push` no bloco |
-| **Check novo num portão** (`ENTRY_GATE_CHECKS`, `OUTPUT_GUARD_CHECKS`) | `apps/web/tests/lib/gate-checks.test.ts` — o mapa de rótulos do painel "Portões" é derivado dos dois tuples da API, nas duas direções; e `i18n-messages` para a chave nos dois JSONs. O `route` do `ErrorEvent` só aceita o que está no tuple (`isGateCheck`) |
+| **Check novo num portão** (`ENTRY_GATE_CHECKS`, `OUTPUT_GUARD_CHECKS`) | `apps/web/tests/lib/gate-checks.test.ts` — o mapa de rótulos do painel "Portões" é derivado dos dois tuples da API, nas duas direções; e `i18n-messages` para a chave nos dois JSONs. O `route` do `ErrorEvent` só aceita o que está no tuple (`isGateCheck`). E `output-guard.test.ts` afirma que **URL nunca é aviso** — a primeira versão avisava sobre a copiada |
+| **Script `.ts` em `apps/api/scripts/`** | `pnpm --filter @newranews/api typecheck` (pós-merge da Fase 9) — `scripts/**/*.ts` está no `tsconfig.tests.json`; o `gates:rehearse` nasceu sem ninguém o tipar |
 | **`recordError` chamado com `code,` em shorthand** | `error-event.test.ts` — desde a Fase 9 a varredura lê `ShorthandPropertyAssignment` como `identifier`; antes o call site passaria invisível |
 | **Workflow novo ou alterado** | `workflow-hardening.test.ts` (Fase 10) — `permissions:` declarado e `uses:` fixado em SHA |
 | **Chamada a `console.*` na API** | `secrets-in-logs.test.ts` (Fase 1) — e o `no-console: 'error'` do ESLint, que reprova antes |

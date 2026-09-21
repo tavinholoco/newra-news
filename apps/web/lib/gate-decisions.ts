@@ -23,8 +23,12 @@ export const GATE_BLOCKED_CODE = 'PIPELINE_GATE_BLOCKED';
 /** Abaixo disto a taxa de aprovação vira alerta (§16). */
 export const APPROVAL_TRIGGER = 0.9;
 
-/** O check cujo primeiro bloqueio, sozinho, merece olhar no mesmo dia (§16). */
-export const SAME_DAY_CHECK = 'unanchored-url';
+/**
+ * Os checks cujo primeiro bloqueio, sozinho, merece olhar no mesmo dia (§16):
+ * uma URL no briefing, viesse ela do texto do material (`copied-url` — o
+ * caminho clássico da injeção) ou de lugar nenhum (`unanchored-url`).
+ */
+export const SAME_DAY_CHECKS = ['unanchored-url', 'copied-url'] as const;
 
 export type GateOfRoute = 'entry' | 'exit';
 
@@ -107,18 +111,20 @@ export function gateDecisions(
 
 export type GateAlert =
   | { kind: 'low-approval'; rate: number }
-  | { kind: 'unanchored-url'; count: number };
+  | { kind: 'url-block'; count: number };
 
 /**
  * Os dois gatilhos do §16, como alerta: a taxa abaixo de 90 % em 7 dias, e
- * **qualquer** bloqueio por URL não ancorada — evento único, que merece olhar
+ * **qualquer** bloqueio por URL no briefing — evento único, que merece olhar
  * no mesmo dia, mesmo que a taxa esteja em 99 %.
  */
 export function gateAlerts(decisions: GateDecisions): GateAlert[] {
   const alerts: GateAlert[] = [];
-  const unanchored = decisions.motives.find((m) => m.gate === 'exit' && m.check === SAME_DAY_CHECK);
-  if (unanchored !== undefined && unanchored.count > 0) {
-    alerts.push({ kind: 'unanchored-url', count: unanchored.count });
+  const urlBlocks = decisions.motives
+    .filter((m) => m.gate === 'exit' && (SAME_DAY_CHECKS as readonly string[]).includes(m.check))
+    .reduce((sum, m) => sum + m.count, 0);
+  if (urlBlocks > 0) {
+    alerts.push({ kind: 'url-block', count: urlBlocks });
   }
   if (decisions.approvalRate !== null && decisions.approvalRate < APPROVAL_TRIGGER) {
     alerts.push({ kind: 'low-approval', rate: decisions.approvalRate });
