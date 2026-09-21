@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AuditTrail, ErrorSummary, InvariantReport } from '@newranews/types';
+import type { AuditTrail, ErrorSummary, InvariantReport, PipelineRunsResponse } from '@newranews/types';
 import { renderWithIntl } from '@/tests/utils';
 import {
   auditTrail,
@@ -10,18 +10,20 @@ import {
   invariantReport,
 } from '@/tests/fixtures/observability';
 
-const { useErrorSummary, useAuditTrail, useInvariantReport } = vi.hoisted(() => ({
+const { useErrorSummary, useAuditTrail, useInvariantReport, usePipelineRuns } = vi.hoisted(() => ({
   useErrorSummary: vi.fn(),
   useAuditTrail: vi.fn(),
   useInvariantReport: vi.fn(),
+  usePipelineRuns: vi.fn(),
 }));
 
 /**
  * Mock parcial de `@/lib/queries` mente por omissão (lição da Fase 2): a aba
- * consome exatamente estes três hooks — o terceiro entrou com a Fase 6 —, e
- * um quarto entra aqui junto.
+ * consome exatamente estes quatro hooks — o terceiro entrou com a Fase 6, o
+ * quarto com a Fase 9 (o painel de portões lê a listagem de runs) —, e um
+ * quinto entra aqui junto.
  */
-vi.mock('@/lib/queries', () => ({ useErrorSummary, useAuditTrail, useInvariantReport }));
+vi.mock('@/lib/queries', () => ({ useErrorSummary, useAuditTrail, useInvariantReport, usePipelineRuns }));
 
 const { SecurityClient } = await import('@/components/admin/security-client');
 
@@ -37,14 +39,17 @@ function mockQueries({
   // O painel de invariantes abre em 'nenhuma verificação ainda' por padrão:
   // com a tabela dele montada, todo getByRole('table') das falhas acharia duas.
   invariants = { data: null, isPending: false, isError: false },
+  runs = { data: { data: { runs: [], recentErrors: [] }, meta: { total: 0 } }, isFetching: false, isError: false },
 }: {
   errors?: QueryState<ErrorSummary>;
   audit?: QueryState<AuditTrail>;
   invariants?: { data: InvariantReport | null | undefined; isPending: boolean; isError: boolean };
+  runs?: QueryState<PipelineRunsResponse>;
 } = {}) {
   useErrorSummary.mockReturnValue(errors);
   useAuditTrail.mockReturnValue(audit);
   useInvariantReport.mockReturnValue(invariants);
+  usePipelineRuns.mockReturnValue(runs);
 }
 
 beforeEach(() => {
@@ -56,9 +61,13 @@ describe('SecurityClient — as falhas registradas', () => {
   it('opens on the 24 h window and asks for 7 d on click — the window is in the query key', async () => {
     renderWithIntl(<SecurityClient />);
 
-    expect(useErrorSummary).toHaveBeenLastCalledWith('24h');
+    // A primeira chamada de cada render é a da aba; o painel de portões
+    // (Fase 9) pede sempre a janela de 7 d **depois** dela, então "a última
+    // chamada" deixou de dizer qual janela o seletor escolheu.
+    expect(useErrorSummary.mock.calls[0]).toEqual(['24h']);
+    useErrorSummary.mockClear();
     await userEvent.click(screen.getByRole('button', { name: 'Últimos 7 dias' }));
-    expect(useErrorSummary).toHaveBeenLastCalledWith('7d');
+    expect(useErrorSummary.mock.calls[0]).toEqual(['7d']);
   });
 
   it('sums the window in the KPI row: total, distinct, and the three severities', () => {
@@ -200,7 +209,24 @@ describe('SecurityClient — as falhas registradas', () => {
 
     mockQueries({ errors: { data: undefined, isFetching: false, isError: true } });
     renderWithIntl(<SecurityClient />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar as falhas registradas.');
+    // Dois alertas: o das falhas e o do painel de portões, que lê a mesma
+    // consulta na janela de 7 d — cada painel desenha o próprio erro.
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent)).toEqual([
+      'Não foi possível carregar as falhas registradas.',
+      'Não foi possível carregar as decisões dos portões.',
+    ]);
+  });
+
+  it('hosts the gates panel between the failures and the invariants (Fase 9, §13.3)', () => {
+    renderWithIntl(<SecurityClient />);
+
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(headings.indexOf('Portões')).toBeGreaterThan(headings.indexOf('Falhas registradas'));
+    expect(headings.indexOf('Portões')).toBeLessThan(headings.indexOf('Invariantes'));
+    // Sem rota nova: o painel lê a janela de 7 d das falhas e a listagem de runs.
+    expect(useErrorSummary).toHaveBeenCalledWith('7d');
+    expect(usePipelineRuns).toHaveBeenCalled();
+    expect(screen.getByText('Nenhum bloqueio nos últimos 7 dias.')).toBeInTheDocument();
   });
 
   it('hosts the invariants panel where §4.1 says, between the failures and the audit trail', () => {

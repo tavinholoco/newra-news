@@ -331,6 +331,23 @@ async function capture(browser, cookie, route, viewport, theme) {
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: file, fullPage: true, animations: 'disabled', type: FORMAT });
 
+    /**
+     * **A página não pode ser mais larga que a viewport.** Uma foto `fullPage`
+     * de 853 px numa viewport de 375 é a página inteira rolando na horizontal
+     * no celular — e ninguém repara, porque o `fullPage` só alarga a imagem.
+     * Foi assim que a Fase 9 achou os `sr-only` da tabela de falhas (Fase 5)
+     * escapando do contêiner que rola: `position: absolute` sem ancestral
+     * `relative` tem o documento como bloco de contenção, e o de 24 h só
+     * tinha linha na captura quando o seed acabava de rodar. A largura do
+     * documento é uma medida, e a captura passa a fazê-la.
+     */
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    if (scrollWidth > viewport.width) {
+      const reason = `documento com ${scrollWidth} px numa viewport de ${viewport.width} — a página rola na horizontal`;
+      console.error(`  ${path.basename(file)} (HTTP ${status}) — ${reason}`);
+      return { file: path.basename(file), ok: false, reason };
+    }
+
     console.log(`  ${path.basename(file)} (HTTP ${status})`);
     return { file: path.basename(file), ok: true };
   } catch (error) {

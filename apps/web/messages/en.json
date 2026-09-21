@@ -166,6 +166,38 @@
         "requestId": "Request id:",
         "runId": "Run:"
       },
+      "gates": {
+        "title": "Gates",
+        "description": "The pipeline's two gates decide whether the day's briefing reaches the front page: the entry gate (stage 5.5) measures the harvest before spending the AI call — volume against the 7-day median, three sources, one item from the last 24 h — and the exit gate (6.5) examines what the model wrote — a URL that was not in the material, the prompt envelope echoed back, language, size. Quality falls back to the reserve provider once; security fails the day, with no retry. The rate covers the last 7 days.",
+        "loadError": "The gate decisions could not be loaded.",
+        "alertsLabel": "Gate alerts",
+        "alertUnanchored": "{count, plural, one {# block} other {# blocks}} for an unanchored URL in the last 7 days — a one-off event: the material carried a link the model repeated. Worth a look today.",
+        "alertLowApproval": "Approval rate at {rate} over the last 7 days, below 90%: the gates are loosening, or the harvest is bad.",
+        "approval": "Approval (7 d)",
+        "approvalHint": "Runs that passed both gates, over the closed runs in the window.",
+        "runs": "Runs in window",
+        "blocked": "Blocked days",
+        "blockedHint": "Blocks that left the day without a briefing.",
+        "recovered": "Recovered",
+        "recoveredHint": "Quality blocks the reserve provider recovered.",
+        "motives": "Motives",
+        "centerCaption": "decisions",
+        "empty": "No blocks in the last 7 days.",
+        "none": "—",
+        "checks": {
+          "volume": "Volume below 30% of the median",
+          "diversity": "Fewer than three sources",
+          "freshness": "Nothing from the last 24 h",
+          "duplicateRate": "High duplicate rate",
+          "categoryDrift": "Category drift",
+          "unanchoredUrl": "Unanchored URL",
+          "envelopeLeak": "Prompt envelope leaked",
+          "language": "Not in Portuguese",
+          "size": "Above the size ceiling",
+          "copiedUrl": "URL copied from the material",
+          "instructionText": "Instruction-like text"
+        }
+      },
       "invariants": {
         "title": "Invariants",
         "description": "Did what should have happened actually happen? Twelve questions asked by aggregate query once per run, at stage 9.5: the retention of every table stage 8 purges, one briefing per day, the dead run, the day without a metric, the newsletter that never lands. The screen reads the latest report; the suite runs with the pipeline.",

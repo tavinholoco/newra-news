@@ -278,9 +278,10 @@ Regras que não são óbvias no código:
 - /[locale]/admin/security → **Logs e segurança** (Fase 5 do plano de
   observabilidade, PR 5c): as falhas registradas por fingerprint com busca,
   filtros e colunas ordenáveis (`/api/admin/errors`), a rosquinha de erro por
-  categoria, **o painel de invariantes** (`admin/invariants-panel`, via
-  `/api/admin/invariants` — Fase 6 do plano) e a trilha de auditoria
-  (`/api/admin/audit`)
+  categoria, **o painel de portões** (`admin/gates-panel` sobre
+  `lib/gate-decisions.ts` — Fase 9 do plano, sem rota nova), **o painel de
+  invariantes** (`admin/invariants-panel`, via `/api/admin/invariants` —
+  Fase 6 do plano) e a trilha de auditoria (`/api/admin/audit`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
   - **a casca do painel vive no mesmo layout**: contêiner e faixa de abas
@@ -445,6 +446,33 @@ Regras que não são óbvias no código:
     `CHECK_KEY`, porque chave montada em runtime parece órfã; a tabela tem
     `aria-label` — é a segunda tabela da aba, e um `getByRole('table')` sem
     nome acharia duas (a suíte da aba deixa o painel em `null` por padrão)
+  - **o painel "Portões" é derivação sobre duas consultas que já existiam**
+    (Fase 9 do plano, §13.3 — `admin/gates-panel` sobre
+    `lib/gate-decisions.ts`): os grupos de `PIPELINE_GATE_BLOCKED` do
+    `useErrorSummary('7d')` (o motivo está no `route`,
+    `stage-6.5:unanchored-url`) e a listagem de runs do `usePipelineRuns`.
+    Aprovação = 1 − bloqueios que falharam o dia / runs **fechados** da
+    janela — `null` (um traço) sem run, porque a taxa de zero runs não é
+    100 %; o bloqueio de qualidade que o Groq recuperou (`WARN`) conta na
+    rosquinha e não na taxa. Os dois gatilhos do §16 saem como alerta
+    (`role='status'`): a taxa abaixo de 90 %, e **qualquer** bloqueio por
+    URL não ancorada, em vermelho. Os rótulos por motivo estão por extenso
+    em `GATE_CHECK_KEY`, e `tests/lib/gate-checks.test.ts` deriva o
+    conjunto dos dois tuples da API — check novo lá reprova aqui. Antes da
+    promoção a API de produção não grava o código: o painel lê 100 % com a
+    rosquinha vazia, que é o estado certo, não "indisponível". O painel
+    pede sempre a janela de 7 d — a suíte da aba deixou de olhar a "última"
+    chamada do `useErrorSummary` e passou a olhar a primeira de cada render
+  - **`sr-only` dentro de um contêiner que rola escapa dele** (armadilha 44
+    do plano, achada pela captura da Fase 9): `sr-only` é `position:
+    absolute`, e sem um ancestral posicionado o bloco de contenção é o
+    documento — os "Id da requisição:" da tabela de falhas pousavam em
+    x = 853 numa viewport de 375, e a página inteira rolava na horizontal
+    sempre que a janela de 24 h tinha linha. Todo contêiner `overflow-x-auto`
+    com `sr-only` dentro é `relative` (tabela de falhas, de fontes, de
+    invariantes), e **o `admin:capture` mede `scrollWidth` contra a viewport
+    e reprova a foto mais larga** — a foto `fullPage` só alargava a imagem, e
+    ninguém media a imagem
   - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
     handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
     que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)

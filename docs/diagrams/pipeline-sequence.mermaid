@@ -1,11 +1,15 @@
 %% Diagrama de Sequência do Pipeline Diário — Newra News
 %% ---
-%% Atualizado em 16/09/2026. São **12 etapas**: 1–7, 7.5 (newsletter), 8, 8.5
-%% (renormalização), 9 e 9.5 (invariantes). As cinco não críticas — 7.5, 8,
-%% 8.5, 9 e 9.5 — falham sem abortar o pipeline; desde a Fase 11 do plano de
-%% observabilidade a escrita da SourceHealth, no fim da 4, também não aborta
-%% (WARN da etapa 4). A 9.5 (Fase 6) confere o que as anteriores deveriam ter
-%% deixado: violação vira ErrorEvent por invariante, não WARN do run.
+%% Atualizado em 19/09/2026. São **14 etapas**: 1–5, 5.5 (portão de entrada),
+%% 6, 6.5 (portão de saída), 7, 7.5 (newsletter), 8, 8.5 (renormalização), 9 e
+%% 9.5 (invariantes). As cinco não críticas — 7.5, 8, 8.5, 9 e 9.5 — falham
+%% sem abortar o pipeline; desde a Fase 11 do plano de observabilidade a
+%% escrita da SourceHealth, no fim da 4, também não aborta (WARN da etapa 4).
+%% A 9.5 (Fase 6) confere o que as anteriores deveriam ter deixado: violação
+%% vira ErrorEvent por invariante, não WARN do run. Os dois portões (Fase 9)
+%% bloqueiam: a 5.5 falha o dia sem gastar a chamada de IA; a 6.5 roda por
+%% tentativa dentro da 6 — qualidade cai para o Groq uma vez, segurança falha
+%% o dia sem fallback.
 sequenceDiagram
     autonumber
     actor VC as Vercel Cron
@@ -40,8 +44,12 @@ sequenceDiagram
     API->>API: 3 · deduplicação por sourceUrl
     API->>DB: 4 · news.createMany (skipDuplicates) + SourceHealth do dia (deleteMany + createMany)
     API->>API: 5 · seleção das 15 notícias mais recentes
+    API->>DB: 5.5 · portão de entrada — mediana de newsCollected dos 7 dias anteriores
+    Note over API,DB: Volume ≥ 30% da mediana · ≥ 3 fontes (alarga para 30 antes de bloquear)<br/>· ≥ 1 item de 24 h. Bloqueio é FAILED na 5.5, sem chamada de IA.<br/>Sem 3 dias de linha de base o volume não opina, e diz que não opinou.
     API->>IA: 6 · prompt estruturado (Gemini, com fallback Groq)
     IA-->>API: título, dek e corpo do briefing em Markdown
+    API->>API: 6.5 · portão de saída, por tentativa — URL não ancorada · envelope vazado · idioma · teto
+    Note over API,IA: Qualidade (idioma, tamanho) cai para o Groq uma vez.<br/>Segurança (URL não ancorada, envelope) falha o dia: sem fallback,<br/>ErrorEvent FATAL com o motivo no route (stage-6.5:unanchored-url).
     API->>DB: 7 · article.upsert por data + auditoria + BriefingSource
     API->>RES: 7.5 · newsletter do dia (idempotente por data)
     API->>DB: 8 · expurgo — news >30d · logs >30d · artigos, eventos e fontes >90d · erros >14d · auditoria >365d

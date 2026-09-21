@@ -68,15 +68,19 @@ sequência do pipeline e fluxo de dados.
 - **Monorepo Turborepo + pnpm** — quatro packages compartilhados (`database`,
   `types`, `eslint-config`, `tsconfig`); tipagem única, sem duplicação entre
   os apps.
-- **Pipeline de doze etapas** — nove numeradas (coleta, normalização, dedup por
-  URL, persistência, seleção das 15 mais recentes, geração por IA, artigo,
-  cleanup aos 30 dias, métricas) mais três intercaladas: a **7.5**, que envia a
-  newsletter, a **8.5**, que **reaplica as regras de ingestão ao acervo já
-  gravado**, e a **9.5**, que **confere as invariantes** — doze consultas
-  agregadas perguntando se o que as etapas anteriores deveriam ter deixado
-  está lá (retenção, um briefing por dia, run morto, métrica do dia,
-  newsletter). A 8.5 é a que faz uma correção de regra valer para o passado —
-  sem ela, consertar a ingestão só conserta o que entra a partir de amanhã.
+- **Pipeline de catorze etapas** — nove numeradas (coleta, normalização, dedup
+  por URL, persistência, seleção das 15 mais recentes, geração por IA, artigo,
+  cleanup aos 30 dias, métricas) mais cinco intercaladas: a **5.5**, o portão
+  de entrada (volume contra a mediana de 7 dias, três fontes, um item de 24 h
+  — ou o dia não gasta a chamada de IA), a **6.5**, o portão de saída (URL não
+  ancorada e envelope vazado falham o dia sem fallback; idioma e teto caem
+  para o Groq uma vez), a **7.5**, que envia a newsletter, a **8.5**, que
+  **reaplica as regras de ingestão ao acervo já gravado**, e a **9.5**, que
+  **confere as invariantes** — doze consultas agregadas perguntando se o que
+  as etapas anteriores deveriam ter deixado está lá (retenção, um briefing por
+  dia, run morto, métrica do dia, newsletter). A 8.5 é a que faz uma correção
+  de regra valer para o passado — sem ela, consertar a ingestão só conserta o
+  que entra a partir de amanhã.
 - **Idempotência por dia** — o disparo do pipeline distingue `started`,
   `already-running` e `already-succeeded-today`, e o painel diz qual foi. Antes
   ele devolvia só o id, e a tela confirmava sucesso sem ter rodado nada.
@@ -161,7 +165,7 @@ categorias preenchidas.
    estaticamente por idioma, com metadados localizados.
 5. **Explore o código** nesta ordem:
    `docs/diagrams/system-architecture.mermaid` →
-   `apps/api/src/services/pipeline.service.ts` (as doze etapas) →
+   `apps/api/src/services/pipeline.service.ts` (as catorze etapas) →
    `apps/api/src/providers/` (`newsdata`, `rss`, `gemini`, `groq`) →
    `apps/api/src/providers/news/feed-text.ts` (a separação de dek e corpo) →
    `apps/web/app/[locale]/page.tsx` (ISR) → `apps/web/lib/auth.ts` e

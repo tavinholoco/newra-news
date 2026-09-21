@@ -1458,11 +1458,14 @@ usado.
 Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
 `hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
 crônico), e `message`, `lastSeenAt` e `lastRequestId` são da hora mais
-recente. **`route` é o escopo da falha, e tem quatro formas** — o padrão da
+recente. **`route` é o escopo da falha, e tem cinco formas** — o padrão da
 rota na API (`/api/news/:id`, nunca a URL), a etapa no pipeline (`stage-8.5`),
 desde a Fase 6 o id da invariante (`retention.news`) quando `origin` é
-`INVARIANT`, e desde a Fase 7c o **padrão da página do web**
-(`/[locale]/news/[id]`, nunca o pathname) quando `origin` é `WEB`; as quatro
+`INVARIANT`, desde a Fase 7c o **padrão da página do web**
+(`/[locale]/news/[id]`, nunca o pathname) quando `origin` é `WEB`, e desde a
+Fase 9 **a etapa do portão com o motivo** (`stage-6.5:unanchored-url`) quando
+`code` é `PIPELINE_GATE_BLOCKED` — o motivo é um de onze checks declarados
+(`GATE_CHECKS`), e é ele que dá a distribuição de motivos da §13.3; as cinco
 são conjuntos finitos, que é o que dá teto à tabela. `byCategory` traz **sempre as seis** categorias da taxonomia, na
 ordem dela, com zero onde não houve — a rosquinha tem fatias fixas. `groups`
 vem mais recente primeiro.

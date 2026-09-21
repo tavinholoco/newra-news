@@ -80,7 +80,7 @@ model PipelineLog {
   // Erro da falha (legado — string única); os novos campos estruturados são
   // errorStage/errorDetail (observabilidade, item 9)
   error       String?
-  // Etapa da falha (Stage 1–9, ex.: 7.5 newsletter) — null quando não falhou
+  // Etapa da falha (1 a 9.5, com as meias — ex.: 7.5 newsletter) — null quando não falhou
   errorStage  Float?
   // Erro estruturado: { message, provider?, statusCode? }
   errorDetail Json?
@@ -101,7 +101,7 @@ model PipelineLog {
 model PipelineEvent {
   id            String             @id @default(uuid())
   pipelineLogId String
-  stage         Float // Stage 1–9 (ex.: 7.5 = newsletter)
+  stage         Float // 1 a 9.5, com as meias (ex.: 7.5 = newsletter, 9.5 = invariantes)
   level         PipelineEventLevel
   message       String
   context       Json?

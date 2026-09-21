@@ -162,7 +162,7 @@ export function InvariantsPanel() {
         <code className='select-all font-mono text-ink-secondary'>{data.pipelineLogId}</code>
       </p>
 
-      <div className='overflow-x-auto rounded-lg border border-border bg-card'>
+      <div className='relative overflow-x-auto rounded-lg border border-border bg-card'>
         <table className='w-full text-sm' aria-label={t('security.invariants.title')}>
           <thead>
             <tr className='border-b border-line text-left text-xs uppercase tracking-wider text-ink-muted'>

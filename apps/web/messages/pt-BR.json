@@ -166,6 +166,38 @@
         "requestId": "Id da requisição:",
         "runId": "Run:"
       },
+      "gates": {
+        "title": "Portões",
+        "description": "Os dois portões do pipeline decidem se o briefing do dia vai para a capa: o de entrada (etapa 5.5) mede a colheita antes de gastar a chamada de IA — volume contra a mediana de 7 dias, três fontes, um item das últimas 24 h —, e o de saída (6.5) examina o que o modelo escreveu — URL que não estava no material, envelope do prompt ecoado, idioma, tamanho. Qualidade cai para o provedor de reserva uma vez; segurança falha o dia, sem repetir. A taxa é sobre os últimos 7 dias.",
+        "loadError": "Não foi possível carregar as decisões dos portões.",
+        "alertsLabel": "Alertas dos portões",
+        "alertUnanchored": "{count, plural, one {# bloqueio} other {# bloqueios}} por URL não ancorada nos últimos 7 dias — evento único: o material trouxe um link que o modelo repetiu. Vale olhar hoje.",
+        "alertLowApproval": "Taxa de aprovação em {rate} nos últimos 7 dias, abaixo de 90 %: os portões estão afrouxando, ou a colheita está ruim.",
+        "approval": "Aprovação (7 d)",
+        "approvalHint": "Runs que passaram pelos dois portões, sobre os runs fechados da janela.",
+        "runs": "Runs na janela",
+        "blocked": "Dias bloqueados",
+        "blockedHint": "Bloqueios que deixaram o dia sem briefing.",
+        "recovered": "Recuperados",
+        "recoveredHint": "Bloqueios de qualidade que o provedor de reserva recuperou.",
+        "motives": "Motivos",
+        "centerCaption": "decisões",
+        "empty": "Nenhum bloqueio nos últimos 7 dias.",
+        "none": "—",
+        "checks": {
+          "volume": "Volume abaixo de 30 % da mediana",
+          "diversity": "Menos de três fontes",
+          "freshness": "Nada das últimas 24 h",
+          "duplicateRate": "Taxa de duplicata alta",
+          "categoryDrift": "Deriva de categoria",
+          "unanchoredUrl": "URL não ancorada",
+          "envelopeLeak": "Envelope do prompt vazado",
+          "language": "Fora do português",
+          "size": "Acima do teto de tamanho",
+          "copiedUrl": "URL copiada do material",
+          "instructionText": "Texto em forma de instrução"
+        }
+      },
       "invariants": {
         "title": "Invariantes",
         "description": "O que deveria ter acontecido aconteceu? Doze perguntas feitas por consulta agregada uma vez por run, na etapa 9.5: a retenção de cada tabela que a etapa 8 expurga, um briefing por dia, o run morto, o dia sem métrica, a newsletter que não entrega. A tela lê o último relatório; a suíte roda com o pipeline.",

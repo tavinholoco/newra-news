@@ -331,10 +331,10 @@ a suíte de unidade, que roda sem rede.
   caminho de ingestão do erro do cliente) fechou em 16/09, num PR só**; e a
   **7b (os boundaries e o reporter) fechou em 17/09, num PR só — com ela a
   Fase 7 inteira**; e **a promoção `dev → main` aconteceu em 19/09 (#215)**,
-  com o ritual medido (item 81).** Continua aberta **uma fase só** (a 9),
-  **por último e por decisão** — as três coisas que ela exige no ar (4, 5 e
-  8) estão lá desde a promoção; o que falta antes dela é a primeira leitura
-  das três abas com credencial de produção.
+  com o ritual medido (item 81); e a **9 (os dois portões) fechou em 20/09,
+  num PR só — a última do plano**, com o ensaio contra os retidos pendente
+  da API voltar (item 83).** **Não há fase aberta.** O que resta é a
+  promoção, o ensaio contra produção e a primeira leitura das três abas.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -352,6 +352,37 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Fora da linha das fases (2026-09-20): a Fase 9 fechou na `dev` — os
+  dois portões, e com ela o plano de observabilidade inteiro.** §13, item
+  **83**. A **etapa 5.5** mede a colheita antes de gastar a chamada de IA
+  (volume contra a mediana de `newsCollected` dos 7 dias anteriores — sem 3
+  dias de linha de base o portão **não opina**, e diz —, três fontes
+  distintas alargando para 30 antes de bloquear, um item das últimas 24 h;
+  duplicata e deriva só avisam). A **etapa 6.5** examina o candidato **por
+  tentativa, dentro de `generateArticle`**: URL que não está no texto do
+  material e envelope do prompt ecoado **falham o dia sem chamar o Groq**
+  (segurança — repetir o material envenenado no segundo modelo é repetir o
+  ataque); idioma e teto de tamanho caem para o Groq uma vez (qualidade).
+  Bloqueio é `FAILED` na etapa do portão e `PIPELINE_GATE_BLOCKED` com **o
+  motivo no `route`** (`stage-6.5:unanchored-url`; `FATAL` para segurança,
+  escrito na hora). **Duas decisões mudaram o plano:** o conjunto de URLs
+  ancoradas que a §13.2 descrevia é **vazio** (o `formatNewsItems` não manda
+  URL) — ancora-se no texto do material; e a lista de *stopwords* do idioma
+  é de **exclusão** (a de frequência dava espanhol 0,195 contra um piso de
+  0,2; a de exclusão dá 0,018 contra 0,08). O **ensaio virou comando**
+  (`pnpm --filter @newranews/api gates:rehearse`): contra o banco local,
+  zero reprovações reais; **contra produção ainda não rodou** — a API segue
+  suspensa — e é a primeira coisa a fazer quando ela voltar. O painel
+  "Portões" na `/admin/security` (taxa de aprovação de 7 d, rosquinha de
+  motivos, os dois gatilhos do §16 como alerta) é derivação sem rota nova.
+  **A captura achou um defeito de duas fases atrás**: os `sr-only` da tabela
+  de falhas escapavam do contêiner que rola e a página inteira rolava na
+  horizontal a 375 px — `relative` nos três contêineres, e o `admin:capture`
+  passou a **medir a largura do documento**. **1.299 → 1.377 na API, 881 →
+  904 no web.** Falta a promoção `dev → main` — decidir antes se a 9 sobe
+  sozinha ou com o que a `dev` acumulou desde o #215 — e nada disso anda
+  com a API suspensa.
 
 - **Fora da linha das fases (2026-09-19): dois e-mails de cota, e toda
   regeneração da ISR era cobrada por um `new Date()` que ninguém lia.** Item
@@ -380,6 +411,37 @@ a suíte de unidade, que roda sem rede.
   → horas por serviço; Vercel → Usage → ISR Writes *by project* (o time tem
   **cinco** projetos) e o gráfico diário de imagem (o Hobby não tem ciclo —
   "30 dias", sem a doc dizer se janela móvel ou a partir do estouro).
+
+- 🔴 **A API do Render está suspensa (2026-09-19, medido às 17:23 UTC):
+  `503` com `x-render-routing: suspend` em `/api/health`.** O briefing de
+  19/09 existe na home, então o cron das 11:00 UTC rodou — e a Home ainda
+  regenerou às 13:00:06 com a API respondendo, então a suspensão é de **entre
+  13:00 e 17:23 UTC** (item 82). **O que o leitor vê:** as páginas já geradas continuam
+  no ar pela ISR (`/pt-BR`, `/news` em 200), mas **toda página ainda não
+  gerada responde a 500 estática do Next** — inclusive
+  `/pt-BR/article/2026-09-19`, o briefing do dia, que a home linka
+  (armadilha 41, ao vivo). Filtro do acervo, conta, favoritos e admin não
+  respondem; **o cron de amanhã vai falhar** (`warmApi` recebe 503 e devolve
+  "não acordou"), como em 01/09. **A conta que não batia com o §9.0 do
+  `docs/setup.md` fechou pelo e-mail do Render (item 82):** as 750 h são do
+  workspace, e ele tem **dois** serviços free — a API e o `NetsheetEngine`.
+  Quanto é de cada um só Billing → free instance hours diz; é a **segunda
+  vez** (29/08), e a `DailyUptime` da Fase 5 começou a contar às 01:08 de
+  19/09 — cedo demais para ter ajudado. **A primeira leitura das três abas de
+  admin e o ensaio da Fase 9 contra os briefings retidos ficam bloqueados
+  até ela voltar.**
+
+- **Onde estamos no plano de observabilidade (2026-09-20): as onze fases
+  estão na `dev`.** A Fase 9 fechou em 20/09 (acima; item 83). O que a
+  `dev` carrega desde a promoção #215: os pós-merges (#221, #227, #230), os
+  bumps do Dependabot, o #231 (ISR determinística) e a 9. **O que falta é
+  seu:** a promoção `dev → main` — a política de 07/09 mandava a 9 subir
+  sozinha, e hoje ela sobe junto com o #231, que também é correção que
+  produção precisa —, e depois o ritual dos três; o **`gates:rehearse`
+  contra os briefings retidos** com o `DATABASE_URL` do Neon numa sessão
+  só (se algum reprovar, o errado é o portão); e a primeira leitura das
+  três abas com credencial de produção. **Nada disso anda com a API
+  suspensa.**
 
 - **Promoção `dev → main` (2026-09-19, #215, `4efbacd`): as sete fases do
   plano de observabilidade estão no ar, e cada rodada do CI foi lida.**
@@ -1244,7 +1306,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.180 em 175 suites (**1.299 API em 89** + **881 web em 86** — todos
+- **Testes:** 2.281 em 180 suites (**1.377 API em 91** + **904 web em 89** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

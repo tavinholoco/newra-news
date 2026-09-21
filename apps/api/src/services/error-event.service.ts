@@ -100,6 +100,25 @@ export const PIPELINE_FAILED_CODE = 'PIPELINE_STAGE_FAILED';
 export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
 
 /**
+ * Um dos dois portões da Fase 9 bloqueou (§13 do plano): o de entrada, na
+ * etapa 5.5, sobre a colheita; o de saída, na 6.5, sobre o briefing que um
+ * provider devolveu.
+ *
+ * Código próprio, e não `PIPELINE_STAGE_FAILED`, porque a pergunta que ele
+ * responde é outra — *"o portão está afrouxando?"* (§13.3: taxa de aprovação
+ * em 7 dias, distribuição de motivos) —, e o **motivo entra no `route`**
+ * (`stage-6.5:unanchored-url`), que é o que faz a distribuição existir. O
+ * conjunto de motivos é finito por construção (`GATE_CHECKS` em
+ * `pipeline-gates.service.ts`), e é isso que mantém o teto da tabela.
+ *
+ * A severidade diz o que aconteceu com o dia: `FATAL` é bloqueio de
+ * **segurança** (o dia falhou, sem fallback — escreve na hora), `ERROR` é
+ * bloqueio de qualidade que falhou o dia, `WARN` é bloqueio de qualidade que
+ * o provider de reserva recuperou.
+ */
+export const PIPELINE_GATE_BLOCKED_CODE = 'PIPELINE_GATE_BLOCKED';
+
+/**
  * A trilha de auditoria (Fase 5) não conseguiu gravar a ação.
  *
  * Mora aqui e não em `audit.service.ts` porque aquele importa `recordError`
@@ -133,7 +152,7 @@ export const CLIENT_ERROR_CODE = 'CLIENT_ERROR';
 
 /**
  * **Todo código que pode chegar à tabela, como tipo.** É o teto do fingerprint
- * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as seis
+ * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as sete
  * constantes deste arquivo. Um `code: \`stage-${n}\`` deixa de compilar, e um
  * `code: algumaString` também. A guarda pelo parser em
  * `tests/services/error-event.test.ts` continua, porque enumera os call sites
@@ -147,6 +166,7 @@ export type RecordedErrorCode =
   | typeof UNHANDLED_CODE
   | typeof PIPELINE_FAILED_CODE
   | typeof PIPELINE_DEGRADED_CODE
+  | typeof PIPELINE_GATE_BLOCKED_CODE
   | typeof AUDIT_WRITE_FAILED_CODE
   | typeof INVARIANT_VIOLATED_CODE
   | typeof CLIENT_ERROR_CODE;
