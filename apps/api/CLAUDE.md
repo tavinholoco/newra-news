@@ -225,7 +225,8 @@ escreve nada.
 plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
 pipeline não é: 7.5, 8, 8.5, 9 e 9.5 falham com `WARN` e o run segue `SUCCESS`,
 o fallback para o Groq é `WARN` da etapa 6, a colheita degradada é `WARN` da
-etapa 1. `deriveRunOutcome` devolve `SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`
+etapa 1, a saúde por fonte que não gravou é `WARN` da 4, e os avisos dos dois
+portões (Fase 9) são `WARN` da 5.5 e da 6.5. `deriveRunOutcome` devolve `SUCCESS` · `SUCCESS_DEGRADED` · `FAILED`
 (`null` em `RUNNING`) e `degradedStages` lista as etapas — **sem coluna**: coluna
 pediria migration e divergiria dos eventos no primeiro `catch` esquecido
 (§17.19). Regras que não são óbvias:
@@ -976,17 +977,22 @@ Regras que não são óbvias no código:
   o ataque com outro oráculo**, e basta um escapar (armadilha 22). O
   `ai.test.ts` afirma que o Groq **não é chamado** depois de um bloqueio de
   segurança.
-- **A URL não ancorada é a checagem mais forte, e o conjunto ancorado é
-  vazio por construção.** O `formatNewsItems` **não manda URL nenhuma** ao
-  modelo (só `TÍTULO`, `FONTE`, `CATEGORIA`, `DATA`, `DESCRIÇÃO`, `CONTEÚDO`)
-  e o prompt proíbe link — a §13.2 dizia "o conjunto de links que o
-  `formatNewsItems` mandou", e esse conjunto não existe. O que ancora é o
-  **texto** do material: URL que aparece nele (uma descrição citando um
-  endereço) e o modelo copiou é `copied-url`, avisa; URL que não aparece é
-  `unanchored-url`, **bloqueia, segurança**. Só URL com esquema (`https?://`)
-  conta: é o que vira link e o que o Google Notícias indexa; `www.gov.br`
-  solto é texto. **A URL bloqueada vai ao `context` só pelo host** — a query
-  string pode carregar token, e o `scrubErrorContext` não sabe disso.
+- **Toda URL na saída bloqueia, e o conjunto ancorado é vazio por
+  construção.** O `formatNewsItems` **não manda URL nenhuma** ao modelo (só
+  `TÍTULO`, `FONTE`, `CATEGORIA`, `DATA`, `DESCRIÇÃO`, `CONTEÚDO`) e o prompt
+  proíbe link — a §13.2 dizia "o conjunto de links que o `formatNewsItems`
+  mandou", e esse conjunto não existe. O **texto** do material só distingue a
+  procedência, que vai para o motivo: URL que aparece nele é `copied-url`
+  (uma descrição de feed dizendo "acesse https://…" é como se injeta um
+  link, e um modelo obediente o repete); URL que não aparece é
+  `unanchored-url` (inventada, ou de um prompt vazado). **As duas são
+  segurança, sem fallback.** O PR #232 deixava `copied-url` em *avisa* ("o
+  modelo só copiou") e o ensaio de atravessamento do pós-merge mostrou o que
+  isso significava — o link injetado ia ao ar com um `WARN`. Só URL com
+  esquema (`https?://`) conta: é o que vira link e o que o Google Notícias
+  indexa; `www.gov.br` solto é texto. **A URL bloqueada vai ao `context` só
+  pelo host** — a query string pode carregar token, e o `scrubErrorContext`
+  não sabe disso.
 - **Idioma é razão de *stopwords*, e a lista é o que decide se ela separa.**
   As cem palavras mais frequentes do português dariam 0,47 para português e
   **0,195 para espanhol** — a um fio de qualquer piso, porque as sete mais
@@ -1033,8 +1039,8 @@ Regras que não são óbvias no código:
   saída por qualidade é `contract`.
 - **Aviso de portão degrada o dia** (`WARN` da 5.5 ou da 6.5, com
   `degradedBy.push`, `PIPELINE_STAGE_DEGRADED · stage-6.5`), e é decisão: os
-  avisos são raros de propósito (duplicata > 60 %, deriva > 0,35,
-  `instruction-text`, `copied-url`) e "quem decide olha" precisa de um
+  avisos são raros de propósito (duplicata > 60 %, deriva > 0,5,
+  `instruction-text`) e "quem decide olha" precisa de um
   mecanismo, e `SUCCESS_DEGRADED` é o que este pipeline tem. O campo do
   contexto é **`findings`**, não `warnings`: `isDegradingWarn` lê
   `context.warnings` como avisos de colheita, e uma lista de strings ali
@@ -1050,7 +1056,9 @@ Regras que não são óbvias no código:
   `degradedBy`, a seleção alargada chegando à IA.
 - **O ensaio (armadilha 18) é um comando**, `gates:rehearse`, porque
   "ninguém lembra de uma medição que não é um comando" e o §16 tem um gatilho
-  que exige medir de novo. Toda URL dos retidos é tratada como não ancorada
+  que exige medir de novo. **E é tipado desde o pós-merge**: `scripts/**/*.ts`
+  entrou no `tsconfig.tests.json` — um `.ts` fora de `src/` e `tests/` era
+  a família do `seed.ts` do item 63, que ninguém tipava. Toda URL dos retidos é tratada como não ancorada
   (o material não é retido — pior caso); diversidade sai da `BriefingSource`
   de cada briefing; frescor só onde a `News` citada ainda existe. **Contra
   produção ele ainda não rodou**: a API está suspensa desde 19/09 e o

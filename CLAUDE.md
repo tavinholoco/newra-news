@@ -384,6 +384,19 @@ a suíte de unidade, que roda sem rede.
   sozinha ou com o que a `dev` acumulou desde o #215 — e nada disso anda
   com a API suspensa.
 
+  > **A verificação pós-merge (item 84, 21/09) achou o aviso que publicava
+  > o link injetado.** `copied-url` — URL que está no **texto** do material
+  > — só avisava, e o atravessamento que a §13 pedia (a ordem e o link no
+  > título do item, a saída que obedeceu) mostrou o `WARN` deixando o
+  > briefing com o link ir ao ar. **Toda URL na saída bloqueia, por
+  > segurança**; o material só distingue a procedência (motivo). Mais: o
+  > briefing real de 18/09 virou fixture e guarda; o `gates:rehearse` não
+  > era tipado (`scripts/**/*.ts` no `tsconfig.tests.json`); oito frases
+  > envelhecidas fora do diff; o seed passou a contar a história inteira
+  > (o dia bloqueado não tem briefing, e `briefing.one_per_day` sai violada
+  > nos dois runs seguintes); a captura completa com a medição de largura
+  > deu 21/21. **1.384 na API.**
+
 - **Fora da linha das fases (2026-09-19): dois e-mails de cota, e toda
   regeneração da ISR era cobrada por um `new Date()` que ninguém lia.** Item
   **82**. O Render avisou **629 de 750 h** — e o e-mail nomeia o "segundo
@@ -1306,7 +1319,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.281 em 180 suites (**1.377 API em 91** + **904 web em 89** — todos
+- **Testes:** 2.288 em 180 suites (**1.384 API em 91** + **904 web em 89** — todos
   passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

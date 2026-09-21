@@ -158,9 +158,16 @@ describe('gateAlerts — os dois gatilhos do §16', () => {
     expect(gateAlerts(gateDecisions([], WEEK, SINCE))).toEqual([]);
   });
 
-  it('alerts on any unanchored-url block, even with the rate above the trigger', () => {
+  it('alerts on any URL block — copied or made up — even with the rate above the trigger', () => {
     const groups = [
       group({ route: 'stage-6.5:unanchored-url', severity: 'FATAL', category: 'authorization' }),
+      group({
+        fingerprint: 'PIPELINE:FATAL:PIPELINE_GATE_BLOCKED:stage-6.5:copied-url',
+        route: 'stage-6.5:copied-url',
+        severity: 'FATAL',
+        category: 'authorization',
+        count: 2,
+      }),
     ];
     // 99 runs verdes e um bloqueado: 99 % de aprovação, e o alerta sai mesmo assim.
     const runs = [
@@ -168,7 +175,7 @@ describe('gateAlerts — os dois gatilhos do §16', () => {
       run('2026-09-19T23:59:00.000Z', 'FAILED'),
     ];
 
-    expect(gateAlerts(gateDecisions(groups, runs, SINCE))).toEqual([{ kind: 'unanchored-url', count: 1 }]);
+    expect(gateAlerts(gateDecisions(groups, runs, SINCE))).toEqual([{ kind: 'url-block', count: 3 }]);
   });
 
   it('alerts on approval below 90 % in the window', () => {

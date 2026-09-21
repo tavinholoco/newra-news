@@ -135,15 +135,15 @@ describe('GatesPanel', () => {
     expect(labels).toEqual(['Fora do português', 'Volume abaixo de 30 % da mediana']);
   });
 
-  it('alerts on the unanchored URL — the one-off event — in the danger tone', () => {
+  it('alerts on a URL block — the one-off event — in the danger tone', () => {
     mock({
-      groups: [gateGroup('stage-6.5:unanchored-url', 'FATAL')],
+      groups: [gateGroup('stage-6.5:copied-url', 'FATAL')],
       runs: [...week.slice(0, 6), run('2026-09-19T11:00:00.000Z', 'FAILED')],
     });
     renderWithIntl(<GatesPanel />);
 
     const alerts = screen.getByRole('status', { name: 'Alertas dos portões' });
-    expect(alerts).toHaveTextContent('1 bloqueio por URL não ancorada nos últimos 7 dias');
+    expect(alerts).toHaveTextContent('1 bloqueio por URL no briefing nos últimos 7 dias');
     expect(alerts.querySelector('li')).toHaveClass('text-danger');
   });
 

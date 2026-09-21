@@ -456,7 +456,8 @@ Regras que não são óbvias no código:
     100 %; o bloqueio de qualidade que o Groq recuperou (`WARN`) conta na
     rosquinha e não na taxa. Os dois gatilhos do §16 saem como alerta
     (`role='status'`): a taxa abaixo de 90 %, e **qualquer** bloqueio por
-    URL não ancorada, em vermelho. Os rótulos por motivo estão por extenso
+    URL no briefing (`copied-url` ou `unanchored-url` — as duas são
+    segurança desde o pós-merge da Fase 9), em vermelho. Os rótulos por motivo estão por extenso
     em `GATE_CHECK_KEY`, e `tests/lib/gate-checks.test.ts` deriva o
     conjunto dos dois tuples da API — check novo lá reprova aqui. Antes da
     promoção a API de produção não grava o código: o painel lê 100 % com a

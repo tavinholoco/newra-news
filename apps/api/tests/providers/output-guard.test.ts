@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Category } from '@newranews/database';
 import { MATERIAL_END, MATERIAL_START } from '../../src/config/ai-prompts';
 import { formatNewsItems } from '../../src/providers/ai/ai-utils';
@@ -69,10 +71,10 @@ describe('a régua: o que o guarda declara', () => {
   it('lists the six checks, as a tuple — it is what enters the ErrorEvent route', () => {
     expect([...OUTPUT_GUARD_CHECKS]).toEqual([
       'unanchored-url',
+      'copied-url',
       'envelope-leak',
       'language',
       'size',
-      'copied-url',
       'instruction-text',
     ]);
   });
@@ -91,6 +93,27 @@ describe('a régua: o que o guarda declara', () => {
 });
 
 describe('um briefing legítimo passa em todos os portões', () => {
+  it('approves a real production briefing — 18/09/2026, the one the Vercel edge still served with the API suspended', () => {
+    // A guarda que a §13 pede por nome: teste sobre caso inventado passa nas
+    // duas versões de uma régua. A fixture é o texto renderizado (o
+    // Markdown gravado não chega ao cliente), com `**` e `##` restaurados —
+    // as réguas medem tokens e caracteres, e nisso as duas formas coincidem.
+    const briefing = JSON.parse(
+      readFileSync(join(__dirname, '../fixtures/briefing-2026-09-18.json'), 'utf8'),
+    ) as { title: string; summary: string; content: string };
+
+    // Material vazio: toda URL seria "não ancorada" — o pior caso.
+    const verdict = guardArticleOutput(briefing, '');
+
+    expect(verdict.blocks).toEqual([]);
+    expect(verdict.warnings).toEqual([]);
+    expect(verdict.measures.urls).toBe(0);
+    // Folga de propósito: se um briefing real chegar perto do piso ou do
+    // teto, é a régua que está errada.
+    expect(verdict.measures.ptRatio).toBeGreaterThan(MIN_PT_STOPWORD_RATIO * 2);
+    expect(verdict.measures.chars).toBeLessThan(MAX_ARTICLE_CONTENT_LENGTH / 2);
+  });
+
   it('approves a Portuguese briefing with bold, proper nouns and an English quote', () => {
     const verdict = guardArticleOutput(article(), MATERIAL);
 
@@ -126,7 +149,11 @@ describe('unanchored-url — a checagem mais forte, e ela é de segurança', () 
     ).toBe('unanchored-url');
   });
 
-  it('only warns (copied-url) when the URL was in the material — the model copied what the prompt forbids', () => {
+  it('blocks a URL the model copied from the material text too — as copied-url, security, no fallback', () => {
+    // A primeira versão só avisava aqui ("o modelo copiou"). O texto do
+    // material é escrito por terceiros: uma descrição dizendo "acesse
+    // https://…" é exatamente como se injeta um link, e um WARN publicaria o
+    // briefing com ele. O motivo distingue a procedência; a ação é a mesma.
     const materialWithUrl = formatNewsItems([
       item({ description: 'Detalhes em https://g1.globo.com/economia/pacote-2026 nesta terça.' }),
     ]);
@@ -135,8 +162,8 @@ describe('unanchored-url — a checagem mais forte, e ela é de segurança', () 
       materialWithUrl,
     );
 
-    expect(verdict.blocks).toEqual([]);
-    expect(verdict.warnings).toEqual([{ check: 'copied-url', detail: 'g1.globo.com' }]);
+    expect(verdict.blocks).toEqual([{ check: 'copied-url', reason: 'security', detail: 'g1.globo.com' }]);
+    expect(verdict.warnings).toEqual([]);
     expect(verdict.measures.urls).toBe(1);
   });
 
@@ -298,6 +325,18 @@ describe('a ordem dos bloqueios', () => {
 
     expect(verdict.blocks.map((b) => b.reason)).toEqual(['security', 'quality']);
     expect(verdict.blocks[0]?.check).toBe('unanchored-url');
+  });
+
+  it('never warns about a URL — every URL in the output is a block', () => {
+    // A primeira versão avisava sobre a copiada e bloqueava a inventada; o
+    // atravessamento da suíte de injeção mostrou que o aviso publicava o
+    // link. Se um dia uma URL voltar a ser aviso, este teste é o que reprova.
+    const copied = guardArticleOutput(
+      article({ content: `${PT_BODY}\n\nhttps://g1.globo.com/economia/pacote-2026` }),
+      formatNewsItems([item({ description: 'Veja https://g1.globo.com/economia/pacote-2026.' })]),
+    );
+    expect(copied.warnings.map((w) => w.check)).not.toContain('copied-url');
+    expect(copied.blocks.map((b) => b.check)).toEqual(['copied-url']);
   });
 
   it('is pure — the same input gives the same verdict, and the material is what anchors', () => {

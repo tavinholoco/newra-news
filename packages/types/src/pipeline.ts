@@ -23,11 +23,13 @@ export type PipelineRunEventLevel = 'INFO' | 'WARN' | 'ERROR';
  * O desfecho de um run fechado — o que o `status` não sabe dizer. (§12 do
  * plano de observabilidade, Fase 8)
  *
- * **`SUCCESS` é binário e o pipeline não é.** Quatro etapas engolem a própria
+ * **`SUCCESS` é binário e o pipeline não é.** Cinco etapas engolem a própria
  * falha de propósito para o run terminar (7.5 newsletter, 8 expurgo, 8.5
- * renormalização, 9 métricas), o fallback para o Groq é um `WARN` da etapa 6 e
- * a colheita degradada é um `WARN` da etapa 1 — um run pode ter seis coisas
- * erradas e reportar `SUCCESS`. `SUCCESS_DEGRADED` é o valor que carrega toda
+ * renormalização, 9 métricas, 9.5 invariantes), o fallback para o Groq é um
+ * `WARN` da etapa 6, a colheita degradada é um `WARN` da etapa 1, a saúde por
+ * fonte que não gravou é um `WARN` da 4, e os avisos dos dois portões (Fase
+ * 9) são `WARN` da 5.5 e da 6.5 — um run pode ter dez coisas erradas e
+ * reportar `SUCCESS`. `SUCCESS_DEGRADED` é o valor que carrega toda
  * essa informação, e `degradedBy` diz **qual** etapa.
  *
  * **Não é coluna**: é função pura da API sobre o run e seus eventos
@@ -74,8 +76,10 @@ export interface PipelineRunSummary {
   outcome: RunOutcome | null;
   /**
    * As etapas cujo `WARN` contou como degradação, em ordem e sem repetição —
-   * `7.5` é a newsletter, `6` o fallback de IA, `4` a escrita da saúde por
-   * fonte (Fase 11), `1` a colheita (só quando há aviso além de `feed-empty`).
+   * `7.5` é a newsletter, `6.5` o portão de saída (aviso, ou o bloqueio de
+   * qualidade que o Groq recuperou — Fase 9), `6` o fallback de IA, `5.5` o
+   * portão de entrada (aviso), `4` a escrita da saúde por fonte (Fase 11), `1`
+   * a colheita (só quando há aviso além de `feed-empty`).
    * Vazio quando não houve. Preenchido também num run `FAILED`: a colheita
    * degradada antes da falha continua verdade.
    */

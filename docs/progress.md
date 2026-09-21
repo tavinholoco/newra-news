@@ -8473,6 +8473,84 @@ sozinha (a política de 07/09) ou com o que a `dev` acumulou desde o #215 —,
 o ensaio contra os retidos, e a primeira leitura das três abas com a
 credencial de produção. Nada disso anda com a API suspensa.
 
+### 84. A verificação pós-merge da Fase 9: o aviso que publicava o link injetado, o briefing real como guarda, e o script que ninguém tipava ✅ 2026-09-21
+
+> Sobre a árvore mergeada (`3010757`, #232). Três enumerações e um
+> atravessamento: a prosa que a fase envelheceu fora do diff, o que a §13
+> pedia em guarda e o PR entregou só em partes, e o que nasceu sem guarda.
+> Gitleaks `0 commits scanned` no push do merge — décima terceira medição.
+
+**O achado que importa: `copied-url` só avisava, e um `WARN` publicava o
+briefing com o link injetado.** A §13 pede "um caso de injeção sintético —
+material com 'ignore as instruções anteriores' no título — atravessando
+entrada e saída"; o PR tinha as duas pontas em suítes separadas
+(`prompt-injection` na entrada, `output-guard` na saída) e nunca o
+atravessamento. Escrito como camada 4 do `prompt-injection.test.ts` — a
+ordem **e o link** no título do item, a saída bem-formada que obedeceu —,
+ele mostrou o que o inventário de 19/09 tinha decidido errado: URL que está
+no texto do material era "o modelo copiou, violação de formato, avisa". Mas
+o texto do material é escrito por terceiros; uma descrição de feed dizendo
+"acesse https://…" é exatamente como se injeta um link, e um modelo obediente
+o repete. A regra do plano era "toda URL na saída foi inventada ou injetada"
+— o inventário a afrouxou, e o `WARN` deixava o link ir ao ar, indexado.
+**Hoje toda URL na saída bloqueia, por segurança, sem fallback**; o material
+só distingue a procedência, que vai para o motivo (`copied-url` ×
+`unanchored-url`). O gatilho do §16 e o alerta do painel cobrem as duas, e
+há um teste afirmando que URL nunca é aviso.
+
+#### As outras duas enumerações
+
+- **Um briefing real de produção passa em todos os portões — agora como
+  guarda.** O único retido alcançável com a API suspensa (18/09, `STALE` na
+  borda da Vercel) virou `apps/api/tests/fixtures/briefing-2026-09-18.json`:
+  texto renderizado com `**` e `##` restaurados (o Markdown gravado não chega
+  ao cliente; as réguas medem tokens e caracteres, que coincidem). 7.045
+  caracteres, razão de português acima do dobro do piso, zero URL, zero
+  aviso. A `_provenance` está no próprio JSON.
+- **O `scripts/rehearse-gates.ts` não era tipado por ninguém** — `.ts` fora
+  de `src/` e `tests/`, a família do `seed.ts` do item 63. `scripts/**/*.ts`
+  entrou no `tsconfig.tests.json`; tipou limpo na primeira.
+- **Oito frases envelhecidas fora do diff**: "quatro/cinco etapas engolem"
+  (`docs/api.md`, `run-outcome.ts` e seu teste, `packages/types` — que
+  ainda dizia "quatro", velho desde a Fase 6), "três camadas" da defesa do
+  prompt (`ai-utils.ts` — são quatro), "quatro formas" do `route`
+  (`packages/types/src/observability.ts`), a doc de
+  `PIPELINE_DEGRADED_CODE` ("etapas 7.5 a 9.5" — sempre foi mais que isso),
+  o `degradedBy` sem as duas etapas novas, e o comentário do seed. E **uma
+  contradição pré-existente entre as armadilhas 17 e 22** — a 17 dizia que
+  todo bloqueio cai para o Groq; qualificada.
+- **O seed contava a história pela metade**: o dia bloqueado na 5.5 tinha
+  um briefing semeado. Um dia bloqueado não tem briefing, e é o caso que a
+  §13 aceita de olhos abertos — `briefing.one_per_day` sai VIOLADA nos dois
+  runs seguintes. O seed pula o briefing daquele dia e o relatório sintético
+  da 9.5 mostra a violação: a `/admin/security` local desenha o que produção
+  desenharia no dia seguinte a um bloqueio.
+- **A captura completa, com a medição de largura nas seis rotas: 21/21.**
+  A guarda nova do `admin:capture` não reprova nada pré-existente; a `/admin`
+  desenha a etapa 5.5 com as medidas, o dia bloqueado em vermelho na faixa
+  e o degradado por 6.5 em laranja.
+
+#### O que a auditoria da fase confirmou, cláusula a cláusula da §13
+
+Entrada: volume ≥ 30 % da mediana (bloqueia), diversidade alargando antes
+de bloquear, frescor de 24 h (bloqueia), duplicata e deriva (avisam), linha
+de base < 3 dias → não opina e diz. Saída: URL (bloqueia, segurança —
+**as duas procedências**, desde este item), envelope (bloqueia, segurança),
+idioma e teto (bloqueiam, qualidade → Groq uma vez), instrução (avisa,
+nunca bloqueia), "ancoragem das fontes" fora com motivo. Segurança sem
+fallback, `FAILED` com `errorStage: 6.5`, `recordError` `FATAL`. §13.3:
+evento por decisão, `PIPELINE_GATE_BLOCKED` com motivo no `route`, taxa de
+aprovação e rosquinha na aba de segurança, os dois gatilhos. Arquivos da
+tabela mais os três. Guarda: cada portão reprovando o caso exato e
+aprovando o vizinho, o briefing real (guarda), o atravessamento (guarda).
+**O que continua pendente é o que a API suspensa bloqueia**: o ensaio
+contra os ~88 retidos — a §19 mandava rodar em modo observador antes de
+ligar o bloqueio, e com a promoção antes disso a primeira medição real será
+em produção, com o `gates:rehearse` pronto para o dia em que ela voltar.
+
+**1.377 → 1.384 na API; 904 no web.** A Fase 9 não deve nada além do
+ensaio contra produção.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
