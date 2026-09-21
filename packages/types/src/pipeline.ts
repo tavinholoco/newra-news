@@ -85,7 +85,7 @@ export interface PipelineRunSummary {
 /** Uma linha do diário de um run: etapa, nível, mensagem e contexto. */
 export interface PipelineRunEvent {
   id: string;
-  /** Stage 1–9 (fracionária nas intermediárias: `7.5` é a newsletter). */
+  /** 1 a 9.5, com as meias (`5.5` e `6.5` são os portões, `7.5` a newsletter, `9.5` as invariantes). */
   stage: number;
   level: PipelineRunEventLevel;
   message: string;

@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { generateArticle } from '../../src/services/ai.service';
+import { generateArticle, type ArticleOutputGuard } from '../../src/services/ai.service';
+import { GateBlockedError } from '../../src/services/pipeline-gates.service';
+import { formatNewsItems } from '../../src/providers/ai/ai-utils';
+import type { OutputGuardVerdict } from '../../src/providers/ai/output-guard';
 import { env } from '../../src/config/env';
 import {
   ARTICLE_PROMPT_VERSION,
@@ -19,7 +22,10 @@ import { generateArticleWithGroq } from '../../src/providers/ai/groq.provider';
 const mockGeneratedArticle = {
   title: 'Artigo Gerado',
   summary: 'Resumo do artigo.',
-  content: 'Conteúdo completo do artigo.',
+  // Em português de verdade: o guarda real roda por padrão nesta suíte, e
+  // um corpo de quatro palavras mediria a razão de idioma por acaso.
+  content:
+    'O governo anunciou nesta terça-feira um pacote de medidas para o setor de energia, com linhas de crédito e mudanças que devem entrar em vigor ainda este ano. A expectativa é de que a nova regra reduza a conta de luz para os consumidores a partir do segundo semestre, mas os analistas alertam que o efeito depende da aprovação no Congresso.',
 };
 
 const mockNewsItems = [
@@ -110,6 +116,118 @@ describe('AiService', () => {
 
     expect(result.provider).toBe('groq');
     expect(result.modelVersion).toBe(env.GROQ_MODEL);
+  });
+});
+
+/**
+ * **O portão de saída roda por tentativa — Fase 9, §13.2.**
+ *
+ * A regra "qualidade cai para o provider de reserva uma vez; segurança falha o
+ * dia" só existe se o veredito for lido entre a resposta do Gemini e a decisão
+ * de chamar o Groq. O guarda é injetável só aqui, para a fiação ser medida
+ * com vereditos escolhidos; a suíte do guarda real é `output-guard.test.ts`.
+ */
+describe('Fase 9 — o portão de saída, por tentativa', () => {
+  const verdict = (overrides: Partial<OutputGuardVerdict> = {}): OutputGuardVerdict => ({
+    blocks: [],
+    warnings: [],
+    measures: { chars: 400, words: 70, ptRatio: 0.3, urls: 0 },
+    ...overrides,
+  });
+  const securityBlock = { check: 'unanchored-url' as const, reason: 'security' as const, detail: 'evil.example' };
+  const qualityBlock = { check: 'language' as const, reason: 'quality' as const, detail: 'pt ratio 0.02 < 0.08' };
+
+  it('runs the real guard by default, and returns its verdict with the served article', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+
+    const result = await generateArticle(mockNewsItems);
+
+    expect(result.guard.blocks).toEqual([]);
+    expect(result.guard.measures.chars).toBe(mockGeneratedArticle.content.length);
+  });
+
+  it('anchors against the very string the model saw — formatNewsItems of the same items', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+    const guard = vi.fn<ArticleOutputGuard>(() => verdict());
+
+    await generateArticle(mockNewsItems, guard);
+
+    expect(guard).toHaveBeenCalledWith(mockGeneratedArticle, formatNewsItems(mockNewsItems));
+  });
+
+  it('does NOT call Groq when the guard blocks the Gemini article for security — armadilha 22', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+    vi.mocked(generateArticleWithGroq).mockResolvedValue(mockGeneratedArticle);
+    const guard: ArticleOutputGuard = () => verdict({ blocks: [securityBlock] });
+
+    const thrown = await generateArticle(mockNewsItems, guard).catch((e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(GateBlockedError);
+    expect(thrown).toMatchObject({ gate: 'exit', check: 'unanchored-url', reason: 'security', provider: 'gemini' });
+    // O mesmo material envenenado não vai ao segundo oráculo.
+    expect(generateArticleWithGroq).not.toHaveBeenCalled();
+  });
+
+  it('falls back to Groq once when the guard blocks the Gemini article for quality, and carries the block as primaryError', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+    vi.mocked(generateArticleWithGroq).mockResolvedValue({ ...mockGeneratedArticle, title: 'Do Groq' });
+    const guard = vi.fn<ArticleOutputGuard>()
+      .mockReturnValueOnce(verdict({ blocks: [qualityBlock] }))
+      .mockReturnValueOnce(verdict());
+
+    const result = await generateArticle(mockNewsItems, guard);
+
+    expect(result.provider).toBe('groq');
+    expect(result.article.title).toBe('Do Groq');
+    expect(result.primaryError).toBeInstanceOf(GateBlockedError);
+    expect(result.primaryError).toMatchObject({ check: 'language', reason: 'quality', provider: 'gemini' });
+    expect(guard).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails the day when the Groq article is blocked too, with the Gemini block as primaryError', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+    vi.mocked(generateArticleWithGroq).mockResolvedValue(mockGeneratedArticle);
+    const guard: ArticleOutputGuard = () => verdict({ blocks: [qualityBlock] });
+
+    const thrown = await generateArticle(mockNewsItems, guard).catch((e: GateBlockedError & { primaryError?: unknown }) => e);
+
+    expect(thrown).toMatchObject({ gate: 'exit', check: 'language', provider: 'groq' });
+    expect(thrown.primaryError).toMatchObject({ check: 'language', provider: 'gemini' });
+  });
+
+  it('guards the Groq article after a Gemini transport failure — the fallback is not exempt', async () => {
+    vi.mocked(generateArticleWithGemini).mockRejectedValue(new Error('Gemini API error 503: UNAVAILABLE'));
+    vi.mocked(generateArticleWithGroq).mockResolvedValue(mockGeneratedArticle);
+    const guard: ArticleOutputGuard = () => verdict({ blocks: [securityBlock] });
+
+    const thrown = await generateArticle(mockNewsItems, guard).catch((e: GateBlockedError & { primaryError?: unknown }) => e);
+
+    expect(thrown).toBeInstanceOf(GateBlockedError);
+    expect(thrown).toMatchObject({ check: 'unanchored-url', reason: 'security', provider: 'groq' });
+    expect((thrown.primaryError as Error).message).toContain('503');
+  });
+
+  it('reads the first block — security before quality — when the verdict carries both', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+    vi.mocked(generateArticleWithGroq).mockResolvedValue(mockGeneratedArticle);
+    const guard: ArticleOutputGuard = () => verdict({ blocks: [securityBlock, qualityBlock] });
+
+    const thrown = await generateArticle(mockNewsItems, guard).catch((e: unknown) => e);
+
+    expect(thrown).toMatchObject({ reason: 'security' });
+    expect(generateArticleWithGroq).not.toHaveBeenCalled();
+  });
+
+  it('serves an article with warnings — warnings are for the 6.5 event, not for the verdict', async () => {
+    vi.mocked(generateArticleWithGemini).mockResolvedValue(mockGeneratedArticle);
+    const warning = { check: 'instruction-text' as const, detail: 'ignore as instruções anteriores' };
+    const guard: ArticleOutputGuard = () => verdict({ warnings: [warning] });
+
+    const result = await generateArticle(mockNewsItems, guard);
+
+    expect(result.provider).toBe('gemini');
+    expect(result.guard.warnings).toEqual([warning]);
+    expect(generateArticleWithGroq).not.toHaveBeenCalled();
   });
 });
 

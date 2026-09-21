@@ -20,6 +20,12 @@ import {
   PIPELINE_LOG_RETENTION_DAYS,
 } from './retention';
 import { runInvariants } from './invariants.service';
+import {
+  GateBlockedError,
+  WIDENED_SELECTION,
+  evaluateEntryGate,
+  loadEntryBaseline,
+} from './pipeline-gates.service';
 import { ARTICLE_PROMPT_VERSION } from '../config/ai-prompts';
 import type { RawNewsItem } from '../providers/types';
 import type { PipelineTrigger } from '@newranews/types';
@@ -350,19 +356,73 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
 
     // Stage 5: Select top items for AI generation
     currentStage = 5;
-    const selected = selectTopItems(deduplicated);
+    const initialSelection = selectTopItems(deduplicated);
 
-    if (selected.length === 0) {
+    if (initialSelection.length === 0) {
       throw new Error('No news items available for article generation');
     }
     await logPipelineEvent(pipelineLogId, 5, 'INFO', 'Top items selected for AI', {
-      count: selected.length,
+      count: initialSelection.length,
     });
 
-    // Stage 6: Generate article via AI (Gemini → Groq fallback)
+    // Stage 5.5: o portão de entrada (§13.1 do plano de observabilidade, Fase
+    // 9) — **depois da seleção e antes da chamada de IA**, porque o argumento
+    // é econômico antes de ser de qualidade: não gastar a chamada do modelo
+    // sobre uma colheita que não presta. Volume contra a mediana dos sete dias
+    // anteriores (a linha de hoje ainda não existe: `DailyMetric` é da etapa
+    // 9), três fontes distintas entre os selecionados (alargando para 30 uma
+    // vez antes de desistir — a seleção que segue é a do veredito), e pelo
+    // menos um item das últimas 24 h. Taxa de duplicata e deriva de categoria
+    // só avisam.
+    //
+    // **Bloqueio é `FAILED` com `errorStage: 5.5`** — o `GateBlockedError`
+    // atravessa até o `catch` de fora, que grava o `ERROR` com o motivo no
+    // fingerprint (`PIPELINE_GATE_BLOCKED · stage-5.5:volume`). O dia fica sem
+    // briefing, e o re-disparo depois de um `FAILED` continua permitido: a
+    // colheita pode estar melhor à tarde. Sem linha de base (menos de três
+    // dias com briefing na janela) o portão de volume **não opina**, e o
+    // evento diz que não opinou — armadilha 24.
+    currentStage = 5.5;
+    const gate = evaluateEntryGate({
+      deduplicated,
+      collected: allItems.length,
+      selected: initialSelection,
+      widen: () => selectTopItems(deduplicated, WIDENED_SELECTION),
+      baseline: await loadEntryBaseline(today),
+      now: new Date(),
+    });
+    const gateContext = {
+      ...gate.measures,
+      baseline: gate.baseline,
+      findings: gate.warnings.map((finding) => finding.check),
+    };
+    if (gate.block !== null) {
+      throw new GateBlockedError({
+        gate: 'entry',
+        check: gate.block.check,
+        reason: 'quality',
+        detail: gate.block.detail,
+      });
+    }
+    if (gate.warnings.length > 0) {
+      degradedBy.push(5.5);
+      await logPipelineEvent(pipelineLogId, 5.5, 'WARN', 'Entry gate passed with warnings', {
+        ...gateContext,
+        warnings: gate.warnings.map((finding) => `${finding.check}: ${finding.detail}`),
+      });
+    } else {
+      await logPipelineEvent(pipelineLogId, 5.5, 'INFO', 'Entry gate passed', gateContext);
+    }
+    const selected = gate.selected;
+
+    // Stage 6: Generate article via AI (Gemini → Groq fallback) — **com o
+    // portão de saída (6.5) por tentativa, dentro de `generateArticle`**. A
+    // regra "qualidade cai para o provider de reserva uma vez; segurança falha
+    // o dia" só é possível se o guarda for lido entre a resposta do Gemini e a
+    // decisão de chamar o Groq, e é lá que ele mora (§13.2).
     currentStage = 6;
     const generatedAt = new Date();
-    const { article, provider, modelVersion, primaryError } = await generateArticle(selected);
+    const { article, provider, modelVersion, primaryError, guard } = await generateArticle(selected);
     metrics.aiProvider = provider;
     // O dia em que o Gemini falhou e o Groq entregou é um dia **degradado**, e
     // até aqui só o `aiProvider` da métrica contava isso. O `WARN` faz a falha
@@ -370,7 +430,18 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // quantos dias o Gemini falha?" — que é o gatilho escrito no `CLAUDE.md`
     // (três dias seguidos). **Não conta em `pipelineErrors`**: o briefing saiu,
     // e "sucesso degradado" é função sobre eventos que a Fase 8 define.
-    if (primaryError !== undefined) {
+    //
+    // **Quando o primário foi bloqueado pelo portão de saída** (qualidade —
+    // idioma, tamanho — e o Groq serviu), o `WARN` é da etapa **6.5**, com o
+    // motivo: o Gemini respondeu, quem recusou foi o guarda. O `ErrorEvent`
+    // sai como `PIPELINE_GATE_BLOCKED · WARN · stage-6.5:<motivo>`.
+    if (primaryError instanceof GateBlockedError) {
+      degradedBy.push(6.5);
+      await logPipelineEvent(pipelineLogId, 6.5, 'WARN', 'Output guard blocked the primary attempt, fallback served', {
+        ...extractErrorDetail(primaryError),
+        fallbackProvider: provider,
+      });
+    } else if (primaryError !== undefined) {
       degradedBy.push(6);
       await logPipelineEvent(pipelineLogId, 6, 'WARN', 'Primary provider failed, fallback served', {
         ...extractErrorDetail(primaryError),
@@ -382,6 +453,29 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       modelVersion,
       promptVersion: ARTICLE_PROMPT_VERSION,
     });
+
+    // Stage 6.5: o veredito do portão de saída sobre o artigo **servido** —
+    // sem bloqueio por definição (com bloqueio `generateArticle` lança), com
+    // as medidas e os avisos. Aviso degrada o dia por 6.5: "texto em forma de
+    // instrução" e "URL copiada do material" são raros de propósito e pedem
+    // que alguém olhe, e `SUCCESS_DEGRADED` é o mecanismo que este pipeline
+    // tem para dizer isso. O `push` é condicional porque o `WARN` de cima já
+    // pode ter posto a etapa lá.
+    currentStage = 6.5;
+    const guardContext = {
+      provider,
+      ...guard.measures,
+      findings: guard.warnings.map((finding) => finding.check),
+    };
+    if (guard.warnings.length > 0) {
+      if (!degradedBy.includes(6.5)) degradedBy.push(6.5);
+      await logPipelineEvent(pipelineLogId, 6.5, 'WARN', 'Output guard passed with warnings', {
+        ...guardContext,
+        warnings: guard.warnings.map((finding) => `${finding.check}: ${finding.detail}`),
+      });
+    } else {
+      await logPipelineEvent(pipelineLogId, 6.5, 'INFO', 'Output guard passed', guardContext);
+    }
 
     // Stage 7: Persist article (upsert by date — one article per day) com a
     // auditoria da geração e a lista de fontes (§18.4 do plano V2).
@@ -682,14 +776,24 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
   } catch (error) {
     const detail = extractErrorDetail(error);
 
+    // **A etapa da falha é a do portão quando foi um portão que bloqueou.** O
+    // `GateBlockedError` do portão de saída nasce dentro de `generateArticle`,
+    // com `currentStage` ainda em 6; o do portão de entrada nasce na 5.5. A
+    // etapa vem do erro, e não de um `currentStage` reatribuído no meio da
+    // chamada de IA — o mesmo portão não bloqueia em duas etapas.
+    if (error instanceof GateBlockedError) currentStage = error.stage;
+
     // Fallback de IA (Gemini → Groq): se o provider primário falhou antes do
     // fallback (erro carregado por `withPrimaryError` no ai.service), registra
-    // os dois erros — WARN do primário + ERROR final — no PipelineLog.
+    // os dois erros — WARN do primário + ERROR final — no PipelineLog. Quando
+    // o primário foi um bloqueio de qualidade do portão de saída, o `WARN` é
+    // da 6.5 (a etapa do portão), como no caminho em que o Groq serviu.
     const primaryError = (error as { primaryError?: unknown }).primaryError;
     if (primaryError !== undefined) {
       const primaryDetail = extractErrorDetail(primaryError);
       detail.primaryError = primaryDetail;
-      await logPipelineEvent(pipelineLogId, currentStage, 'WARN', 'Primary provider failed before fallback', {
+      const primaryStage = primaryError instanceof GateBlockedError ? primaryError.stage : 6;
+      await logPipelineEvent(pipelineLogId, primaryStage, 'WARN', 'Primary provider failed before fallback', {
         ...primaryDetail,
       });
     }

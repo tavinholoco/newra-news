@@ -1,10 +1,12 @@
 %% Fluxo de Dados Diário — Pipeline de Notícias (Newra News)
 %% ---
-%% Atualizado em 16/09/2026. As 12 etapas do `pipeline.service.ts`, na ordem em
+%% Atualizado em 19/09/2026. As 14 etapas do `pipeline.service.ts`, na ordem em
 %% que rodam, e o que cada uma deixa gravado. A etapa 4 grava também a
 %% SourceHealth do dia (Fase 11 do plano de observabilidade), e a 8 a expurga.
 %% A 9.5 (Fase 6) não grava tabela nenhuma: o relatório é o `context` de um
-%% PipelineEvent, e cada violação é um ErrorEvent com o id da invariante.
+%% PipelineEvent, e cada violação é um ErrorEvent com o id da invariante. Os
+%% dois portões (5.5 e 6.5, Fase 9) também não gravam tabela: a decisão é um
+%% PipelineEvent, e o bloqueio é um ErrorEvent com o motivo no route.
 flowchart TB
     subgraph Coleta["Fontes"]
         ND["NewsData.io"]
@@ -16,7 +18,9 @@ flowchart TB
     S3["3 · Deduplicação<br/>(por sourceUrl)"]
     S4["4 · Persistência<br/>(news.createMany · SourceHealth do dia)"]
     S5["5 · Seleção<br/>(15 mais recentes)"]
+    S55["5.5 · Portão de entrada<br/>(volume vs mediana de 7 d · ≥ 3 fontes · ≥ 1 item de 24 h)"]
     S6["6 · Geração IA<br/>(Gemini → Groq fallback)"]
+    S65["6.5 · Portão de saída, por tentativa<br/>(URL não ancorada · envelope · idioma · teto)"]
     S7["7 · Persistência do briefing<br/>(article.upsert + BriefingSource)"]
     S75["7.5 · Newsletter<br/>(Resend — não crítico)"]
     S8["8 · Expurgo<br/>(news >30d · logs >30d<br/>artigos, eventos e fontes >90d · erros >14d · auditoria >365d)"]
@@ -26,7 +30,8 @@ flowchart TB
 
     ND --> S1
     RSS --> S1
-    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S75 --> S8 --> S85 --> S9 --> S95
+    S1 --> S2 --> S3 --> S4 --> S5 --> S55 --> S6 --> S65 --> S7 --> S75 --> S8 --> S85 --> S9 --> S95
+    S9 -.->|"mediana dos 7 dias anteriores"| S55
 
     SITE["Site — Next.js com ISR"]
     S4 -.->|"acervo de notícias"| SITE
@@ -40,5 +45,10 @@ flowchart TB
     S85 -.-> LOG
     S95 -.->|"relatório no context"| LOG
 
-    ERR["ErrorEvent<br/>(uma linha por invariante violada)"]
+    S55 -.->|"decisão"| LOG
+    S65 -.->|"decisão, por tentativa"| LOG
+
+    ERR["ErrorEvent<br/>(uma linha por invariante violada;<br/>um bloqueio de portão com o motivo no route)"]
     S95 -.-> ERR
+    S55 -.->|"bloqueou"| ERR
+    S65 -.->|"bloqueou"| ERR

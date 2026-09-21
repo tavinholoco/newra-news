@@ -193,8 +193,13 @@ async function main() {
   // zero e o `category-bars` — que consome `--chart-1..5` — não desenha barra
   // nenhuma, o que esconde justamente o componente que a V2 muda.
   // Determinístico, para o seed ser reprodutível: sem aleatoriedade.
+  // O dia bloqueado pelo portão de entrada (Fase 9) não tem métrica: o run
+  // falhou na 5.5 e nunca chegou à 9 — como em produção. É o mesmo dia do
+  // `GATE_BLOCKED_DAY` dos runs, abaixo.
+  const GATE_BLOCKED_DAY = 2;
   let metricsCreated = 0;
   for (let daysAgo = 0; daysAgo < 30; daysAgo++) {
+    if (daysAgo === GATE_BLOCKED_DAY) continue;
     const date = new Date(today);
     date.setUTCDate(date.getUTCDate() - daysAgo);
 
@@ -260,6 +265,13 @@ async function main() {
   const thisHour = new Date(now);
   thisHour.setUTCMinutes(0, 0, 0);
   const hoursAgo = (hours: number) => new Date(thisHour.getTime() - hours * 3_600_000);
+  /** A hora `hour` UTC de `daysAgo` dias atrás — o cron das 11:00 de um dia semeado. */
+  const dayHour = (daysAgo: number, hour: number) =>
+    new Date(today.getTime() - daysAgo * 86_400_000 + hour * 3_600_000);
+  /** O dia em que o guarda de saída recusou o Gemini por idioma e o Groq serviu (Fase 9). */
+  const GATE_RECOVERED_DAY = 5;
+  const runId = (daysAgo: number) =>
+    `00000000-0000-4000-8000-00000000c0${(daysAgo + 1).toString(16).padStart(2, '0')}`;
   const errorEvents = [
     ...[
       [1, 12],
@@ -320,6 +332,42 @@ async function main() {
       message: 'Unexpected error',
       firstRequestId: 'seed-500',
       lastRequestId: 'seed-500',
+    },
+    // Os dois portões (Fase 9, §13.3): o motivo vai no `route`, e são as duas
+    // histórias que o painel "Portões" da `/admin/security` desenha — o dia
+    // bloqueado na entrada por volume (`ERROR`, o dia ficou sem briefing) e o
+    // dia em que o guarda de saída recusou o Gemini por idioma e o Groq
+    // serviu (`WARN`, recuperado). As duas linhas apontam para os runs
+    // semeados abaixo (`GATE_BLOCKED_DAY`, `GATE_RECOVERED_DAY`).
+    {
+      fingerprint: 'PIPELINE:ERROR:PIPELINE_GATE_BLOCKED:stage-5.5:volume',
+      windowStart: dayHour(GATE_BLOCKED_DAY, 11),
+      origin: ErrorOrigin.PIPELINE,
+      severity: ErrorSeverity.ERROR,
+      code: 'PIPELINE_GATE_BLOCKED',
+      category: 'upstream',
+      count: 1,
+      route: 'stage-5.5:volume',
+      statusCode: null,
+      message: 'Entry gate blocked: volume (61 < 30% of median 412 over 7 days)',
+      firstRequestId: null,
+      lastRequestId: null,
+      pipelineLogId: runId(GATE_BLOCKED_DAY),
+    },
+    {
+      fingerprint: 'PIPELINE:WARN:PIPELINE_GATE_BLOCKED:stage-6.5:language',
+      windowStart: dayHour(GATE_RECOVERED_DAY, 11),
+      origin: ErrorOrigin.PIPELINE,
+      severity: ErrorSeverity.WARN,
+      code: 'PIPELINE_GATE_BLOCKED',
+      category: 'contract',
+      count: 1,
+      route: 'stage-6.5:language',
+      statusCode: null,
+      message: 'Output guard blocked (gemini): language (pt ratio 0.05 < 0.08)',
+      firstRequestId: null,
+      lastRequestId: null,
+      pipelineLogId: runId(GATE_RECOVERED_DAY),
     },
   ];
   let errorsCreated = 0;
@@ -396,8 +444,6 @@ async function main() {
   //
   // O run de hoje é o `...c001` que a trilha de auditoria acima referencia —
   // é o que faz o link "run existente" da trilha resolver.
-  const runId = (daysAgo: number) =>
-    `00000000-0000-4000-8000-00000000c0${(daysAgo + 1).toString(16).padStart(2, '0')}`;
   const eventId = (daysAgo: number, index: number) =>
     `00000000-0000-4000-8000-0000000e${(daysAgo + 1).toString(16).padStart(2, '0')}${index.toString(16).padStart(2, '0')}`;
   const NEVER_RAN_DAYS = new Set([17, 18, 19]);
@@ -496,6 +542,12 @@ async function main() {
     const startedAt = new Date(day.getTime() + 11 * 3_600_000 + (daysAgo === 0 ? 5 * 60_000 : 10_000));
     const at = (seconds: number) => new Date(startedAt.getTime() + seconds * 1000);
     const failed = daysAgo === FAILED_DAY;
+    // Fase 9: o dia bloqueado na entrada (`FAILED` na 5.5, sem chamada de
+    // IA) e o dia em que o fallback do Groq veio de um bloqueio de qualidade
+    // do guarda de saída, não de um 503 — é o que separa as duas linhas de
+    // `PIPELINE_GATE_BLOCKED` semeadas acima das falhas de provider.
+    const gateBlocked = daysAgo === GATE_BLOCKED_DAY;
+    const gateRecovered = daysAgo === GATE_RECOVERED_DAY;
     const fallback = !failed && daysAgo % 5 === 0;
     const newsletterFailed = daysAgo === NEWSLETTER_FAILED_DAY;
     const collected = 320 + ((daysAgo * 14) % 120) + 60 + ((daysAgo * 3) % 20);
@@ -509,17 +561,65 @@ async function main() {
       { stage: 5, level: PipelineEventLevel.INFO, message: 'Top items selected for AI', context: { count: 15 }, at: at(6) },
     ];
 
-    if (failed) {
+    const entryGateMeasures = {
+      volume: collected - 12,
+      baselineDays: 7,
+      median: 412,
+      volumeRatio: Number(((collected - 12) / 412).toFixed(3)),
+      sources: 3,
+      widened: false,
+      freshestAgeHours: 0.4,
+      duplicateRate: 0.03,
+      categoryDrift: 0.05,
+      baseline: 'ok',
+      findings: [],
+    };
+    const outputGuardMeasures = (provider: string) => ({
+      provider,
+      chars: 6_200 + ((daysAgo * 173) % 900),
+      words: 980 + ((daysAgo * 31) % 140),
+      ptRatio: 0.27,
+      urls: 0,
+      findings: [],
+    });
+
+    if (gateBlocked) {
+      // A colheita despencou (um domingo de feeds mudos): 61 deduplicadas
+      // contra uma mediana de 412 — abaixo dos 30 %. O run falha antes de
+      // gastar a chamada de IA, e o motivo vai no fingerprint.
+      events.push({
+        stage: 5.5,
+        level: PipelineEventLevel.ERROR,
+        message: 'Entry gate blocked: volume (61 < 30% of median 412 over 7 days)',
+        context: { message: 'Entry gate blocked: volume (61 < 30% of median 412 over 7 days)', gate: 'entry', check: 'volume', reason: 'quality' },
+        at: at(7),
+      });
+    } else {
+      events.push({ stage: 5.5, level: PipelineEventLevel.INFO, message: 'Entry gate passed', context: entryGateMeasures, at: at(7) });
+    }
+
+    if (gateBlocked) {
+      // Nada depois da 5.5.
+    } else if (failed) {
       events.push(
         { stage: 6, level: PipelineEventLevel.WARN, message: 'Primary provider failed before fallback', context: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503 }, at: at(20) },
         { stage: 6, level: PipelineEventLevel.ERROR, message: 'Groq API error: 404 Not Found', context: { message: 'Groq API error: 404 Not Found', provider: 'groq', statusCode: 404 }, at: at(22) },
       );
     } else {
-      if (fallback) {
+      if (fallback && gateRecovered) {
+        events.push({
+          stage: 6.5,
+          level: PipelineEventLevel.WARN,
+          message: 'Output guard blocked the primary attempt, fallback served',
+          context: { message: 'Output guard blocked (gemini): language (pt ratio 0.05 < 0.08)', gate: 'exit', check: 'language', reason: 'quality', provider: 'gemini', fallbackProvider: 'groq' },
+          at: at(18),
+        });
+      } else if (fallback) {
         events.push({ stage: 6, level: PipelineEventLevel.WARN, message: 'Primary provider failed, fallback served', context: { message: 'Gemini API error 503: UNAVAILABLE', provider: 'gemini', statusCode: 503, fallbackProvider: 'groq' }, at: at(18) });
       }
       events.push(
         { stage: 6, level: PipelineEventLevel.INFO, message: 'Article generated', context: { provider: fallback ? 'groq' : 'gemini', modelVersion: fallback ? 'openai/gpt-oss-20b' : 'gemini-2.5-flash', promptVersion: 'v2' }, at: at(19) },
+        { stage: 6.5, level: PipelineEventLevel.INFO, message: 'Output guard passed', context: outputGuardMeasures(fallback ? 'groq' : 'gemini'), at: at(19) },
         { stage: 7, level: PipelineEventLevel.INFO, message: 'Article persisted', context: { sources: 15 }, at: at(20) },
         newsletterFailed
           ? { stage: 7.5, level: PipelineEventLevel.WARN, message: 'Newsletter failed (non-critical)', context: { message: 'Resend API error 500: internal error', provider: 'resend', statusCode: 500 }, at: at(21) }
@@ -552,7 +652,7 @@ async function main() {
             newsletter: newsletterFailed ? 'failed' : { total: 3, sent: 3, failed: 0 },
             renormalized: { scanned: 8190, changed: 0 },
             invariants: { checked: 12, violated: daysAgo === 0 ? 1 : 0, errored: 0 },
-            degradedBy: [...(fallback ? [6] : []), ...(newsletterFailed ? [7.5] : [])],
+            degradedBy: [...(fallback ? [gateRecovered ? 6.5 : 6] : []), ...(newsletterFailed ? [7.5] : [])],
             durationMs,
           },
           at: at(25),
@@ -563,13 +663,25 @@ async function main() {
     await prisma.pipelineLog.create({
       data: {
         id,
-        status: failed ? PipelineStatus.FAILED : PipelineStatus.SUCCESS,
+        status: failed || gateBlocked ? PipelineStatus.FAILED : PipelineStatus.SUCCESS,
         // O `newsCount` e o `articleId` só são gravados na etapa 7: o run que
-        // falhou na 6 fica com os dois vazios, como em produção.
-        newsCount: failed ? 0 : collected - 12,
+        // falhou na 6 (ou na 5.5) fica com os dois vazios, como em produção.
+        newsCount: failed || gateBlocked ? 0 : collected - 12,
         articleId: daysAgo === 0 ? (todayArticle?.id ?? null) : null,
         startedAt,
-        completedAt: at(failed ? 22 : Math.round(durationMs / 1000)),
+        completedAt: at(gateBlocked ? 7 : failed ? 22 : Math.round(durationMs / 1000)),
+        ...(gateBlocked
+          ? {
+              error: 'Entry gate blocked: volume (61 < 30% of median 412 over 7 days)',
+              errorStage: 5.5,
+              errorDetail: {
+                message: 'Entry gate blocked: volume (61 < 30% of median 412 over 7 days)',
+                gate: 'entry',
+                check: 'volume',
+                reason: 'quality',
+              },
+            }
+          : {}),
         ...(failed
           ? {
               error: 'Groq API error: 404 Not Found',

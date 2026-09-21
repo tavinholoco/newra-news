@@ -359,6 +359,17 @@ describe('§8 — nenhum `code` interpolado chega ao `recordError`', () => {
           for (const arg of node.arguments) {
             if (!ts.isObjectLiteralExpression(arg)) continue;
             for (const property of arg.properties) {
+              // `code,` em shorthand (`recordPipelineEvent`, desde a Fase 9)
+              // é um identificador local — a forma `identifier`, com o teto
+              // no tipo `RecordedErrorCode` da variável. A primeira versão
+              // desta varredura só via `PropertyAssignment`, e o call site
+              // novo passaria **invisível**: o `toBeGreaterThanOrEqual(3)`
+              // abaixo continuaria verde pelos outros.
+              if (ts.isShorthandPropertyAssignment(property)) {
+                if (property.name.text !== 'code') continue;
+                found.push({ file, text: property.name.text, kind: 'identifier' });
+                continue;
+              }
               if (!ts.isPropertyAssignment(property)) continue;
               if (property.name.getText(tree) !== 'code') continue;
 
@@ -401,6 +412,11 @@ describe('§8 — nenhum `code` interpolado chega ao `recordError`', () => {
 
     expect(found.length).toBeGreaterThanOrEqual(3);
     expect(found.map((c) => c.text)).toContain('UNHANDLED_CODE');
+    // O call site do pipeline, em shorthand — se a varredura voltar a não o
+    // ver, esta linha é a que reprova.
+    expect(found).toContainEqual(
+      expect.objectContaining({ file: 'services/pipeline-event.service.ts', text: 'code', kind: 'identifier' }),
+    );
   });
 
   it('todo `code` é literal ou constante nomeada', () => {

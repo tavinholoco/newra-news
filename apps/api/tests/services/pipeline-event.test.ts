@@ -11,6 +11,7 @@ import {
   pendingErrorEvents,
   resetErrorEventBuffer,
 } from '../../src/services/error-event.service';
+import { GateBlockedError } from '../../src/services/pipeline-gates.service';
 
 vi.mock('@newranews/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@newranews/database')>();
@@ -25,6 +26,10 @@ vi.mock('@newranews/database', async (importOriginal) => {
         findMany: vi.fn(),
         count: vi.fn(),
         findUnique: vi.fn(),
+      },
+      // O `FATAL` de um bloqueio de segurança escreve na hora.
+      errorEvent: {
+        upsert: vi.fn().mockResolvedValue({}),
       },
     },
   };
@@ -132,6 +137,21 @@ describe('extractErrorDetail', () => {
       message: 'Groq API error: 503 service unavailable',
       provider: 'groq',
       statusCode: 503,
+    });
+  });
+
+  it('reads the gate, the check and the reason off a GateBlockedError — flat scalars (Fase 9)', () => {
+    const detail = extractErrorDetail(
+      new GateBlockedError({ gate: 'exit', check: 'unanchored-url', reason: 'security', detail: 'evil.example', provider: 'gemini' }),
+    );
+
+    expect(detail).toEqual({
+      message:
+        'Output guard blocked (gemini): unanchored-url (evil.example) — security block: the cause is in the material, re-triggering repeats the attack',
+      gate: 'exit',
+      check: 'unanchored-url',
+      reason: 'security',
+      provider: 'gemini',
     });
   });
 
@@ -501,5 +521,105 @@ describe('§8 — o evento de etapa também vira registro durável', () => {
     await logPipelineEvent('run-1', 6, 'ERROR', 'boom');
 
     expect(pendingErrorEvents()).toHaveLength(1);
+  });
+});
+
+/**
+ * **O bloqueio de portão tem código próprio, e o motivo no `route`.** (Fase 9,
+ * §13.3) O `recordPipelineEvent` o reconhece pela forma do `context` — os
+ * três escalares que `extractErrorDetail` põe num `GateBlockedError` —, e a
+ * severidade é o destino do dia.
+ */
+describe('Fase 9 — o bloqueio de portão vira `PIPELINE_GATE_BLOCKED`', () => {
+  beforeEach(() => {
+    resetErrorEventBuffer();
+    vi.mocked(prisma.errorEvent.upsert).mockClear();
+  });
+
+  const gateContext = (gate: 'entry' | 'exit', check: string, reason: 'security' | 'quality') => ({
+    message: 'blocked',
+    gate,
+    check,
+    reason,
+  });
+
+  it('a security block is FATAL, category authorization, with the host-free motive in the route — and writes at once', async () => {
+    await logPipelineEvent('run-1', 6.5, 'ERROR', 'Output guard blocked', gateContext('exit', 'unanchored-url', 'security'));
+
+    // `FATAL` esvazia o buffer na hora; o registro está no `upsert`.
+    await vi.waitFor(() => expect(prisma.errorEvent.upsert).toHaveBeenCalledTimes(1));
+    const [arg] = vi.mocked(prisma.errorEvent.upsert).mock.calls[0] as [{ create: Record<string, unknown> }];
+    expect(arg.create).toMatchObject({
+      origin: 'PIPELINE',
+      severity: 'FATAL',
+      code: 'PIPELINE_GATE_BLOCKED',
+      category: 'authorization',
+      route: 'stage-6.5:unanchored-url',
+      pipelineLogId: 'run-1',
+    });
+  });
+
+  it('a quality block that failed the day is ERROR, category contract', async () => {
+    await logPipelineEvent('run-1', 6.5, 'ERROR', 'Output guard blocked', gateContext('exit', 'language', 'quality'));
+    const [event] = pendingErrorEvents();
+
+    expect(event).toMatchObject({
+      severity: 'ERROR',
+      code: 'PIPELINE_GATE_BLOCKED',
+      category: 'contract',
+      route: 'stage-6.5:language',
+    });
+  });
+
+  it('a quality block the fallback recovered is WARN — the event is WARN, the run is SUCCESS_DEGRADED', async () => {
+    await logPipelineEvent('run-1', 6.5, 'WARN', 'fallback served', gateContext('exit', 'size', 'quality'));
+    const [event] = pendingErrorEvents();
+
+    expect(event).toMatchObject({ severity: 'WARN', code: 'PIPELINE_GATE_BLOCKED', route: 'stage-6.5:size' });
+  });
+
+  it('an entry gate block is ERROR, category upstream — the harvest is what did not pass', async () => {
+    await logPipelineEvent('run-1', 5.5, 'ERROR', 'Entry gate blocked', gateContext('entry', 'volume', 'quality'));
+    const [event] = pendingErrorEvents();
+
+    expect(event).toMatchObject({
+      severity: 'ERROR',
+      code: 'PIPELINE_GATE_BLOCKED',
+      category: 'upstream',
+      route: 'stage-5.5:volume',
+    });
+  });
+
+  it('takes the route stage from the gate, not from the event — the same block is one line however it was written', async () => {
+    // O `WARN` do `catch` final escreve o erro primário; se ele sair na 6 por
+    // engano, o fingerprint continua sendo o do portão.
+    await logPipelineEvent('run-1', 6, 'WARN', 'Primary provider failed before fallback', gateContext('exit', 'language', 'quality'));
+    const [event] = pendingErrorEvents();
+
+    expect(event?.route).toBe('stage-6.5:language');
+  });
+
+  it('refuses a check nobody declared — the route keeps its ceiling', async () => {
+    await logPipelineEvent('run-1', 6.5, 'ERROR', 'blocked', gateContext('exit', 'stage-6.5:whatever-the-model-said', 'security'));
+    const [event] = pendingErrorEvents();
+
+    // Sem o check válido, o contexto não é de portão: cai no código da etapa
+    // que falhou, com a etapa como escopo — e nunca `FATAL`.
+    expect(event).toMatchObject({ code: 'PIPELINE_STAGE_FAILED', severity: 'ERROR', route: 'stage-6.5' });
+  });
+
+  it('a gate warning (no block) is an ordinary degraded stage, and it counts as degrading', async () => {
+    await logPipelineEvent('run-1', 5.5, 'WARN', 'Entry gate passed with warnings', {
+      volume: 300,
+      baseline: 'ok',
+      findings: ['category-drift'],
+      warnings: ['category-drift: distribution moved 0.41 (total variation) from the 7-day mean'],
+    });
+    const [event] = pendingErrorEvents();
+
+    // `findings`, não `warnings` como lista de objetos: o `isDegradingWarn` lê
+    // `context.warnings` como avisos de colheita, e uma lista de strings ali
+    // entraria por acidente — o nome do campo é o que evita a colisão.
+    expect(event).toMatchObject({ code: 'PIPELINE_STAGE_DEGRADED', severity: 'WARN', route: 'stage-5.5' });
   });
 });

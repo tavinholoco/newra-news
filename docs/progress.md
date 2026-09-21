@@ -8368,6 +8368,111 @@ tolerante a `\r?\n`.
   que faltava, de que o coletor **acha** arquivos. Os outros sete são trabalho
   próprio, e agora estão nomeados.
 
+### 83. Fase 9 — os dois portões: antes da IA e depois dela, e o ensaio que ainda não alcançou produção ✅ 2026-09-20
+
+> A §13 do plano de observabilidade, num PR só (sem schema, sem env, sem
+> rota, sem página nova), sobre `02051e1` — a `dev` com o #231. **É a
+> última fase do plano.** Fecha: o briefing ia para a capa **sem ninguém
+> conferir se ele deveria** — `parseMarkdownResponse` confere forma, e nada
+> mais. Um briefing bem-formado carregando um link que o material injetou
+> saía assinado pelo site e indexado pelo Google Notícias.
+
+**O que entrou:** a **etapa 5.5** (`services/pipeline-gates.service.ts`) —
+volume contra a mediana de `newsCollected` dos sete dias anteriores (só com
+briefing; menos de três dias e o portão **não opina**, e diz), três fontes
+distintas entre os selecionados (alargando para 30 uma vez antes de
+bloquear, e **a seleção que segue é a do veredito**), um item das últimas
+24 h; duplicata e deriva de categoria avisam. A **etapa 6.5**
+(`providers/ai/output-guard.ts`, puro) **por tentativa dentro de
+`generateArticle`**: URL que não está no texto do material e envelope do
+prompt ecoado **falham o dia sem chamar o Groq** (segurança); idioma e teto
+de tamanho caem para o Groq uma vez (qualidade); URL copiada do material e
+texto em forma de instrução avisam. O bloqueio é `FAILED` na etapa do
+portão e `PIPELINE_GATE_BLOCKED` com **o motivo no `route`**
+(`stage-6.5:unanchored-url`, conjunto finito validado) — `FATAL` para
+segurança (escreve na hora), `ERROR` para qualidade que falhou o dia,
+`WARN` para a que o Groq recuperou. O **ensaio virou comando**
+(`gates:rehearse`), e o **painel "Portões"** na `/admin/security` deriva a
+taxa de aprovação de 7 dias e a rosquinha de motivos dos grupos do
+`GET /api/admin/errors` — sem rota nova —, com os dois gatilhos do §16 como
+alerta. O seed ganhou as duas histórias (o dia bloqueado por volume, o dia
+em que o guarda recusou o Gemini por idioma e o Groq serviu).
+
+#### As decisões que a §13 deixou para a fase, tomadas
+
+- **A URL não ancorada ancora no texto do material, porque o conjunto que
+  o plano descrevia é vazio.** O `formatNewsItems` não manda URL nenhuma ao
+  modelo e o prompt proíbe link; toda URL na saída foi inventada ou
+  injetada — a menos que o texto do material a cite e o modelo a tenha
+  copiado (`copied-url`, avisa). Só `https?://` conta; o `context` recebe o
+  host, nunca a URL.
+- **Idioma é razão de *stopwords*, e a lista é o que decide.** A primeira
+  (as cem mais frequentes) dava português 0,47 e **espanhol 0,195** — a um
+  fio de qualquer piso, porque as sete mais frequentes são pan-românicas.
+  A lista de exclusão dá português 0,19–0,32, inglês 0,000, espanhol 0,018;
+  piso 0,08. Teto de tamanho em caracteres (a régua do piso): 20.000, a
+  calibrar como p95 × 2 dos retidos.
+- **"Ancoragem das fontes" não existe** — a `BriefingSource` nasce do mesmo
+  `selected` que foi ao modelo. Tirada da tabela, com o motivo escrito.
+- **Aviso de portão degrada o dia**, e o campo é `findings`, não
+  `warnings` (`isDegradingWarn` lê `context.warnings` como avisos de
+  colheita).
+- **A deriva de categoria nasce calibrada por cima (0,5)** — o banco local
+  não tem série real (ver o ensaio), e meio da massa mudando só acontece
+  com troca de classificador ou de fontes.
+
+#### O ensaio contra o banco local, e o que ele não alcança (armadilha 18)
+
+`gates:rehearse` sobre 9 briefings e 56 dias de `DailyMetric`: **zero
+reprovações reais**. Volume 0,85–1,23 da mediana, português 0,228–0,340
+contra o piso de 0,08, zero URL, zero envelope, zero instrução. As três
+"reprovações" impressas são artefatos do banco local — o briefing de 21/08
+com **12 fontes semeadas à mão** a partir de notícias de cinco dias antes
+(diversidade e frescor), e um run local de 12/09 com três itens. A deriva de
+categoria só tem sinal na **costura entre dois blocos de seed** (0,41–0,51;
+a série semeada repete `WORLD:121 TECHNOLOGY:62 ECONOMY:51`), por isso o
+teto ficou por cima. **Contra produção o ensaio não rodou**: a API do Render
+segue suspensa desde 19/09, o `neonctl` expirou, e só um briefing sobrevive
+na borda da Vercel (o de 18/09; os outros nove sondados dão 500). É a
+primeira coisa a fazer quando ela voltar — e se algum dos ~88 retidos
+reprovar, o errado é o portão.
+
+#### Achados no caminho, nenhum do plano
+
+- **A guarda do `code` não via shorthand** — `code,` num call site de
+  `recordError` passaria invisível pelo `error-event.test.ts`, com o
+  `toBeGreaterThanOrEqual(3)` verde pelos outros. Ensinada a ler
+  `ShorthandPropertyAssignment`, com asserção nomeando o call site.
+- **Dois testes do enterro do run morto não esperavam o run de fundo**, e
+  o `await` a mais da 5.5 fez o `FAILED` de um aparecer no teste seguinte.
+  Corrida pré-existente.
+- **O `tsc` pegou o que os testes não pegavam**: o painel lia `data.runs` e
+  a resposta é `{ data: { runs }, meta }` — os dois testes novos devolviam a
+  mesma forma errada no mock. Mock parcial mente por omissão, em dado.
+- **A captura de 375 saiu com 853 px, e não era do painel novo.** Os
+  `sr-only` "Id da requisição:" da tabela de falhas (5c) são absolutos e o
+  contêiner que rola não era `relative`: a página inteira rolava na
+  horizontal no celular sempre que a janela de 24 h tinha linha — o que só
+  acontecia com o seed recém-rodado. A tabela de fontes (11c) tinha o mesmo
+  desenho. `relative` nos três contêineres, e **o `admin:capture` passou a
+  medir `scrollWidth` contra a viewport** e a reprovar a foto mais larga. É o
+  mecanismo que achou, permanente — quinta fase seguida em que a captura
+  pagou. Armadilha 44.
+- **Duas contagens fora do inventário** (`system-architecture.mermaid`,
+  `packages/types/src/pipeline.ts`), e as cinco do inventário.
+- **O Docker caiu no boot pelo `.sock` órfão** (a receita da memória:
+  matar tudo, renomear as duas pastas, subir uma vez) e **o Playwright
+  pediu a revisão 1243** (bump do Dependabot) com a 1234 instalada —
+  `CHROMIUM_PATH` resolve. E o heredoc do Bash comeu uma barra invertida
+  dentro de uma string JavaScript, de novo.
+
+**1.299 → 1.377 na API (89 → 91 suítes), 881 → 904 no web (86 → 89).** Os
+três diagramas parseiam no Mermaid 11. **O plano de observabilidade está
+inteiro na `dev`.** O que resta é a promoção — decidindo antes se a 9 sobe
+sozinha (a política de 07/09) ou com o que a `dev` acumulou desde o #215 —,
+o ensaio contra os retidos, e a primeira leitura das três abas com a
+credencial de produção. Nada disso anda com a API suspensa.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

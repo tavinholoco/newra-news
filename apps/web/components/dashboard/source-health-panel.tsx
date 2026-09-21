@@ -219,7 +219,8 @@ export function SourceHealthPanel() {
         </ul>
       )}
 
-      <div className='overflow-x-auto rounded-lg border border-border'>
+      {/* `relative`: os `sr-only` da faixa por fonte são absolutos — ver `error-groups-table`. */}
+      <div className='relative overflow-x-auto rounded-lg border border-border'>
         <table className='w-full text-sm'>
           <thead className='bg-surface-raised text-xs text-muted-foreground'>
             <tr>

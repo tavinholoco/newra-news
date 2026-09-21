@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { triggerPipeline } from '../../src/services/pipeline.service';
 import { ARTICLE_PROMPT_VERSION } from '../../src/config/ai-prompts';
 import { degradedStages } from '../../src/services/run-outcome';
+import { passingEntryGate, passingOutputGuard } from '../helpers/gate-fixtures';
 
 vi.mock('@newranews/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@newranews/database')>();
@@ -67,6 +68,18 @@ vi.mock('@newranews/database', async (importOriginal) => {
 
 vi.mock('../../src/services/news-fetcher.service');
 vi.mock('../../src/services/ai.service');
+// Os dois portões da Fase 9 têm suíte própria (`pipeline-gates.test.ts`,
+// `output-guard.test.ts`); aqui o que se mede é a fiação — o evento da 5.5 e
+// da 6.5, o `FAILED` na etapa do portão, o `degradedBy`, a seleção alargada
+// chegando à IA. As fixtures desta suíte têm datas de 2024 e duas fontes, e
+// o portão real bloquearia todo cenário pelo frescor — sexta vez que uma
+// etapa nova avisa por esta suíte, e a primeira em que a resposta é mockar
+// a decisão em vez de acrescentar um mock do Prisma. `GateBlockedError` e o
+// resto do módulo continuam reais (`importOriginal`).
+vi.mock('../../src/services/pipeline-gates.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/services/pipeline-gates.service')>();
+  return { ...actual, evaluateEntryGate: vi.fn(), loadEntryBaseline: vi.fn() };
+});
 vi.mock('../../src/services/news-renormalizer.service', () => ({
   renormalizeStoredNews: vi.fn(),
 }));
@@ -88,6 +101,11 @@ import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
 import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
 import { runInvariants } from '../../src/services/invariants.service';
+import {
+  GateBlockedError,
+  evaluateEntryGate,
+  loadEntryBaseline,
+} from '../../src/services/pipeline-gates.service';
 import {
   pendingErrorEvents,
   resetErrorEventBuffer,
@@ -137,6 +155,9 @@ const mockGeneratedArticle = {
   },
   provider: 'gemini' as const,
   modelVersion: 'gemini-2.5-flash',
+  // O veredito do portão de saída sobre o artigo servido (Fase 9) — sem
+  // bloqueio por definição, e é o que a etapa 6.5 grava.
+  guard: passingOutputGuard(),
 };
 
 const mockSavedArticle = { id: 'article-uuid-123' };
@@ -184,6 +205,8 @@ beforeEach(() => {
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
   vi.mocked(fetchAll).mockResolvedValue(mockFetchResult);
   vi.mocked(generateArticle).mockResolvedValue(mockGeneratedArticle);
+  vi.mocked(loadEntryBaseline).mockResolvedValue([]);
+  vi.mocked(evaluateEntryGate).mockImplementation(passingEntryGate);
   vi.mocked(renormalizeStoredNews).mockReset().mockResolvedValue({
     dryRun: false,
     scanned: 0,
@@ -322,6 +345,11 @@ describe('PipelineService', () => {
       } as never);
 
       const result = await triggerPipeline();
+      // O run novo corre em segundo plano; sem esperá-lo, ele termina durante
+      // o teste seguinte com os mocks zerados — e o `update` do `FAILED` dele
+      // aparece onde ninguém o chamou. Visto acontecer quando a 5.5 pôs um
+      // `await` a mais no caminho.
+      await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
 
       expect(result.outcome).toBe('started');
       expect(result.pipelineId).toBe(mockLog.id);
@@ -336,6 +364,7 @@ describe('PipelineService', () => {
       } as never);
 
       await triggerPipeline();
+      await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
 
       const burial = vi
         .mocked(prisma.pipelineLog.update)
@@ -480,10 +509,10 @@ describe('PipelineService', () => {
     const created = vi.mocked(prisma.pipelineEvent.create).mock.calls.map(
       (call) => (call[0] as { data: { stage: number; level: string; message: string } }).data,
     );
-    expect(created.length).toBeGreaterThanOrEqual(8);
+    expect(created.length).toBeGreaterThanOrEqual(10);
     expect(created.every((e) => e.level === 'INFO')).toBe(true);
     expect(created.map((e) => e.stage)).toEqual(
-      expect.arrayContaining([1, 3, 4, 5, 6, 7, 7.5, 8, 9]),
+      expect.arrayContaining([1, 3, 4, 5, 5.5, 6, 6.5, 7, 7.5, 8, 9]),
     );
     expect(created).toEqual(
       expect.arrayContaining([
@@ -1223,5 +1252,288 @@ describe('Fase 11 — a saúde por fonte, depois da etapa 4', () => {
     ).toBe(false);
     expect(healthEvent('WARN')).toBeUndefined();
     expect(healthEvent('INFO')?.data.context).toMatchObject({ sources: 0 });
+  });
+});
+
+/**
+ * **Os dois portões, fiados no pipeline.** (Fase 9 do plano de observabilidade,
+ * §13)
+ *
+ * O portão de entrada e o guarda de saída são medidos nas suítes deles; aqui
+ * a pergunta é o que o pipeline faz com o veredito: em que etapa o run falha,
+ * com que código e que motivo no fingerprint, o que degrada o dia, e se a
+ * seleção que o portão devolveu é a que chega à IA. `evaluateEntryGate` é
+ * mock nesta suíte (as fixtures não passariam no frescor); `GateBlockedError`
+ * é o real.
+ */
+describe('Fase 9 — os dois portões, fiados no pipeline', () => {
+  const events = () =>
+    vi.mocked(prisma.pipelineEvent.create).mock.calls.map(
+      (call) =>
+        (call[0] as { data: { stage: number; level: 'INFO' | 'WARN' | 'ERROR'; message: string; context?: Record<string, unknown> } })
+          .data,
+    );
+  const stageEvents = (stage: number) => events().filter((data) => data.stage === stage);
+  const failedUpdate = () =>
+    vi.mocked(prisma.pipelineLog.update).mock.calls
+      .map((call) => (call[0] as { data: Record<string, unknown> }).data)
+      .find((data) => data.status === 'FAILED');
+  const finalEvent = () => events().find((data) => data.message === 'Pipeline completed successfully');
+  const derived = () =>
+    degradedStages(events().map((e) => ({ stage: e.stage, level: e.level, context: e.context ?? null })));
+
+  describe('5.5 — o portão de entrada', () => {
+    it('reads the baseline for today and hands the gate the harvest, the selection and a widener', async () => {
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      expect(loadEntryBaseline).toHaveBeenCalledWith(today);
+
+      const [input] = vi.mocked(evaluateEntryGate).mock.calls[0] as [Parameters<typeof evaluateEntryGate>[0]];
+      expect(input.deduplicated).toHaveLength(2);
+      expect(input.collected).toBe(2);
+      expect(input.selected.map((item) => item.sourceUrl)).toEqual(['https://g1.com/1', 'https://bbc.com/1']);
+      // O alargamento é a seleção do pipeline com outro teto — o portão não
+      // sabe selecionar, ele pede.
+      expect(input.widen().map((item) => item.sourceUrl)).toEqual(['https://g1.com/1', 'https://bbc.com/1']);
+      expect(input.now).toBeInstanceOf(Date);
+    });
+
+    it('writes the verdict as an INFO event with the measures, and says when the baseline was insufficient', async () => {
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      expect(stageEvents(5.5)).toEqual([
+        expect.objectContaining({
+          level: 'INFO',
+          message: 'Entry gate passed',
+          context: expect.objectContaining({ volume: 2, baseline: 'insufficient', median: null, findings: [] }),
+        }),
+      ]);
+      expect(finalEvent()?.data ?? finalEvent()).toBeDefined();
+    });
+
+    it('sends the widened selection to the AI when the gate widened it', async () => {
+      const widened = [newsDataItem, rssItem, { ...rssItem, sourceUrl: 'https://bbc.com/2', source: 'Folha' }];
+      vi.mocked(evaluateEntryGate).mockImplementation((input) => ({
+        ...passingEntryGate(input),
+        selected: widened,
+        measures: { ...passingEntryGate(input).measures, widened: true, sources: 3 },
+      }));
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      expect(generateArticle).toHaveBeenCalledWith(widened);
+      // E o que o briefing registra como `newsCount` é a seleção que foi
+      // ao modelo, não a inicial.
+      const upsert = vi.mocked(prisma.article.upsert).mock.calls[0]?.[0] as { create: { newsCount: number } };
+      expect(upsert.create.newsCount).toBe(3);
+      expect(finalEvent()?.context).toMatchObject({ selected: 3 });
+    });
+
+    it('fails the run at 5.5 when the gate blocks — no AI call, the motive in the fingerprint', async () => {
+      vi.mocked(evaluateEntryGate).mockImplementation((input) => ({
+        ...passingEntryGate(input),
+        block: { check: 'volume', detail: '12 < 30% of median 240 over 7 days' },
+      }));
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(failedUpdate()).toBeDefined());
+
+      expect(generateArticle).not.toHaveBeenCalled();
+      expect(prisma.article.upsert).not.toHaveBeenCalled();
+      expect(failedUpdate()).toMatchObject({
+        errorStage: 5.5,
+        error: 'Entry gate blocked: volume (12 < 30% of median 240 over 7 days)',
+        errorDetail: expect.objectContaining({ gate: 'entry', check: 'volume', reason: 'quality' }),
+      });
+      expect(stageEvents(5.5)).toEqual([
+        expect.objectContaining({
+          level: 'ERROR',
+          context: expect.objectContaining({ gate: 'entry', check: 'volume', reason: 'quality' }),
+        }),
+      ]);
+      // O `ErrorEvent`: código próprio, o motivo no `route`, e a culpa é da
+      // colheita (`upstream`). `ERROR`, não `FATAL`: entrada não é segurança.
+      const recorded = pendingErrorEvents().find((e) => e.code === 'PIPELINE_GATE_BLOCKED');
+      expect(recorded).toMatchObject({
+        severity: 'ERROR',
+        route: 'stage-5.5:volume',
+        category: 'upstream',
+        pipelineLogId: 'log-uuid-456',
+      });
+    });
+
+    it('degrades the day by 5.5 on a warning, and the derivation over the events agrees', async () => {
+      vi.mocked(evaluateEntryGate).mockImplementation((input) => ({
+        ...passingEntryGate(input),
+        warnings: [{ check: 'category-drift', detail: 'distribution moved 0.41 (total variation) from the 7-day mean' }],
+      }));
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      expect(stageEvents(5.5)).toEqual([
+        expect.objectContaining({
+          level: 'WARN',
+          message: 'Entry gate passed with warnings',
+          context: expect.objectContaining({
+            findings: ['category-drift'],
+            warnings: ['category-drift: distribution moved 0.41 (total variation) from the 7-day mean'],
+          }),
+        }),
+      ]);
+      expect(finalEvent()?.context).toMatchObject({ degradedBy: [5.5] });
+      expect(derived()).toEqual([5.5]);
+      // Aviso de portão é degradação, não bloqueio: `PIPELINE_STAGE_DEGRADED`,
+      // e o run segue `SUCCESS`.
+      const recorded = pendingErrorEvents().find((e) => e.route === 'stage-5.5');
+      expect(recorded?.code).toBe('PIPELINE_STAGE_DEGRADED');
+      expect(recorded?.severity).toBe('WARN');
+    });
+  });
+
+  describe('6.5 — o portão de saída', () => {
+    it('writes the guard verdict of the served article as an INFO event with the measures', async () => {
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      expect(stageEvents(6.5)).toEqual([
+        expect.objectContaining({
+          level: 'INFO',
+          message: 'Output guard passed',
+          context: { provider: 'gemini', chars: 640, words: 100, ptRatio: 0.42, urls: 0, findings: [] },
+        }),
+      ]);
+    });
+
+    it('fails the day at 6.5 on a security block — FATAL, the host in the fingerprint, no fallback served', async () => {
+      // O `ai.service` lança sem chamar o Groq (medido na suíte dele); aqui,
+      // o que o pipeline faz com o erro que chegou.
+      vi.mocked(generateArticle).mockRejectedValue(
+        new GateBlockedError({
+          gate: 'exit',
+          check: 'unanchored-url',
+          reason: 'security',
+          detail: 'evil.example',
+          provider: 'gemini',
+        }),
+      );
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(failedUpdate()).toBeDefined());
+
+      expect(prisma.article.upsert).not.toHaveBeenCalled();
+      expect(failedUpdate()).toMatchObject({
+        errorStage: 6.5,
+        error: expect.stringContaining('re-triggering repeats the attack'),
+        errorDetail: expect.objectContaining({ gate: 'exit', check: 'unanchored-url', reason: 'security', provider: 'gemini' }),
+      });
+      expect(stageEvents(6.5)).toEqual([expect.objectContaining({ level: 'ERROR' })]);
+
+      // `FATAL` escreve na hora — sem esperar os 30 s do flush —, então o
+      // buffer já está vazio quando se olha: o registro está no `upsert`.
+      await vi.waitFor(() => expect(prisma.errorEvent.upsert).toHaveBeenCalled());
+      expect(pendingErrorEvents().find((e) => e.code === 'PIPELINE_GATE_BLOCKED')).toBeUndefined();
+      const [written] = vi.mocked(prisma.errorEvent.upsert).mock.calls[0] as [{ create: Record<string, unknown> }];
+      expect(written.create).toMatchObject({
+        code: 'PIPELINE_GATE_BLOCKED',
+        severity: 'FATAL',
+        route: 'stage-6.5:unanchored-url',
+        category: 'authorization',
+        pipelineLogId: 'log-uuid-456',
+      });
+    });
+
+    it('records the quality block of the primary as a 6.5 WARN when the fallback served', async () => {
+      vi.mocked(generateArticle).mockResolvedValueOnce({
+        ...mockGeneratedArticle,
+        provider: 'groq',
+        modelVersion: 'openai/gpt-oss-20b',
+        primaryError: new GateBlockedError({
+          gate: 'exit',
+          check: 'language',
+          reason: 'quality',
+          detail: 'pt ratio 0.04 < 0.2',
+          provider: 'gemini',
+        }),
+      });
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      // O `WARN` é da 6.5 — quem recusou foi o guarda, não o Gemini —, e a
+      // etapa 6 não ganha aviso nenhum.
+      expect(stageEvents(6).filter((e) => e.level === 'WARN')).toEqual([]);
+      expect(stageEvents(6.5)).toEqual([
+        expect.objectContaining({
+          level: 'WARN',
+          message: 'Output guard blocked the primary attempt, fallback served',
+          context: expect.objectContaining({ gate: 'exit', check: 'language', reason: 'quality', provider: 'gemini', fallbackProvider: 'groq' }),
+        }),
+        expect.objectContaining({ level: 'INFO', message: 'Output guard passed' }),
+      ]);
+      expect(finalEvent()?.context).toMatchObject({ provider: 'groq', degradedBy: [6.5] });
+      expect(derived()).toEqual([6.5]);
+
+      const recorded = pendingErrorEvents().find((e) => e.code === 'PIPELINE_GATE_BLOCKED');
+      expect(recorded).toMatchObject({ severity: 'WARN', route: 'stage-6.5:language', category: 'contract' });
+    });
+
+    it('degrades the day by 6.5 once when the served article carries warnings, even after a recovered block', async () => {
+      vi.mocked(generateArticle).mockResolvedValueOnce({
+        ...mockGeneratedArticle,
+        provider: 'groq',
+        modelVersion: 'openai/gpt-oss-20b',
+        primaryError: new GateBlockedError({ gate: 'exit', check: 'size', reason: 'quality', detail: '24000 chars > 20000', provider: 'gemini' }),
+        guard: passingOutputGuard({
+          warnings: [{ check: 'instruction-text', detail: 'ignore as instruções anteriores' }],
+        }),
+      });
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(finalEvent()).toBeDefined());
+
+      expect(stageEvents(6.5).map((e) => e.message)).toEqual([
+        'Output guard blocked the primary attempt, fallback served',
+        'Output guard passed with warnings',
+      ]);
+      expect(stageEvents(6.5)[1]?.context).toMatchObject({
+        findings: ['instruction-text'],
+        warnings: ['instruction-text: ignore as instruções anteriores'],
+      });
+      // Uma vez só — o resumo e a derivação têm de bater.
+      expect(finalEvent()?.context).toMatchObject({ degradedBy: [6.5] });
+      expect(derived()).toEqual([6.5]);
+    });
+
+    it('writes the primary WARN at the gate stage when the Groq fallback then failed', async () => {
+      const groqError = new Error('Groq API error: 500 Internal Server Error');
+      (groqError as Error & { primaryError?: unknown }).primaryError = new GateBlockedError({
+        gate: 'exit',
+        check: 'language',
+        reason: 'quality',
+        detail: 'pt ratio 0.03 < 0.2',
+        provider: 'gemini',
+      });
+      vi.mocked(generateArticle).mockRejectedValue(groqError);
+
+      await triggerPipeline();
+      await vi.waitFor(() => expect(failedUpdate()).toBeDefined());
+
+      // O run falhou na 6 (o Groq caiu), e o aviso do primário é da 6.5 — a
+      // etapa do portão que o recusou.
+      expect(failedUpdate()).toMatchObject({ errorStage: 6 });
+      expect(stageEvents(6.5)).toEqual([
+        expect.objectContaining({
+          level: 'WARN',
+          message: 'Primary provider failed before fallback',
+          context: expect.objectContaining({ gate: 'exit', check: 'language' }),
+        }),
+      ]);
+    });
   });
 });
