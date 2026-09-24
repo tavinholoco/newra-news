@@ -238,7 +238,9 @@ async function main() {
     });
     metricsCreated++;
   }
-  console.log(`  DailyMetric: ${metricsCreated} created (${30 - metricsCreated} already existed)`);
+  console.log(
+    `  DailyMetric: ${metricsCreated} created (${30 - 1 - metricsCreated} already existed; the gate-blocked day has none)`,
+  );
 
   // ── Observabilidade (Fase 5 do plano, PR 5c) ────────────────────────────
   // As três tabelas que o `admin:capture` fotografa na `/admin` e na

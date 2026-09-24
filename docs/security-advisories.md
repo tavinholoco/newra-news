@@ -19,7 +19,7 @@ gatilho.
 > publicada: `eslint@8`, `vitest@2`, o CLI do `shadcn`. Uma lista de exceção com
 > 35 linhas é a armadilha 21 do §17 do plano de observabilidade — vira ruído,
 > alguém desliga o passo, e ele deixa de existir de fato enquanto continua
-> existindo no arquivo. Com `--prod` são **20** — 18 com alcance analisado nos
+> existindo no arquivo. Com `--prod` são **18** — 16 com alcance analisado nos
 > itens **9.S** e **10.S** do `docs/progress.md`, mais as **duas *critical* do
 > `next`** que chegaram em 09/09/2026 e foram medidas na hora.
 >
@@ -29,18 +29,30 @@ gatilho.
 
 ## As três dívidas, e são só três
 
-**20** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
+**18** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
 neste documento têm guarda **derivada da lista**, porque número em prosa que
 descreve uma coleção é a armadilha do `13` dos feeds (item 41).
 
 | Gatilho | Advisories | Onde o aceite foi escrito |
 |---|---|---|
-| **`next` 14 → 15** | 10 do `next` + 7 da cadeia de build que ele carrega | item 10.S do `docs/progress.md`, e as duas de 09/09 na seção de medição abaixo |
+| **`next` 14 → 15** | 10 do `next` + 5 da cadeia de build que ele carrega | item 10.S do `docs/progress.md`, e as duas de 09/09 na seção de medição abaixo |
 | **`fastify` 4 → 5** | `fastify` e `find-my-way` | item 9.S |
 | **UI do Swagger em produção** | `@fastify/static` | item 9.S |
 
-No dia em que qualquer um dos três acontecer, as linhas correspondentes somem
-sozinhas — a advisory sai do `audit`, e a guarda passa a reprovar por sobra.
+No dia em que qualquer um dos três acontecer — ou um bump corrigir a
+advisory antes —, **a linha que sobra reprova o CI**: o passo
+`node scripts/audit-orphans.mjs`, no job de audit, roda o `pnpm audit --prod`
+com a lista vazia e recusa toda exceção que não casa mais com achado nenhum.
+
+> **Esta frase prometia isso sem que nada o fizesse, até 24/09/2026.** Ela
+> dizia que "a guarda passa a reprovar por sobra" — mas a guarda compara a
+> lista com **este documento**, e os dois continuavam de acordo sobre uma
+> advisory que já não existia. O ensaio de aceitação do plano de
+> observabilidade (Fase 12, A6.02) achou as duas do `browserslist`
+> (GHSA-73wf-gq98-2v4g e GHSA-c83g-rgw3-j3cx, vulneráveis até a 4.28.6)
+> silenciadas com a 4.28.9 no lockfile: 20 exceções, 18 ignoradas pelo
+> `audit`. Exceção órfã diz que alguém aceitou um risco que não existe mais
+> — e, se a advisory voltar numa versão futura, volta calada.
 
 ## A tabela
 
@@ -59,8 +71,6 @@ sozinhas — a advisory sai do `audit`, e a guarda passa a reprovar por sobra.
 | GHSA-2v37-7h3g-55p8 | `nanoid` | Laço infinito com `size` zero, e o único chamador é o `postcss` do build com valor fixo | 05/09/2026 | `next@15`, que traz a cadeia atualizada |
 | GHSA-6g55-p6wh-862q | `postcss` | Leitura de arquivo por `sourceMappingURL` em comentário de CSS — exige CSS de terceiro, e o build só processa a folha versionada neste repositório | 05/09/2026 | processar CSS que venha de fora, ou `next@15` |
 | GHSA-r28c-9q8g-f849 | `postcss` | Travessia de caminho no auto-carregamento de source map — mesma condição: o CSS processado é só o do repositório | 05/09/2026 | processar CSS que venha de fora, ou `next@15` |
-| GHSA-73wf-gq98-2v4g | `browserslist` | Crash por `browserslist-stats.json` não confiável, e o projeto não usa custom stats — a consulta vem do `package.json` | 05/09/2026 | adotar custom stats, ou `next@15` |
-| GHSA-c83g-rgw3-j3cx | `browserslist` | Crescimento de memória por consultas distintas, num processo de build que termina — a consulta é uma só e é fixa | 05/09/2026 | consulta dinâmica de browserslist, ou `next@15` |
 | GHSA-jx2c-rxcm-jvmq | `fastify` | Bypass de validação por `content-type` com tab — **mitigado na porta**: `content-type` com caractere de controle é recusado com 415 antes de o parser ser escolhido, e há guarda em `apps/api/tests/security/content-type-bypass.test.ts` | 23/08/2026 | a major `fastify@5`, dívida da Fase 13 |
 | GHSA-c96f-x56v-gq3h | `find-my-way` | DDoS com HTTP/2, e a API não serve HTTP/2 — o `buildApp` não passa a opção | 23/08/2026 | servir HTTP/2, ou `fastify@5` |
 | GHSA-83w8-p2f5-377r | `@fastify/static` | Bypass de route guard por travessia — o pacote só entra pelo `@fastify/swagger-ui`, que **deixou de ser registrado em produção** na Fase 9 (`isDocsUiEnabled`) | 23/08/2026 | reabrir a UI do Swagger em produção |
@@ -70,14 +80,16 @@ sozinhas — a advisory sai do `audit`, e a guarda passa a reprovar por sobra.
 > **Quem aceita:** Pedro Levi. As linhas de 23/08/2026 vêm dos itens 9.S e 10.S do
 > `docs/progress.md`, onde cada "não alcança" já era uma afirmação sobre o código
 > — e onde cada premissa virou teste. As de 05/09/2026 são a cadeia de build que
-> o `next@14` carrega, e saem junto com ele. As de **09/09/2026** são as duas
+> o `next@14` carrega, e saem junto com ele — menos as duas do
+> `browserslist`, que saíram antes, por um bump, e foram tiradas daqui em
+> 24/09/2026. As de **09/09/2026** são as duas
 > *critical* do `next` que apareceram entre o PR #161 passar e o merge dele na
 > `dev`, e o alcance das duas foi **medido**, não deduzido — a medição está logo
 > abaixo.
 
 ### Como o alcance da GHSA-2xp9-vwfh-vxw4 foi medido — 09/09/2026
 
-Esta é a única das vinte cujo "não alcança" **não sai da leitura do código**: ela
+Esta é a única das dezoito cujo "não alcança" **não sai da leitura do código**: ela
 depende de onde a otimização de imagem roda. E depende porque a configuração
 deste projeto é justamente a que a tornaria alcançável — `remotePatterns` aceita
 `hostname: '**'`, então uma requisição não autenticada escolhe a URL que o
@@ -123,3 +135,6 @@ exposição é o que alcança `localhost`, não a internet — pequena, mas não
 4. Rode `pnpm --filter @newranews/api test tests/build/workflow-hardening.test.ts`.
    Ela reprova se os dois arquivos discordarem, ou se a linha estiver sem motivo,
    sem data ou sem gatilho.
+5. **Para tirar uma linha**, o sinal é o `node scripts/audit-orphans.mjs` (o CI
+   o roda): exceção sem achado no `audit --prod` sai do `package.json` e daqui
+   no mesmo commit.

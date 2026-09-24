@@ -16,7 +16,8 @@
     "db:migrate:status": "pnpm --filter @newranews/database db:migrate:status",
     "db:generate": "turbo db:generate",
     "db:studio": "pnpm --filter @newranews/database db:studio",
-    "db:seed": "turbo db:seed"
+    "db:seed": "turbo db:seed",
+    "guard:mutations": "node scripts/guard-mutations.mjs"
   },
   "devDependencies": {
     "turbo": "^2.11.2",
@@ -44,8 +45,6 @@
         "GHSA-2v37-7h3g-55p8",
         "GHSA-6g55-p6wh-862q",
         "GHSA-r28c-9q8g-f849",
-        "GHSA-73wf-gq98-2v4g",
-        "GHSA-c83g-rgw3-j3cx",
         "GHSA-jx2c-rxcm-jvmq",
         "GHSA-c96f-x56v-gq3h",
         "GHSA-83w8-p2f5-377r",

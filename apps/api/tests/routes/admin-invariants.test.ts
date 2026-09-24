@@ -164,8 +164,13 @@ describe('GET /api/admin/invariants', () => {
     });
 
     expect(response.statusCode).toBe(500);
-    // O 500 não conta o interior do servidor: a mensagem do `AppError` sai
-    // porque o servidor a escolheu, e nada além dela.
-    expect(response.json()).toEqual({ error: 'Invariant report is malformed' });
+    // O contrato do 500 da `docs/api.md`, como qualquer outro 500: frase fixa e
+    // o `requestId`. Até a Fase 12 a frase do `AppError` saía no fio — o ramo
+    // dele não distinguia 5xx de 4xx, e o ensaio (A3.17) viu o 500 desta rota
+    // sem `requestId`. A frase continua na linha de log e no `ErrorEvent`.
+    expect(response.json()).toEqual({
+      error: 'Internal server error',
+      requestId: response.headers['x-request-id'],
+    });
   });
 });

@@ -43,11 +43,14 @@
 
 ## M0 — O terreno (antes de qualquer teste)
 
-- [ ] **A0.01 — Sessão no lugar certo.** `pwd && git branch --show-current`
+- [x] **A0.01 — Sessão no lugar certo.** `pwd && git branch --show-current`
   responde a pasta do repositório e `observability/fase-12-acceptance`;
   `git rev-list --count origin/dev..origin/main` = 0 (era 0 em 24/09); a branch
   0 commits atrás da `dev`. · L
-- [ ] **A0.02 — O alvo é um commit fixo.** A triagem dos seis PRs do Dependabot
+  - **24/09 20:05 UTC:** `/c/Users/tavin/Desktop/Projetos/Newra News` ·
+    `observability/fase-12-acceptance` · `dev..main` = 0 · `main..dev` = 34 ·
+    a branch 0 atrás da `dev` e 5 à frente (os commits de terreno, só docs).
+- [x] **A0.02 — O alvo é um commit fixo.** A triagem dos seis PRs do Dependabot
   (**abertos em 21/09**, não 24/09) foi feita em 24/09: #234, #235, #239 e
   #240 mergeados na `dev` (o #240 substituiu o #236, que o robô fechou ao
   pedido de rebase); o #238 substituído pelo **#241** (dotenv 18 carregado em
@@ -58,11 +61,16 @@
   fora), o build de produção da Vercel e um deploy no Render — vai no A7.11.
   Com o PR aberto o robô o atualiza e não abre outro. **Anotar aqui o SHA da
   branch no início do M0** — é ele que o ensaio mede. · C
-- [ ] **A0.03 — A suíte na contagem, não no pass/fail.** `pnpm test` com **1.389
+  - **O alvo: `7901caf4e4a4130ef4ff998bcc8380dbcc4f74e2`** (local = remoto),
+    24/09 20:05 UTC. `gh pr list --state open` → só o **#237**, base `dev`.
+- [x] **A0.03 — A suíte na contagem, não no pass/fail.** `pnpm test` com **1.389
   na API (92 arquivos) e 904 no web (89)** — o número de 24/09, depois do #241;
   `pnpm lint` e `pnpm turbo typecheck` verdes. O sintoma de clone mal montado é
   verde com número menor (§19). · L
-- [ ] **A0.04 — O banco local no estado conhecido.** Docker de pé (se cair no
+  - `Test Files 92 passed (92)` · `Tests 1389 passed (1389)` (API);
+    `Test Files 89 passed (89)` · `Tests 904 passed (904)` (web) — 59,6 s.
+    Lint `Tasks: 5 successful, 5 total`; typecheck `6 successful, 6 total`.
+- [x] **A0.04 — O banco local no estado conhecido.** Docker de pé (se cair no
   boot, a receita do `.sock` órfão está na memória: matar `*docker*`, renomear
   `Docker\run` e `docker-secrets-engine` de uma vez, subir uma vez);
   `docker compose -f docker-compose.yml up -d --wait postgres`; seed rodado,
@@ -75,7 +83,35 @@
   (`daysAgo` 2) e a Superinteressante em `FAILED` nos dias 0–2 da
   `SourceHealth`. **Capturar os dois alertas do painel "Fontes" aqui**, antes
   de o run real reescrever as linhas de hoje (A5.07). · L
-- [ ] **A0.05 — As chaves existem, sem aparecer.** Um script que lê os dois
+  - **O banco foi recriado, e o motivo é medido.** Docker 29.7.2 de pé; o
+    `newranews` de sempre estava em dia de migrations (`Database schema is up
+    to date!`), mas `prisma migrate diff --from-url … --to-schema-datamodel`
+    devolvia `CREATE UNIQUE INDEX "News_sourceUrl_key"` — o baseline por
+    `migrate resolve` que o `CLAUDE.md` registra. Sem o índice único, o
+    `createMany({ skipDuplicates })` da etapa 4 não deduplica por URL, e o
+    `kept` do A4.06 mediria o banco local, não o código. **Nada apagado:**
+    `ALTER DATABASE newranews RENAME TO newranews_pre_fase12` (volta no
+    A8.04), `CREATE DATABASE newranews`, `prisma migrate deploy` (7
+    migrations) e o `migrate diff` passou a devolver `-- This is an empty
+    migration.`
+  - **Seed às `2026-09-24T20:09:33Z`** (o "hoje" dele é **24/09 UTC**).
+    Imprimiu `DailyMetric: 29 created (1 already existed)` num banco vazio —
+    o "1" é o dia bloqueado, que ele pula; a linha do `Article` desconta esse
+    dia e a da métrica não (achado de prosa, corrigido no PR A).
+  - **O "antes"** (`scratchpad/db-counts.cjs`, lista derivada dos **16**
+    `model`): `News 8 · Article 6 · BriefingSource 18 · PipelineLog 27 ·
+    PipelineEvent 368 · User 0 · Favorite 0 · UserPreference 0 · Subscriber 0
+    · NewsletterLog 0 · DailyMetric 29 · ProductEvent 0 · ErrorEvent 8 ·
+    AuditEvent 3 · DailyUptime 24 · SourceHealth 351`. Runs de hoje: **um**,
+    `…c001` `SUCCESS` às 11:05 UTC; `RUNNING` 0; `News` de hoje 8;
+    `SourceHealth` de hoje 13 linhas, só a Superinteressante em `FAILED`;
+    `Article.date` 24, 23, 21, 20, 19, 18/09 (o 22 é o dia bloqueado).
+  - **Os dois alertas, antes do run:** `admin:capture` com
+    `ROUTES=admin-metrics` → 4/4 (`scratchpad/captures/a004/`); na
+    `admin-metrics--1440.png`, "Superinteressante está em falha há 3 dias
+    seguidos." e "Trivela está definhando: as novas por dia dos últimos 7
+    dias são 25% da média de 30."
+- [!] **A0.05 — As chaves existem, sem aparecer.** Um script que lê os dois
   arquivos de ambiente e imprime **só** sim/não para cada chave, e
   igual/diferente para os pares — nunca um valor.
   - **API** (`apps/api/.env`): `DATABASE_URL`, `GEMINI_API_KEY`,
@@ -87,17 +123,51 @@
     `JOB_SECRET` da API) — o botão do A4.01 atravessa BFF → cron → API e
     precisa dos três.
   - Sem Gemini e Groq, o M4 inteiro fica `[~]`. · L
-- [ ] **A0.06 — O navegador da captura.** `CHROMIUM_PATH` apontando para o
+  - `scratchpad/check-keys.mjs` → API: `DATABASE_URL`, `GEMINI_API_KEY`,
+    `GROQ_API_KEY`, `NEWSDATA_API_KEY`, `JOB_SECRET`, `AUTH_JWT_SECRET`
+    **sim**; **`RESEND_API_KEY` NÃO**. Web: as cinco **sim**, mais
+    `NEXT_PUBLIC_API_URL` e `NEXTAUTH_URL`. Pares: `AUTH_JWT_SECRET` web × API
+    **igual**; `BACKEND_JOB_SECRET` × `JOB_SECRET` **igual**. O
+    `NEXTAUTH_SECRET` local **é o valor do `dev-bootstrap.sh`** (versionado,
+    então não é o de produção). Hosts: banco `localhost:5432`, API
+    `localhost:3001`. Nem `CRON_SCHEDULE` nem `LOG_LEVEL` no `.env` — os dois
+    vêm da sessão.
+  - **Sem `RESEND_API_KEY` a etapa 7.5 não envia nada** — o que o ensaio
+    quer (a newsletter local não entrega a assinante real de qualquer
+    forma, e o seed não cria assinante). O efeito dela no desfecho do run 1
+    se lê no A4.03/A4.10.
+  - **Corrigido no mesmo dia, pelo A2.15: existir não é valer.** A
+    conferência acima era só de presença, e as duas chaves de IA locais
+    são **placeholders** — Groq `401 invalid_api_key` (sem o prefixo
+    `gsk_`), Gemini `400 INVALID_ARGUMENT`. O `check-keys.mjs` passou a
+    conferir a validade das duas listando modelos (sem custo); a NewsData
+    só pelo formato (`pub_` — sim), porque a sonda dela gasta crédito.
+    **Gatilho que destrava o M4:** o dono pôr uma `GEMINI_API_KEY` e uma
+    `GROQ_API_KEY` válidas no `apps/api/.env` e o `check-keys.mjs` dizer
+    `válida: sim` nas duas. Não é defeito do produto: é o terreno, e a
+    linha fica `[!]` porque a conferência original teria deixado o M4
+    começar e falhar no run 1.
+- [x] **A0.06 — O navegador da captura.** `CHROMIUM_PATH` apontando para o
   `chromium_headless_shell-<rev>` instalado se o Playwright pedir outra revisão
   (em 20/09 pediu a 1243 com a 1234 instalada; em 24/09 estavam instaladas a
   1208 e a 1234). · L
-- [ ] **A0.07 — O cron interno neutralizado.** O `server.ts` registra o job do
+  - `playwright-core@1.63.0` pede `chromium-headless-shell` **1243**; o
+    `ms-playwright` tem 1208 e 1234. `CHROMIUM_PATH=$LOCALAPPDATA/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-win64/chrome-headless-shell.exe`
+    → a captura do A0.04 saiu 4/4 com ele, sem download.
+- [x] **A0.07 — O cron interno neutralizado.** O `server.ts` registra o job do
   pipeline **sempre**, às 08:00 de São Paulo (11:00 UTC), sem interruptor: com
   a API local de pé nesse horário, um run real dispara — gasta NewsData e IA
   fora do orçamento do M4 e ocupa o "hoje" do A4.01. Durante toda a fase a API
   local sobe com `CRON_SCHEDULE="0 3 1 1 *"` (variável da sessão, nunca no
   `.env` commitado). Evidência: a linha de boot
   `[cron] registered, schedule: 0 3 1 1 *`. · L
+  - A API do ensaio sobe por `scratchpad/run-api.mjs` — `tsx src/server.ts`
+    **sem `watch`** (o M1 muta arquivo-fonte; um `watch` recarregaria a API
+    com a mutação), as variáveis do cenário por cima do `.env` (o dotenv não
+    sobrescreve variável existente, nem vazia) e stdout/stderr gravados crus
+    em `scratchpad/logs/<cenário>.{out,err,all}`. Boot de 24/09 20:10 UTC:
+    `{"level":30,…,"msg":"[cron] registered, schedule: 0 3 1 1 * tz:
+    America/Sao_Paulo"}`; `.err` vazio.
 
 ## M1 — As guardas reprovam quando devem
 
@@ -115,7 +185,7 @@
 > Markdown e Mermaid, que ele não muta. A mutação aqui é **texto**, e tem de
 > ser.
 
-- [ ] **A1.00 — `scripts/guard-mutations.mjs` existe e se vê falhando.**
+- [x] **A1.00 — `scripts/guard-mutations.mjs` existe e se vê falhando.**
   - Tabela de mutações `{ id, arquivo, trecho, troca, pacote, arquivo de teste,
     teste esperado }`.
   - Para cada uma: confere que o arquivo está limpo no git, **copia o original
@@ -136,7 +206,51 @@
     deixou onze guardas de fora.
   - Imprime a tabela `id · reprovou? · teste`. Visto falhando: uma mutação
     inócua (comentário) tem de sair "NÃO reprovou". · L
-- [ ] **A1.01..A1.35 — Cada mutação abaixo reprova a guarda indicada.** · L
+  - **Feito em 24/09 — `pnpm guard:mutations`** (`scripts/guard-mutations.mjs`).
+    As cópias e os JSONs do vitest vão para
+    `%TEMP%/newranews-guard-mutations/` (fora da árvore; `GUARD_MUTATIONS_DIR`
+    troca). O CRLF é normalizado antes de casar e **reposto** ao gravar a
+    mutação (metade da árvore é CRLF, metade LF); a restauração grava os bytes
+    copiados. Quatro tipos de mutação: `edits` (cada trecho uma vez só),
+    `dropLine`, `append` e `create` (arquivo novo, apagado no fim).
+  - **Visto falhando, de quatro jeitos:** (1) os dois controles inócuos
+    (`C.01`, `C.02` — um comentário no `errors.ts` e no redator do BFF) saem
+    **"NÃO reprovou"**; (2) a primeira rodada, com os nomes esperados
+    chutados, deu **28/46** e marcou as 18 restantes como "reprovou por outro
+    teste" — a guarda certa tinha caído em todas, e o script recusou aprovar
+    sem o nome; (3) a **A1.18 da primeira rodada não derrubou a guarda** que
+    alegava: trocar o schema do `202` por `errorResponseSchema` só reprovou a
+    exceção obsoleta, porque esse schema **tem** contrato
+    (`utils/schemas.ts:22`) — a mutação estava errada, não a guarda, e a
+    troca virou um nome que ninguém declarou. O limite que isso mostrou fica
+    escrito na entrada: a `shared-type-contract` identifica o schema **pelo
+    nome**, e há três `errorResponseSchema` em `src/` (um só asserido; hoje
+    os três são 4xx, fora do alcance dela); (4) **morto no meio** de uma
+    mutação (`Stop-Process -Force` 200 ms depois de o `app.ts` mudar), o
+    arquivo ficou mutado e o `pending.json` o listava; a rodada seguinte
+    **recusou** ("Há arquivos mutados de uma execução anterior") e o
+    `--restore` devolveu o `app.ts` idêntico ao HEAD (`git diff --quiet`).
+  - **A cobertura derivada achou quatro guardas do plano fora da lista** —
+    é para isso que ela existe: `jobs.test.ts` (a costura do `x-actor-id`,
+    5b), `e2e-flows.test.ts` (Fase 2, d17151f), `client-error-api.test.ts`
+    (7c) e o teste do `h1` da casca em `a11y-guards.test.tsx` (7b). Viraram
+    **A1.36–A1.39**. As **15** suítes leitoras da V2 e dos itens 53/54 estão
+    em `EXCLUDED`, cada uma com o motivo (três delas o plano tocou só na
+    prosa — "15 páginas" → "todas as páginas").
+  - **E ela virou guarda de CI:** `apps/api/tests/build/guard-mutations.test.ts`
+    roda `--coverage` (a derivação, sem vitest aninhado) e reprova se uma
+    suíte leitora nova não tiver mutação nem motivo — guarda nova nasce
+    pedindo a mutação que a vê reprovar. A mutação dela é a **A1.40**.
+- [x] **A1.01..A1.40 — Cada mutação abaixo reprova a guarda indicada.** · L
+  - **Rodada final de 24/09: 47/47 como esperado, cobertura completa,
+    saída 0** — 52 suítes leem fonte = 37 na tabela + 15 excluídas (a tabela
+    tem mais três que não leem fonte: `authorization-matrix`,
+    `prompt-injection` e `server-hardening`). A 52.ª é a própria
+    `guard-mutations.test.ts`, que o regex conta porque o **comentário** dela
+    cita `readFileSync` — a família "a guarda vê caractere", aqui na direção
+    segura: sobre-inclusão só obriga a registrar, e ela está registrada
+    (A1.40). A tabela por mutação, com o teste que caiu, está logo abaixo
+    da de mutações.
 
 | ID | Guarda | Mutação |
 |---|---|---|
@@ -175,6 +289,43 @@
 | A1.33 | `tests/routes/api-docs-drift.test.ts` | tirar a seção `### GET /api/admin/invariants` da `docs/api.md` |
 | A1.34 | web `tests/lib/trust-boundary.test.ts` | uma chamada a `signAuthJwt` em `lib/log-server-error.ts` (um redator, não um signatário) |
 | A1.35 | web `tests/lib/bff-seam.test.ts` | tirar o `signal: AbortSignal.timeout(API_TIMEOUT_MS)` do `fetch` de `app/api/events/route.ts` |
+| A1.36 | `tests/routes/jobs.test.ts` (a costura, 5b) | `'x-actor-id'` → `'x-actor'` em `app/api/admin/run-pipeline/route.ts` |
+| A1.37 | web `tests/components/a11y-guards.test.tsx` (7b) | a casca `error-state` com `h2` em vez de `h1` |
+| A1.38 | web `tests/routes/client-error-api.test.ts` (7c) | o BFF anônimo do relato importando `getServerSession` |
+| A1.39 | web `tests/lib/e2e-flows.test.ts` (Fase 2) | um `e2e/guard-mutation.spec.ts` novo, sem fluxo declarado |
+| A1.40 | `tests/build/guard-mutations.test.ts` (Fase 12) | uma suíte nova que lê fonte, sem mutação nem motivo |
+
+*Achadas pela cobertura derivada (A1.36–A1.39) e nascida desta fase (A1.40).*
+
+**O resultado da rodada final (24/09, `pnpm guard:mutations`, 47/47):** o
+teste que caiu em cada uma — `(+N)` são outros testes da mesma suíte que
+caíram junto.
+
+| ID | Caiu | ID | Caiu |
+|---|---|---|---|
+| A1.01a | todo `uses:` de terceiro aponta para um SHA de 40 hex | A1.21 | camada 4 — the output guard blocks it as security — copied-url |
+| A1.01b | escrita no `GITHUB_TOKEN` só onde há motivo escrito | A1.22 | a configuração da requisição devolve o pino, nos dois idiomas |
+| A1.02 | parseia como YAML, com a forma que o Dependabot espera (+3) | A1.23 | nada que a ISR guarda responde a uma falha com valor vazio |
+| A1.03 | finds no call outside the written exceptions | A1.24 | todo boundary de erro desenha pela casca única |
+| A1.04a | carries no code that nothing throws | A1.25 | logs through the redacting serializer, not the pino default |
+| A1.04b | finds no interpolated or computed code (+1) | A1.26a | o carregamento do .env não escreve nada |
+| A1.05a | é síncrona: sem `async` e com retorno declarado `void` | A1.26b | só o carregador importa o dotenv (+1) |
+| A1.05b | todo `code` é literal ou constante nomeada | A1.27 | logs counts for the newsletter stage, never a recipient |
+| A1.06 | stage 5.5 pushes the same stage in its block | A1.28 | todo membro do tuple tem quem o grave |
+| A1.07 | `pipeline-sequence.mermaid` desenha toda etapa que o pipeline anuncia | A1.29 | is one Prisma transaction in the source, not a loop (+1) |
+| A1.08 | a retenção escrita em prosa bate com as constantes da etapa 8 (+4) | A1.30 | `server.ts` registra o `uptimeHeartbeatPlugin` |
+| A1.09a | cria uma tabela para cada model do schema (+1) | A1.31 | nenhum outro arquivo de src/ escreve o literal do balde |
+| A1.09b | cada model tem no SQL exatamente as colunas que declara | A1.32 | keeps the declared ceiling at the number the comment reasons about (+1) |
+| A1.10 | lista todo model do schema na seção Models | A1.33 | documents every registered route |
+| A1.11 | GET /api/admin/errors rejects a non-admin session (+5 — as outras cinco rotas do prefixo) | A1.34 | lets only the signers sign |
+| A1.12 | every path the BFF forwards is a route the API registers | A1.35 | declares a timeout on every network fetch |
+| A1.13 | proxies every handler with requireRole ADMIN | A1.36 | `run-pipeline/route.ts` writes the same header name the API reads |
+| A1.14 | has a capture route for every admin page (+1) | A1.37 | o boundary de erro é o `h1` da tela, e só a casca única o fixa |
+| A1.15 | logs from every catch outside the written exceptions (+1) | A1.38 | does not import anything that resolves an identity |
+| A1.16 | is an aggregate, a count, or a one-column select — never a row (+1) | A1.39 | declares exactly one flow per spec file (+4) |
+| A1.17 | has exactly one pattern per page.tsx under app/[locale] (+1) | A1.40 | registers every source-reading suite as a mutation or a written exclusion |
+| A1.18 | declares a shared-type contract for every success response (+1) | C.01 · C.02 | **NÃO reprovou** (15 e 4 testes verdes) — os controles |
+| A1.19 | labels every check the API can write, and no check the API does not | A1.20 | never warns about a URL — every URL in the output is a block (+1) |
 
 ## M2 — O log e a taxonomia, ao vivo (Fases 1, 3, 7a)
 
@@ -189,50 +340,123 @@
 > 100/min por IP**, e todo pedido local sai de `127.0.0.1` — rajadas do M2 e
 > do M3 no mesmo minuto se somam.
 
-- [ ] **A2.01 — Uma linha por requisição, com `reqId` e nível pelo status.**
+- [x] **A2.01 — Uma linha por requisição, com `reqId` e nível pelo status.**
   `GET /api/health` e `GET /api/news` → exatamente uma linha cada, `info`. · L
-- [ ] **A2.02 — Segredo nunca no stdout.** Depois de todo o M2, um script procura
+  - 24/09 20:29 UTC, `scratchpad/logs/m2-info.all` (API por `run-api.mjs`,
+    `LOG_LEVEL=info`). `GET /api/health` → 200 e **uma** linha
+    `info · "request completed" · statusCode=200 · route=/api/health`;
+    `GET /api/news?limit=2` → 200 e uma linha `info` com `route=/api/news`.
+    Cada linha com o `reqId` igual ao `x-request-id` da resposta.
+- [x] **A2.02 — Segredo nunca no stdout.** Depois de todo o M2, um script procura
   no log capturado os **valores** de `JOB_SECRET`, `AUTH_JWT_SECRET`, das chaves
   de provider e a senha da DSN (lidos do `.env`, nunca impressos) → zero
   ocorrências; o host da DSN aparece, a palavra `Bearer` aparece. · L
-- [ ] **A2.03 — `LOG_LEVEL=warn` deixa só o que deu errado.** Reiniciar com
+  - `scratchpad/scan-secrets.mjs` sobre os **8** logs do M2 (API: boot,
+    info, warn, sem segredo de JWT; web: dois boots) — 278 linhas: **0**
+    ocorrências de `JOB_SECRET`, `AUTH_JWT_SECRET`, as três chaves de
+    provider, `NEXTAUTH_SECRET`, `CRON_SECRET`, `BACKEND_JOB_SECRET` e da
+    senha do DSN (na forma `:senha@`); o host `localhost:5432` aparece 8
+    vezes. **A palavra `Bearer` não aparece — e a expectativa estava
+    errada, não o log:** nenhum caminho de falha provocado carrega cabeçalho
+    (o `ECONNREFUSED` do undici não traz a requisição), então o redator
+    nunca teve o que redigir (`[segredo redigido]` = 0). O redator tem a
+    suíte dele; o que esta linha prova ao vivo é que o segredo não chega.
+- [x] **A2.03 — `LOG_LEVEL=warn` deixa só o que deu errado.** Reiniciar com
   `warn`, repetir A2.01 → zero linhas. · L
-- [ ] **A2.04 — `AUTH_TOKEN_INVALID`.** `GET /api/account` com token lixo → 401
+  - API reiniciada com `LOG_LEVEL=warn` (`logs/m2-warn.all`); `GET
+    /api/health` e `GET /api/news` → 200 e **zero** linhas — nem as três
+    do boot, que são `info`.
+- [x] **A2.04 — `AUTH_TOKEN_INVALID`.** `GET /api/account` com token lixo → 401
   `{ "error": "Invalid or missing token" }`; linha `warn`, `code`, `category:
   authorization`, `requestId`, e o `cause` do jose (`JWSInvalid`); com token
   expirado, `JWTExpired`. · L
-- [ ] **A2.05 — `ADMIN_REQUIRED`.** Token válido de `role: USER` em
+  - Token lixo → `401 {"error":"Invalid or missing token"}`; duas linhas
+    `warn` com o mesmo `reqId`: `"app error"` com `err.code:
+    AUTH_TOKEN_INVALID`, `err.category: authorization`, `err.statusCode:
+    401`, `err.cause: { name: "JWSInvalid" }` e `route: /api/account`; e a
+    de acesso. Token expirado → o mesmo corpo, `cause: JWTExpired`. O id
+    da requisição viaja como `reqId` (o do pino), não como `requestId`.
+- [x] **A2.05 — `ADMIN_REQUIRED`.** Token válido de `role: USER` em
   `GET /api/admin/errors` → 403, `warn`. · L
-- [ ] **A2.06 — `JOB_SECRET_INVALID`.** `POST /api/jobs/daily-pipeline` com
+  - Token `role: USER` → `403 {"error":"Admin access required"}`; `warn`
+    `ADMIN_REQUIRED` · `authorization`.
+- [x] **A2.06 — `JOB_SECRET_INVALID`.** `POST /api/jobs/daily-pipeline` com
   Bearer errado → 401, `warn`, nenhum run criado. · L
-- [ ] **A2.07 — `DASHBOARD_SECRET_INVALID`.** `POST /dev/dashboard/session` com
+  - Bearer errado → `401`; `warn` `JOB_SECRET_INVALID` · `authorization`.
+    `PipelineLog` seguiu em **27** (o seed), último `startedAt` 11:05.
+- [x] **A2.07 — `DASHBOARD_SECRET_INVALID`.** `POST /dev/dashboard/session` com
   senha errada → 303 e linha `warn`; **o palpite não aparece no log**. · L
-- [ ] **A2.08 — `CONTENT_TYPE_REJECTED`.** Pela porta, com o caractere de controle
+  - um palpite errado no campo do formulário (`palpite-errado-fase12`) → `303 → /dev/dashboard?failed=1`;
+    `warn` `DASHBOARD_SECRET_INVALID` com `context: {"presented":true}`, e
+    a de acesso em `info` (303 < 400). `grep palpite-errado-fase12` no log
+    → **0**.
+- [x] **A2.08 — `CONTENT_TYPE_REJECTED`.** Pela porta, com o caractere de controle
   que o `content-type-bypass.test.ts` usa → 415 com a **frase fixa do nosso
   hook** (não a do Fastify, que ecoa o cabeçalho); linha `warn`; o cabeçalho
   forjado não entra no log. · L
-- [ ] **A2.09 — `NOT_FOUND` fora do contrato não existe mais.**
+  - Por socket cru (`net`), `Content-Type: application/json<TAB>;
+    charset=forjado-fase12` num `POST /api/events` — o TAB no **meio**,
+    que o parser do Node não apara (no fim, ele aparava, e a sonda da
+    Fase 3 media a forma que o fio nunca entrega). → `415
+    {"error":"Unsupported Media Type"}`, a frase fixa do hook; `warn`
+    `CONTENT_TYPE_REJECTED` · `authorization`; `grep forjado-fase12` no log
+    → **0**.
+- [x] **A2.09 — `NOT_FOUND` fora do contrato não existe mais.**
   `GET /api/nao-existe` → 404 `{ "error": … }` sem ecoar o caminho. A linha do
   `AppError` é `debug` e **não aparece** em `info`; **aparece** a linha de
   acesso `warn` (`request completed`, `route: 'unmatched'`, `statusCode: 404`)
   — todo 4xx a tem. · L
-- [ ] **A2.10 — `ACTOR_ID_INVALID`.** Secret certo + `x-actor-id: lixo` → 400,
+  - `GET /api/nao-existe-fase12` → `404 {"error":"Not Found"}`, sem o
+    caminho no corpo. **Uma** linha: `warn · "request completed" ·
+    statusCode=404 · route=unmatched`; a do `AppError` (`debug`) não saiu.
+- [x] **A2.10 — `ACTOR_ID_INVALID`.** Secret certo + `x-actor-id: lixo` → 400,
   linha `error` (`internal` num 400), pipeline **não** disparado. · L
-- [ ] **A2.11 — `AUTH_SUBJECT_MISMATCH`.** `POST /api/auth/upsert` com token de
+  - `JOB_SECRET` certo + `x-actor-id: lixo` → `400 {"error":"Invalid
+    x-actor-id header"}`; linha **`error`** `ACTOR_ID_INVALID` ·
+    `internal`; nenhum run novo (27).
+- [x] **A2.11 — `AUTH_SUBJECT_MISMATCH`.** `POST /api/auth/upsert` com token de
   `purpose: auth-upsert` do e-mail A e corpo com o e-mail B → 401, `warn`. · L
-- [ ] **A2.12 — `AUTH_SESSION_INCOMPLETE`.** Token assinado sem `sub`/`email` →
+  - Token `purpose: auth-upsert` de `fase12-a@example.com` e corpo
+    `{ email: "fase12-b@example.com" }` → `401`; `warn`
+    `AUTH_SUBJECT_MISMATCH` · `authorization`; nenhum `User` criado.
+- [x] **A2.12 — `AUTH_SESSION_INCOMPLETE`.** Token assinado sem `sub`/`email` →
   401, linha `error`. · L
-- [ ] **A2.13 — `AUTH_NOT_CONFIGURED`.** API reiniciada com `AUTH_JWT_SECRET`
+  - Token assinado só com `role` → `401`; linha **`error`**
+    `AUTH_SESSION_INCOMPLETE` · `internal`.
+- [x] **A2.13 — `AUTH_NOT_CONFIGURED`.** API reiniciada com `AUTH_JWT_SECRET`
   vazio (o schema o aceita: `optional()`) → todo token 401, linha **`error`**
   (a categoria vence o status). · L
-- [ ] **A2.14 — `UNHANDLED`: o 500 cru.** Postgres parado → `GET /api/news` →
+  - API com `AUTH_JWT_SECRET=` (vazio chega vazio: o dotenv não
+    sobrescreve o que existe) → token ADMIN válido em `/api/admin/errors` e
+    USER válido em `/api/account` → os dois `401`; linhas **`error`**
+    `AUTH_NOT_CONFIGURED` · `internal` — a categoria vence o status.
+- [x] **A2.14 — `UNHANDLED`: o 500 cru.** Postgres parado → `GET /api/news` →
   500 com a frase fixa e `x-request-id`; linha `error` com o `err` serializado
   (host da DSN, sem senha). · L
-- [ ] **A2.15 — `/api/health/providers` diz "por quê" no log.** Com Bearer do
+  - `docker stop newranews-db` às 20:32:41 → `GET /api/news` → `500
+    {"error":"Internal server error","requestId":"efa2f55a-…"}` com o
+    mesmo `x-request-id`; linha `error` `"unhandled error"` com
+    `err.name: PrismaClientKnownRequestError`, `err.code: P1001` e a
+    mensagem do Prisma com `localhost:5432`; `:password@` no log → **0**.
+- [x] **A2.15 — `/api/health/providers` diz "por quê" no log.** Com Bearer do
   `JOB_SECRET` (a rota passa por `assertJobSecret`) e `GEMINI_API_KEY` lixo →
   status `invalid` na resposta (contrato intacto) e a razão no log, **sem a
   URL da sonda**. · L
-- [ ] **A2.16 — O BFF escreve a falha (7a).** API parada, web de pé, uma linha
+  - API com `GEMINI_API_KEY` **e** `NEWSDATA_API_KEY` lixo (a sonda da
+    NewsData é uma busca de verdade e gastaria crédito com a chave real) →
+    `GET /api/health/providers` com Bearer do `JOB_SECRET` → `200
+    {"newsdata":"invalid","gemini":"invalid","groq":"invalid"}`, e a
+    razão no log sem URL: `warn "provider health check refused"` com
+    `provider` e `statusCode` (gemini 400, newsdata 401, groq 401);
+    `generativelanguage|newsdata.io|api.groq` no log → **0**.
+  - **E ela achou o que o A0.05 não via: o Groq saiu `invalid` com a
+    chave real do `.env`.** Conferido fora da API (listar modelos não gasta
+    cota): Groq `401 invalid_api_key`, Gemini `400 INVALID_ARGUMENT` — as
+    duas chaves locais são **placeholders** (a do Groq nem tem o prefixo
+    `gsk_`); a da NewsData tem o formato de chave real (`pub_`). O A0.05
+    passou a conferir validade, não só presença, e o M4 fica `[~]` até o
+    dono pôr as duas chaves no `apps/api/.env`.
+- [x] **A2.16 — O BFF escreve a falha (7a).** API parada, web de pé, uma linha
   JSON no stderr do web por rota, com o `scope`, o `cause` com `ECONNREFUSED`
   e nenhum valor de segredo:
   - `/api/admin/errors` (com sessão) → `bff.proxy`;
@@ -242,29 +466,82 @@
   - `/api/cron/daily-news` → **`cron.daily-news`** (não é `bff.*`), com
     `warmed: false` e o Bearer redigido. Demora ~50 s: o `warmApi` tenta duas
     vezes, com 25 s cada. · L
-- [ ] **A2.17 — `bff.proxy.sign`.** Web com `AUTH_JWT_SECRET` vazio → a rota de
+  - API parada, web por `run-web.mjs` (`logs/m2-web.err`). Uma linha JSON
+    `level: 50` por rota, cada uma com `cause` `AggregateError`
+    `ECONNREFUSED`: `bff.proxy` (`/api/admin/errors` com a sessão forjada
+    → `502 {"error":"Upstream API unavailable"}`), `bff.events` (502),
+    `bff.errors.client` (502), `bff.news-sitemap` (`200` com o XML vazio
+    e válido — fora da Vercel o `nullUnlessPublishing` cede) e
+    **`cron.daily-news`** (`500 {"success":false,…,"warmed":false}`, com
+    `warmed: false` na linha).
+  - **O cron respondeu em 0,3 s, não em ~50 s:** com a porta recusando, o
+    `warmApi` falha na hora — os 2 × 25 s são o prazo de uma API
+    **pendurada**, não de uma que recusa. A matriz supunha o pior caso.
+  - **O stderr do web não é só JSON, e não é nosso:** o sitemap escreve
+    **uma** linha (a coleção `news`, cuja URL leva o `from` e nunca está
+    em cache) e mais um bloco cru `[TypeError: fetch failed] { [cause]:
+    AggregateError [ECONNREFUSED] … }` — o `getArticles(1, 10)` tem URL
+    fixa, o **cache de `fetch` do Next** serve a resposta guardada (a
+    coleção `briefings` não falha, então não loga), e o bloco é o Next
+    registrando a revalidação de fundo que falhou. Na primeira
+    requisição saiu também um `⨯ Error: failed to pipe response` do Next,
+    que não se repetiu. Comportamento do framework, e o desejado (dado
+    velho em vez de nenhum); as rotas do BFF isoladas escrevem exatamente
+    uma linha JSON cada.
+- [x] **A2.17 — `bff.proxy.sign`.** Web com `AUTH_JWT_SECRET` vazio → a rota de
   conta loga a falha de assinatura **e relança** (o status não muda). · L
-- [ ] **A2.18 — O boot só escreve JSON.** Do spawn da API até a primeira
+  - Web com `AUTH_JWT_SECRET=` (`logs/m2-web-nosign.err`) → `GET
+    /api/account` pelo BFF com a sessão forjada → `500`; linha
+    `{"level":50,"scope":"bff.proxy.sign","err":{"name":"Error",
+    "message":"AUTH_JWT_SECRET is not configured"}}` e, depois dela, o
+    `⨯ Error: AUTH_JWT_SECRET is not configured` do próprio Next — o
+    relançamento: a 500 é a de antes da 7a.
+- [x] **A2.18 — O boot só escreve JSON.** Do spawn da API até a primeira
   requisição, **toda** linha de stdout e stderr parseia como JSON — o dotenv 18
   escrevia `◇ injected env (N) from .env` fora do formato, e foi o #241 que o
   calou. · L
+  - Cópia do log feita ao ver `Server running`, antes da primeira
+    requisição: **3 linhas, 3 JSON, 0 não-JSON** (`[cron] registered…`,
+    `Server listening…`, `Server running…`), `.err` com **0 bytes**. O
+    mesmo em todos os boots do M2 (`log-lines.mjs`: `não-JSON: 0`).
 
 ## M3 — O registro durável (Fases 4, 7c, 5b)
 
-- [ ] **A3.01 — As falhas do M2 viram linhas em ≤ 30 s.** `ErrorEvent` com um
+- [x] **A3.01 — As falhas do M2 viram linhas em ≤ 30 s.** `ErrorEvent` com um
   fingerprint por falha distinta (`API:WARN:AUTH_TOKEN_INVALID:/api/account`, …),
   `category` e `severity` certas, `firstRequestId`/`lastRequestId`. · L
-- [ ] **A3.02 — Coalescimento.** 50 × o mesmo 401 num laço → **uma** linha com
+  - 35 s depois das sondas do M2: **9** linhas novas, uma por falha
+    distinta — `API:WARN:AUTH_TOKEN_INVALID:/api/account` (`count: 2`, o
+    lixo e o expirado), `ADMIN_REQUIRED`, `JOB_SECRET_INVALID`,
+    `DASHBOARD_SECRET_INVALID`, `CONTENT_TYPE_REJECTED`,
+    `AUTH_SUBJECT_MISMATCH` em `WARN · authorization`; `ACTOR_ID_INVALID`
+    e `AUTH_SESSION_INCOMPLETE` em `ERROR · internal`. Na do
+    `/api/account`, `firstRequestId` = `fa13fc38-…` (o lixo) e
+    `lastRequestId` = `abe29865-…` (o expirado) — os `x-request-id` das
+    duas respostas.
+- [x] **A3.02 — Coalescimento.** 50 × o mesmo 401 num laço → **uma** linha com
   `count` somando 50 na hora. O laço fica abaixo do balde global de 100/min
   (a 101.ª do minuto seria 429, não 401). · L
-- [ ] **A3.03 — `debug` não vira linha.** Nenhuma linha de `NOT_FOUND`. · L
-- [ ] **A3.04 — O banco fora, e o preço escrito.** O flush roda de 30 em 30 s
+  - 50 × `GET /api/favorites` com o mesmo token lixo (rota escolhida para
+    o `count` ser só dele), 50/50 em 401 → **uma** linha
+    `API:WARN:AUTH_TOKEN_INVALID:/api/favorites` com `count: 50`, janela
+    20:00.
+- [x] **A3.03 — `debug` não vira linha.** Nenhuma linha de `NOT_FOUND`. · L
+  - Nenhuma linha com `NOT_FOUND` no `ErrorEvent` depois do A2.09.
+- [x] **A3.04 — O banco fora, e o preço escrito.** O flush roda de 30 em 30 s
   **contados do boot** e esvazia o buffer **antes** de ir ao banco. Falhas
   acontecendo com o Postgres parado → o primeiro tique com o banco fora escreve
   `warn` `[error-event] failed to persist` e aquelas ocorrências se perdem (é o
   documentado); as que chegarem **depois** desse tique e antes de o banco
   voltar persistem no primeiro tique seguinte. O que decide é o tique cair ou
   não na janela, não a duração do apagão. · L
+  - Banco parado às 20:32:41; o `500` do `/api/news` (A2.14) entrou no
+    buffer; o tique seguinte (20:33:13) escreveu `warn "[error-event]
+    failed to persist"` com `err.code: P1001`. **Depois** do tique, um
+    `401` em `/api/favorites`; banco de volta às 20:33:14. Resultado: a
+    linha `API:ERROR:AUTH_NOT_CONFIGURED:/api/favorites` **persistiu** no
+    tique seguinte, e `API:ERROR:UNHANDLED:/api/news` **não existe** — a
+    ocorrência de antes do tique se perdeu, como o documentado.
 - [ ] **A3.05 — O flush do desligamento, com prazo.** Falhas acumuladas e
   **Ctrl+C na API** → as linhas persistidas; com o Postgres parado, o processo
   sai em ~2 s (`ERROR_EVENT_CLOSE_TIMEOUT_MS`), sem pendurar. **O Ctrl+C é do
@@ -273,34 +550,74 @@
   (documentação do Node), o `kill` do Git Bash também, e o `preview_stop` não
   manda sinal — nenhuma ferramenta do agente produz um SIGINT de verdade. O
   agente lê o resultado no log e no banco. · L
-- [ ] **A3.06 — `GET /api/admin/errors`.** `24h` e `7d`: grupos por
+- [x] **A3.06 — `GET /api/admin/errors`.** `24h` e `7d`: grupos por
   fingerprint, `byCategory` com **as seis** categorias na ordem da taxonomia,
   `since` alinhado à hora cheia (item 65), `truncated: false`. · L
-- [ ] **A3.07 — O relato do cliente (7c).** Pelo BFF,
+  - 24/09 20:40 UTC, token ADMIN local. `24h`: `window.since`
+    `2026-09-23T20:00:00.000Z` para `until` 20:40:39 — o piso da hora cheia
+    (item 65); `7d`: `since` `2026-09-17T20:00`. `byCategory` com as **seis**,
+    na ordem do `ERROR_CATEGORIES` (`upstream`, `database`, `validation`,
+    `authorization`, `contract`, `internal`), inclusive as de zero;
+    `truncated: false`; 21 e 23 grupos por fingerprint.
+- [x] **A3.07 — O relato do cliente (7c).** Pelo BFF,
   `POST /api/errors/client` `{ message, digest, path: '/pt-BR/news/<uuid>' }` →
   **202** `{ accepted: true }`; depois do flush, linha `WEB · CLIENT_ERROR ·
   /[locale]/news/[id]` com `digest` e `path` no `context`. · L
-- [ ] **A3.08 — Caminho desconhecido vai para `unmatched`.** · L
-- [ ] **A3.09 — O balde de 10/min atravessa o BFF.** O 11.º relato no minuto →
+  - Pelo BFF (`localhost:3000`), `{ message, digest: "fase12-digest-001",
+    path: "/pt-BR/news/270b83ed-…" }` → `202 {"data":{"accepted":true}}`;
+    depois do flush, `WEB:ERROR:CLIENT_ERROR:/[locale]/news/[id]` com
+    `context: {"path": "/pt-BR/news/270b83ed-…", "digest":
+    "fase12-digest-001"}`.
+- [x] **A3.08 — Caminho desconhecido vai para `unmatched`.** · L
+  - `path: "/pt-BR/caminho/que-nao-existe"` → `202`, e a linha
+    `WEB:ERROR:CLIENT_ERROR:unmatched` com o caminho no `context`.
+- [x] **A3.09 — O balde de 10/min atravessa o BFF.** O 11.º relato no minuto →
   **429** no navegador; o buffer não ganha a 11.ª ocorrência. **O balde é um só
   para o site**: A3.07, A3.08, A3.10 e A3.15 gastam dele — contar os pedidos,
   ou esperar o minuto virar entre as linhas. · L
-- [ ] **A3.10 — O corpo é lista de permissão.** `userId`, `email` e `stack` no
+  - Um `POST` de aquecimento com corpo vazio (`400`) **também gastou o
+    balde** — o limite conta antes da validação —, então o 11.º pedido do
+    minuto foi o 10.º relato: `429 {"error":"Rate limit exceeded, retry
+    in 1 minute"}` no navegador, e o seguinte também. No banco,
+    `WEB:ERROR:CLIENT_ERROR:/[locale]` com `count: 5` — os relatos 5 a 9;
+    nem o 10.º nem o 11.º entraram no buffer.
+- [x] **A3.10 — O corpo é lista de permissão.** `userId`, `email` e `stack` no
   corpo → nenhum deles no `context`. · L
-- [ ] **A3.11 — O 4xx por rota (armadilha 39).** `GET /api/metrics/http` tem a
+  - Corpo com `userId`, `email` e `stack` → `202`; o `context` da linha
+    `/[locale]/about` é só `{"path": "/pt-BR/about", "digest": null}`.
+- [x] **A3.11 — O 4xx por rota (armadilha 39).** `GET /api/metrics/http` tem a
   linha `POST /api/errors/client` com `clientErrorRate > 0` depois do A3.09.
   **A métrica é em memória e zera a cada reinício da API** — ler aqui, na
   mesma vida do processo. · L
-- [ ] **A3.12 — Saturação e horas do plano (5b).** Com a API de pé > 10 min, a
+  - Na mesma vida do processo: `POST /api/errors/client` com `count: 12`,
+    `errorRate: 0`, **`clientErrorRate: 0.25`** (o 400 e os dois 429).
+- [x] **A3.12 — Saturação e horas do plano (5b).** Com a API de pé > 10 min, a
   linha de hoje do `DailyUptime` cresce ~300 s por tique; `saturation.plan.hoursUsed`
   = soma do mês / 3600; `eventLoop.lagMs.p50` ≈ 0 em repouso (sem a resolução do
   timer). · L
-- [ ] **A3.13 — A rota em memória responde com o banco fora (item 65).**
+  - API de pé das 20:39:29 às 20:50: a linha de hoje do `DailyUptime`
+    foi de `33000` (tique das 20:44:30) a `33300` (tique das 20:49:30) —
+    300 s por tique; `saturation.plan` às 20:49: `secondsUsed 778500`,
+    `hoursUsed 216.25` = `SUM(seconds)` do mês / 3600 pelo SQL (778500 /
+    216,25). **`lagMs.p50` = 6 ms, não ≈ 0:** a subtração usa a resolução
+    configurada (10 ms), e o timer do Windows é mais grosso — o 5b mediu o
+    efeito (cru ≈ 25 ms no Windows, ≈ 10 no Linux). Plataforma, não
+    defeito: no Linux do Render o que sobra é ≈ 0.
+- [x] **A3.13 — A rota em memória responde com o banco fora (item 65).**
   Postgres parado → `GET /api/metrics/http` **200**, com `saturation.plan: null`
   e memória/event loop presentes. · L
-- [ ] **A3.14 — Auditoria de exclusão.** Excluir uma notícia pela `/admin` →
+  - `docker stop` → `GET /api/metrics/http` com token ADMIN → **`200`**,
+    `saturation.plan: null`, `memory.ratio 0.1866`, `eventLoop.samples
+    5648`, 5 rotas; um `warn` com o `prisma.dailyUptime.aggregate()` que
+    falhou. (A primeira tentativa, no boot sem `AUTH_JWT_SECRET`, deu 401:
+    a rota é ADMIN por JWT.)
+- [x] **A3.14 — Auditoria de exclusão.** Excluir uma notícia pela `/admin` →
   `AuditEvent` `news.deleted` com `actorId` (nunca e-mail) e `targetId`. · L
-- [ ] **A3.15 — O visualizador do log não executa o que a porta anônima
+  - `DELETE /api/admin/news/4ebc56ed-…` pelo BFF, com a sessão forjada —
+    o caminho do botão da `/admin` → `200`; `AuditEvent` `news.deleted`,
+    `actorId` `00000000-0000-4000-8000-00000000f012` (o id da sessão, sem
+    e-mail), `targetId` = a notícia, `context` nulo; a `News` sumiu.
+- [x] **A3.15 — O visualizador do log não executa o que a porta anônima
   escreve.** O OWASP lista como consequência de *log injection* o XSS "à espera
   de ser visto num visualizador vulnerável" e a linha forjada por quebra de
   linha — e aqui a porta anônima (`/api/errors/client`) grava texto que o admin
@@ -310,24 +627,60 @@
   do `ErrorEvent`; só a linha de acesso sai, com a rota), então a forja de
   linha não tem onde acontecer ali; no banco, a `message` guardada com a quebra
   e as tags como caracteres; na tabela, o texto literal (A5.15). · L
-- [ ] **A3.16 — `AUDIT_WRITE_FAILED`: a auditoria falha e a ação não.** Por SQL
+  - `message: "<img src=x onerror=alert(1)>\n{\"level\":50,\"msg\":\"linha
+    forjada fase12\"}"` pelo BFF → `202`. **No stdout:** só a linha de
+    acesso (`route`, `statusCode`, sem a mensagem); `onerror` e `linha
+    forjada` no log da API e no stderr do web → **0**, e 0 linha não-JSON
+    — a forja não tem onde acontecer. **No banco:** a `message` guardada
+    como caracteres, com a quebra de linha. A tabela é o A5.15.
+- [x] **A3.16 — `AUDIT_WRITE_FAILED`: a auditoria falha e a ação não.** Por SQL
   no banco local, a tabela `AuditEvent` renomeada (anotado; desfeito no fim) →
   excluir uma notícia pela `/admin` → a exclusão responde sucesso **e** nasce
   a linha `API · ERROR · AUDIT_WRITE_FAILED · news.deleted`. É um dos 18
   códigos gravados, e o único que a matriz não provocava. · L
-- [ ] **A3.17 — `INTERNAL`: o contrato quebrado entre quem grava e quem lê.**
+  - `ALTER TABLE "AuditEvent" RENAME TO "AuditEvent_fase12"` às 20:41:28
+    → `DELETE` de outra notícia pelo BFF → `200 {"data":{"deleted":true,…}}`
+    e a `News` apagada; nasceu `API:ERROR:AUDIT_WRITE_FAILED:news.deleted`
+    (`ERROR · database`, `context: {"action": "news.deleted", "outcome":
+    "deleted"}`). Tabela devolvida ao nome às 20:41:32.
+- [!] **A3.17 — `INTERNAL`: o contrato quebrado entre quem grava e quem lê.**
   Por SQL, o `context` do último evento da etapa 9.5 corrompido (anotado) →
   `GET /api/admin/invariants` → 500 com a frase fixa, e a linha
   `API:ERROR:INTERNAL:/api/admin/invariants` com `category: contract` — nunca
   "nenhuma verificação ainda". O `INTERNAL` é o default do `AppError`, e só o
   `Invariant report is malformed` o produz sem nome próprio. · L
-- [ ] **A3.18 — A falha do próprio registro não vira segunda falha.** O OWASP
+  - `context` do último evento da 9.5 (`…0e010d`, guardado antes) trocado
+    por `{"quebrado":"fase12"}` → `GET /api/admin/invariants` → `500`, e a
+    linha `API:ERROR:INTERNAL:/api/admin/invariants` com `category:
+    contract` e a frase `Invariant report is malformed`. Contexto
+    restaurado, rota de volta a 200.
+  - **O defeito:** o corpo era `{"error":"Invariant report is malformed"}`,
+    **sem `requestId`** — e a `docs/api.md` promete que todo 500 é
+    `{ "error": "Internal server error", "requestId" }`. Só o ramo do
+    erro cru cumpria; o do `AppError` mandava a própria frase para qualquer
+    status, e o **padrão do construtor é 500** — todo `new AppError('…')`
+    futuro poria a frase do log no fio. **Corrigido no PR A:** 5xx do
+    `AppError` responde o contrato do 500 (`src/app.ts`); guarda nova em
+    `tests/plugins/error-handler.test.ts` ("answers an AppError of 500
+    with the documented 500 contract"), vista reprovando antes da
+    correção; a expectativa do `admin-invariants.test.ts`, que fixava a
+    frase no fio, passou ao contrato. **Remedido ao vivo** com a API
+    corrigida: `500 {"error":"Internal server error","requestId":
+    "81aef5a1-…"}`, o mesmo do `x-request-id`, e a frase só na linha de
+    log.
+- [x] **A3.18 — A falha do próprio registro não vira segunda falha.** O OWASP
   manda testar "erros de execução no próprio módulo de log". Um `throw`
   guardado por variável de ambiente (nunca commitado) dentro do
   `fingerprintFor` → a requisição que falhou responde o status de sempre, e o
   log ganha `warn` `[error-event] failed to buffer`. **Não no
   `scrubErrorContext`:** o serializer de `err` do logger também o chama, e o
   `throw` quebraria o próprio log em vez de o registro. · L
+  - `throw` no `fingerprintFor` guardado por `FASE12_THROW_IN_FINGERPRINT`
+    (`scratchpad/inject-a318.mjs`: cópia antes, bytes de volta depois) →
+    `GET /api/account` com token lixo → o `401` de sempre; o log com a
+    linha do `AppError`, **`warn "[error-event] failed to buffer"`**, e a
+    de acesso; `/api/health` seguiu 200. Arquivo restaurado: `git diff
+    --quiet` sem diferença.
 
 ## M4 — O pipeline de ponta a ponta, com provedores reais (Fases 2, 8, 11, 6, 9)
 
@@ -510,13 +863,37 @@
 
 ## M6 — A esteira (Fase 10)
 
-- [ ] **A6.01 — Os seis workflows** (`ci`, `codeql`, `gitleaks`, `lighthouse`,
+- [x] **A6.01 — Os seis workflows** (`ci`, `codeql`, `gitleaks`, `lighthouse`,
   `migrate`, `smoke`) com `permissions` no mínimo e todo `uses:` em SHA com o
   comentário da versão — lido nos arquivos, não só pela guarda. · C
-- [ ] **A6.02 — O gate de advisories.** `pnpm audit --audit-level=high --prod`
+  - Lido nos seis arquivos: `permissions:` no topo de todos, `contents:
+    read`; as duas escritas têm o motivo escrito ao lado —
+    `security-events: write` no `codeql.yml` (publicar o SARIF) e
+    `pull-requests: write` no `gitleaks.yml`. **24/24** `uses:` em SHA de 40
+    hex com `# vX.Y.Z` ao lado (ci 9, codeql 3, gitleaks 2, lighthouse 3,
+    migrate 3, smoke 4).
+- [!] **A6.02 — O gate de advisories.** `pnpm audit --audit-level=high --prod`
   sai 0; a lista silenciada no `package.json` = a de
   `docs/security-advisories.md`; nenhuma linha com mais de 90 dias sem revisão
   (§16). · C
+  - `pnpm audit --audit-level=high --prod` → **saída 0** (`16 high (16
+    ignored) | 2 critical (2 ignored)`); `ignoreGhsas` = tabela do
+    documento (20 = 20); aceitação mais antiga 23/08 (32 dias).
+  - **O defeito: 20 exceções e só 18 ignoradas.** Rodando o `audit` uma
+    vez com a lista vazia (o `package.json` restaurado byte a byte), as
+    duas do `browserslist` — GHSA-73wf-gq98-2v4g e GHSA-c83g-rgw3-j3cx,
+    vulneráveis até a 4.28.6 — **não casavam com achado nenhum**: o
+    lockfile tem a 4.28.9. Um bump as corrigiu e a lista seguiu
+    silenciando-as, e o documento dizia que isso reprovaria ("a guarda
+    passa a reprovar por sobra") — a guarda comparava a lista com o
+    documento, nunca com o registro. **Corrigido no PR A:** as duas saíram
+    do `package.json` e do documento (contagens 20 → 18, a cadeia de build
+    7 → 5, a frase reescrita); nasceu `scripts/audit-orphans.mjs` (o
+    `audit` com a lista vazia, recusando toda exceção sem achado), passo
+    novo do job de audit no `ci.yml`; e a `workflow-hardening` cobra o
+    passo (vista reprovando antes de ele existir). O script foi visto
+    reprovando sobre as duas órfãs (`saída 1`) e passando depois (`18
+    exceções silenciadas, todas ainda casam`).
 - [ ] **A6.03 — CodeQL: os alertas abertos, contados e decididos.** Em 24/09 a
   `main` tinha **10** abertos e a `dev` **11** — e não os "sete" que esta linha
   citava. Cada um sai corrigido com guarda, ou dívida com gatilho:
