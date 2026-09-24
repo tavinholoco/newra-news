@@ -1,5 +1,5 @@
+import './load-env-file';
 import { z } from 'zod';
-import 'dotenv/config';
 
 /**
  * Os niveis do pino, do mais severo ao menos. `silent` desliga o log sem tirar
