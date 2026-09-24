@@ -1,6 +1,9 @@
 # Plano de Observabilidade e Painel do Admin — Newra News
 
-> **Estado:** base aberta para acréscimo. Nenhuma fase foi implementada.
+> **Estado (24/09/2026):** as onze fases de implementação estão na `dev`
+> (a 9 fechou em 20/09, com o pós-merge em 21/09). **Aberta: a Fase 12, o
+> ensaio de aceitação (§22)** — só de teste, sobre a matriz
+> `docs/observability-acceptance.md`. O estado de cada fase vive no §19.
 > **Criado em:** 01/09/2026, depois das Fases 0–12 da V2.
 > **Relação com o plano da V2:** este é um plano **à parte**. O
 > `Newra-News-V2-Frontend-Redesign-Plan.md` cuida do produto que o leitor vê;
@@ -111,6 +114,7 @@ independentes**, que não se bloqueiam:
 | 9 | Os dois portões da IA | §13 | qualidade | não | 1, **4** |
 | 10 | Segurança do CI/CD | §14 | esteira | não | — |
 | 11 | Saúde por fonte | §15 | qualidade | **sim** | 5 |
+| 12 | Ensaio de aceitação — só teste, sobre tudo o que as onze entregaram | §22 | fechamento | não | 1–11 |
 
 **Ordem recomendada de merge: 1, 2, 7a, 10** — as quatro de maior razão
 valor/risco, nenhuma toca schema, e a **10 pode ir a qualquer momento** porque
@@ -4079,10 +4083,18 @@ aplica as duas migrations juntas na promoção.**
   **contra produção ainda não**, a API segue suspensa), o painel "Portões"
   na `/admin/security` derivado sem rota nova, e o seed com as duas
   histórias. Item **83** do `docs/progress.md`; as decisões no fim da §13.
-  **É a última fase do plano.** O que resta é a promoção `dev → main` — e,
-  antes dela, decidir se a 9 sobe sozinha (como a política de 07/09 pedia)
-  ou com o que a `dev` acumulou desde o #215 — e o ensaio contra os retidos
-  quando a API voltar.
+  **Foi a última fase de implementação.** O pós-merge (item **84**, #233)
+  achou que `copied-url` só avisava e publicava o link injetado — hoje toda
+  URL na saída bloqueia.
+
+**Bloco 4 — o fechamento.**
+
+- **§22 — Fase 12 (o ensaio de aceitação). ← aberta em 24/09/2026.** Só teste:
+  cada coisa que as onze fases entregaram provocada ao vivo, com evidência
+  observável, pela matriz `docs/observability-acceptance.md` — nove marcos
+  (M0–M8), dois PRs (A: local e CI, pode mergear com produção bloqueada; B:
+  produção, depois da promoção). O M7 espera a API voltar (~01/10) e a decisão
+  de promover. Branch `observability/fase-12-acceptance`.
 
 ### Por que a Fase 9 vai por último
 
@@ -4151,3 +4163,121 @@ Esta é a base. Os pontos abaixo estão **identificados e fora do escopo atual**
 - [GitHub Docs — Secure use reference (fixar action em SHA, `permissions`)](https://docs.github.com/en/actions/reference/security/secure-use)
 - [Wiz — Hardening GitHub Actions: lições de ataques recentes](https://www.wiz.io/blog/github-actions-security-guide)
 - Referência visual: [Customer Insight Dashboard Design, no Behance](https://www.behance.net/gallery/254606029/Customer-Insight-Dashboard-Design)
+
+---
+
+## §22 Fase 12 — O ensaio de aceitação: cada coisa que o plano entregou, provada funcionando
+
+> **Aberta em 24/09/2026, depois do #233.** Uma fase **só de teste**: nada novo
+> entra no produto. A matriz, linha a linha, mora em
+> **`docs/observability-acceptance.md`** — esta seção diz por que a fase existe,
+> as regras da sessão, a ordem dos marcos e o que está bloqueado. Branch
+> `observability/fase-12-acceptance`, cortada de `a0ae0fc`.
+
+**Fecha:** onze fases entregaram ~95 arquivos novos e ~1.100 testes, e **nenhuma
+coisa que elas entregaram foi provada funcionando em conjunto, com dado real,
+de ponta a ponta.** Cada fase mediu a si mesma — a suíte (que mocka as bordas
+de propósito), a captura de admin, um ensaio local — e a promoção #215 mediu o
+lote pelo ritual público, que **não alcança o admin**: a `/admin` não está no
+Lighthouse, a baseline a exclui por exigir sessão, e os fluxos de admin do
+smoke ficam pulados sem os segredos E2E. As três abas nunca foram lidas com
+dado de produção; nenhum run real passou pelos dois portões; nenhuma falha foi
+provocada de propósito para ver se chega até a tabela e até a tela.
+
+**O que a fase prova é a costura, não a peça.** As peças têm teste de unidade;
+o que falta é a prova de que o `401` que o `authPlugin` recusa vira linha de log
+com o `code`, vira `ErrorEvent` em 30 s, aparece na tabela de falhas com a
+categoria certa, e nada disso vaza segredo — e assim para cada coisa.
+
+### Os três ambientes, e por que três
+
+| | Ambiente | Alcança | Não alcança |
+|---|---|---|---|
+| **L** | local — Postgres do Docker, API e web em dev, chaves reais de provider | todo o produto, e é **onde falha se injeta** (parar o banco, chave inválida, SQL no banco) | a borda da Vercel, o Render, o Neon, a sessão real do dono |
+| **C** | CI e GitHub | a esteira da Fase 10 | o produto |
+| **P** | produção | a primeira leitura real, o ensaio contra os retidos | falha injetada — produção é só leitura, fora o que o dono decide |
+
+**P está bloqueado em 24/09:** a API do Render segue suspensa (503
+`x-render-routing: suspend`), e pelo precedente de 29/08 as horas voltam no dia
+1º. **L e C não dependem de P** — a fase começa por eles, e M7 espera.
+
+### As regras da sessão (o que uma sessão fria erra aqui)
+
+1. **Evidência é observável.** Linha de log sem segredo, resultado de SQL,
+   resposta HTTP com status e corpo, nome da captura. "Passou" não é evidência.
+2. **Injeção de falha nunca é commitada.** Variável de ambiente local, SQL no
+   banco local, `page.route`, parar o container, `throw` guardado por variável
+   que não entra no diff. Arquivo mutado volta do conteúdo em memória, **nunca**
+   por `git checkout` (lição do 5a).
+3. **O banco local é descartável, e o "antes" é anotado.** A contagem de cada
+   tabela no A0.04 é o que permite dizer o que o ensaio criou. As marcações por
+   SQL que destravam re-disparo (run marcado `FAILED`) são anotadas na linha.
+4. **Orçamento de provider: três runs reais no máximo**, e só o primeiro gasta
+   NewsData. Os outros testam degradação com chave inválida (sem custo) ou o
+   portão de entrada (que bloqueia **antes** da IA). O ensaio adversarial do
+   A4.15 gasta no máximo duas chamadas de IA.
+5. **Produção é só leitura**, fora a promoção e o disparo — decisões do dono. **O
+   agente nunca digita credencial**: a primeira leitura das abas é com a sessão
+   que o dono abre no navegador; o `neonctl` e o `render` o dono reautentica.
+6. **Todo achado sai como correção mergeada + guarda, ou dívida com gatilho
+   numérico no §16** — a anatomia da §28 da V2. Achado que vira linha de lista é
+   o que a fase existe para não produzir.
+7. **As lições de ferramenta que custaram rodadas neste plano:** a ferramenta
+   Bash corta comando longo (~150 linhas) — script vai para arquivo no
+   scratchpad; o heredoc come barra invertida, inclusive com `<<'EOF'` — onde a
+   barra importa, arquivo escrito pela ferramenta de escrita; dev server de pé
+   segura a DLL do Prisma e o `pnpm test` falha no `prisma generate` — parar os
+   previews antes; o `preview_stop` mata sem sinal (o `onClose` não roda); o
+   Docker cai no boot pelo `.sock` órfão (a receita está na memória);
+   `CHROMIUM_PATH` quando o Playwright pedir outra revisão.
+
+### Os marcos
+
+| Marco | O que prova | Fases | Ambiente | Depende de |
+|---|---|---|---|---|
+| **M0** | o terreno: commit fixo, suíte na contagem, banco no estado conhecido, chaves presentes | — | L · C | — |
+| **M1** | **as guardas reprovam quando devem** — um script versionado (`scripts/guard-mutations.mjs`) quebra cada uma e vê o vermelho | todas | L | M0 |
+| **M2** | o log e a taxonomia ao vivo: cada `code` provocado pela porta real, uma linha por requisição, segredo nenhum no stdout, o BFF escrevendo a falha | 1, 3, 7a | L | M0 |
+| **M3** | o registro durável: as falhas do M2 viram `ErrorEvent`, coalescem, sobrevivem (ou não, como documentado) ao banco fora; o relato do cliente; a saturação | 4, 7c, 5b | L | M2 |
+| **M4** | o pipeline de ponta a ponta com provedores reais: as 14 etapas, a saúde por fonte, a retenção, as invariantes, os dois portões — inclusive bloqueando | 2, 8, 11, 6, 9 | L | M0 |
+| **M5** | as três abas com o dado que M2–M4 produziram: captura, interação, boundaries, acessibilidade, sem polling | 2, 5, 8, 11, 6, 7b, 9 | L | M2–M4 |
+| **M6** | a esteira: workflows, advisories, CodeQL, Dependabot, Gitleaks | 10 | C | M0 |
+| **M7** | produção: promoção, ritual, `gates:rehearse` contra os retidos, o primeiro run real pelos portões, a primeira leitura das três abas | todas | P | **a API voltar** e a decisão de promover |
+| **M8** | fechamento: matriz completa, item 85, esta seção ✅, `CLAUDE.md`, memória | — | — | M0–M7 |
+
+**Dois PRs, e não um.** O **PR A** leva M0–M6 (o script do M1, as correções dos
+achados de L e C, a matriz preenchida até ali) e pode mergear com M7 bloqueado —
+a matriz diz `[~]` e o gatilho. O **PR B** leva M7–M8 depois da promoção. Uma
+fase só de teste que espera a API para mergear qualquer coisa deixaria as
+correções do L paradas por semanas.
+
+### O que já se sabe antes de começar (para ninguém redescobrir)
+
+- **Nenhuma migration nova desde o #215** (`git diff origin/main origin/dev --
+  packages/database/prisma/migrations` vazio em 24/09) — a promoção deste lote
+  não abre janela de schema.
+- **O repositório só tem o segredo `DATABASE_URL`**: os fluxos autenticados do
+  smoke continuam pulados na promoção (31/6), e ligá-los é decisão do dono (põe
+  o `NEXTAUTH_SECRET` de produção no runner).
+- **Seis PRs do Dependabot abertos contra a `dev` em 24/09** (#234–#239); o
+  #237 reprova (`@vitest/coverage-v8` 5 exige vitest 5, major que o `ignore`
+  não previa). A0.02 os tria antes — o ensaio mede um commit fixo.
+- **O primeiro run de produção depois da volta vai dizer `baseline:
+  'insufficient'` no portão de entrada**, e é o certo: a suspensão deixou a
+  série de `DailyMetric` sem os dias desde 19/09, e sem três dias com briefing
+  na janela o portão de volume não opina (armadilha 24). E
+  `briefing.one_per_day` sai violada com as datas da suspensão no `detail`.
+  Nenhum dos dois é achado — os dois estão no A7.05 como **esperado**.
+- **O `onClose` só roda com sinal**, e o `preview_stop` do painel não manda
+  sinal: o A3.05 se prova com `Ctrl+C` no processo (o `server.ts` trata
+  `SIGINT` e `SIGTERM`).
+- **A newsletter local não entrega a assinante real** (o domínio nunca foi
+  verificado no Resend — dívida da Fase 13 da V2). A etapa 7.5 vale pelo evento
+  e pela idempotência, não pela caixa de entrada.
+
+### O prompt de abertura
+
+> Vamos executar a **Fase 12** do `docs/Newra-News-Observability-Plan.md` — o
+> ensaio de aceitação. Leia o §19 (o ritual), a §22 (esta fase) e o §17
+> (armadilhas), e trabalhe pela matriz `docs/observability-acceptance.md`,
+> começando pelo M0.

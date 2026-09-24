@@ -333,8 +333,11 @@ a suíte de unidade, que roda sem rede.
   Fase 7 inteira**; e **a promoção `dev → main` aconteceu em 19/09 (#215)**,
   com o ritual medido (item 81); e a **9 (os dois portões) fechou em 20/09,
   num PR só — a última do plano**, com o ensaio contra os retidos pendente
-  da API voltar (item 83).** **Não há fase aberta.** O que resta é a
-  promoção, o ensaio contra produção e a primeira leitura das três abas.
+  da API voltar (item 83).** **Aberta desde 24/09: a Fase 12 — o ensaio de
+  aceitação (§22)**, só de teste, sobre a matriz
+  `docs/observability-acceptance.md`: cada coisa que as onze fases
+  entregaram provocada ao vivo, com evidência observável; o marco de
+  produção (M7) espera a API voltar e a promoção.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -352,6 +355,31 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- **Plano de observabilidade (2026-09-24): aberta a Fase 12 — o ensaio de
+  aceitação.** §22 do plano; a matriz linha a linha em
+  **`docs/observability-acceptance.md`**; branch
+  `observability/fase-12-acceptance` (cortada de `a0ae0fc`, a `dev` com o
+  #233). **Só teste — nada novo entra no produto**: as onze fases têm ~1.100
+  testes de unidade e nenhuma coisa que entregaram foi provada **em conjunto,
+  com dado real, de ponta a ponta** — o ritual público da promoção não
+  alcança o admin, e as três abas nunca foram lidas com dado de produção. Nove
+  marcos: **M0** terreno (commit fixo — os seis PRs do Dependabot de 24/09
+  triados antes; suíte em 1.384/904; o "antes" do banco anotado) · **M1** as
+  ~30 guardas vistas reprovando por um script versionado
+  (`scripts/guard-mutations.mjs`, a primeira entrega) · **M2** cada `code` da
+  taxonomia provocado **pela porta real**, e segredo nenhum no stdout · **M3**
+  as falhas virando `ErrorEvent`, o relato do cliente, a saturação · **M4** o
+  pipeline de ponta a ponta com provedores reais (no máximo três runs: limpo,
+  degradado, e o portão de entrada bloqueando **antes** da IA) e um ensaio
+  adversarial contra o Gemini de verdade · **M5** as três abas com esse dado ·
+  **M6** a esteira · **M7** produção (**bloqueado**: a API segue suspensa em
+  24/09 — as horas voltam ~01/10 — e a promoção é sua) · **M8** fechamento.
+  **Dois PRs**: A (M0–M6) pode mergear com o M7 em `[~]`; B (M7–M8) depois da
+  promoção. **Esperado, não achado:** o primeiro run de produção depois da
+  volta dirá `baseline: 'insufficient'` no portão de entrada (a suspensão
+  apagou a série) e `briefing.one_per_day` violada com as datas da suspensão.
+  **Prompt de abertura** no fim da §22.
 
 - **Fora da linha das fases (2026-09-20): a Fase 9 fechou na `dev` — os
   dois portões, e com ela o plano de observabilidade inteiro.** §13, item
@@ -445,7 +473,8 @@ a suíte de unidade, que roda sem rede.
   até ela voltar.**
 
 - **Onde estamos no plano de observabilidade (2026-09-20): as onze fases
-  estão na `dev`.** A Fase 9 fechou em 20/09 (acima; item 83). O que a
+  estão na `dev`** — e, desde 24/09, a **Fase 12 (o ensaio de aceitação)**
+  está aberta (topo deste bloco). A Fase 9 fechou em 20/09 (acima; item 83). O que a
   `dev` carrega desde a promoção #215: os pós-merges (#221, #227, #230), os
   bumps do Dependabot, o #231 (ISR determinística) e a 9. **O que falta é
   seu:** a promoção `dev → main` — a política de 07/09 mandava a 9 subir
