@@ -19,8 +19,8 @@
     "db:seed": "turbo db:seed"
   },
   "devDependencies": {
-    "turbo": "^2.10.13",
-    "prettier": "^3.9.6"
+    "turbo": "^2.11.2",
+    "prettier": "^3.9.8"
   },
   "pnpm": {
     "overrides": {

@@ -35,15 +35,16 @@
  *
  *     pnpm --filter @newranews/api gates:rehearse
  *
- * Lê o `DATABASE_URL` do ambiente (o `.env` da API, via `dotenv/config`).
+ * Lê o `DATABASE_URL` do ambiente (o `.env` da API, via `load-env-file`).
  * Contra produção, exportar o `DATABASE_URL` do Neon numa sessão só — o
  * script só lê. `LIMIT` restringe o número de briefings (o padrão é todos).
  */
 // O `DATABASE_URL` vem do `.env` da API. O `config/env.ts` (que carrega o
 // dotenv) não está no grafo deste script de propósito: ele valida o ambiente
 // inteiro e termina em `process.exit(1)` se faltar uma chave de provider que o
-// ensaio não usa.
-import 'dotenv/config';
+// ensaio não usa. O carregador é importado primeiro porque a ordem importa: o
+// `@newranews/database` logo abaixo precisa do `DATABASE_URL` já no ambiente.
+import '../src/config/load-env-file';
 import { prisma } from '@newranews/database';
 import {
   MAX_ARTICLE_CONTENT_LENGTH,
