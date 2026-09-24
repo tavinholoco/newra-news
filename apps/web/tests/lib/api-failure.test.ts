@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   ApiError,
@@ -155,10 +155,12 @@ describe('a guarda: nenhum `catch` volta a afirmar o pessimista', () => {
   }
 
   function collect(dir: string, out: Array<{ file: string; source: string }> = []) {
-    for (const entry of readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      if (statSync(full).isDirectory()) collect(full, out);
-      else if (/\.tsx?$/.test(entry)) {
+    // `withFileTypes`: o tipo vem da listagem, e o caminho só é tocado no
+    // `readFileSync` — sem `statSync` no meio (o `js/file-system-race` do CodeQL).
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) collect(full, out);
+      else if (/\.tsx?$/.test(entry.name)) {
         out.push({
           file: path.relative(WEB_ROOT, full).replace(/\\/g, '/'),
           source: stripComments(readFileSync(full, 'utf8')),

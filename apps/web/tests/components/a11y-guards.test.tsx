@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { renderWithIntl } from '../utils';
 import { SubscribeForm } from '@/components/newsletter/subscribe-form';
@@ -23,10 +23,12 @@ function collectSources(dirs: string[]): Array<{ file: string; source: string }>
   const files: Array<{ file: string; source: string }> = [];
 
   function walk(dir: string) {
-    for (const entry of readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (/\.tsx$/.test(entry)) {
+    // `withFileTypes`: o tipo vem da listagem, e o caminho só é tocado no
+    // `readFileSync` — sem `statSync` no meio (o `js/file-system-race` do CodeQL).
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.tsx$/.test(entry.name)) {
         files.push({
           file: path.relative(WEB_ROOT, full).replace(/\\/g, '/'),
           source: readFileSync(full, 'utf8')

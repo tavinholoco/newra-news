@@ -115,7 +115,7 @@ describe('o teto de transformações do otimizador', () => {
     // apagar a justificativa e deixar o `'**'`, isto reprova.
     expect(CONFIG_SEM_COMENTARIO).toContain("hostname: '**'");
     expect(CONFIG).toMatch(/Gatilho para revisitar/);
-    expect(CONFIG).toMatch(/NewsData\.io/);
+    expect(CONFIG).toContain('NewsData.io');
   });
 });
 

@@ -294,8 +294,12 @@
 | A1.38 | web `tests/routes/client-error-api.test.ts` (7c) | o BFF anônimo do relato importando `getServerSession` |
 | A1.39 | web `tests/lib/e2e-flows.test.ts` (Fase 2) | um `e2e/guard-mutation.spec.ts` novo, sem fluxo declarado |
 | A1.40 | `tests/build/guard-mutations.test.ts` (Fase 12) | uma suíte nova que lê fonte, sem mutação nem motivo |
+| A1.41 | `tests/build/workflow-hardening.test.ts` (Fase 12, A6.02) | o passo `node scripts/audit-orphans.mjs` sumindo do `ci.yml` |
+| A1.42 | `tests/plugins/error-handler.test.ts` (Fase 12, A3.17) | o 5xx do `AppError` voltando a pôr a própria frase no fio |
 
-*Achadas pela cobertura derivada (A1.36–A1.39) e nascida desta fase (A1.40).*
+*Achadas pela cobertura derivada (A1.36–A1.39) e nascidas desta fase
+(A1.40–A1.42). As duas últimas foram vistas reprovando depois de o
+commit das correções existir — o script só muta arquivo limpo no git.*
 
 **O resultado da rodada final (24/09, `pnpm guard:mutations`, 47/47):** o
 teste que caiu em cada uma — `(+N)` são outros testes da mesma suíte que
@@ -894,7 +898,7 @@ caíram junto.
     passo (vista reprovando antes de ele existir). O script foi visto
     reprovando sobre as duas órfãs (`saída 1`) e passando depois (`18
     exceções silenciadas, todas ainda casam`).
-- [ ] **A6.03 — CodeQL: os alertas abertos, contados e decididos.** Em 24/09 a
+- [!] **A6.03 — CodeQL: os alertas abertos, contados e decididos.** Em 24/09 a
   `main` tinha **10** abertos e a `dev` **11** — e não os "sete" que esta linha
   citava. Cada um sai corrigido com guarda, ou dívida com gatilho:
   - **7 × `js/file-system-race`** (testes; os do item 82);
@@ -913,11 +917,57 @@ caíram junto.
     não código novo. Quadrático, não exponencial; a entrada anônima que o
     alcança (a `message` do `/api/errors/client`) tem teto de 300
     caracteres. · C
-- [ ] **A6.04 — Dependabot.** A configuração da `main` válida (a guarda) e os PRs
+  - Contados pela API do code scanning em 24/09 20:55: **10** abertos na
+    `main`, **11** na `dev` — exatamente os da lista acima. Decididos, um a
+    um, no PR A:
+  - **`js/polynomial-redos` (`redact.ts:33`) — o defeito de produção.**
+    Medido: `redactEmails` sobre uma corrida sem `@` de 16 mil caracteres
+    custava **182 ms**, de 64 mil **2,9 s**, de 400 mil **60 s** — e o
+    `scrubMessage` redige **antes** de truncar, então o texto chega
+    inteiro. A regex tentava um endereço a partir de cada caractere da
+    corrida. Corrigido com um *lookbehind* negativo — `(?<![A-Za-z0-9._%+-])`
+    —, que só começa onde a corrida começa e **não muda nenhum match** (o
+    que casa do meio da corrida é o mesmo `@` e o mesmo domínio do
+    começo): 64 mil em **0,3 ms**. Duas guardas novas em
+    `tests/security/pii-in-logs.test.ts` — a de tempo (400 mil caracteres
+    em < 1 s; a regex antiga levou 60 s nela) e a de equivalência (três
+    casos, inclusive o do começo de corrida que falha e um seguinte que
+    casa), vista a primeira reprovando antes da correção.
+  - **Os 7 `js/file-system-race` (testes):** o mesmo desenho nos sete
+    — `statSync(full)` entre a listagem e o `readFileSync(full)`. Trocados
+    por `readdirSync(dir, { withFileTypes: true })`, e o `statSync` saiu
+    dos imports.
+  - **`js/incomplete-sanitization` (`i18n-messages.test.ts:86`):** a chave
+    ia para uma regex com só o ponto escapado — escape de todo
+    metacaractere.
+  - **`js/regex/missing-regexp-anchor` (`image-optimizer.test.ts:118`):**
+    `toMatch(/NewsData\.io/)` virou `toContain('NewsData.io')`, que diz o
+    mesmo.
+  - **`js/incomplete-multi-character-sanitization` (`feed-text.ts:143`)
+    — dívida com gatilho no §16**, o único que fica aberto: o `htmlToText`
+    decodifica, tira tag e decodifica de novo, então `&amp;lt;script&amp;gt;`
+    volta como `<script>` **em texto**. Nenhum consumidor o trata como HTML
+    (o React e a newsletter escapam), e o gatilho — o primeiro que
+    renderizar como HTML — já tem guarda no web: `browser-surface.test.ts`
+    reprova o terceiro `dangerouslySetInnerHTML`.
+  - **O que impede a lista de voltar a crescer calada:** zerada, cada
+    alerta novo *high* reprova o check do CodeQL no PR. Os fechamentos se
+    confirmam na primeira análise da `dev` depois do merge do PR A.
+- [x] **A6.04 — Dependabot.** A configuração da `main` válida (a guarda) e os PRs
   chegando com base `dev` — os seis de **21/09** são a evidência, e a triagem
   está no A0.02. · C
-- [ ] **A6.05 — Gitleaks.** O scan de PR varre > 0 commits; o do push de merge
+  - `git show origin/main:.github/dependabot.yml` parseado pelo `yaml`:
+    versão 2, dois `updates`, os dois com `target-branch: dev`, 22
+    `ignore` no npm; `git diff origin/main origin/dev` nesse arquivo:
+    vazio. Todo PR do robô desde 19/09 com base `dev` (#224–#229 de 19/09,
+    #234–#239 de 21/09, #240 de 24/09); o #237 segue aberto, como decidido.
+- [~] **A6.05 — Gitleaks.** O scan de PR varre > 0 commits; o do push de merge
   varre 0 (a dívida do §16) — medido de novo no merge desta fase. · C
+  - Medido nos últimos da esteira: o scan do PR #241 (run 36043018299)
+    **`1 commits scanned`**; o do push do merge dele na `dev` (run
+    36043747672) **`0 commits scanned`**, com ✅ — a dívida do §16, mais
+    uma vez. **Gatilho que fecha a linha:** o merge do PR A desta fase
+    (a medição "de novo no merge desta fase").
 
 ## M7a — Produção sem o Render (dá para fazer agora)
 

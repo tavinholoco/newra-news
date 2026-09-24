@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   SITE_NAME,
@@ -54,11 +54,13 @@ function collectPages(): Array<{ file: string; source: string }> {
   const pages: Array<{ file: string; source: string }> = [];
 
   function walk(dir: string) {
-    for (const entry of readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      if (statSync(full).isDirectory()) {
+    // `withFileTypes`: o tipo vem da listagem, e o caminho só é tocado no
+    // `readFileSync` — sem `statSync` no meio (o `js/file-system-race` do CodeQL).
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
         walk(full);
-      } else if (entry === 'page.tsx') {
+      } else if (entry.name === 'page.tsx') {
         pages.push({
           file: path.relative(WEB_ROOT, full).replace(/\\/g, '/'),
           source: readFileSync(full, 'utf8'),
