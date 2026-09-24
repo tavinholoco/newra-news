@@ -22,7 +22,7 @@
     "@fastify/swagger-ui": "^4.1.0",
     "@newranews/database": "workspace:*",
     "@newranews/types": "workspace:*",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.1",
     "fastify": "^4.28.0",
     "fastify-plugin": "^6.0.0",
     "fastify-type-provider-zod": "^2.1.0",
