@@ -4091,10 +4091,13 @@ aplica as duas migrations juntas na promoção.**
 
 - **§22 — Fase 12 (o ensaio de aceitação). ← aberta em 24/09/2026.** Só teste:
   cada coisa que as onze fases entregaram provocada ao vivo, com evidência
-  observável, pela matriz `docs/observability-acceptance.md` — nove marcos
-  (M0–M8), dois PRs (A: local e CI, pode mergear com produção bloqueada; B:
-  produção, depois da promoção). O M7 espera a API voltar (~01/10) e a decisão
-  de promover. Branch `observability/fase-12-acceptance`.
+  observável, pela matriz `docs/observability-acceptance.md` — dez marcos
+  (M0–M8, com o M7 em duas metades), dois PRs (A: local, CI e o branch do
+  Neon, pode mergear com o Render suspenso; B: produção publicada, depois da
+  promoção). **Revisada antes do M0** (25 inconsistências corrigidas). Só o
+  M7b espera a API voltar (~01/10) e a decisão de promover; o M7a — as três
+  abas com dado real, sobre um branch do Neon — não. Branch
+  `observability/fase-12-acceptance`.
 
 ### Por que a Fase 9 vai por último
 
@@ -4173,6 +4176,12 @@ Esta é a base. Os pontos abaixo estão **identificados e fora do escopo atual**
 > **`docs/observability-acceptance.md`** — esta seção diz por que a fase existe,
 > as regras da sessão, a ordem dos marcos e o que está bloqueado. Branch
 > `observability/fase-12-acceptance`, cortada de `a0ae0fc`.
+>
+> **Revisada no mesmo dia, antes do M0** — ver "A revisão da proposta", no fim
+> desta seção: a matriz foi conferida linha a linha contra o código, 25
+> inconsistências corrigidas, e o M7 dividido entre o que espera o Render
+> (M7b) e o que dá para fazer agora sobre um branch do Neon (M7a). A `dev`
+> entrou na branch pelo merge `00f046b`.
 
 **Fecha:** onze fases entregaram ~95 arquivos novos e ~1.100 testes, e **nenhuma
 coisa que elas entregaram foi provada funcionando em conjunto, com dado real,
@@ -4195,11 +4204,22 @@ categoria certa, e nada disso vaza segredo — e assim para cada coisa.
 |---|---|---|---|
 | **L** | local — Postgres do Docker, API e web em dev, chaves reais de provider | todo o produto, e é **onde falha se injeta** (parar o banco, chave inválida, SQL no banco) | a borda da Vercel, o Render, o Neon, a sessão real do dono |
 | **C** | CI e GitHub | a esteira da Fase 10 | o produto |
-| **P** | produção | a primeira leitura real, o ensaio contra os retidos | falha injetada — produção é só leitura, fora o que o dono decide |
+| **N** | um **branch do Neon** filho de `production`, lido pela API e pelo web **locais** | o dado real (até 19/09) nas três abas e no ensaio dos portões — sem tocar produção, porque toda escrita da API local vai para o branch | a borda da Vercel, o Render, a sessão real no site publicado |
+| **P** | produção | a promoção, o ritual, o primeiro run real depois da volta | falha injetada — produção é só leitura, fora o que o dono decide |
 
-**P está bloqueado em 24/09:** a API do Render segue suspensa (503
-`x-render-routing: suspend`), e pelo precedente de 29/08 as horas voltam no dia
-1º. **L e C não dependem de P** — a fase começa por eles, e M7 espera.
+**A API do L é a do repositório, na máquina do dono — não depende do Render.**
+M0 a M6 inteiros rodam com o Render suspenso; o que precisa de API são os
+provedores de verdade (NewsData, Gemini, Groq), que estão no ar.
+
+**Só o M7b está bloqueado em 24/09:** a API do Render segue suspensa (503
+`x-render-routing: suspend`), e as 750 h do workspace zeram **no começo de cada
+mês** (documentação do Render) — a data provável é 01/10. **O M7a não depende
+do Render**: o branch do Neon precisa só de o dono reautenticar o `neonctl`, a
+leitura do Billing é do painel, e a sonda de imagem é da Vercel. Destravar o
+M7b antes de 01/10 tem um caminho, e é decisão do dono: mover o serviço para
+uma instância paga (Starter, US$ 7/mês proporcional ao segundo — uma semana sai
+~US$ 1,60). A documentação garante a volta por esse caminho só para outro tipo
+de suspensão; o painel confirma antes de pagar.
 
 ### As regras da sessão (o que uma sessão fria erra aqui)
 
@@ -4215,7 +4235,8 @@ categoria certa, e nada disso vaza segredo — e assim para cada coisa.
 4. **Orçamento de provider: três runs reais no máximo**, e só o primeiro gasta
    NewsData. Os outros testam degradação com chave inválida (sem custo) ou o
    portão de entrada (que bloqueia **antes** da IA). O ensaio adversarial do
-   A4.15 gasta no máximo duas chamadas de IA.
+   A4.15 gasta no máximo três chamadas de IA — uma no destino de segurança,
+   duas no de qualidade (o Gemini recusado e o Groq uma vez).
 5. **Produção é só leitura**, fora a promoção e o disparo — decisões do dono. **O
    agente nunca digita credencial**: a primeira leitura das abas é com a sessão
    que o dono abre no navegador; o `neonctl` e o `render` o dono reautentica.
@@ -4230,6 +4251,20 @@ categoria certa, e nada disso vaza segredo — e assim para cada coisa.
    previews antes; o `preview_stop` mata sem sinal (o `onClose` não roda); o
    Docker cai no boot pelo `.sock` órfão (a receita está na memória);
    `CHROMIUM_PATH` quando o Playwright pedir outra revisão.
+8. **O cron interno da API local fica neutralizado a fase inteira.** O
+   `server.ts` registra o job do pipeline **sempre**, às 08:00 de São Paulo, sem
+   interruptor — com a API local de pé nesse horário, um run real dispara fora
+   do orçamento (no banco local ou, no M7a, no branch). A API sobe com
+   `CRON_SCHEDULE="0 3 1 1 *"` na sessão (A0.07).
+9. **O Ctrl+C é do dono.** No Windows, `process.kill(pid, 'SIGINT')` termina o
+   processo **incondicionalmente** (documentação do Node), o `kill` do Git Bash
+   também, e o `preview_stop` não manda sinal — nenhuma ferramenta do agente
+   produz o SIGINT que roda o `onClose`. O A3.05 se prova com o dono apertando
+   Ctrl+C num terminal com a API em primeiro plano; o agente lê o resultado.
+10. **Nenhum push na `main` com a API suspensa.** Todo push nela dispara o Smoke
+    E2E (sem filtro de caminho — reprova com a API fora), o build de produção
+    da Vercel e um deploy no Render. É por isso que o `ignore` do #237, que o
+    plano mandava à `main` no A0.02, foi para o A7.11.
 
 ### Os marcos
 
@@ -4242,14 +4277,16 @@ categoria certa, e nada disso vaza segredo — e assim para cada coisa.
 | **M4** | o pipeline de ponta a ponta com provedores reais: as 14 etapas, a saúde por fonte, a retenção, as invariantes, os dois portões — inclusive bloqueando | 2, 8, 11, 6, 9 | L | M0 |
 | **M5** | as três abas com o dado que M2–M4 produziram: captura, interação, boundaries, acessibilidade, sem polling | 2, 5, 8, 11, 6, 7b, 9 | L | M2–M4 |
 | **M6** | a esteira: workflows, advisories, CodeQL, Dependabot, Gitleaks | 10 | C | M0 |
-| **M7** | produção: promoção, ritual, `gates:rehearse` contra os retidos, o primeiro run real pelos portões, a primeira leitura das três abas | todas | P | **a API voltar** e a decisão de promover |
-| **M8** | fechamento: matriz completa, item 85, esta seção ✅, `CLAUDE.md`, memória | — | — | M0–M7 |
+| **M7a** | produção **sem o Render**: as horas do Billing (antes de o mês virar), as pré-checagens da promoção, `gates:rehearse` contra os retidos e **as três abas com dado real**, sobre um branch do Neon; a cota de imagem | todas | N · P (Vercel) | M0, M5 (a captura) e o dono reautenticar o `neonctl` |
+| **M7b** | produção **com o Render**: o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real pelos portões, a leitura no site publicado, o #231 no ar | todas | P | **a API voltar** (01/10, ou instância paga) e a decisão de promover |
+| **M8** | fechamento: matriz completa, item 85, esta seção ✅, `CLAUDE.md`, memória, o branch do Neon apagado | — | — | M0–M7b |
 
-**Dois PRs, e não um.** O **PR A** leva M0–M6 (o script do M1, as correções dos
-achados de L e C, a matriz preenchida até ali) e pode mergear com M7 bloqueado —
-a matriz diz `[~]` e o gatilho. O **PR B** leva M7–M8 depois da promoção. Uma
-fase só de teste que espera a API para mergear qualquer coisa deixaria as
-correções do L paradas por semanas.
+**Dois PRs, e não um.** O **PR A** leva M0–M6 e o M7a (o script do M1, as
+correções dos achados de L, C e N, a matriz preenchida até ali) e pode mergear
+com o M7b bloqueado — a matriz diz `[~]` e o gatilho. O **PR B** leva M7b–M8
+depois da promoção. Uma fase só de teste que espera a API para mergear qualquer
+coisa deixaria as correções do L paradas por semanas. **O `ignore` do #237 é um
+terceiro PR, na `main`, só com o arquivo** — e só com a API de pé (regra 10).
 
 ### O que já se sabe antes de começar (para ninguém redescobrir)
 
@@ -4259,25 +4296,126 @@ correções do L paradas por semanas.
 - **O repositório só tem o segredo `DATABASE_URL`**: os fluxos autenticados do
   smoke continuam pulados na promoção (31/6), e ligá-los é decisão do dono (põe
   o `NEXTAUTH_SECRET` de produção no runner).
-- **Seis PRs do Dependabot abertos contra a `dev` em 24/09** (#234–#239); o
-  #237 reprova (`@vitest/coverage-v8` 5 exige vitest 5, major que o `ignore`
-  não previa). A0.02 os tria antes — o ensaio mede um commit fixo.
+- **Os seis PRs do Dependabot (#234–#239) foram abertos em 21/09**, na rodada
+  de segunda — não em 24/09, como esta seção dizia. **Triados em 24/09:**
+  #234, #235, #239 e #240 mergeados na `dev` (o #240 substituiu o #236, que o
+  robô fechou ao pedido de rebase); o #238 substituído pelo **#241** e fechado
+  pelo robô. O **#241** é achado de verdade: o dotenv 18 fazia o boot escrever
+  `◇ injected env (N) from .env` no stderr — inclusive no Render, sem `.env` —,
+  uma linha fora do JSON do pino, e o CI do #238 estava verde. Hoje o `.env`
+  entra por `config/load-env-file.ts` com `quiet: true`, com guarda. O #237
+  (`@vitest/coverage-v8` 5 exige vitest 5) fica aberto até o A7.11.
+- **A suíte de referência é 1.389 na API e 904 no web** (era 1.384 antes do
+  #241).
+- **O seed é ancorado no dia em que roda, e três coisas dele pesam no M4:** um
+  run `SUCCESS` hoje às 11:05 UTC (o botão do A4.01 devolveria
+  `already-succeeded-today`), o dia bloqueado sem briefing (`daysAgo` 2 —
+  `briefing.one_per_day` sai violada em **todo** run local, e é esperado), e a
+  Superinteressante em `FAILED` nos dias 0–2 da `SourceHealth` (que o run real
+  reescreve). O `newsByCategory` semeado é sintético (WORLD 31,5 %), e a deriva
+  contra uma colheita real pode passar de 0,5.
+- **Os três runs do M4 caem no mesmo dia UTC:** um briefing por dia
+  (`Article.date @unique`, `upsert` na etapa 7) e um desfecho por dia na faixa
+  (o do último run). A matriz foi escrita como se fossem três dias.
+- **As métricas de HTTP zeram a cada reinício da API**, e o M4 reinicia: o que
+  o M3 provocou nelas não chega ao M5.
 - **O primeiro run de produção depois da volta vai dizer `baseline:
   'insufficient'` no portão de entrada**, e é o certo: a suspensão deixou a
   série de `DailyMetric` sem os dias desde 19/09, e sem três dias com briefing
   na janela o portão de volume não opina (armadilha 24). E
   `briefing.one_per_day` sai violada com as datas da suspensão no `detail`.
-  Nenhum dos dois é achado — os dois estão no A7.05 como **esperado**.
-- **O `onClose` só roda com sinal**, e o `preview_stop` do painel não manda
-  sinal: o A3.05 se prova com `Ctrl+C` no processo (o `server.ts` trata
-  `SIGINT` e `SIGTERM`).
+  Nenhum dos dois é achado — os dois estão no A7.14 como **esperado**.
+- **O `onClose` só roda com sinal, e só o dono produz o sinal** (regra 9): o
+  `server.ts` trata `SIGINT` e `SIGTERM`, mas no Windows nenhuma ferramenta do
+  agente entrega um SIGINT que não seja término incondicional.
 - **A newsletter local não entrega a assinante real** (o domínio nunca foi
   verificado no Resend — dívida da Fase 13 da V2). A etapa 7.5 vale pelo evento
   e pela idempotência, não pela caixa de entrada.
 
+### A revisão da proposta (24/09/2026, antes do M0)
+
+**A matriz foi escrita de uma vez, na abertura, e conferida contra o código só
+depois** — cada linha contra o arquivo que ela provoca, com pesquisa onde a
+linha dependia de comportamento externo. Achou **25 inconsistências**, e todas
+já estão corrigidas na matriz. É a família da §28 da V2: um plano de teste
+também é código que ninguém rodou.
+
+**Sete linhas não podiam sair como estavam escritas:**
+
+| Linha | O defeito | Onde foi corrigido |
+|---|---|---|
+| A4.01, A4.02 | o seed cria um run `SUCCESS` hoje — o botão diria `already-succeeded-today`, e o `findFirst` sem `orderBy` escolheria por acaso entre ele e o `RUNNING` preparado | A4.00e |
+| A4.16 | "os briefings dos runs 1 e 2" — um por dia (`date @unique`, `upsert`) | A4.16 |
+| A5.04 | a faixa mostra um desfecho por dia; os três runs são do mesmo dia | A5.04, A5.06 |
+| A5.03 | `already-running` pedia um quarto run | A4.01 (segundo clique durante o run 1) |
+| A5.07 | o 429 do M3 não sobrevive ao reinício do M4 (métrica em memória) | A5.07 |
+| A3.05 | o agente não produz SIGINT no Windows | A3.05, regra 9 |
+| A7.07 | a `/about` não tem `revalidate` — nunca regenera | A7.16 (`/news` ou `/article`) |
+
+**Expectativas que reprovariam sem defeito, ou passariam pelo motivo errado:**
+o 404 tem linha de acesso `warn` (A2.09); a perda do `ErrorEvent` com o banco
+fora depende do tique do flush, não da duração do apagão (A3.04); o seed deixa
+`briefing.one_per_day` violada em todo run local (A4.09, A5.08); a deriva de
+categoria contra a linha de base sintética pode degradar o "run limpo" (A4.00d,
+A4.04); o Σ`kept` contava linhas que o seed e a preparação criaram hoje
+(A4.00f, A4.06); o briefing sem fontes tinha de estar na janela de 7 dias
+(A4.13); os alertas do seed não sobrevivem ao run real (A0.04, A5.07); dois
+`scope` do BFF escondidos atrás de "…", um deles `cron.daily-news` (A2.16); o
+Bearer que a sonda de providers exige (A2.15); `requireAdmin` três vezes no
+arquivo que a mutação exigia único (A1.11); e o JSON do vitest 2 no stdout
+(A1.00).
+
+**O que a fase dizia provar e não alcançava:** **onze guardas do plano fora do
+M1** — entre elas a da fiação do logger (A1.25–A1.35), e o A1.00 passou a
+derivar a cobertura em vez de confiar numa lista; **dois dos 18 `code`
+gravados** sem linha (`AUDIT_WRITE_FAILED` e `INTERNAL`, A3.16 e A3.17); **o
+caminho de qualidade do portão de saída**, que é a regra central da §13.2
+(A4.15); **o visualizador do log** recebendo texto da porta anônima, que o
+OWASP lista como vetor (A3.15, A5.15), e a falha do próprio registro (A3.18);
+**o boot só em JSON**, que o dotenv 18 quebrava (A2.18); **o cron interno**
+disparando um run real fora do orçamento (A0.07, regra 8); e **o CodeQL**, que
+tinha 10 alertas abertos na `main` e 11 na `dev`, não 7 — dois deles em código
+de produção (A6.03).
+
+**Fatos desatualizados:** as datas do Dependabot (21/09), a contagem da suíte
+(1.389), e o A0.02 mandando à `main` um PR que hoje dispararia o Smoke contra
+uma API fora (regra 10).
+
+#### O que espera o Render, e o que não espera
+
+A pergunta "quais testes precisam da API ativa?" tem resposta curta: **só os que
+medem produção publicada**. A API do L é a do repositório.
+
+| Precisa de | Linhas | Quando |
+|---|---|---|
+| nada além da máquina e das chaves de provider | M0–M5 | agora |
+| GitHub | M6 | agora |
+| o dono reautenticar o `neonctl` (branch do Neon) | A7.03–A7.05 | agora |
+| o painel do Render, lido pelo dono | A7.01 | **agora** — o contador zera no dia 1º |
+| só a Vercel | A7.06 | agora |
+| **o Render de pé** | A7.10–A7.16 | 01/10, ou instância paga |
+
+**O branch do Neon foi o que destravou a primeira leitura das três abas com dado
+real** — o item que as fases 5, 6, 8, 9 e 11 deixaram pendente "até a API
+voltar". A API e o web locais apontam para um filho de `production`: o dado é o
+real (até 19/09), e toda escrita (o heartbeat, o buffer de erro, a sessão) cai
+no branch. O custo é o dado pessoal copiado para outro endereço do mesmo
+projeto, e o branch expira e é apagado no M8.
+
+#### Fontes da revisão
+
+- [Node.js — `process`, sinais no Windows](https://nodejs.org/api/process.html)
+- [Stryker — mutation switching (*mutant schemata*)](https://stryker-mutator.io/blog/announcing-stryker-4-mutation-switching/)
+- [Vitest v2 — reporters](https://v2.vitest.dev/guide/reporters)
+- [OWASP Logging Cheat Sheet — Verification](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+- [OWASP — Log Injection](https://community.owasp.org/attacks/Log_Injection)
+- [Render — Free instances](https://render.com/docs/free)
+- [Neon — planos e branches](https://neon.com/docs/introduction/plans)
+
 ### O prompt de abertura
 
 > Vamos executar a **Fase 12** do `docs/Newra-News-Observability-Plan.md` — o
-> ensaio de aceitação. Leia o §19 (o ritual), a §22 (esta fase) e o §17
-> (armadilhas), e trabalhe pela matriz `docs/observability-acceptance.md`,
-> começando pelo M0.
+> ensaio de aceitação. Leia o §19 (o ritual), a §22 (esta fase, **inclusive "A
+> revisão da proposta"**) e o §17 (armadilhas), e trabalhe pela matriz
+> `docs/observability-acceptance.md`, começando pelo M0. Docker Desktop aberto
+> antes; a API local sempre com o `CRON_SCHEDULE` do A0.07.

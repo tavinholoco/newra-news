@@ -336,8 +336,8 @@ a suíte de unidade, que roda sem rede.
   da API voltar (item 83).** **Aberta desde 24/09: a Fase 12 — o ensaio de
   aceitação (§22)**, só de teste, sobre a matriz
   `docs/observability-acceptance.md`: cada coisa que as onze fases
-  entregaram provocada ao vivo, com evidência observável; o marco de
-  produção (M7) espera a API voltar e a promoção.
+  entregaram provocada ao vivo, com evidência observável; só a metade de
+  produção publicada (M7b) espera a API voltar e a promoção.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -357,29 +357,44 @@ a suíte de unidade, que roda sem rede.
 ## Status Atual
 
 - **Plano de observabilidade (2026-09-24): aberta a Fase 12 — o ensaio de
-  aceitação.** §22 do plano; a matriz linha a linha em
-  **`docs/observability-acceptance.md`**; branch
-  `observability/fase-12-acceptance` (cortada de `a0ae0fc`, a `dev` com o
-  #233). **Só teste — nada novo entra no produto**: as onze fases têm ~1.100
-  testes de unidade e nenhuma coisa que entregaram foi provada **em conjunto,
-  com dado real, de ponta a ponta** — o ritual público da promoção não
-  alcança o admin, e as três abas nunca foram lidas com dado de produção. Nove
-  marcos: **M0** terreno (commit fixo — os seis PRs do Dependabot de 24/09
-  triados antes; suíte em 1.384/904; o "antes" do banco anotado) · **M1** as
-  ~30 guardas vistas reprovando por um script versionado
-  (`scripts/guard-mutations.mjs`, a primeira entrega) · **M2** cada `code` da
-  taxonomia provocado **pela porta real**, e segredo nenhum no stdout · **M3**
-  as falhas virando `ErrorEvent`, o relato do cliente, a saturação · **M4** o
-  pipeline de ponta a ponta com provedores reais (no máximo três runs: limpo,
-  degradado, e o portão de entrada bloqueando **antes** da IA) e um ensaio
-  adversarial contra o Gemini de verdade · **M5** as três abas com esse dado ·
-  **M6** a esteira · **M7** produção (**bloqueado**: a API segue suspensa em
-  24/09 — as horas voltam ~01/10 — e a promoção é sua) · **M8** fechamento.
-  **Dois PRs**: A (M0–M6) pode mergear com o M7 em `[~]`; B (M7–M8) depois da
-  promoção. **Esperado, não achado:** o primeiro run de produção depois da
-  volta dirá `baseline: 'insufficient'` no portão de entrada (a suspensão
-  apagou a série) e `briefing.one_per_day` violada com as datas da suspensão.
-  **Prompt de abertura** no fim da §22.
+  aceitação —, revisada e com o terreno pronto para o M0.** §22 do plano; a
+  matriz linha a linha em **`docs/observability-acceptance.md`**; branch
+  `observability/fase-12-acceptance` (cortada de `a0ae0fc`, com a `dev`
+  trazida pelo merge `00f046b`). **Só teste — nada novo entra no produto**:
+  as onze fases têm ~1.100 testes de unidade e nenhuma coisa que entregaram
+  foi provada **em conjunto, com dado real, de ponta a ponta**. Dez marcos:
+  **M0** terreno (commit fixo; suíte em **1.389/904**; o "antes" do banco; o
+  **cron interno neutralizado** — o `server.ts` o registra sempre, às 08:00)
+  · **M1** as **35** guardas vistas reprovando por um script versionado
+  (`scripts/guard-mutations.mjs`, com a cobertura derivada, não digitada) ·
+  **M2** cada um dos **18** `code` gravados provocado **pela porta real** ·
+  **M3** as falhas virando `ErrorEvent`, o relato do cliente, a saturação, o
+  visualizador do log contra texto da porta anônima · **M4** o pipeline com
+  provedores reais (três runs, **todos no mesmo dia UTC**) e o ensaio
+  adversarial nos dois destinos do portão de saída · **M5** as três abas ·
+  **M6** a esteira (o CodeQL tem **10** alertas na `main` e **11** na `dev`,
+  dois em código de produção) · **M7a** produção **sem o Render**: o Billing
+  (antes de o mês virar), o `gates:rehearse` e **as três abas com dado real,
+  sobre um branch do Neon** — só exige o dono reautenticar o `neonctl` ·
+  **M7b** produção **com o Render** (01/10, ou instância paga — decisão sua):
+  o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real ·
+  **M8** fechamento. **Dois PRs**: A (M0–M7a) pode mergear com o Render
+  suspenso; B (M7b–M8) depois da promoção.
+
+  > **A revisão da proposta (24/09, antes do M0) achou 25 inconsistências**
+  > conferindo a matriz linha a linha contra o código — §22, "A revisão da
+  > proposta". Sete linhas não podiam sair como escritas (o seed tem um run
+  > `SUCCESS` hoje e o botão diria `already-succeeded-today`; um briefing e um
+  > desfecho por dia com três runs no mesmo dia; a métrica em memória que o
+  > reinício zera; o SIGINT que nenhuma ferramenta do agente produz no
+  > Windows — o Ctrl+C é seu; a `/about` que nunca regenera). **A triagem do
+  > Dependabot está feita** (os PRs são de 21/09, não 24/09): #234, #235,
+  > #239 e #240 na `dev`; o #238 virou o **#241** (o dotenv 18 escrevia fora
+  > do JSON a cada boot); o **#237 fica aberto até a API voltar**, porque
+  > push na `main` dispara o Smoke. **Esperado, não achado:** todo run local
+  > viola `briefing.one_per_day` (o dia bloqueado do seed), e o primeiro run
+  > de produção dirá `baseline: 'insufficient'`. **Prompt de abertura** no
+  > fim da §22.
 
 - **Fora da linha das fases (2026-09-20): a Fase 9 fechou na `dev` — os
   dois portões, e com ela o plano de observabilidade inteiro.** §13, item
@@ -468,9 +483,15 @@ a suíte de unidade, que roda sem rede.
   workspace, e ele tem **dois** serviços free — a API e o `NetsheetEngine`.
   Quanto é de cada um só Billing → free instance hours diz; é a **segunda
   vez** (29/08), e a `DailyUptime` da Fase 5 começou a contar às 01:08 de
-  19/09 — cedo demais para ter ajudado. **A primeira leitura das três abas de
+  19/09 — cedo demais para ter ajudado. ~~A primeira leitura das três abas de
   admin e o ensaio da Fase 9 contra os briefings retidos ficam bloqueados
-  até ela voltar.**
+  até ela voltar.~~ **Revisto em 24/09: não ficam.** Os dois leem o banco, não
+  a API — um branch do Neon filho de `production`, com a API e o web locais,
+  os alcança agora sem tocar produção (M7a da Fase 12). O que espera o Render
+  é só o que mede o site publicado: a promoção, o ritual e o primeiro run
+  real. As horas zeram no dia 1º (documentação do Render); antes disso, só
+  com o serviço numa instância paga — decisão sua, e o painel confirma se
+  tira a suspensão.
 
 - **Onde estamos no plano de observabilidade (2026-09-20): as onze fases
   estão na `dev`** — e, desde 24/09, a **Fase 12 (o ensaio de aceitação)**
@@ -480,10 +501,11 @@ a suíte de unidade, que roda sem rede.
   seu:** a promoção `dev → main` — a política de 07/09 mandava a 9 subir
   sozinha, e hoje ela sobe junto com o #231, que também é correção que
   produção precisa —, e depois o ritual dos três; o **`gates:rehearse`
-  contra os briefings retidos** com o `DATABASE_URL` do Neon numa sessão
-  só (se algum reprovar, o errado é o portão); e a primeira leitura das
-  três abas com credencial de produção. **Nada disso anda com a API
-  suspensa.**
+  contra os briefings retidos** (se algum reprovar, o errado é o portão); e
+  a primeira leitura das três abas com dado de produção. **A promoção e o
+  ritual esperam a API; os outros dois, não** — desde a revisão da Fase 12
+  (24/09) eles rodam sobre um branch do Neon (M7a), e só exigem você
+  reautenticar o `neonctl`.
 
 - **Promoção `dev → main` (2026-09-19, #215, `4efbacd`): as sete fases do
   plano de observabilidade estão no ar, e cada rodada do CI foi lida.**

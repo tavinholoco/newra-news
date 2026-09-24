@@ -524,6 +524,16 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
 - **O serializer é lista de permissão.** Propriedade acrescentada a um erro não
   é serializada — o `primaryError` que o `ai.service` pendura na exceção do
   fallback seria um segundo erro sem passar por redação nenhuma.
+- **O `.env` entra em silêncio, por `config/load-env-file.ts`, e só por ali.**
+  O dotenv 18 fez o `dotenv/config` anunciar cada carga
+  (`◇ injected env (N) from .env` no stderr) — inclusive no Render, sem
+  `.env`, com `(0)` —, uma linha fora do JSON num processo cujo log inteiro é
+  JSON. O CI do PR do Dependabot estava verde. O carregador chama
+  `config({ quiet: true })` e é **módulo de efeito colateral** de propósito:
+  import é içado, e o `gates:rehearse` precisa do `DATABASE_URL` antes de
+  importar o banco. Guarda em `tests/config/load-env-file.test.ts` (não
+  escreve nada; só ele importa o `dotenv`; quem o importa, importa primeiro).
+  #241.
 - **Uma linha por requisição**, escrita pelo `onResponse` do
   `plugins/observability.ts`; o par padrão do Fastify está desligado
   (`disableRequestLogging: true`). O nível casa com o status, o que faz
