@@ -375,8 +375,8 @@ a suíte de unidade, que roda sem rede.
   **M6** a esteira (o CodeQL tem **10** alertas na `main` e **11** na `dev`,
   dois em código de produção) · **M7a** produção **sem o Render**: o Billing
   (antes de o mês virar), o `gates:rehearse` e **as três abas com dado real,
-  sobre um branch do Neon** (**autorizado em 24/09**; falta você rodar
-  `npx neonctl@latest auth` — a sessão foi rejeitada de novo) ·
+  sobre um branch do Neon** (**criado em 24/09**: `fase-12-ensaio`, expira
+  em 23/10, conexão em `apps/api/.env.neon-branch.local` — A7.03) ·
   **M7b** produção **com o Render** (**01/10** — decidido em 24/09, sem
   instância paga):
   o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real ·

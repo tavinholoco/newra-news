@@ -4220,8 +4220,10 @@ leitura do Billing é do painel, e a sonda de imagem é da Vercel.
 **Decidido pelo dono em 24/09:** o **branch do Neon está autorizado** (M7a),
 e o **M7b espera o dia 1º** — sem mover o serviço para uma instância paga
 (Starter, US$ 7/mês proporcional ao segundo, ~US$ 1,60 a semana), que era a
-saída antecipada. A sessão do `neonctl` foi rejeitada de novo em 24/09; criar
-o branch espera o dono rodar `npx neonctl@latest auth`.
+saída antecipada. **O branch já existe** — criado no mesmo dia, depois de o
+dono reautenticar o `neonctl`: `fase-12-ensaio`, expira em 23/10 (o máximo do
+Neon é 30 dias), com a string de conexão em `apps/api/.env.neon-branch.local`
+(A7.03, com a evidência).
 
 ### As regras da sessão (o que uma sessão fria erra aqui)
 

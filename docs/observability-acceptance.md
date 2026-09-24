@@ -567,7 +567,27 @@
   origin/main | git check-ignore --stdin` vazio; as specs do smoke iguais às
   da promoção (`git diff 4efbacd.. -- apps/web/e2e` vazio em 24/09). Repetidas
   no A7.12, na véspera de promover. · C
-- [ ] **A7.03 — O branch do Neon.** Um branch **normal** (não *schema-only* —
+- [x] **A7.03 — O branch do Neon.** **Criado em 24/09/2026, antes do M0:**
+  `fase-12-ensaio` = `br-divine-poetry-an2fw98r`, filho de `production`
+  (`br-fancy-tree-anbql74y`), endpoint `read_write` `ep-dry-flower-anm16wsr`,
+  **expira em 23/10/2026 23:00 UTC** — o máximo do Neon é 30 dias a partir de
+  agora (a primeira tentativa, 24/10 23:00, foi recusada por passar dele), e
+  estende com `branches set-expiration`. Os 30 dias e não os 14: o branch
+  congela o retrato de 19/09, inclusive os `ErrorEvent` das sondas da
+  promoção, que em produção somem aos 14 dias (03/10) — e depois de 01/10 o
+  pipeline volta a expurgar. Um papel (`neondb_owner`) e um banco (`neondb`),
+  então o `connection-string` não pergunta nada. **Evidência:** o
+  `apps/api/.env.neon-branch.local` tem uma linha, começa com
+  `DATABASE_URL=postgres`, aponta para o endpoint do branch e o `git status`
+  não o mostra; `prisma migrate status` → `at
+  "ep-dry-flower-anm16wsr.c-6.us-east-1.aws.neon.tech"`, 7 migrations,
+  `Database schema is up to date!`; retrato só de leitura: último run
+  `2026-09-19T11:00:00Z` `SUCCESS`, último briefing 19/09, 88 `Article`,
+  10.490 `News`, 10 `ErrorEvent`, **0 `AuditEvent`**, 13 `SourceHealth` (um
+  dia), **1 linha de `DailyUptime`**, 1 evento da 9.5, **0 da 5.5** (a Fase 9
+  nunca foi a produção), 1 `User`.
+
+  O que era o texto desta linha: um branch **normal** (não *schema-only* —
   as abas precisam do dado), filho de `production`, com data para expirar:
   `npx neonctl@latest branches create --project-id rapid-art-19064809 --name
   fase-12-ensaio --parent production --expires-at <hoje + 14 d>`, e a string
@@ -595,8 +615,14 @@
   esperado), as falhas reais das sondas da promoção (`AUTH_TOKEN_INVALID`), a
   trilha. **O arco das horas contra o número do A7.01** — lido **antes** do
   primeiro tique do heartbeat (5 min), que escreve no `DailyUptime` do branch
-  e somaria 300 s de uma instância que não é a do Render. `admin:capture` das
-  três abas com o dado real, cada imagem olhada. · N
+  e somaria 300 s de uma instância que não é a do Render. **Esperado, não
+  achado** (medido no A7.03): o `DailyUptime` tem **uma** linha — a
+  instrumentação começou às 01:08 de 19/09 e a API parou no mesmo dia —, então
+  o arco mostra horas de um dia contra o mês inteiro do Billing; a trilha de
+  auditoria está **vazia** (nenhuma ação de admin em produção desde a
+  promoção); o painel Portões está **vazio** (zero eventos 5.5). O que o arco
+  prova aqui é a **conta** (soma ÷ 3600 contra o SQL), não o total do mês.
+  `admin:capture` das três abas com o dado real, cada imagem olhada. · N
 - [ ] **A7.06 — A cota de imagem.** Sonda numa imagem em `MISS` (nunca `HIT`) no
   `/_next/image` de produção — é a Vercel, não o Render. · P
 
