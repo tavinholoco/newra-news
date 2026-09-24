@@ -375,8 +375,10 @@ a suíte de unidade, que roda sem rede.
   **M6** a esteira (o CodeQL tem **10** alertas na `main` e **11** na `dev`,
   dois em código de produção) · **M7a** produção **sem o Render**: o Billing
   (antes de o mês virar), o `gates:rehearse` e **as três abas com dado real,
-  sobre um branch do Neon** — só exige o dono reautenticar o `neonctl` ·
-  **M7b** produção **com o Render** (01/10, ou instância paga — decisão sua):
+  sobre um branch do Neon** (**autorizado em 24/09**; falta você rodar
+  `npx neonctl@latest auth` — a sessão foi rejeitada de novo) ·
+  **M7b** produção **com o Render** (**01/10** — decidido em 24/09, sem
+  instância paga):
   o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real ·
   **M8** fechamento. **Dois PRs**: A (M0–M7a) pode mergear com o Render
   suspenso; B (M7b–M8) depois da promoção.
@@ -489,9 +491,8 @@ a suíte de unidade, que roda sem rede.
   a API — um branch do Neon filho de `production`, com a API e o web locais,
   os alcança agora sem tocar produção (M7a da Fase 12). O que espera o Render
   é só o que mede o site publicado: a promoção, o ritual e o primeiro run
-  real. As horas zeram no dia 1º (documentação do Render); antes disso, só
-  com o serviço numa instância paga — decisão sua, e o painel confirma se
-  tira a suspensão.
+  real. As horas zeram no dia 1º (documentação do Render), e **a decisão de
+  24/09 é esperar** — sem instância paga.
 
 - **Onde estamos no plano de observabilidade (2026-09-20): as onze fases
   estão na `dev`** — e, desde 24/09, a **Fase 12 (o ensaio de aceitação)**

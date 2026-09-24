@@ -544,11 +544,15 @@
 
 ## M7a — Produção sem o Render (dá para fazer agora)
 
-> **O que precisa do dono, e mais nada:** `npx neonctl@latest auth` (a sessão
-> do `neonctl` expirou em 19/09, e ele não está no PATH do Bash — o `npx`
-> resolve) e a leitura do painel do Render. **O agente nunca digita nem imprime
-> credencial**: a string de conexão do branch vai para uma variável da sessão,
-> que o agente usa sem ler.
+> **Autorizado pelo dono em 24/09/2026.** O que precisa dele, e mais nada:
+> `npx neonctl@latest auth` no terminal dele (abre o navegador; a sessão
+> guardada foi **rejeitada** de novo em 24/09 — `invalid_request` —, e o
+> `neonctl` não está no PATH do Bash, o `npx` resolve) e a leitura do painel do
+> Render. **O agente nunca digita nem imprime credencial**: a string de conexão
+> do branch vai do `neonctl` direto para
+> **`apps/api/.env.neon-branch.local`** (ignorado pelo padrão `.env.*.local`
+> da raiz — conferido com `git check-ignore`), e os comandos a leem de lá sem
+> ecoá-la.
 >
 > **O branch copia dado pessoal** (`User`, `Subscriber`) para outro endereço do
 > mesmo projeto Neon e para o processo local. Nenhuma tela do admin mostra
@@ -566,9 +570,17 @@
 - [ ] **A7.03 — O branch do Neon.** Um branch **normal** (não *schema-only* —
   as abas precisam do dado), filho de `production`, com data para expirar:
   `npx neonctl@latest branches create --project-id rapid-art-19064809 --name
-  fase-12-ensaio --parent production --expires-at <hoje + 14 d>`. Plano free:
-  10 branches por projeto, 100 CU-h/mês, 0,5 GB — o filho é *copy-on-write* e
-  nasce sem consumir espaço. · N
+  fase-12-ensaio --parent production --expires-at <hoje + 14 d>`, e a string
+  de conexão escrita no arquivo sem passar pela tela —
+  `printf 'DATABASE_URL=%s\n' "$(npx neonctl@latest connection-string
+  fase-12-ensaio --project-id rapid-art-19064809)" >
+  apps/api/.env.neon-branch.local` (a substituição de comando não imprime;
+  o schema só lê `DATABASE_URL`, sem `directUrl`, então uma variável basta).
+  Evidência: o arquivo existe, tem uma linha, e `git status` não o mostra —
+  nunca o conteúdo. Plano free: 10 branches por
+  projeto, 100 CU-h/mês, 0,5 GB — o filho é *copy-on-write* e nasce sem
+  consumir espaço. Como o dado de produção não muda enquanto a API está
+  suspensa, criar o branch cedo ou tarde dá o mesmo retrato. · N
 - [ ] **A7.04 — `gates:rehearse` contra os retidos**, com o `DATABASE_URL` do
   **branch** numa sessão só → **zero reprovações**; a distribuição de tamanho e
   de deriva calibra `MAX_ARTICLE_CONTENT_LENGTH` (p95 × 2) e `MAX_CATEGORY_DRIFT`
@@ -592,11 +604,10 @@
 
 > A API do Render está suspensa desde 19/09 (503 `x-render-routing: suspend`,
 > reconferido em 24/09). As 750 h são do **workspace** e zeram **no começo de
-> cada mês** (documentação do Render): a data provável é **01/10**. A outra
-> saída é do dono: mover o serviço para uma instância paga (Starter, US$ 7/mês,
-> cobrada **proporcional ao segundo** — uma semana sai ~US$ 1,60); a
-> documentação garante a volta por esse caminho só para outro tipo de
-> suspensão, então **o painel confirma antes**. O build da Vercel falha de
+> cada mês** (documentação do Render): a data provável é **01/10**. **O dono
+> decidiu em 24/09 esperar o dia 1º**, e não mover o serviço para uma
+> instância paga (Starter, US$ 7/mês proporcional ao segundo — a saída que
+> existia). O build da Vercel falha de
 > propósito com a API fora — **não se promove antes**, e nenhum push na `main`
 > (o Smoke roda em todo push nela).
 

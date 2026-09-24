@@ -4215,11 +4215,13 @@ provedores de verdade (NewsData, Gemini, Groq), que estão no ar.
 `x-render-routing: suspend`), e as 750 h do workspace zeram **no começo de cada
 mês** (documentação do Render) — a data provável é 01/10. **O M7a não depende
 do Render**: o branch do Neon precisa só de o dono reautenticar o `neonctl`, a
-leitura do Billing é do painel, e a sonda de imagem é da Vercel. Destravar o
-M7b antes de 01/10 tem um caminho, e é decisão do dono: mover o serviço para
-uma instância paga (Starter, US$ 7/mês proporcional ao segundo — uma semana sai
-~US$ 1,60). A documentação garante a volta por esse caminho só para outro tipo
-de suspensão; o painel confirma antes de pagar.
+leitura do Billing é do painel, e a sonda de imagem é da Vercel.
+
+**Decidido pelo dono em 24/09:** o **branch do Neon está autorizado** (M7a),
+e o **M7b espera o dia 1º** — sem mover o serviço para uma instância paga
+(Starter, US$ 7/mês proporcional ao segundo, ~US$ 1,60 a semana), que era a
+saída antecipada. A sessão do `neonctl` foi rejeitada de novo em 24/09; criar
+o branch espera o dono rodar `npx neonctl@latest auth`.
 
 ### As regras da sessão (o que uma sessão fria erra aqui)
 
@@ -4278,7 +4280,7 @@ de suspensão; o painel confirma antes de pagar.
 | **M5** | as três abas com o dado que M2–M4 produziram: captura, interação, boundaries, acessibilidade, sem polling | 2, 5, 8, 11, 6, 7b, 9 | L | M2–M4 |
 | **M6** | a esteira: workflows, advisories, CodeQL, Dependabot, Gitleaks | 10 | C | M0 |
 | **M7a** | produção **sem o Render**: as horas do Billing (antes de o mês virar), as pré-checagens da promoção, `gates:rehearse` contra os retidos e **as três abas com dado real**, sobre um branch do Neon; a cota de imagem | todas | N · P (Vercel) | M0, M5 (a captura) e o dono reautenticar o `neonctl` |
-| **M7b** | produção **com o Render**: o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real pelos portões, a leitura no site publicado, o #231 no ar | todas | P | **a API voltar** (01/10, ou instância paga) e a decisão de promover |
+| **M7b** | produção **com o Render**: o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real pelos portões, a leitura no site publicado, o #231 no ar | todas | P | **a API voltar** (01/10 — decidido: sem instância paga) e a decisão de promover |
 | **M8** | fechamento: matriz completa, item 85, esta seção ✅, `CLAUDE.md`, memória, o branch do Neon apagado | — | — | M0–M7b |
 
 **Dois PRs, e não um.** O **PR A** leva M0–M6 e o M7a (o script do M1, as
@@ -4393,7 +4395,7 @@ medem produção publicada**. A API do L é a do repositório.
 | o dono reautenticar o `neonctl` (branch do Neon) | A7.03–A7.05 | agora |
 | o painel do Render, lido pelo dono | A7.01 | **agora** — o contador zera no dia 1º |
 | só a Vercel | A7.06 | agora |
-| **o Render de pé** | A7.10–A7.16 | 01/10, ou instância paga |
+| **o Render de pé** | A7.10–A7.16 | 01/10 (decidido em 24/09: sem instância paga) |
 
 **O branch do Neon foi o que destravou a primeira leitura das três abas com dado
 real** — o item que as fases 5, 6, 8, 9 e 11 deixaram pendente "até a API
