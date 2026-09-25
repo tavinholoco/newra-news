@@ -46,6 +46,16 @@
 > real) e o **M8** — num PR C. **Decisão do dono, sem prazo:** corrigir por
 > SQL, em produção, os itens da ESPN já gravados com 2 h a mais, ou deixar a
 > retenção de 30 dias levá-los.
+>
+> **25/09, fim da sessão — #244 mergeado; o terreno do PR C pronto.** O dono
+> decidiu **corrigir** a ESPN: a 1.ª janela foi ensaiada no branch do Neon e
+> entregue a ele para rodar em produção, e a 2.ª virou a linha **A7.12b**,
+> logo depois da promoção. O **A6.05 fechou** (os três merges da fase na `dev`
+> com `0 commits scanned`). Branch **`observability/fase-12-acceptance-c`**,
+> cortada de `0457823` (a `dev` com o #244). **O que falta é só o M7b e o
+> M8**, e nada anda antes de a API do Render voltar. **Uma sessão nova começa
+> pelo "A retomada" no fim da §22 do plano** — o estado, o que depende do
+> dono, a ordem e o prompt.
 
 ## Como ler e preencher
 
@@ -1386,13 +1396,19 @@ caíram junto.
     `ignore` no npm; `git diff origin/main origin/dev` nesse arquivo:
     vazio. Todo PR do robô desde 19/09 com base `dev` (#224–#229 de 19/09,
     #234–#239 de 21/09, #240 de 24/09); o #237 segue aberto, como decidido.
-- [~] **A6.05 — Gitleaks.** O scan de PR varre > 0 commits; o do push de merge
+- [x] **A6.05 — Gitleaks.** O scan de PR varre > 0 commits; o do push de merge
   varre 0 (a dívida do §16) — medido de novo no merge desta fase. · C
   - Medido nos últimos da esteira: o scan do PR #241 (run 36043018299)
     **`1 commits scanned`**; o do push do merge dele na `dev` (run
     36043747672) **`0 commits scanned`**, com ✅ — a dívida do §16, mais
     uma vez. **Gatilho que fecha a linha:** o merge do PR A desta fase
     (a medição "de novo no merge desta fase").
+  - **Medido em 25/09, nos merges desta fase:** os scans de PR varreram
+    **14** (PR A, run 36180333627) e **3** commits (PR B, run 36189034159);
+    os pushes dos merges na `dev` — #242 (run 36184677181), #243 (run
+    36184937508) e #244 (run 36190165713) — varreram **`0 commits
+    scanned`** cada, com ✅. A dívida do §16 continua como estava: o
+    conteúdo é varrido no PR, o gate do merge é decorativo.
 
 ## M7a — Produção sem o Render (dá para fazer agora)
 
@@ -1624,6 +1640,22 @@ caíram junto.
   pré-checagens do A7.02 repetidas; Smoke E2E automático (31 passed, 6 skipped
   enquanto os segredos E2E não existirem — hoje o repositório só tem
   `DATABASE_URL`). · P
+- [ ] **A7.12b — A segunda janela da correção da ESPN** (decidida pelo dono em
+  25/09, A4.04). A ESPN escreve a hora de Brasília com o rótulo `EST`, e tudo
+  o que o código **antigo** gravou dela está 2 h adiantado. A correção é
+  `fase12-kit/espn-fix.cjs`, **por janela de `createdAt`** — duas janelas
+  disjuntas nunca deslocam a mesma linha duas vezes. **A 1.ª janela**
+  (`createdAt < 2026-09-25T21:30:00Z`) foi ensaiada no branch do Neon em
+  25/09 (648 linhas; no futuro na ingestão: 23 → 0; menor idade: −1,906 h →
+  +0,094 h) e **entregue ao dono** para rodar em produção — o classificador
+  do agente recusou buscar a credencial de produção, e o agente não a
+  contorna. **A 2.ª janela** (`2026-09-25T21:30:00Z ≤ createdAt < <hora do
+  deploy do Render com o conserto>`) cobre o que o código antigo gravar entre
+  a volta da API e a promoção — o cron das 11:00 UTC roda o código da `main`.
+  **Antes de rodar a 2.ª, confira a 1.ª** com `dry - 2026-09-25T21:30:00.000Z`
+  em produção: `no futuro … 0` e menor idade ≥ 0 quer dizer que ela rodou; se
+  ainda disser 23 no futuro, **uma** execução `- <deploy>` cobre as duas. Quem
+  roda em produção é o dono (ou o agente, se o dono autorizar a credencial). · P
 - [ ] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
 - [ ] **A7.14 — O primeiro run das 11:00 UTC depois da volta.** Espera-se
   **`baseline: 'insufficient'`** no evento 5.5 nos primeiros dias — a suspensão

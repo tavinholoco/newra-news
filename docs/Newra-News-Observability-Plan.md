@@ -4435,3 +4435,74 @@ projeto, e o branch expira e é apagado no M8.
 > revisão da proposta"**) e o §17 (armadilhas), e trabalhe pela matriz
 > `docs/observability-acceptance.md`, começando pelo M0. Docker Desktop aberto
 > antes; a API local sempre com o `CRON_SCHEDULE` do A0.07.
+
+### A retomada: M7b e M8 (escrita em 25/09/2026, para uma sessão de contexto zerado)
+
+**Onde a fase está.** M0–M7a e o M4/M5 **fechados e mergeados na `dev`**: PR A
+(#242), o Drauzio fora (#243), PR B (#244). **13 defeitos achados e
+corrigidos, cada um com guarda e mutação no `pnpm guard:mutations`.** A matriz
+tem a evidência linha a linha; o cabeçalho dela diz o estado. **Falta o M7b
+(A7.10–A7.16, com a A7.12b) e o M8 (A8.01–A8.04)**, num **PR C** a partir da
+branch **`observability/fase-12-acceptance-c`** (cortada de `0457823`).
+
+**O que destrava: a API do Render de volta.** Ela está suspensa desde 19/09
+(as 750 h do workspace estouraram: 753,4 h, A7.01) e as horas zeram no dia
+1º. **Nada do M7b anda antes**: a promoção não acontece com a API fora (o
+build da Vercel a chama e falha de propósito), e nenhum push na `main`
+(regra 10). A primeira coisa da sessão é a sonda:
+`curl -s -o /dev/null -w "%{http_code}" https://newra-news-api.onrender.com/api/health`
+— `200` destrava; `503` com `x-render-routing: suspend` é voltar outro dia.
+
+**O que é do dono, e mais nada:**
+
+1. **Mergear o PR do `dependabot.yml` na `main`** (A7.11) — o agente abre, só
+   com o arquivo; o Smoke do push roda.
+2. **Decidir e mergear a promoção `dev → main`** (A7.12).
+3. **Rodar a correção da ESPN em produção** (A7.12b) — o classificador do
+   agente recusa buscar a credencial de produção; o comando exato está na
+   linha. Ou autorizar o agente.
+4. **Entrar no admin de produção** no navegador do painel para o agente ler as
+   três abas (A7.15) — o agente nunca digita credencial.
+5. Se o `neonctl` ou o `render` pedirem, reautenticar (`npx neonctl@latest
+   auth`; `render login`).
+
+**A ordem.** A7.10 (a sonda) → A7.11 (o `ignore` do #237, a `main` → `dev`
+por PR até `dev..main = 0`, o terceiro estado do `CLAUDE.md`) → as
+pré-checagens do A7.02 repetidas → **A7.12** (promoção: Migrate sem migration
+nova, os dois deploys, o Smoke) → **A7.12b** (a 2.ª janela da ESPN, logo que o
+deploy do Render com o `pubDateZone` estiver de pé — a hora do deploy é o
+limite da janela) → A7.13 (o ritual: `gh workflow run "Lighthouse CI" --ref
+main` e a baseline visual) → A7.16 (o #231: duas regenerações seguidas com o
+mesmo payload) → **A7.14** (o primeiro run das 11:00 UTC; no evento 5.5,
+`baseline: 'insufficient'` é o esperado, e **`freshestAgeHours` ≥ 0 prova o
+conserto da ESPN no ar**) → A7.15 (as três abas com a sessão do dono) → M8.
+
+**O M8.** A8.01–A8.02 conferem a matriz; A8.03 é o item 85 do
+`docs/progress.md`, esta §22 marcada ✅, o topo do `CLAUDE.md` e a memória;
+A8.04 apaga o branch do Neon (`npx neonctl@latest branches delete
+fase-12-ensaio --project-id rapid-art-19064809` — ele expira sozinho em 23/10)
+e desfaz o banco local (o antigo está renomeado `newranews_pre_fase12`, ou
+recrie com `./scripts/dev-bootstrap.sh`).
+
+**O que uma sessão fria erra aqui, além das regras acima:**
+
+- **O kit de ensaio mora fora do repositório**, em
+  `C:\Users\tavin\.claude\projects\C--Users-tavin-Desktop-Projetos-Newra-News\fase12-kit\`
+  — `espn-fix.cjs` (a correção por janela, com `dry` e backup),
+  `m4-*.{cjs,mjs}` (preparação, botão, disparo, evidência), `forge-session.mjs`
+  e `sign-tokens.mjs` (só locais), `a305.mjs`. Nenhum imprime segredo.
+- **A branch LOCAL do PR A foi reescrita no meio da fase** (Gitleaks) — é
+  história; trabalhe só a partir da `-c`.
+- **Evidência de texto nunca na forma `chave=valor` com cara de segredo** —
+  o Gitleaks reprovou o PR A por `secret=<palpite>` numa linha da matriz.
+- **`rm -rf` é recusado** — diretório de saída novo em vez de apagar.
+- **O que roda em produção:** só leitura, fora a promoção (dono), o disparo e a
+  correção da ESPN (dono).
+
+**O prompt de retomada:**
+
+> Vamos continuar a **Fase 12** do `docs/Newra-News-Observability-Plan.md` —
+> o que falta é o **M7b e o M8**. Leia **"A retomada"**, no fim da §22, e o
+> cabeçalho da matriz `docs/observability-acceptance.md`, e trabalhe na branch
+> `observability/fase-12-acceptance-c`. Comece pela sonda do A7.10: se a API
+> do Render ainda estiver suspensa, pare e me diga.

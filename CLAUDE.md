@@ -356,6 +356,19 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- **Plano de observabilidade (2026-09-25): a Fase 12 fechou tudo o que não
+  depende do Render — M0–M7a, M4 e M5 mergeados na `dev` (#242, #243, #244),
+  13 defeitos corrigidos com guarda e mutação.** Três deles de produto,
+  achados rodando o pipeline de verdade: **a ESPN escreve a hora de Brasília
+  com o rótulo `EST`** e dominava a seleção do briefing (11 das 15 matérias de
+  01/09 — `pubDateZone` em `rss-sources.ts`); a chave recusada da NewsData
+  virava "colheita vazia"; e o evento da etapa 8 não contava por tabela.
+  **Falta o M7b e o M8** (PR C, branch `observability/fase-12-acceptance-c`),
+  e nada anda antes de a API do Render voltar (provável 01/10). **Uma sessão
+  nova começa por "A retomada", no fim da §22 do plano** — o estado, o que é
+  do dono (o `ignore` do #237 na `main`, a promoção, a 2.ª janela da correção
+  da ESPN em produção, o login no admin) e o prompt.
+
 - **Plano de observabilidade (2026-09-24): aberta a Fase 12 — o ensaio de
   aceitação —, revisada e com o terreno pronto para o M0.** §22 do plano; a
   matriz linha a linha em **`docs/observability-acceptance.md`**; branch
