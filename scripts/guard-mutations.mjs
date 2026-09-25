@@ -62,13 +62,17 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Dentro da árvore e fora do git (`node_modules/` é ignorado), nunca num
+// caminho fixo do diretório temporário: a restauração copia o backup de volta
+// para o repositório, e um diretório previsível no temp é um lugar onde outro
+// usuário da máquina pode plantar o que vai ser restaurado (CodeQL
+// `js/insecure-temporary-file`, no PR #242).
 const WORK_DIR = path.resolve(
-  process.env.GUARD_MUTATIONS_DIR ?? path.join(os.tmpdir(), 'newranews-guard-mutations'),
+  process.env.GUARD_MUTATIONS_DIR ?? path.join(ROOT, 'node_modules', '.cache', 'guard-mutations'),
 );
 const BACKUP_DIR = path.join(WORK_DIR, 'backup');
 const RESULTS_DIR = path.join(WORK_DIR, 'results');

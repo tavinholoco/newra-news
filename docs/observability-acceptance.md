@@ -217,8 +217,10 @@
     inócua (comentário) tem de sair "NÃO reprovou". · L
   - **Feito em 24/09 — `pnpm guard:mutations`** (`scripts/guard-mutations.mjs`).
     As cópias e os JSONs do vitest vão para
-    `%TEMP%/newranews-guard-mutations/` (fora da árvore; `GUARD_MUTATIONS_DIR`
-    troca). O CRLF é normalizado antes de casar e **reposto** ao gravar a
+    `node_modules/.cache/guard-mutations/` (dentro da árvore, fora do git;
+    `GUARD_MUTATIONS_DIR` troca). Saíram do `%TEMP%` no PR #242: caminho fixo
+    no diretório temporário é o `js/insecure-temporary-file` do CodeQL, e aqui
+    ele tem dente — a restauração copia o backup de volta para o repositório. O CRLF é normalizado antes de casar e **reposto** ao gravar a
     mutação (metade da árvore é CRLF, metade LF); a restauração grava os bytes
     copiados. Quatro tipos de mutação: `edits` (cada trecho uma vez só),
     `dropLine`, `append` e `create` (arquivo novo, apagado no fim).
