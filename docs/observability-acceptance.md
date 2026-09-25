@@ -28,8 +28,11 @@
 > **A7.01 foi lido** (753,4 de 750 h; o resto não é visível — ver a linha);
 > o **Drauzio Varella saiu** por decisão dele (PR #243, contra a `dev`); e a
 > **primeira tentativa do A3.05 não provou** o flush do desligamento — o
-> relógio de 30 s gravou antes do Ctrl+C —, e a segunda vai com o relógio na
-> mão de um script (`fase12-kit/a305.mjs`).
+> relógio de 30 s gravou antes do Ctrl+C —, e a segunda, com o relógio na
+> mão de um script (`fase12-kit/a305.mjs`), **provou a parte 1 e achou o
+> décimo defeito**: com o banco fora, as duas gravações do desligamento
+> desistiam sem escrever uma linha (A3.05, corrigido com A1.48/A1.49). **Do
+> lado do dono não falta nada antes do merge**; falta o M4 e o resto do M5.
 
 ## Como ler e preencher
 
@@ -574,7 +577,7 @@ caíram junto.
     linha `API:ERROR:AUTH_NOT_CONFIGURED:/api/favorites` **persistiu** no
     tique seguinte, e `API:ERROR:UNHANDLED:/api/news` **não existe** — a
     ocorrência de antes do tique se perdeu, como o documentado.
-- [ ] **A3.05 — O flush do desligamento, com prazo.** Falhas acumuladas e
+- [!] **A3.05 — O flush do desligamento, com prazo.** Falhas acumuladas e
   **Ctrl+C na API** → as linhas persistidas; com o Postgres parado, o processo
   sai em ~2 s (`ERROR_EVENT_CLOSE_TIMEOUT_MS`), sem pendurar. **O Ctrl+C é do
   dono, num terminal com a API em primeiro plano:** no Windows,
@@ -604,6 +607,39 @@ caíram junto.
     diz se ela caiu dentro do prazo; na parte 2 para o Postgres em T0+22 s
     e o religa no fim. Ensaiado pelo agente com um `taskkill` no lugar do
     Ctrl+C: requisições em T0+32,0 s, saída detectada em T0+36,2 s.
+  - **Segunda tentativa, 25/09 19:01 UTC, o dono no Ctrl+C — parte 1
+    provada.** T0 19:01:08.394 (boot 19:01:08.369), as três recusas em
+    19:01:40.40–40.45 (depois do tique de ~19:01:38), `SIGINT` em
+    19:01:45.218, o processo fora 147 ms depois — o próximo tique seria
+    ~19:02:08, então **o único flush que podia gravar era o do
+    desligamento**. No banco: `API:WARN:AUTH_TOKEN_INVALID:/api/favorites/ids`
+    `count: 2` e `…/api/account/preferences` `count: 1`, janela 19:00,
+    `firstRequestId`/`lastRequestId` iguais aos `reqId` do log
+    (`e6a7146b…`, `02c0ddb8…`, `4a87e6e7…`).
+  - **Parte 2 — não pendurou, e achou um defeito.** T0 19:02:46.8, Postgres
+    parado às 19:03:09, recusas às 19:03:18.8, `SIGINT` às 19:03:23.216, o
+    processo fora às 19:03:27.295 — **4,08 s**, e não os "~2 s" desta
+    linha: são **dois** flushes em série no `onClose` (o do `ErrorEvent` e
+    o crédito do `DailyUptime`), cada um com o prazo de 2 s. O teto é 4 s,
+    com folga sobre os 30 s do `SIGTERM` do Render — **a linha estava
+    errada, não o código**. As três falhas não chegaram ao banco (contagens
+    da janela 19:00 iguais às da parte 1), como o desenho aceita.
+  - **O defeito: a desistência era muda.** Depois do `SIGINT` o log não
+    tinha **nenhuma** linha — nem que três falhas se perderam, nem que
+    segundos de uptime ficaram sem crédito. O comentário do
+    `flushErrorEventsBeforeClose` dizia que a promessa pendente terminaria
+    no `catch` de sempre, escrevendo o `warn`; o `server.ts` chama
+    `process.exit` logo depois do `close`, e aquele `catch` nunca roda.
+    **Corrigido no PR A** (`fix(phase-12): the shutdown flushes say what
+    they gave up on`): cada desistência escreve a própria linha antes de
+    devolver — `fingerprints`/`occurrences` ainda no buffer (teto do
+    perdido) e `uncreditedSeconds`. Guardas em `error-event.test.ts` e
+    `uptime.service.test.ts` (espiam o logger), mutações **A1.48** e
+    **A1.49**. **Visto de ponta a ponta sobre o `dist`**, pelo mesmo
+    caminho do `server.ts` (`app.close()` e `process.exit(0)`) contra um
+    banco que não responde: as duas linhas no stdout (`uncreditedSeconds:
+    5`; `fingerprints: 2, occurrences: 3`) e o `close` em **4.024 ms** —
+    o mesmo número da medição do dono.
 - [x] **A3.06 — `GET /api/admin/errors`.** `24h` e `7d`: grupos por
   fingerprint, `byCategory` com **as seis** categorias na ordem da taxonomia,
   `since` alinhado à hora cheia (item 65), `truncated: false`. · L
