@@ -266,6 +266,18 @@ pediria migration e divergiria dos eventos no primeiro `catch` esquecido
 Regras que não são óbvias no código, e que custaram uma Home errada em produção
 e meio acervo com HTML na tela:
 
+- **O `publishedAt` decide o briefing, e o fuso do feed pode mentir.** A etapa
+  5 escolhe as 15 matérias mais recentes por `publishedAt`; a ESPN escreve a
+  hora de Brasília com o rótulo `EST`, o `Date` a lia duas horas no futuro, e
+  em 01/09/2026 11 das 15 matérias citadas no briefing eram dela. O conserto
+  é `pubDateZone` por fonte em `config/rss-sources.ts` (a hora de parede lida
+  naquele deslocamento, o rótulo ignorado) e `parsePubDate` no provider. O
+  sintoma que denuncia o próximo feed assim é **`freshestAgeHours` negativo**
+  no evento da etapa 5.5 — e no `gates:rehearse`. Ensaio de aceitação, M4.
+- **NewsData com todas as categorias recusadas lança, com o motivo.** Com o
+  `allSettled`, oito `401` de uma chave revogada viravam lista vazia, o
+  `fetchAll` gravava `provider-empty` e a saúde por fonte, `EMPTY` sem motivo.
+  Falha parcial continua devolvendo o resto. Ensaio de aceitação, A4.13.
 - **O texto do feed é limpo na entrada, em `providers/news/feed-text.ts`.** O
   que chega em `title`/`description` não é o que os nomes sugerem: título com
   quebra de linha literal, e `description` que abre repetindo o título, depois
