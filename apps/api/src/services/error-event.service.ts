@@ -420,25 +420,47 @@ export async function flushErrorEvents(): Promise<void> {
  * O flush do desligamento: tenta gravar, e **desiste no prazo**.
  *
  * A corrida não cancela a consulta — nada no Prisma cancela —, ela só para de
- * esperar. É o que se quer aqui: o `app.close()` segue, e a promessa pendente
- * termina no `catch` de sempre, escrevendo o `warn`.
+ * esperar, e o `app.close()` segue.
+ *
+ * **A desistência escreve a própria linha.** Este comentário dizia que a
+ * promessa pendente terminaria no `catch` de sempre, escrevendo o `warn` — e
+ * no `server.ts` o `process.exit` vem logo depois do `close`, então aquele
+ * `catch` nunca roda. Medido no ensaio de aceitação (Fase 12, A3.05, 25/09):
+ * Postgres parado, três falhas no buffer, Ctrl+C, o processo saiu em 4,1 s
+ * **sem uma linha dizendo que três falhas se perderam**. A contagem é tirada
+ * antes da corrida: é o teto do que se perdeu (o laço grava em série, e o que
+ * entrou antes do prazo está no banco).
  *
  * Ver {@link ERROR_EVENT_CLOSE_TIMEOUT_MS} para o motivo do prazo.
  */
 export async function flushErrorEventsBeforeClose(
   timeoutMs = ERROR_EVENT_CLOSE_TIMEOUT_MS,
 ): Promise<void> {
+  const fingerprints = buffer.size;
+  let occurrences = 0;
+  for (const entry of buffer.values()) occurrences += entry.count;
+
   let timer: NodeJS.Timeout | undefined;
+  let timedOut = false;
 
   await Promise.race([
     flushErrorEvents(),
     new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
+      timer = setTimeout(() => {
+        timedOut = true;
+        resolve();
+      }, timeoutMs);
       timer.unref();
     }),
   ]);
 
   if (timer !== undefined) clearTimeout(timer);
+  if (timedOut) {
+    baseLogger.warn(
+      { fingerprints, occurrences, timeoutMs },
+      '[error-event] shutdown flush gave up — failures not yet written are lost',
+    );
+  }
 }
 
 /**

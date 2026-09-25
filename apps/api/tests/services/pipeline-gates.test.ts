@@ -375,10 +375,10 @@ describe('a ordem dos bloqueios e o retrato completo', () => {
     expect(verdict.block?.check).toBe('volume');
     // Diversidade e frescor também reprovariam, e as medidas dizem isso; o
     // aviso de duplicata (90%) também sai. 100% Mundo contra 60/40 é deriva
-    // de 0,4 — abaixo do teto, que está calibrado por cima até o ensaio de
-    // produção.
+    // de 0,4 — acima do teto desde a calibração contra produção (0,25, Fase
+    // 12), então avisa também: até 24/09 o teto era 0,5, calibrado por cima.
     expect(verdict.measures).toMatchObject({ sources: 1, widened: true, freshestAgeHours: 40, categoryDrift: 0.4 });
-    expect(verdict.warnings.map((w) => w.check)).toEqual(['duplicate-rate']);
+    expect(verdict.warnings.map((w) => w.check)).toEqual(['duplicate-rate', 'category-drift']);
   });
 });
 

@@ -79,6 +79,29 @@ describe('redactEmails', () => {
     const text = 'Resend API error 500: internal';
     expect(redactEmails(text)).toBe(text);
   });
+
+  /**
+   * **O `js/polynomial-redos` do CodeQL, medido (Fase 12, A6.03).** O texto é
+   * redigido **antes** de ser truncado (`scrubMessage`), então chega inteiro à
+   * regex — e a antiga tentava começar um endereço em cada caractere de uma
+   * corrida sem `@`: 16 mil caracteres custavam 182 ms e 64 mil, 2,9 s, num
+   * notebook; num 0,1 vCPU, o health check de 5 s cai antes. Linear, 200 mil
+   * cabem com folga de duas ordens de grandeza.
+   */
+  it('stays linear on a long run with no address — it runs before the truncation', () => {
+    const started = performance.now();
+    redactEmails('a'.repeat(200_000));
+    redactEmails(`a@${'.'.repeat(200_000)}`);
+
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it('redacts the same spans as before the lookbehind — the match starts where the run starts', () => {
+    expect(redactEmails('id:joao.silva+news@exemplo.com.br;')).toBe(`id:${REDACTED_EMAIL};`);
+    // O começo da corrida falha e um começo seguinte casa: o `@` a mais.
+    expect(redactEmails('x%@@a@b.co')).toBe(`x%@@${REDACTED_EMAIL}`);
+    expect(redactEmails('a@b.com,c.d@e.org')).toBe(`${REDACTED_EMAIL},${REDACTED_EMAIL}`);
+  });
 });
 
 describe('o erro do Resend não carrega o destinatário', () => {

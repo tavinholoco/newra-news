@@ -374,3 +374,37 @@ describe('nenhum `console.*` contorna o logger', () => {
     expect(consoleCalls(snippet, 'sintetico.ts')).toBe(1);
   });
 });
+
+/**
+ * **A mensagem do Prisma sem o quadro de código** (Fase 12 do plano de
+ * observabilidade, M5). O `errorFormat` padrão põe na `message` o caminho
+ * absoluto e quatro linhas do fonte ao redor da chamada — e a `message` é o
+ * que vai para a coluna do `ErrorEvent` e para a tabela de falhas. O ensaio
+ * viu o `AUDIT_WRITE_FAILED` assim na `/admin/security`. Pelo parser: o
+ * singleton é construído com `errorFormat: 'minimal'`.
+ */
+describe('o Prisma do singleton não põe código-fonte na mensagem de erro', () => {
+  it('builds the shared PrismaClient with errorFormat minimal', () => {
+    const file = join(__dirname, '../../../../packages/database/src/index.ts');
+    const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+    const formats: string[] = [];
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isNewExpression(node) && node.expression.getText(source) === 'PrismaClient') {
+        const options = node.arguments?.[0];
+        const prop =
+          options && ts.isObjectLiteralExpression(options)
+            ? options.properties.find(
+                (p): p is ts.PropertyAssignment =>
+                  ts.isPropertyAssignment(p) && p.name.getText(source) === 'errorFormat',
+              )
+            : undefined;
+        formats.push(prop && ts.isStringLiteral(prop.initializer) ? prop.initializer.text : 'padrão');
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+
+    expect(formats).toEqual(['minimal']);
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -58,11 +58,13 @@ function pacotesExigidosEmRuntime(): string[] {
   const encontrados = new Set<string>();
 
   function walk(dir: string) {
-    for (const entry of readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      if (statSync(full).isDirectory()) {
+    // `withFileTypes`: o tipo vem da listagem, e o caminho só é tocado no
+    // `readFileSync` — sem `statSync` no meio (o `js/file-system-race` do CodeQL).
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
         walk(full);
-      } else if (entry.endsWith('.ts')) {
+      } else if (entry.name.endsWith('.ts')) {
         const source = readFileSync(full, 'utf8');
         const imports = source.matchAll(
           /import[\s\S]*?from\s+'(@newranews\/[^']+)';/g,

@@ -432,11 +432,14 @@ código corrigido — o motivo pelo qual ele está daquele jeito.
   recusa token que traga `purpose`; `authPlugin(app, { purpose: 'auth-upsert' })`
   recusa o de sessão. Conferir `purpose` dentro de um handler é o que havia
   antes, e escopo que só uma rota honra não é escopo.
-- **O 5xx não conta o interior do servidor.** `AppError` fala (o servidor
-  escolheu aquela mensagem) e o 4xx do Fastify fala (descreve a requisição de
-  quem chamou); o 5xx devolve frase fixa mais `x-request-id`, e o erro inteiro
-  vai para o log. Erro de Prisma carrega nome de tabela, trecho de SQL e, em
-  falha de conexão, a string de conexão.
+- **O 5xx não conta o interior do servidor.** O 4xx do `AppError` fala (o
+  servidor escolheu aquela mensagem) e o 4xx do Fastify fala (descreve a
+  requisição de quem chamou); **todo** 5xx devolve `{ error: "Internal server
+  error", requestId }`, e o erro inteiro vai para o log. Erro de Prisma carrega
+  nome de tabela, trecho de SQL e, em falha de conexão, a string de conexão.
+  **Até a Fase 12 do plano de observabilidade o 5xx do `AppError` escapava
+  disto** — saía com a própria frase e sem `requestId` (o ensaio o viu no
+  `Invariant report is malformed`), e o status padrão do construtor é 500.
 - **`content-type` com caractere de controle é recusado com 415 na porta.**
   Mitigação de uma advisory **high** da `fastify@4` (bypass de validação de
   corpo por TAB no `Content-Type`), corrigida upstream só na `fastify@5`. Sai
@@ -524,6 +527,16 @@ ser distinguíveis pelo campo de auditoria que a §18.4 grava.
 - **O serializer é lista de permissão.** Propriedade acrescentada a um erro não
   é serializada — o `primaryError` que o `ai.service` pendura na exceção do
   fallback seria um segundo erro sem passar por redação nenhuma.
+- **O `.env` entra em silêncio, por `config/load-env-file.ts`, e só por ali.**
+  O dotenv 18 fez o `dotenv/config` anunciar cada carga
+  (`◇ injected env (N) from .env` no stderr) — inclusive no Render, sem
+  `.env`, com `(0)` —, uma linha fora do JSON num processo cujo log inteiro é
+  JSON. O CI do PR do Dependabot estava verde. O carregador chama
+  `config({ quiet: true })` e é **módulo de efeito colateral** de propósito:
+  import é içado, e o `gates:rehearse` precisa do `DATABASE_URL` antes de
+  importar o banco. Guarda em `tests/config/load-env-file.test.ts` (não
+  escreve nada; só ele importa o `dotenv`; quem o importa, importa primeiro).
+  #241.
 - **Uma linha por requisição**, escrita pelo `onResponse` do
   `plugins/observability.ts`; o par padrão do Fastify está desligado
   (`disableRequestLogging: true`). O nível casa com o status, o que faz
@@ -1039,7 +1052,7 @@ Regras que não são óbvias no código:
   saída por qualidade é `contract`.
 - **Aviso de portão degrada o dia** (`WARN` da 5.5 ou da 6.5, com
   `degradedBy.push`, `PIPELINE_STAGE_DEGRADED · stage-6.5`), e é decisão: os
-  avisos são raros de propósito (duplicata > 60 %, deriva > 0,5,
+  avisos são raros de propósito (duplicata > 60 %, deriva > 0,25 — calibrada contra produção em 24/09,
   `instruction-text`) e "quem decide olha" precisa de um
   mecanismo, e `SUCCESS_DEGRADED` é o que este pipeline tem. O campo do
   contexto é **`findings`**, não `warnings`: `isDegradingWarn` lê

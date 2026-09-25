@@ -107,7 +107,9 @@ describe('SecurityClient — as falhas registradas', () => {
   it('lists every distinct failure with its request id as selectable text', () => {
     renderWithIntl(<SecurityClient />);
 
-    const table = screen.getByRole('table', { name: '' });
+    // Pelo nome: desde a Fase 12 (A5.13) toda tabela do admin tem um — antes
+    // esta se achava por **não** ter, que era o defeito.
+    const table = screen.getByRole('table', { name: 'Todas as falhas' });
     expect(within(table).getByText('AUTH_TOKEN_INVALID')).toBeInTheDocument();
     expect(within(table).getByText('/api/account')).toBeInTheDocument();
     const requestId = within(table).getByText('req-abc-123');

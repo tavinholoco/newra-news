@@ -24,8 +24,16 @@ import { env } from '../config/env';
  * O padrão é deliberadamente largo — qualquer coisa com `@` entre caracteres
  * plausíveis de endereço. Falso positivo aqui apaga texto de diagnóstico;
  * falso negativo grava dado pessoal, e o erro caro é o segundo.
+ *
+ * **O `(?<!…)` do começo é o que o deixa linear** (Fase 12 do plano de
+ * observabilidade, o `js/polynomial-redos` do CodeQL). Sem ele a regex tentava
+ * um endereço a partir de **cada** caractere de uma corrida sem `@`, e cada
+ * tentativa ia até o fim da corrida: quadrático — 64 mil caracteres custavam
+ * 2,9 s, e o texto chega aqui **antes** de ser truncado. Começar só onde a
+ * corrida começa não muda nenhum match: o que casa de um ponto do meio da
+ * corrida é o mesmo `@` e o mesmo domínio que casariam do começo dela.
  */
-const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const EMAIL_PATTERN = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 export const REDACTED_EMAIL = '[email redigido]';
 

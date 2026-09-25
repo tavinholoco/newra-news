@@ -25,7 +25,8 @@
  * cada dia com linha, a razão `newsCollected / mediana dos sete anteriores` e
  * a deriva de categoria contra a janela (as duas com a mesma regra do
  * pipeline); e a diversidade — quantas fontes distintas cada briefing de fato
- * levou ao modelo (a `BriefingSource` guarda a `source` de cada selecionado).
+ * levou ao modelo (a `BriefingSource` guarda a `source` de cada selecionado),
+ * e, abaixo do piso, o **alargamento** que o portão faria antes de bloquear.
  * O frescor só é ensaiável enquanto a `News` citada existe (30 dias): é a
  * idade do item mais recente contra o `generatedAt` do briefing.
  *
@@ -60,6 +61,7 @@ import {
   MIN_BASELINE_DAYS,
   MIN_DISTINCT_SOURCES,
   MIN_VOLUME_RATIO,
+  WIDENED_SELECTION,
   categoryDrift,
   type BaselineDay,
 } from '../src/services/pipeline-gates.service';
@@ -199,13 +201,51 @@ async function rehearseEntryGate(): Promise<number> {
     ...(LIMIT ? { take: LIMIT } : {}),
   });
   const withSources = briefings.filter((b) => b.sources.length > 0);
-  const diversityBlocks = withSources
-    .filter((b) => new Set(b.sources.map((s) => s.source)).size < MIN_DISTINCT_SOURCES)
-    .map((b) => `${day(b.date)} (${new Set(b.sources.map((s) => s.source)).size} fontes em ${b.sources.length})`);
   const distinct = withSources.map((b) => new Set(b.sources.map((s) => s.source)).size);
   console.log(`\nfontes distintas por briefing (${withSources.length} com BriefingSource): ${distribution(distinct)}   · piso ${MIN_DISTINCT_SOURCES}`);
-  console.log(`diversity          bloquearia ${String(diversityBlocks.length).padStart(3)}   (sem alargar — o ensaio só vê os que foram)`);
-  for (const hit of diversityBlocks.slice(0, 10)) console.log(`    ${hit}`);
+
+  /**
+   * **Abaixo do piso, o portão alarga antes de bloquear — e o ensaio tem de
+   * alargar também.** A primeira versão contava como reprovação todo briefing
+   * com menos de três fontes na `BriefingSource`, e contra produção (24/09,
+   * Fase 12, A7.04) isso deu três "reprovações" e saída 1 — mas o portão real
+   * pede `WIDENED_SELECTION` itens ao pipeline antes, e nos três dias as 30
+   * mais recentes tinham 6, 5 e 3 fontes: nenhum teria bloqueado. O ensaio
+   * dizia "o errado é o portão" sobre um portão certo.
+   *
+   * O alargamento é **reconstruído** das `News` gravadas naquele dia UTC, na
+   * ordem do `selectTopItems` (`publishedAt` desc) — aproximação: as
+   * re-coletadas de dias anteriores não entram. Sem `News` do dia (o expurgo
+   * de 30 dias), a linha é **indeterminada** e fica fora da soma.
+   */
+  const diversityBlocks: string[] = [];
+  const diversityWidened: string[] = [];
+  const diversityUnknown: string[] = [];
+  for (const b of withSources) {
+    const selected = new Set(b.sources.map((s) => s.source)).size;
+    if (selected >= MIN_DISTINCT_SOURCES) continue;
+    const dayStart = new Date(b.date);
+    const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+    const wider = await prisma.news.findMany({
+      where: { createdAt: { gte: dayStart, lt: dayEnd } },
+      orderBy: { publishedAt: 'desc' },
+      take: WIDENED_SELECTION,
+      select: { source: true },
+    });
+    const label = `${day(b.date)} (${selected} fontes em ${b.sources.length}`;
+    if (wider.length === 0) {
+      diversityUnknown.push(`${label}; sem News do dia para alargar)`);
+      continue;
+    }
+    const widened = new Set(wider.map((n) => n.source)).size;
+    const line = `${label}; ${widened} em ${wider.length} alargando)`;
+    if (widened >= MIN_DISTINCT_SOURCES) diversityWidened.push(line);
+    else diversityBlocks.push(line);
+  }
+  console.log(
+    `diversity          bloquearia ${String(diversityBlocks.length).padStart(3)}   passaria alargando ${diversityWidened.length} · indeterminado ${diversityUnknown.length}`,
+  );
+  for (const hit of [...diversityBlocks, ...diversityWidened, ...diversityUnknown].slice(0, 10)) console.log(`    ${hit}`);
 
   // Frescor: só onde a News citada ainda existe.
   const newsIds = withSources.flatMap((b) => b.sources.map((s) => s.newsId)).filter((id): id is string => id !== null);

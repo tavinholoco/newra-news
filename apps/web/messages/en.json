@@ -180,7 +180,7 @@
         "blockedHint": "Blocks that left the day without a briefing.",
         "recovered": "Recovered",
         "recoveredHint": "Quality blocks the reserve provider recovered.",
-        "motives": "Motives",
+        "motives": "Reasons",
         "centerCaption": "decisions",
         "empty": "No blocks in the last 7 days.",
         "none": "—",

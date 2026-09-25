@@ -13,6 +13,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
         create: vi.fn(),
         update: vi.fn(),
         findFirst: vi.fn(),
+        findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
       news: {
@@ -185,6 +186,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 
   vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue(null);
+  vi.mocked(prisma.pipelineLog.findMany).mockResolvedValue([]);
   vi.mocked(prisma.pipelineLog.create).mockResolvedValue(mockLog as never);
   vi.mocked(prisma.pipelineLog.update).mockResolvedValue(mockLog as never);
   vi.mocked(prisma.pipelineLog.deleteMany).mockResolvedValue({ count: 0 });
@@ -375,6 +377,37 @@ describe('PipelineService', () => {
       expect(burial?.[0].data.completedAt).toBeInstanceOf(Date);
       // Chutar a etapa poria no banco um numero que ninguem mediu.
       expect(burial?.[0].data).not.toHaveProperty('errorStage');
+    });
+
+    /**
+     * **O cadáver de outro dia.** O enterro só olhava o run de **hoje** — o
+     * `findFirst` da idempotência é na janela do dia. O run de 03/09/2026, o
+     * do `SIGTERM` no meio da 8.5, ficou `RUNNING` no banco de produção até o
+     * ensaio de aceitação o achar em 24/09 (Fase 12, M7a, pela invariante
+     * `pipeline.no_stale_running`, que o acusava em todo run): a faixa de 30
+     * dias o desenhava como "rodando", e a invariante reprovava todo dia — o
+     * jeito de ensinar a ignorá-la.
+     */
+    it('buries a dead run from a previous day before the day is checked', async () => {
+      vi.mocked(prisma.pipelineLog.findMany).mockResolvedValue([
+        { id: 'dead-three-weeks-ago', startedAt: new Date(Date.now() - 21 * 86_400_000) },
+      ] as never);
+
+      const result = await triggerPipeline();
+      await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
+
+      const query = vi.mocked(prisma.pipelineLog.findMany).mock.calls[0]?.[0];
+      expect(query?.where).toMatchObject({ status: 'RUNNING' });
+      // Morto é o que passou do prazo — qualquer dia, inclusive ontem às 23:55.
+      const cutoff = (query?.where?.startedAt as { lt: Date }).lt.getTime();
+      expect(Math.abs(cutoff - (Date.now() - 15 * 60_000))).toBeLessThan(5_000);
+
+      const burial = vi
+        .mocked(prisma.pipelineLog.update)
+        .mock.calls.find((call) => call[0]?.where?.id === 'dead-three-weeks-ago');
+      expect(burial?.[0].data).toMatchObject({ status: 'FAILED' });
+      expect(burial?.[0].data).not.toHaveProperty('errorStage');
+      expect(result.outcome).toBe('started');
     });
 
     it('should never bury a run that is merely slow', async () => {

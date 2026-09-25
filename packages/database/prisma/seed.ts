@@ -238,7 +238,9 @@ async function main() {
     });
     metricsCreated++;
   }
-  console.log(`  DailyMetric: ${metricsCreated} created (${30 - metricsCreated} already existed)`);
+  console.log(
+    `  DailyMetric: ${metricsCreated} created (${30 - 1 - metricsCreated} already existed; the gate-blocked day has none)`,
+  );
 
   // ── Observabilidade (Fase 5 do plano, PR 5c) ────────────────────────────
   // As três tabelas que o `admin:capture` fotografa na `/admin` e na
@@ -266,7 +268,13 @@ async function main() {
 
   // ErrorEvent: quatro falhas distintas nas últimas 24 h, com baldes por hora
   // — o suficiente para a rosquinha ter três fatias e a tabela ter o que
-  // ordenar. Os códigos são os da taxonomia da API (`utils/errors.ts`).
+  // ordenar. **Cada linha tem a forma que o produto grava**, e há guarda
+  // (`apps/api/tests/services/seed-error-events.test.ts`): até a Fase 12 do
+  // plano de observabilidade o seed tinha três que o produto nunca escreveria
+  // — um `NOT_FOUND` em `WARN` (404 é `debug` e não vira linha), um código
+  // `feed-failed` (a etapa 1 degradada é `PIPELINE_STAGE_DEGRADED`) e um
+  // `INTERNAL` num 500 de rota (o 500 cru é `UNHANDLED`) —, e o ensaio as viu
+  // na tabela de falhas ao lado das reais.
   const thisHour = new Date(now);
   thisHour.setUTCMinutes(0, 0, 0);
   const hoursAgo = (hours: number) => new Date(thisHour.getTime() - hours * 3_600_000);
@@ -297,44 +305,44 @@ async function main() {
       lastRequestId: `seed-${hours}-last`,
     })),
     {
-      fingerprint: 'API:WARN:NOT_FOUND:unmatched',
+      fingerprint: 'API:WARN:CONTENT_TYPE_REJECTED:/api/events',
       windowStart: hoursAgo(3),
       origin: ErrorOrigin.API,
       severity: ErrorSeverity.WARN,
-      code: 'NOT_FOUND',
-      category: 'validation',
-      count: 25,
-      route: 'unmatched',
-      statusCode: 404,
-      message: 'Route not found',
-      firstRequestId: 'seed-404-first',
-      lastRequestId: 'seed-404-last',
+      code: 'CONTENT_TYPE_REJECTED',
+      category: 'authorization',
+      count: 4,
+      route: '/api/events',
+      statusCode: 415,
+      message: 'Unsupported Media Type',
+      firstRequestId: 'seed-415-first',
+      lastRequestId: 'seed-415-last',
     },
     {
-      fingerprint: 'PIPELINE:WARN:feed-failed:stage-1',
+      fingerprint: 'PIPELINE:WARN:PIPELINE_STAGE_DEGRADED:stage-1',
       windowStart: hoursAgo(now.getUTCHours() >= 11 ? now.getUTCHours() - 11 : 13),
       origin: ErrorOrigin.PIPELINE,
       severity: ErrorSeverity.WARN,
-      code: 'feed-failed',
+      code: 'PIPELINE_STAGE_DEGRADED',
       category: 'upstream',
       count: 3,
       route: 'stage-1',
       statusCode: null,
-      message: 'Feed Veja Saúde: ETIMEDOUT',
+      message: 'Collection degraded',
       firstRequestId: null,
       lastRequestId: null,
     },
     {
-      fingerprint: 'API:ERROR:INTERNAL:/api/news/:id',
+      fingerprint: 'API:ERROR:UNHANDLED:/api/news/:id',
       windowStart: hoursAgo(8),
       origin: ErrorOrigin.API,
       severity: ErrorSeverity.ERROR,
-      code: 'INTERNAL',
+      code: 'UNHANDLED',
       category: 'internal',
       count: 1,
       route: '/api/news/:id',
       statusCode: 500,
-      message: 'Unexpected error',
+      message: "Invalid `prisma.news.findUnique()` invocation: Can't reach database server at `db:5432`",
       firstRequestId: 'seed-500',
       lastRequestId: 'seed-500',
     },
