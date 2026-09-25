@@ -870,6 +870,22 @@ describe('PipelineService — retenção de eventos de produto (etapa 8)', () =>
     expect(arg.create.cleanupCount).toBe(20);
   });
 
+  it('names every purged table in the cleanup event, not only in the total', async () => {
+    // Ensaio de aceitação (Fase 12, A4.07): o evento dizia `deleted: 8`, e as
+    // três primeiras tabelas só existiam dentro da soma.
+    vi.mocked(prisma.pipelineLog.deleteMany).mockResolvedValueOnce({ count: 2 });
+    vi.mocked(prisma.article.deleteMany).mockResolvedValueOnce({ count: 1 });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(prisma.dailyMetric.upsert).toHaveBeenCalled());
+
+    const cleanup = vi.mocked(prisma.pipelineEvent.create).mock.calls.find(
+      (call) => (call[0] as { data: { message: string } }).data?.message === 'Cleanup completed',
+    );
+    const context = (cleanup?.[0] as { data: { context: Record<string, number> } }).data.context;
+    expect(context).toMatchObject({ news: 5, pipelineLogs: 2, articles: 1, deleted: 8 });
+  });
+
   it('should purge source health at 90 days, by day, and count it in the cleanup total', async () => {
     // Fase 11: "esta fonte vale a pena?" é pergunta trimestral — 90, como o
     // Article, para cruzar o briefing daquele dia com quem o alimentou.
