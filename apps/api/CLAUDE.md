@@ -451,7 +451,7 @@ código corrigido — o motivo pelo qual ele está daquele jeito.
 
 **É o risco mais próprio deste produto**, porque a saída do modelo vai ao ar
 sozinha: o Stage 7 persiste, o 7.5 manda e-mail aos assinantes, a Home exibe.
-Nenhuma revisão humana no meio, e o material é escrito por terceiros — 12 feeds
+Nenhuma revisão humana no meio, e o material é escrito por terceiros — 11 feeds
 RSS mais a NewsData.io, centenas de itens por dia.
 
 Quatro camadas, e as quatro precisam continuar existindo (a quarta é da Fase
@@ -836,7 +836,7 @@ desfecho, `failureReason`, `latencyMs`, e o run que a escreveu.
 | Peça | Papel |
 |---|---|
 | `providers/news/rss.provider.ts` | `outcomes` — um desfecho por feed configurado, com `fetched` e `latencyMs` (o `failures` de 03/09 virou isto) |
-| `services/news-fetcher.service.ts` | `sources: SourceFetch[]` — os 12 feeds mais o balde `newsdata`; **os `warnings` são derivados daqui**, e `FETCH_WARNING_KINDS` virou tuple |
+| `services/news-fetcher.service.ts` | `sources: SourceFetch[]` — um por feed configurado mais o balde `newsdata`; **os `warnings` são derivados daqui**, e `FETCH_WARNING_KINDS` virou tuple |
 | `services/source-health.service.ts` | `outcomeForSource`, `countKeptBySource`, `buildSourceHealthRows`, a escrita numa transação, o expurgo de 90 d e a leitura |
 | `services/pipeline.service.ts` | a escrita **depois da etapa 4**, num `try` cujo `catch` é `WARN` da 4 |
 

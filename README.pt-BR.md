@@ -42,14 +42,14 @@ Capturas de produção a 1440px. O conjunto completo — 12 rotas em três largu
 
 Acompanhar notícias significa abrir uma dezena de sites e ainda assim não saber o que importou. O volume não é problema que o leitor deveria resolver, mas é o que todo feed entrega a ele.
 
-O Newra News coleta centenas de matérias por dia da NewsData.io e de doze feeds RSS brasileiros e internacionais, remove duplicatas e escreve um único briefing diário a partir das quinze matérias mais recentes. Todo briefing cita os artigos que o originaram e declara, na própria página, que foi gerado por IA. O acervo continua navegável por data, por categoria e por busca textual.
+O Newra News coleta centenas de matérias por dia da NewsData.io e de onze feeds RSS brasileiros e internacionais, remove duplicatas e escreve um único briefing diário a partir das quinze matérias mais recentes. Todo briefing cita os artigos que o originaram e declara, na própria página, que foi gerado por IA. O acervo continua navegável por data, por categoria e por busca textual.
 
 O ponto não é a automação — é que o leitor possa confiar no que sai dela. As fontes são nomeadas, a data de geração fica visível, o modelo é declarado, e tudo o que o pipeline tocou continua a um clique de distância.
 
 ## Funcionalidades
 
 - **Briefing diário gerado por IA** — Gemini como modelo principal e Groq como fallback, com fontes citadas e aviso explícito de geração por IA
-- **Pipeline de ingestão automático** — NewsData.io mais doze feeds RSS, normalizados, deduplicados por URL de origem e expurgados após 30 dias
+- **Pipeline de ingestão automático** — NewsData.io mais onze feeds RSS, normalizados, deduplicados por URL de origem e expurgados após 30 dias
 - **Oito categorias** — tecnologia, política, economia, esportes, ciência, entretenimento, mundo e saúde, classificadas por palavra-chave
 - **Busca e filtros por categoria** com o recorte preservado na URL
 - **Acervo navegável por data** para todos os briefings anteriores
@@ -76,7 +76,7 @@ O ponto não é a automação — é que o leitor possa confiar no que sai dela.
 ```mermaid
 flowchart LR
     CRON["Cron diário 08:00 BRT"] --> ING[Ingestão e normalização]
-    SRC["NewsData.io + 12 feeds RSS"] --> ING
+    SRC["NewsData.io + 11 feeds RSS"] --> ING
     ING --> DEDUP[Deduplicação]
     DEDUP --> DB[(PostgreSQL)]
     DEDUP --> SEL[Seleção das 15 mais recentes]

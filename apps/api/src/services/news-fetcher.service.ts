@@ -61,7 +61,7 @@ export type SourceFetchKind = 'RSS' | 'AGGREGATOR';
 
 /**
  * O que **uma fonte configurada** rendeu neste run — uma entrada por fonte,
- * sempre: os 12 feeds de `rss-sources.ts` mais o balde `newsdata`. (Fase 11
+ * sempre: cada feed de `rss-sources.ts` mais o balde `newsdata`. (Fase 11
  * do plano de observabilidade)
  *
  * É o dado bruto de que `warnings` é derivado e de que a `SourceHealth` é
@@ -141,7 +141,7 @@ export async function fetchAll(): Promise<FetchResult> {
     });
   }
 
-  // ── RSS: doze feeds, doze desfechos ────────────────────────────────────
+  // ── RSS: um desfecho por feed ──────────────────────────────────────────────
   let rssItems: RawNewsItem[] = [];
   if (rss.result.status === 'rejected') {
     // O outer `allSettled` só rejeita se algo estourar antes do
@@ -153,7 +153,7 @@ export async function fetchAll(): Promise<FetchResult> {
     // **Cada feed configurado sai como falho, com a razão do provider**: o
     // provider caiu por cima deles, e uma fonte que não pôde ser tentada por
     // culpa nossa não é uma fonte que respondeu vazio. O aviso é um só, do
-    // provider — repetir doze `feed-failed` afogaria a linha que diz o que
+    // provider — repetir um `feed-failed` por feed afogaria a linha que diz o que
     // aconteceu.
     const failure = reasonOf(rss.result.reason);
     baseLogger.warn({ err: rss.result.reason }, '[pipeline] rss fetch failed');
@@ -197,8 +197,8 @@ export async function fetchAll(): Promise<FetchResult> {
         warnings.push({ kind: 'feed-empty', source: outcome.source });
       }
     } else {
-      // As doze responderam, nenhuma lançou, e nenhuma trouxe item — o caso
-      // que a análise por feed não cobre sozinha (doze `feed-empty` idênticos
+      // Todas responderam, nenhuma lançou, e nenhuma trouxe item — o caso
+      // que a análise por feed não cobre sozinha (um `feed-empty` idêntico por feed
       // afogariam o que de fato aconteceu: o provider inteiro veio mudo no
       // mesmo instante, um padrão que pede suspeita sobre a coleta como um
       // todo, não sobre cada fonte). Os desfechos por fonte continuam `EMPTY`

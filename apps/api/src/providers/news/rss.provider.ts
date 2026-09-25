@@ -80,7 +80,7 @@ export interface RssFetchResult {
  * responder" é o dia anterior ao `ETIMEDOUT` — visível só se alguém medir.
  *
  * O aviso por fonte continua saindo no log do Render, ao lado do resto da
- * execução. **Não vira teste de rede**: uma suíte que bate nos doze feeds
+ * execução. **Não vira teste de rede**: uma suíte que bate em todos os feeds
  * reprovaria no dia em que um publisher espirrasse, e gate que falha por
  * motivo alheio é gate que se aprende a ignorar.
  */
@@ -138,8 +138,8 @@ export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<R
 
 async function fetchFeedXml(url: string): Promise<string> {
   // **Prazo, pela mesma razão que o resto da fase.** Um feed que aceita a
-  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e doze
-  // fontes em paralelo significam que basta uma. O provider de e-mail já tinha
+  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e com
+  // todas as fontes em paralelo basta uma. O provider de e-mail já tinha
   // o seu (15 s); este não tinha nenhum. Trinta segundos é folga sobre o pior
   // caso observado num feed lento e cabe no orçamento do cron diário.
   const response = await fetch(url, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
