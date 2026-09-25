@@ -13,6 +13,15 @@
 > onze guardas fora do M1, dois `code` sem linha, e o M7 dividido entre o que
 > espera o Render e o que não espera. A `dev` foi trazida para a branch no
 > merge `00f046b` (a triagem do Dependabot e o #241).
+>
+> **Estado em 25/09/2026, depois da primeira sessão de execução:** M0, M1,
+> M2, M3 (menos o A3.05), M5 na parte que não depende do M4, M6 e M7a (menos
+> o A7.01) feitos — **51 linhas provadas e 9 com defeito achado e corrigido
+> no PR A, cada um com guarda e mutação no `pnpm guard:mutations` (54/54)**.
+> O que falta e por quê: **o M4 inteiro espera chaves de IA válidas** no
+> `apps/api/.env` (as locais são *placeholders* — A0.05); o A5.02–A5.08
+> esperam o M4; o **A3.05 é o Ctrl+C do dono**; o **A7.01 é o Billing,
+> antes de 01/10**; o M7b espera a API voltar; o M8 fecha.
 
 ## Como ler e preencher
 
@@ -242,6 +251,10 @@
     suíte leitora nova não tiver mutação nem motivo — guarda nova nasce
     pedindo a mutação que a vê reprovar. A mutação dela é a **A1.40**.
 - [x] **A1.01..A1.40 — Cada mutação abaixo reprova a guarda indicada.** · L
+  - **Rodada de 25/09, depois das correções do M5 e do M7a: 54/54 como
+    esperado, cobertura completa, saída 0** — 53 suítes leem fonte = 38 na
+    tabela + 15 excluídas; as sete mutações novas (A1.41–A1.47) são as
+    guardas que esta fase criou.
   - **Rodada final de 24/09: 47/47 como esperado, cobertura completa,
     saída 0** — 52 suítes leem fonte = 37 na tabela + 15 excluídas (a tabela
     tem mais três que não leem fonte: `authorization-matrix`,
