@@ -296,9 +296,14 @@
 | A1.40 | `tests/build/guard-mutations.test.ts` (Fase 12) | uma suíte nova que lê fonte, sem mutação nem motivo |
 | A1.41 | `tests/build/workflow-hardening.test.ts` (Fase 12, A6.02) | o passo `node scripts/audit-orphans.mjs` sumindo do `ci.yml` |
 | A1.42 | `tests/plugins/error-handler.test.ts` (Fase 12, A3.17) | o 5xx do `AppError` voltando a pôr a própria frase no fio |
+| A1.43 | `tests/services/pipeline.test.ts` (Fase 12, A7.05) | o enterro voltando a olhar só o run de hoje |
+| A1.44 | `tests/security/secrets-in-logs.test.ts` (Fase 12, A5.01) | o `PrismaClient` de volta ao `errorFormat` padrão |
+| A1.45 | `tests/services/seed-error-events.test.ts` (Fase 12, A5.01) | uma linha semeada que o produto deixaria em `debug` |
+| A1.46 | web `tests/components/a11y-guards.test.tsx` (Fase 12, A5.13) | uma tabela do admin sem nome acessível |
+| A1.47 | web `tests/lib/state-matrix.test.ts` (Fase 12, A5.12) | uma cor da tela de crash que não é o token resolvido |
 
 *Achadas pela cobertura derivada (A1.36–A1.39) e nascidas desta fase
-(A1.40–A1.42). As duas últimas foram vistas reprovando depois de o
+(A1.40–A1.47). As duas últimas foram vistas reprovando depois de o
 commit das correções existir — o script só muta arquivo limpo no git.*
 
 **O resultado da rodada final (24/09, `pnpm guard:mutations`, 47/47):** o
@@ -801,10 +806,39 @@ caíram junto.
 
 ## M5 — As três abas, com o dado que o M2–M4 produziu (Fases 2, 5, 8, 11, 6, 7b, 9)
 
-- [ ] **A5.01 — `admin:capture` 21/21, com a medição de largura**, e **cada
+- [~] **A5.01 — `admin:capture` 21/21, com a medição de largura**, e **cada
   imagem olhada** nos dois temas — a captura achou defeito sem sintoma de código
   em cinco fases seguidas; o código de saída não basta. (21 = 5 rotas × 2
   larguras × 2 temas + `admin-en`.) · L
+  - **Primeira passada, 25/09 01:44 UTC, com o dado do M2–M3 (antes do
+    M4):** `admin:capture` → **21/21**, nenhuma reprovada pela medição de
+    largura (`scratchpad/captures/a501/`), olhadas por recorte. A
+    `/admin/metrics` a 375 saiu 57 px mais alta no escuro que no claro — é
+    uma linha a mais na tabela de latência por rota (`GET
+    /api/admin/sources`, chamada pela captura clara um instante antes; a
+    métrica é em memória): não é defeito. A rodada que vale para esta
+    linha é a de depois do M4, com os três runs dentro — pendente com ele.
+  - **A `/admin/security` com falha de verdade mostrou dois achados
+    (corrigidos no PR A):** (1) a linha do `AUDIT_WRITE_FAILED` levava à
+    coluna e à tela a mensagem inteira do Prisma — **o caminho absoluto do
+    arquivo no servidor e quatro linhas do código-fonte**, com a causa
+    espremida no fim; o `errorFormat` padrão do `PrismaClient` põe o quadro
+    de código na `message` (medido: com a URL e a senha junto, quando elas
+    estão escritas perto da chamada). O singleton passou a
+    `errorFormat: 'minimal'` (`Invalid \`prisma.news.count()\` invocation:
+    Can't reach database server…` — a chamada e a causa; o `stack` segue
+    no log), com guarda pelo parser em `secrets-in-logs.test.ts` (A1.44).
+    (2) **O seed semeava três falhas que o produto nunca grava** — um
+    `NOT_FOUND` em `WARN` (404 é `debug`), um código `feed-failed` (a
+    etapa 1 degradada é `PIPELINE_STAGE_DEGRADED`) e um `INTERNAL` num 500
+    de rota (o 500 cru é `UNHANDLED`) —, lado a lado com as reais. Viraram
+    `CONTENT_TYPE_REJECTED`, `PIPELINE_STAGE_DEGRADED` e `UNHANDLED`, e
+    nasceu `tests/services/seed-error-events.test.ts` (o código está no
+    conjunto gravado, o fingerprint é o do `fingerprintFor`, a severidade
+    de linha da API é a do `logLevelFor` e nunca `debug`), vista
+    reprovando sobre o seed antigo em duas das três (A1.45). A terceira —
+    `INTERNAL` num 500 — é forma possível para o tipo, e nenhuma regra
+    geral a separa.
 - [ ] **A5.02 — `/admin`: o arco e o ritmo do mês**, com as horas do
   `DailyUptime`; "Indisponível" nunca zero. · L
 - [ ] **A5.03 — Os três desfechos do botão, cada um com a sua frase** —
@@ -845,29 +879,93 @@ caíram junto.
     5.5 e não chega à 9.5): **duas** violações, `briefing.one_per_day` (o
     seed) e `briefing.has_sources` (A4.13), cada uma com o `detail`.
   - A **Auditoria** com os disparos e a exclusão, só ids. · L
-- [ ] **A5.09 — Nenhum polling.** Cada aba aberta por 3 min →
+- [x] **A5.09 — Nenhum polling.** Cada aba aberta por 3 min →
   `read_network_requests` sem requisição repetida a `/api/admin/*` (armadilha
   3). · L
-- [ ] **A5.10 — O boundary de cliente (7b).** A rota `admin-metrics-error` do
+  - `scratchpad/m5-browser.mjs` (Playwright, cookie lido de arquivo): as
+    três abas abertas **ao mesmo tempo** e deixadas 180 s — `/admin` 3
+    requisições à API na carga e **0** depois; `/admin/metrics` 4 e **0**;
+    `/admin/security` 5 e **0**; nenhuma URL repetida.
+- [x] **A5.10 — O boundary de cliente (7b).** A rota `admin-metrics-error` do
   capture (`breakBff`) → a casca `error-state`, o relato **202 uma vez por
   montagem**, e a linha `WEB · CLIENT_ERROR · /[locale]/admin/metrics`. · L
-- [ ] **A5.11 — O `digest` chega a um humano numa página `force-dynamic`.** Um
+  - As quatro capturas da rota `admin-metrics-error` (`breakBff`) →
+    **quatro** `POST /api/errors/client` com **202** no log da API (uma por
+    montagem) → uma linha `WEB:ERROR:CLIENT_ERROR:/[locale]/admin/metrics`
+    com **`count: 4`**, `context: {"path": "/pt-BR/admin/metrics",
+    "digest": null}` (erro de render do cliente não tem `digest`) e a
+    mensagem do `TypeError` real do `GoldenSignals`.
+- [x] **A5.11 — O `digest` chega a um humano numa página `force-dynamic`.** Um
   `throw` guardado por variável de ambiente (nunca commitado) na
   `/admin/security` → "Referência do erro: <digest>" na tela e **o mesmo
   digest** no `context` da linha. · L
-- [ ] **A5.12 — O `global-error.tsx`.** `throw` guardado por variável no layout
+  - `throw` temporário na `/admin/security` guardado por
+    `FASE12_THROW_SECURITY` (`scratchpad/inject-web.mjs`; restaurado, `git
+    diff --quiet` limpo) → a tela do `[locale]/error.tsx` com **"Referência
+    do erro: 2090297366"**, o relato enviado com o mesmo `digest` (202), o
+    mesmo número no log do web, e a linha
+    `WEB:ERROR:CLIENT_ERROR:/[locale]/admin/security` com `"digest":
+    "2090297366"` no `context`. De passagem: a página de erro respondeu
+    **HTTP 200** (o boundary de uma página `force-dynamic` renderiza sem
+    status de erro) — numa `noindex` de admin não pesa.
+- [!] **A5.12 — O `global-error.tsx`.** `throw` guardado por variável no layout
   de idioma → a tela de crash no **tema escuro** quando o tema salvo é escuro
   (armadilha 40), strings no idioma do caminho, relato enviado. · L
-- [ ] **A5.13 — Teclado e leitor.** Cabeçalhos ordenáveis com `aria-sort`,
+  - **Só em build de produção:** em dev o Next 14 mostra o overlay no
+    lugar do `global-error.tsx` (a primeira tentativa, em dev, deu 500 e
+    página vazia). `next build` sem a variável, `next start` com
+    `FASE12_THROW_LAYOUT=1`, `/en/admin` (dinâmica: o layout roda por
+    requisição) → **HTTP 500**, `lang="en"`, "Something went wrong… Error
+    reference: 94297226", o relato enviado (202), e a classe `dark` no
+    `<html>` **só** com o tema salvo escuro.
+  - **O defeito: a tela saía sem folha de estilo nenhuma** — zero `<link
+    rel="stylesheet">`, zero `<style>`, Times New Roman, fundo branco **com
+    a classe `dark` aplicada**. O boundary raiz substitui o layout raiz, é a
+    ele que o Next prende o chunk do CSS, e o `import '@/styles/globals.css'`
+    do `global-error.tsx` era deduplicado — a guarda da `state-matrix`
+    conferia o `import` e passava. **Corrigido no PR A:** o
+    `global-error.tsx` traz o próprio `<style>`, por elemento, com os tokens
+    **resolvidos** num `THEME`; a guarda passou a exigir o `<style>`,
+    proibir o `globals.css` ali, e **resolver `--bg`, `--ink`,
+    `--ink-secondary`, `--ink-muted`, `--brand-solid` e `--on-brand` do
+    `tokens.css`** (seguindo as cadeias `var(--…)`, no claro e no `.dark`) e
+    cobrar a igualdade (A1.47). **Remedido:** fundo `rgb(15, 17, 19)` =
+    `#0f1113` no escuro e `#faf9f7` no claro, fonte do sistema, título em
+    serifa, botão da marca (`scratchpad/captures/a512-fixed-dark.png`).
+- [!] **A5.13 — Teclado e leitor.** Cabeçalhos ordenáveis com `aria-sort`,
   alertas como `role="status"` (nunca `alert` sobre conteúdo), tabelas com nome
   acessível — pela árvore de acessibilidade (`read_page`). · L
-- [ ] **A5.14 — A aba em inglês.** `/en/admin/security` com o painel Portões e
+  - Pela página (`m5-browser.mjs`): um só `aria-sort` por vez (o da
+    coluna ativa, `descending` — o WAI-ARIA pede um), foco no primeiro
+    cabeçalho ordenável e **Enter** → `aria-sort` `descending → ascending`;
+    zero `role="alert"`, um `role="status"`.
+  - **O defeito: três das quatro tabelas do admin sem nome acessível** —
+    a de falhas (`error-groups-table`), a de latência por rota
+    (`golden-signals`) e a de fontes (`source-health-panel`); só a de
+    invariantes tinha, e por acaso (um `getByRole('table')` ambíguo na
+    suíte dela). Com duas por página, o leitor de tela as lista como
+    "tabela, tabela". **Corrigido no PR A:** `aria-label` com o título que
+    cada seção já tem; guarda nova na `a11y-guards` ("toda tabela tem nome
+    acessível"), vista reprovando com uma delas sem nome (A1.46).
+- [!] **A5.14 — A aba em inglês.** `/en/admin/security` com o painel Portões e
   os motivos traduzidos. · L
-- [ ] **A5.15 — O payload do A3.15 na tabela é texto.** A linha do relato
+  - `/en/admin/security` → `lang="en"`, títulos "Logs & security",
+    "Recorded failures", "Gates", "Invariants", "Admin action audit"…
+    **e "Motives"** no painel de portões — em inglês de interface,
+    "motives" é intenção; o motivo de um bloqueio é "reasons". Corrigido
+    no `messages/en.json` (a paridade de chaves da `i18n-messages` segue
+    verde). Os rótulos por motivo (`GATE_CHECK_KEY`) só aparecem com
+    bloqueio na janela — o M4 os traz.
+- [x] **A5.15 — O payload do A3.15 na tabela é texto.** A linha do relato
   mostra `<img src=x onerror=alert(1)>` **como caractere**: a árvore de
   acessibilidade tem o texto e nenhum elemento `img` novo, e nenhum diálogo
   abre. (A defesa esperada é o React escapar — não há `dangerouslySetInnerHTML`
   no admin; a linha prova, não supõe.) · L
+  - A linha do relato do A3.15 na tabela de falhas mostra `<img src=x
+    onerror=alert(1)> {"level":50,"msg":"linha forjada fase12"}` **como
+    texto** (captura a 1440); na árvore de acessibilidade, a `row` traz o
+    texto literal; **nenhum** `<img>` com `src="x"` no DOM; **zero**
+    diálogos abertos durante toda a navegação (`page.on('dialog')`).
 
 ## M6 — A esteira (Fase 10)
 

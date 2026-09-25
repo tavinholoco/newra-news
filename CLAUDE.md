@@ -1723,7 +1723,13 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   o chunk fica onde estava. O `globals.css` mora **só** em `app/layout.tsx`, e
   há guarda em `tests/lib/state-matrix.test.ts`. Corolário: caminho que não casa
   com arquivo de rota **não cai dentro de `[locale]`** — quem renderiza é o
-  `not-found` da raiz, não o localizado.
+  `not-found` da raiz, não o localizado. **E o `global-error.tsx` é o caso
+  que nem o layout raiz alcança**: ele *substitui* o layout raiz, então nem o
+  `globals.css` de lá chega, e o `import` repetido nele é deduplicado — a tela
+  de crash ia ao ar sem folha de estilo nenhuma, e a guarda que conferia o
+  `import` passava. Ele traz o próprio `<style>` com os tokens resolvidos
+  (ensaio de aceitação, 25/09/2026). Só se vê em build de produção: em dev o
+  Next mostra o overlay no lugar dele.
 - **`.catch(() => valor)` numa página confunde "a API disse não" com "a API não
   respondeu", e a ISR fixa a confusão.** A Home dizia "sem notícias hoje" e
   guardava a afirmação por uma hora; as telas de detalhe chamavam `notFound()`

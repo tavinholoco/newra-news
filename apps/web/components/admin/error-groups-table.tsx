@@ -154,7 +154,7 @@ export function ErrorGroupsTable({ groups, categories }: ErrorGroupsTableProps) 
         * Achado pela captura da Fase 9, com a janela de 24 h populada.
         */}
       <div className='relative overflow-x-auto rounded-lg border border-border'>
-        <table className='w-full text-sm'>
+        <table className='w-full text-sm' aria-label={t('security.errors.tableTitle')}>
           <thead className='bg-surface-raised text-xs text-muted-foreground'>
             <tr>
               <th scope='col' className='px-3 py-2 text-left font-medium uppercase tracking-wider'>

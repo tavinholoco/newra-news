@@ -39,7 +39,14 @@
   quem o insere num client component (armadilha 40); lá o tema é
   `applyStoredTheme()` num `useEffect`, e as strings saem dos JSONs lidos
   direto, no idioma do pathname (`useTranslations` sem provider lança dentro
-  do boundary; uma cópia fixa das frases derivaria dos JSONs em silêncio)
+  do boundary; uma cópia fixa das frases derivaria dos JSONs em silêncio).
+  **E o estilo é um `<style>` próprio, não o `globals.css`**: o boundary
+  raiz **substitui** o layout raiz, e é a ele que o Next prende o chunk do
+  CSS — o `import` repetido era deduplicado, e em build de produção a tela
+  saía sem folha nenhuma, em Times New Roman e branca com a classe `dark`
+  aplicada (Fase 12 do plano, A5.12; o `global-error` só existe em
+  produção — em dev entra o overlay). As cores são os tokens **resolvidos**
+  num `THEME`, com guarda na `state-matrix` contra o `tokens.css`
 - **Revalidação on-demand** — `app/api/cron/daily-news/route.ts` chama
   `revalidatePath('/[locale]', 'layout')` + `revalidatePath('/sitemap.xml')`
   após o trigger do pipeline. **Gotcha:** o cache do Next grava as tags com o

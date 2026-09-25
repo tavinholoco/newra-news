@@ -670,6 +670,47 @@ const MUTATIONS = [
     edits: [{ find: 'for (const run of dead) await buryDeadRun(run);', replace: 'void dead;' }],
     expect: 'buries a dead run from a previous day before the day is checked',
   },
+  {
+    id: 'A1.44',
+    what: 'o Prisma de volta ao `errorFormat` padrão, com o quadro de código na mensagem (M5)',
+    pkg: 'api',
+    test: 'tests/security/secrets-in-logs.test.ts',
+    file: 'packages/database/src/index.ts',
+    edits: [{ find: "new PrismaClient({ errorFormat: 'minimal' })", replace: 'new PrismaClient()' }],
+    expect: 'builds the shared PrismaClient with errorFormat minimal',
+  },
+  {
+    id: 'A1.45',
+    what: 'uma linha semeada de `ErrorEvent` que o produto deixaria em `debug` (M5)',
+    pkg: 'api',
+    test: 'tests/services/seed-error-events.test.ts',
+    file: 'packages/database/prisma/seed.ts',
+    edits: [
+      {
+        find: lines("      category: 'authorization',", '      count: 4,'),
+        replace: lines("      category: 'validation',", '      count: 4,'),
+      },
+    ],
+    expect: 'never one that stays in debug',
+  },
+  {
+    id: 'A1.46',
+    what: 'uma tabela do admin sem nome acessível (A5.13)',
+    pkg: 'web',
+    test: 'tests/components/a11y-guards.test.tsx',
+    file: 'apps/web/components/dashboard/golden-signals.tsx',
+    edits: [{ find: " aria-label={t('signals.routesTitle')}", replace: '' }],
+    expect: 'toda tabela tem nome acessível',
+  },
+  {
+    id: 'A1.47',
+    what: 'uma cor da tela de crash que não é o token resolvido (A5.12)',
+    pkg: 'web',
+    test: 'tests/lib/state-matrix.test.ts',
+    file: 'apps/web/app/global-error.tsx',
+    edits: [{ find: "    bg: '#0f1113',", replace: "    bg: '#000000'," }],
+    expect: 'a tela de crash pinta com os tokens',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

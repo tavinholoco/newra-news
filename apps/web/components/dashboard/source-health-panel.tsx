@@ -221,7 +221,7 @@ export function SourceHealthPanel() {
 
       {/* `relative`: os `sr-only` da faixa por fonte são absolutos — ver `error-groups-table`. */}
       <div className='relative overflow-x-auto rounded-lg border border-border'>
-        <table className='w-full text-sm'>
+        <table className='w-full text-sm' aria-label={t('sources.title')}>
           <thead className='bg-surface-raised text-xs text-muted-foreground'>
             <tr>
               {sortHeader('source', 'left')}

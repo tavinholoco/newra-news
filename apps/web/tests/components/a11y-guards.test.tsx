@@ -194,6 +194,25 @@ describe('guardas de acessibilidade', () => {
 
       expect(semNome).toEqual([]);
     });
+
+    it('toda tabela tem nome acessível', () => {
+      // A `/admin/security` tem duas tabelas e a `/admin/metrics`, duas; sem
+      // nome, o leitor de tela as lista como "tabela, tabela" e a navegação
+      // por tabela não diz qual é qual. Só a de invariantes tinha, e por
+      // acaso (um `getByRole('table')` ambíguo na suíte dela) — o ensaio de
+      // aceitação (Fase 12 do plano de observabilidade, A5.13) viu as outras
+      // três pela árvore de acessibilidade.
+      const tabelas = SOURCES.flatMap(({ file, source }) =>
+        [...source.matchAll(/<table\b[^>]*>/g)].map((match) => ({ file, tag: match[0] })),
+      );
+
+      expect(tabelas.length).toBeGreaterThanOrEqual(4);
+      const semNome = tabelas
+        .filter(({ tag }) => !/\baria-label(ledby)?=/.test(tag))
+        .map(({ file }) => file);
+
+      expect(semNome).toEqual([]);
+    });
   });
 
   describe('erro de formulário', () => {
