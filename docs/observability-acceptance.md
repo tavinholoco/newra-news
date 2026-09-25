@@ -32,7 +32,8 @@
 > mão de um script (`fase12-kit/a305.mjs`), **provou a parte 1 e achou o
 > décimo defeito**: com o banco fora, as duas gravações do desligamento
 > desistiam sem escrever uma linha (A3.05, corrigido com A1.48/A1.49). **Do
-> lado do dono não falta nada antes do merge**; falta o M4 e o resto do M5.
+> lado do dono não falta nada**, e o **PR A (#242) mergeia sem o M4**: o M4
+> e o A5.02–A5.08 passam para o PR B, com o M7b e o M8.
 
 ## Como ler e preencher
 

@@ -380,8 +380,9 @@ a suíte de unidade, que roda sem rede.
   **M7b** produção **com o Render** (**01/10** — decidido em 24/09, sem
   instância paga):
   o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real ·
-  **M8** fechamento. **Dois PRs**: A (M0–M7a) pode mergear com o Render
-  suspenso; B (M7b–M8) depois da promoção.
+  **M8** fechamento. **Dois PRs**: A (#242 — M0–M3, M5 local, M6 e M7a;
+  10 defeitos corrigidos) mergeia com o Render suspenso; B (o **M4**, o
+  A5.02–A5.08, M7b e M8) depois — o M4 saiu do A em 25/09.
 
   > **A revisão da proposta (24/09, antes do M0) achou 25 inconsistências**
   > conferindo a matriz linha a linha contra o código — §22, "A revisão da
