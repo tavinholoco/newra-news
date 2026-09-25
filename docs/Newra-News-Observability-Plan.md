@@ -4300,7 +4300,8 @@ depois da promoção. Uma fase só de teste que espera a API para mergear qualqu
 coisa deixaria as correções do L paradas por semanas. **Revisto em 25/09:**
 o PR A (#242) mergeia **sem o M4** — as chaves de IA locais eram
 *placeholders* (A0.05), e as dez correções não esperam por elas pelo mesmo
-argumento; o M4 e o A5.02–A5.08 vão para o PR B. **O `ignore` do #237 é um
+argumento; o M4 e o A5.02–A5.08 vão para o PR B, que abriu na mesma noite
+com três correções de produto, e o M7b e o M8 para um PR C. **O `ignore` do #237 é um
 terceiro PR, na `main`, só com o arquivo** — e só com a API de pé (regra 10).
 
 ### O que já se sabe antes de começar (para ninguém redescobrir)

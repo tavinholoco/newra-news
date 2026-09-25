@@ -626,8 +626,15 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
         deletedErrors +
         deletedAudit +
         deletedSourceHealth;
+      // **Uma contagem por tabela.** As três primeiras só existiam dentro do
+      // total, e "a notícia velha foi apagada?" não se lia do evento — achado
+      // do ensaio de aceitação (Fase 12, A4.07), onde o `deleted: 8` escondia
+      // quais das sete linhas velhas tinham saído.
       await logPipelineEvent(pipelineLogId, 8, 'INFO', 'Cleanup completed', {
         deleted: metrics.cleanupCount,
+        news: deletedNews.count,
+        pipelineLogs: deletedLogs.count,
+        articles: deletedArticles.count,
         productEvents: deletedEvents,
         errorEvents: deletedErrors,
         auditEvents: deletedAudit,

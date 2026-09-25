@@ -381,8 +381,10 @@ a suíte de unidade, que roda sem rede.
   instância paga):
   o `ignore` do #237 na `main`, a promoção, o ritual, o primeiro run real ·
   **M8** fechamento. **Dois PRs**: A (#242 — M0–M3, M5 local, M6 e M7a;
-  10 defeitos corrigidos) mergeia com o Render suspenso; B (o **M4**, o
-  A5.02–A5.08, M7b e M8) depois — o M4 saiu do A em 25/09.
+  10 defeitos corrigidos) mergeia com o Render suspenso; B (o **M4** e o
+  A5.02–A5.08, com três defeitos de produto: a ESPN com o fuso errado, a
+  NewsData recusada lida como vazia, a etapa 8 sem contagem por tabela) em
+  25/09; C (M7b e M8) depois de 01/10.
 
   > **A revisão da proposta (24/09, antes do M0) achou 25 inconsistências**
   > conferindo a matriz linha a linha contra o código — §22, "A revisão da

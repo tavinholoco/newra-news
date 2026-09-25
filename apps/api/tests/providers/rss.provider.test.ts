@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { fetchFromRss, fetchFromRssWithOutcomes } from '../../src/providers/news/rss.provider';
-import type { RssSource } from '../../src/config/rss-sources';
+import { fetchFromRss, fetchFromRssWithOutcomes, parsePubDate } from '../../src/providers/news/rss.provider';
+import { rssSources, type RssSource } from '../../src/config/rss-sources';
 import { baseLogger } from '../../src/utils/logger';
 
 const { mockParseString } = vi.hoisted(() => ({ mockParseString: vi.fn() }));
@@ -167,6 +167,26 @@ describe('fetchFromRss', () => {
 
     expect(result[0].publishedAt).toBeInstanceOf(Date);
     expect(result[0].publishedAt.toISOString()).toBe('2024-01-01T12:00:00.000Z');
+  });
+
+  /**
+   * **O feed que declara o fuso errado.** A ESPN escreve a hora de Brasília
+   * com o rótulo `EST`, e o `Date` a lia duas horas no futuro — o pipeline das
+   * 08:00 escolhia os itens dela antes de todos os outros (11 das 15 fontes do
+   * briefing de 01/09/2026). Achado do ensaio de aceitação, Fase 12, M4.
+   */
+  it('lê a hora de parede no fuso declarado pela configuração, não pelo feed', async () => {
+    mockParseString.mockResolvedValue({
+      title: 'ESPN',
+      items: [{ ...mockItem, pubDate: 'Fri, 25 Sep 2026 17:24:47 EST' }],
+    });
+
+    const [fixed] = await fetchFromRss([{ ...sourceWithCategory, pubDateZone: '-03:00' }]);
+    const [asDeclared] = await fetchFromRss([sourceWithCategory]);
+
+    expect(fixed!.publishedAt.toISOString()).toBe('2026-09-25T20:24:47.000Z');
+    // Sem a configuração, o rótulo do feed vale — e é o erro de duas horas.
+    expect(asDeclared!.publishedAt.toISOString()).toBe('2026-09-25T22:24:47.000Z');
   });
 
   it('should use new Date() when pubDate is missing', async () => {
@@ -483,5 +503,33 @@ describe('fetchFeedXml encoding', () => {
     await fetchFromRss([sourceWithCategory]);
 
     expect(mockParseString).toHaveBeenCalled();
+  });
+});
+
+describe('parsePubDate — o fuso que o feed declara errado', () => {
+  const NOW = new Date('2026-09-25T20:30:00.000Z');
+
+  it('sem configuração, o rótulo do feed vale', () => {
+    expect(parsePubDate('Fri, 25 Sep 2026 17:24:47 EST', undefined, NOW).toISOString()).toBe('2026-09-25T22:24:47.000Z');
+  });
+
+  it('com configuração, a hora de parede é lida no fuso dela', () => {
+    expect(parsePubDate('Fri, 25 Sep 2026 17:24:47 EST', '-03:00', NOW).toISOString()).toBe('2026-09-25T20:24:47.000Z');
+    expect(parsePubDate('5 Sep 2026 07:02 GMT', '-03:00', NOW).toISOString()).toBe('2026-09-05T10:02:00.000Z');
+  });
+
+  it('fora da forma RFC 822, cai no Date de sempre em vez de inventar uma data', () => {
+    expect(parsePubDate('2026-09-25T20:00:00Z', '-03:00', NOW).toISOString()).toBe('2026-09-25T20:00:00.000Z');
+  });
+
+  it('sem pubDate, é agora', () => {
+    expect(parsePubDate(undefined, '-03:00', NOW)).toBe(NOW);
+  });
+
+  it('todo pubDateZone configurado é um deslocamento ±hh:mm, e a ESPN tem o dela', () => {
+    for (const source of rssSources.filter((s) => s.pubDateZone !== undefined)) {
+      expect(source.pubDateZone, source.name).toMatch(/^[+-]\d{2}:\d{2}$/);
+    }
+    expect(rssSources.find((s) => s.name === 'ESPN Brasil')?.pubDateZone).toBe('-03:00');
   });
 });

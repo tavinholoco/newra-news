@@ -743,6 +743,52 @@ const MUTATIONS = [
     ],
     expect: 'a desistência diz quantos segundos ficaram sem crédito',
   },
+  {
+    id: 'A1.50',
+    what: 'a ESPN perde o fuso corrigido do pubDate (M4)',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/config/rss-sources.ts',
+    edits: [{ find: ", category: Category.SPORTS, pubDateZone: '-03:00' },", replace: ', category: Category.SPORTS },' }],
+    expect: 'a ESPN tem o dela',
+  },
+  {
+    id: 'A1.51',
+    what: 'o provider de RSS ignora o fuso configurado (M4)',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: 'publishedAt: parsePubDate(item.pubDate, source.pubDateZone),',
+        replace: 'publishedAt: parsePubDate(item.pubDate, undefined),',
+      },
+    ],
+    expect: 'lê a hora de parede no fuso declarado pela configuração',
+  },
+  {
+    id: 'A1.52',
+    what: 'a NewsData com todas as categorias recusadas volta vazia de novo (A4.13)',
+    pkg: 'api',
+    test: 'tests/providers/newsdata.provider.test.ts',
+    file: 'apps/api/src/providers/news/newsdata.provider.ts',
+    edits: [
+      {
+        find: "if (results.length > 0 && results.every((result) => result.status === 'rejected')) {",
+        replace: "if (false && results.every((result) => result.status === 'rejected')) {",
+      },
+    ],
+    expect: 'a refused key is not an empty harvest',
+  },
+  {
+    id: 'A1.53',
+    what: 'o evento da etapa 8 volta a esconder a notícia dentro do total (A4.07)',
+    pkg: 'api',
+    test: 'tests/services/pipeline.test.ts',
+    file: 'apps/api/src/services/pipeline.service.ts',
+    dropLine: '        news: deletedNews.count,',
+    expect: 'names every purged table in the cleanup event',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

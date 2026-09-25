@@ -180,6 +180,34 @@ function extractImageUrl(
   return extractImageFromHtml(content);
 }
 
+const RFC822_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A hora de parede de um `pubDate` RFC 822, sem o fuso: `dd Mon yyyy hh:mm[:ss]`. */
+const RFC822_WALL_CLOCK = /^(?:[A-Za-z]{3},\s*)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/;
+
+/**
+ * O instante de publicação de um item.
+ *
+ * **Com `zone`, a hora de parede do `pubDate` é lida naquele deslocamento, e o
+ * rótulo do feed é ignorado** — é o conserto do feed que declara o fuso errado
+ * (a ESPN escreve a hora de Brasília com `EST`; ver `rss-sources.ts`). Um
+ * `pubDate` fora da forma RFC 822 cai no `Date` de sempre: é melhor guardar a
+ * data que o feed disse do que inventar uma.
+ */
+export function parsePubDate(raw: string | undefined, zone: string | undefined, now: Date = new Date()): Date {
+  if (!raw) return now;
+  if (zone) {
+    const match = RFC822_WALL_CLOCK.exec(raw.trim());
+    const month = match ? RFC822_MONTHS.indexOf(match[2]!) : -1;
+    if (match && month >= 0) {
+      const [, day, , year, hour, minute, second = '00'] = match;
+      const pad = (value: string) => value.padStart(2, '0');
+      return new Date(`${year}-${pad(String(month + 1))}-${pad(day!)}T${hour}:${minute}:${pad(second)}${zone}`);
+    }
+  }
+  return new Date(raw);
+}
+
 async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
   const xml = await fetchFeedXml(source.url);
   const feed = await parser.parseString(xml);
@@ -218,7 +246,7 @@ async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
         // 320 caracteres mudaria a categoria de metade do acervo sem que nada
         // acusasse.
         category: source.category ?? classifyCategory(title, fullText),
-        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+        publishedAt: parsePubDate(item.pubDate, source.pubDateZone),
       };
     });
 }
