@@ -3,7 +3,7 @@ import ts from 'typescript';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { prisma } from '@newranews/database';
-import { pipelineContext } from '../../src/utils/logger';
+import { baseLogger, pipelineContext } from '../../src/utils/logger';
 import {
   ERROR_EVENT_RETENTION_DAYS,
   deleteExpiredErrorEvents,
@@ -281,6 +281,49 @@ describe('§8 — o flush, e o laço que ele não fecha', () => {
     await flushErrorEventsBeforeClose(50);
 
     expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  /**
+   * **A desistência escreve a própria linha, e antes de devolver.** O `catch`
+   * da promessa pendente nunca roda no desligamento de verdade: o `server.ts`
+   * chama `process.exit` logo depois do `close`. Medido no ensaio de aceitação
+   * (Fase 12, A3.05): Postgres parado, três falhas no buffer, Ctrl+C — o
+   * processo saiu em 4,1 s sem uma linha dizendo que elas se perderam.
+   */
+  it('a desistência diz quanto ficou para trás, antes de devolver', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn');
+    vi.mocked(prisma.errorEvent.upsert).mockImplementation(
+      () => new Promise(() => undefined) as never,
+    );
+    recordError(anError(), AT);
+    recordError(anError(), AT);
+    recordError(anError({ route: '/api/account/preferences' }), AT);
+
+    try {
+      await flushErrorEventsBeforeClose(50);
+
+      expect(warn).toHaveBeenCalledWith(
+        { fingerprints: 2, occurrences: 3, timeoutMs: 50 },
+        expect.stringContaining('shutdown flush gave up'),
+      );
+    } finally {
+      vi.mocked(prisma.errorEvent.upsert).mockResolvedValue({} as never);
+      warn.mockRestore();
+    }
+  });
+
+  it('o flush que termina no prazo não escreve a linha da desistência', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn');
+    recordError(anError(), AT);
+
+    try {
+      await flushErrorEventsBeforeClose(2_000);
+
+      expect(prisma.errorEvent.upsert).toHaveBeenCalledTimes(1);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

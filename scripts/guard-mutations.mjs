@@ -715,6 +715,34 @@ const MUTATIONS = [
     edits: [{ find: "    bg: '#0f1113',", replace: "    bg: '#000000'," }],
     expect: 'a tela de crash pinta com os tokens',
   },
+  {
+    id: 'A1.48',
+    what: 'o flush de desligamento do ErrorEvent desiste calado (A3.05)',
+    pkg: 'api',
+    test: 'tests/services/error-event.test.ts',
+    file: 'apps/api/src/services/error-event.service.ts',
+    edits: [
+      {
+        find: lines('  if (timedOut) {', '    baseLogger.warn(', '      { fingerprints, occurrences, timeoutMs },'),
+        replace: lines('  if (timedOut && false) {', '    baseLogger.warn(', '      { fingerprints, occurrences, timeoutMs },'),
+      },
+    ],
+    expect: 'a desistência diz quanto ficou para trás',
+  },
+  {
+    id: 'A1.49',
+    what: 'o crédito de desligamento do uptime desiste calado (A3.05)',
+    pkg: 'api',
+    test: 'tests/services/uptime.service.test.ts',
+    file: 'apps/api/src/services/uptime.service.ts',
+    edits: [
+      {
+        find: lines('  if (timedOut) {', '    baseLogger.warn(', '      { uncreditedSeconds, timeoutMs },'),
+        replace: lines('  if (timedOut && false) {', '    baseLogger.warn(', '      { uncreditedSeconds, timeoutMs },'),
+      },
+    ],
+    expect: 'a desistência diz quantos segundos ficaram sem crédito',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
