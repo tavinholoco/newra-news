@@ -1656,6 +1656,16 @@ caíram junto.
   em produção: `no futuro … 0` e menor idade ≥ 0 quer dizer que ela rodou; se
   ainda disser 23 no futuro, **uma** execução `- <deploy>` cobre as duas. Quem
   roda em produção é o dono (ou o agente, se o dono autorizar a credencial). · P
+  - **A 1.ª janela RODOU em produção, pelo dono, em 25/09** (endpoint
+    `ep-quiet-tree-anx52w4o`, o de `production` — o do branch de ensaio é
+    `ep-dry-flower-anm16wsr`): `dry` → 648 linhas, 23 no futuro, menor idade
+    −1,906 h; `apply` → **648 corrigidas**, depois **0 no futuro**, menor
+    idade **+0,094 h** — os mesmos números do ensaio no branch. O backup
+    (`espn-fix-backup-ep-quiet-tree-anx52w4o-2026-09-25T21-30-00-000Z.json`,
+    no kit: 648 pares `id`/`publishedAt` de 20/08 a 19/09) desfaz, se for
+    preciso; o arquivo da credencial foi apagado logo depois. **Para a 2.ª
+    janela, então, a conferência do `dry` sobre a 1.ª deve dizer 0 no
+    futuro**, e a execução é `<2026-09-25T21:30:00.000Z> <deploy>`.
 - [ ] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
 - [ ] **A7.14 — O primeiro run das 11:00 UTC depois da volta.** Espera-se
   **`baseline: 'insufficient'`** no evento 5.5 nos primeiros dias — a suspensão
