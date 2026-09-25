@@ -22,6 +22,14 @@
 > `apps/api/.env` (as locais são *placeholders* — A0.05); o A5.02–A5.08
 > esperam o M4; o **A3.05 é o Ctrl+C do dono**; o **A7.01 é o Billing,
 > antes de 01/10**; o M7b espera a API voltar; o M8 fecha.
+>
+> **25/09, depois da resposta do dono:** as chaves de IA estão válidas
+> (`check-keys.mjs`: `válida: sim` nas duas) — o M4 está destravado; o
+> **A7.01 foi lido** (753,4 de 750 h; o resto não é visível — ver a linha);
+> o **Drauzio Varella saiu** por decisão dele (PR #243, contra a `dev`); e a
+> **primeira tentativa do A3.05 não provou** o flush do desligamento — o
+> relógio de 30 s gravou antes do Ctrl+C —, e a segunda vai com o relógio na
+> mão de um script (`fase12-kit/a305.mjs`).
 
 ## Como ler e preencher
 
@@ -574,6 +582,28 @@ caíram junto.
   (documentação do Node), o `kill` do Git Bash também, e o `preview_stop` não
   manda sinal — nenhuma ferramenta do agente produz um SIGINT de verdade. O
   agente lê o resultado no log e no banco. · L
+  - **Primeira tentativa, 25/09 15:53 UTC (`node dist/server.js`, cron
+    neutralizado) — não prova, e o defeito era do roteiro.** Parte 1: boot
+    às 15:53:52.000, as três recusas (`AUTH_TOKEN_INVALID`, `401`) às
+    15:54:16.8–17.3 — **24,8 s depois** —, `SIGINT` às 15:54:32.0. O relógio
+    de 30 s é armado no registro do plugin, logo antes do `listen`, então o
+    tique de ~15:54:22 caiu **entre** as falhas e o Ctrl+C: as duas linhas
+    estão no banco (`/api/favorites/ids` `count: 2` e
+    `/api/account/preferences` `count: 1`, os `requestId` do log), mas quem
+    as gravou foi o tique, e o flush do desligamento achou o buffer vazio.
+    O roteiro pedia "tudo em menos de 20 s" cronometrado à mão — margem que
+    uma pessoa alternando entre dois terminais não tem. Parte 2: o
+    `foreach` da aba B não rodou (erro de digitação no PowerShell), então o
+    Ctrl+C das 15:55:43.98 desligou uma API **sem falha no buffer** — a
+    parte 2 também não mediu o que pede.
+  - **A segunda tentativa tira o relógio da mão:**
+    `fase12-kit/a305.mjs 1|2` roda antes de a API subir, acha o boot pela
+    primeira conexão aceita na 3001 (T0), manda as três recusas em
+    **T0+32 s** (logo depois do primeiro tique), diz "AGORA" e dá prazo até
+    **T0+55 s** (antes do segundo), detecta a saída do processo pelo pid e
+    diz se ela caiu dentro do prazo; na parte 2 para o Postgres em T0+22 s
+    e o religa no fim. Ensaiado pelo agente com um `taskkill` no lugar do
+    Ctrl+C: requisições em T0+32,0 s, saída detectada em T0+36,2 s.
 - [x] **A3.06 — `GET /api/admin/errors`.** `24h` e `7d`: grupos por
   fingerprint, `byCategory` com **as seis** categorias na ordem da taxonomia,
   `since` alinhado à hora cheia (item 65), `truncated: false`. · L
@@ -1102,10 +1132,26 @@ caíram junto.
 > mesmo projeto Neon e para o processo local. Nenhuma tela do admin mostra
 > e-mail; a decisão de usar o branch é do dono, e ele é apagado no M8.
 
-- [ ] **A7.01 — As horas do Render, lidas agora.** O dono lê em Render →
+- [x] **A7.01 — As horas do Render, lidas agora.** O dono lê em Render →
   Billing as *free instance hours* de setembro **por serviço** (a API e o
   `NetsheetEngine`) e a data da suspensão, e anota. É **agora** ou nunca: no
   dia 1º o contador zera. É o número contra o qual o A7.05 confere o arco. · P
+  - **Lido pelo dono em 25/09: `Free Instance Hours 753.4 hours / 750
+    hours`**, o mês corrente, para o workspace. **A divisão por serviço e o
+    evento de suspensão não estão onde o dono os procurou**, e o agente não
+    os alcança por outro caminho (`render whoami` → `unauthorized`: a
+    sessão do CLI expirou, como em 19/09). A linha fecha com o que o número
+    sozinho prova: (1) o teto estourou — é a causa da suspensão, não outra;
+    (2) **753,4 seis dias depois da suspensão, só 3,4 h acima do teto** —
+    nenhum dos dois serviços acumulou hora desde 19/09, então a suspensão é
+    **do workspace**, e o `NetsheetEngine` está parado junto com a API; (3)
+    contra o arco do A7.05 (11,99 h — a única linha de `DailyUptime`), o
+    arco mede **um dia de um serviço**, e o total do mês é este. A hora da
+    suspensão fica no intervalo que o próprio dado deu: **depois das
+    16:04:25 UTC de 19/09** (o último tique do heartbeat no `DailyUptime`,
+    A7.05) **e antes das 17:23** (a sonda do item 82). Quanto do mês foi de
+    cada serviço fica sem número — não muda nenhuma decisão aberta: a de
+    01/10 é esperar o mês virar.
 - [x] **A7.02 — As pré-checagens da promoção.** `dev..main` = 0; nenhuma
   migration nova desde o #215; nenhuma env nova; `git ls-tree -r --name-only
   origin/main | git check-ignore --stdin` vazio; as specs do smoke iguais às
@@ -1257,6 +1303,18 @@ caíram junto.
     máquina. E o gatilho "Degradação virou norma" (3 dias seguidos pelo
     mesmo `degradedBy`) também disparou duas vezes (05–12/09, 14–16/09);
     hoje o alerta está calado, e certo: os runs de 17 e 18/09 foram limpos.
+  - **Decidido pelo dono em 25/09: o Drauzio sai.** PR **#243**, contra a
+    `dev` (separado deste, porque tirar fonte é mudança de produto): a
+    entrada de `rss-sources.ts` com o motivo escrito, a contagem 12 → 11
+    onde o `feed-count-drift` a lê, e os testes do fetcher trocando o feed
+    por outro configurado — o helper `rss()` monta um desfecho por entrada
+    de `rssSources`, então uma falha com o nome de um feed fora da lista
+    **sumia em silêncio** e o caso seguia verde testando menos. O acervo
+    guarda os itens dele em `HEALTH` (a 8.5 só reclassifica fonte sem
+    categoria fixa), e produção tem **uma** linha de `SourceHealth` dele
+    (19/09, `FAILED`) — a sequência de falhas fica em 1, abaixo do
+    gatilho de 3, e o painel "Fontes" não herda alerta aceso. A Folha
+    (7 de 12, intermitente) não entrou na decisão.
 - [x] **A7.06 — A cota de imagem.** Sonda numa imagem em `MISS` (nunca `HIT`) no
   `/_next/image` de produção — é a Vercel, não o Render. · P
   - 25/09 01:40 UTC: as imagens da home de produção (`/pt-BR`, `STALE`) em
