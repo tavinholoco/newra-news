@@ -444,7 +444,7 @@ describe('fetchFeedXml encoding', () => {
 
     // O segundo argumento é o `signal` do prazo por feed (§11.S): sem ele, um
     // feed que aceita a conexão e não responde prende a etapa 1 do pipeline, e
-    // treze fontes em paralelo significam que basta uma.
+    // com todas as fontes em paralelo basta uma.
     expect(mockFetch).toHaveBeenCalledWith(sourceWithCategory.url, {
       signal: expect.any(AbortSignal),
     });

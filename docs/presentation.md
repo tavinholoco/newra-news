@@ -15,7 +15,7 @@
 
 > "Newra News é um portal de notícias que entrega um **briefing diário escrito
 > por IA**: toda manhã um pipeline coleta centenas de matérias da NewsData.io e
-> de doze feeds RSS, deduplica, classifica por categoria e usa o Gemini para
+> de onze feeds RSS, deduplica, classifica por categoria e usa o Gemini para
 > escrever a síntese do dia em português — com as fontes citadas e o aviso de
 > geração por IA na própria página. É um projeto fullstack completo — monorepo, API REST,
 > frontend com ISR, CI/CD, observabilidade e deploy em produção — e o que ele
@@ -51,7 +51,7 @@ Vercel (Next.js 14 — SSG/ISR) ──► cron diário ──► API Route (CRON
                               │            │            │         │
                               ▼            ▼            ▼         ▼
                         NewsData.io   Gemini/Groq   PostgreSQL   Resend
-                        + 12 feeds    (briefing      (Neon)      (newsletter)
+                        + 11 feeds    (briefing      (Neon)      (newsletter)
                           RSS          do dia)
 ```
 
@@ -86,7 +86,7 @@ sequência do pipeline e fluxo de dados.
   ele devolvia só o id, e a tela confirmava sucesso sem ter rodado nada.
 - **IA com fallback automático** — Gemini principal, Groq de reserva; se os dois
   falham, o pipeline segue e só o briefing daquele dia não sai.
-- **Resiliência de fontes** — NewsData.io mais 12 feeds RSS independentes,
+- **Resiliência de fontes** — NewsData.io mais 11 feeds RSS independentes,
   colhidos com `Promise.allSettled`: uma fonte fora do ar não derruba a coleta,
   e o provider emite aviso por fonte no log.
 - **ISR onde ela existe de fato** — as telas de leitura são estáticas e
@@ -148,7 +148,7 @@ categorias preenchidas.
 | Backend | Fastify 4 + Zod 3 + Prisma 5 | Leve e rápido no free tier, validação em runtime ponta a ponta, ORM type-safe |
 | Banco | PostgreSQL 16 (Neon) | Serverless, gratuito, separado do backend — trocar de host não toca os dados |
 | IA | Gemini 2.5-flash + Groq (fallback) | Qualidade em pt-BR, redundância e custo zero |
-| Notícias | NewsData.io + 12 feeds RSS | Free tier amplo e independência de provedor |
+| Notícias | NewsData.io + 11 feeds RSS | Free tier amplo e independência de provedor |
 | Infra | Vercel + Render + GitHub Actions | Deploy automático e seis workflows: CI, Gitleaks, Smoke E2E, Lighthouse, Migrate e Keep-alive |
 
 ---

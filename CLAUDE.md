@@ -612,7 +612,7 @@ a suíte de unidade, que roda sem rede.
 - **Verificação pós-merge da Fase 11 (2026-09-16): a coleta real, o nome
   que sobrou, e o terreno da 6.** Item **74**. Três enumerações e um ensaio
   sobre a árvore mergeada (`4fb0127`, #205–#207). **A coleta de verdade**
-  contra os 12 feeds e a NewsData: 609 itens de 13 fontes em 2,3 s, todas
+  contra os feeds RSS da época e a NewsData: 609 itens de 13 fontes em 2,3 s, todas
   `OK`, latências de 1,2 a 2,0 s, `kept ≤ fetched` nas 13 e Σ`kept` =
   deduplicados — e a **BBC traz 41 itens com 10 URLs repetidas no próprio
   feed**, a primeira divergência entre `fetched` e `kept` por motivo interno
@@ -1220,7 +1220,7 @@ a suíte de unidade, que roda sem rede.
   linhas, e `RUNNING` há mais de 15 min é enterrado antes do disparo seguinte.
   **837 → 848 testes.** Item **46** do `docs/progress.md`.
 
-  > ~~**Sobrou dívida com gatilho:** três dos 12 feeds RSS (Superinteressante,
+  > ~~**Sobrou dívida com gatilho:** três dos feeds RSS (Superinteressante,
   > Veja Saúde, Drauzio Varella) estão em `ETIMEDOUT` desde 02/09 e o pipeline
   > os registra como `feed-empty` — a classe de "publicou devagar", que não
   > conta em `pipelineErrors`.~~ **Fechado no mesmo PR:** `fetchFromRss` agora
@@ -1697,9 +1697,9 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   estrago é o `noindex` no `generateMetadata` do caminho de falta, e essa linha
   tem guarda.
 - **Amostrar "100 por fonte" esconde a cauda longa do acervo.** O pipeline
-  ingere a **NewsData.io** além dos 12 feeds RSS, e ela agrega centenas de
+  ingere a **NewsData.io** além dos 11 feeds RSS, e ela agrega centenas de
   veículos: são **87 fontes** e **95 hosts de imagem** distintos, das quais só 12
-  estão em `rss-sources.ts`. Uma lista de hosts derivada das fontes cobria 77,6%
+  estavam em `rss-sources.ts`. Uma lista de hosts derivada das fontes cobria 77,6%
   e teria quebrado **22,4% das imagens** em silêncio (o `SafeImage` degrada sem
   gritar). Ao medir acervo, varra páginas — não filtre por fonte.
 - **Medir "o que um run coletou" por `publishedAt` numa janela truncada dá o

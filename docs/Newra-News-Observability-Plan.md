@@ -3482,7 +3482,7 @@ Sobre a `dev` em `4fb0127` (#205, #206 e #207 mergeados em sequência;
 `docs/progress.md`. A pergunta dos itens anteriores — *o que ficou de fora?*
 — por três enumerações e um ensaio, e não relendo os diffs.
 
-- **A coleta real, sem IA nem newsletter.** `fetchAll()` contra os 12 feeds
+- **A coleta real, sem IA nem newsletter.** `fetchAll()` contra os feeds da época
   e a NewsData: **609 itens de 13 fontes em 2,3 s**, todas `OK`, latências
   de 1,2 s a 2,0 s, `kept ≤ fetched` nas 13 e **Σ`kept` = deduplicados**. O
   que só o real mostra: a **BBC traz 41 itens com 10 URLs repetidas no

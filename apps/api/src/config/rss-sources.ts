@@ -30,5 +30,12 @@ export const rssSources: RssSource[] = [
   { name: 'Olhar Digital', url: 'https://olhardigital.com.br/feed/', category: Category.SCIENCE },
   { name: 'Superinteressante', url: 'https://super.abril.com.br/feed/', category: Category.SCIENCE },
   { name: 'Veja Saúde', url: 'https://saude.abril.com.br/feed/', category: Category.HEALTH },
-  { name: 'Drauzio Varella', url: 'https://drauziovarella.uol.com.br/feed/', category: Category.HEALTH },
+  // **O `Drauzio Varella` saiu em 25/09/2026, e não por URL errada: o feed
+  // responde 200 em menos de 0,6 s de fora do Render e falha em ~1,8 s
+  // (`fetch failed`) saindo dele** — cara de bloqueio de IP de datacenter.
+  // Falhou em 9 dos 12 runs de produção desde 05/09, quatro seguidos (o
+  // gatilho "Fonte quebrada" do §16 do plano de observabilidade), e deixava a
+  // etapa 1 degradada na maioria dos dias. Contribuía com ~8% dos itens de
+  // Saúde. Medido no ensaio de aceitação (Fase 12, A7.05). Uma fonte nova de
+  // Saúde entra depois de medida **saindo do Render**, não daqui.
 ];

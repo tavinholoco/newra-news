@@ -724,13 +724,13 @@ async function main() {
   // dias sem run não têm linha nenhuma (o pipeline não escreveu), e o dia
   // `FAILED` na etapa 6 **tem**, porque a escrita acontece depois da 4: é a
   // distinção que a tela precisa mostrar. Os nomes espelham `rss-sources.ts`
-  // (15/09/2026) mais o balde `newsdata`; são texto, não FK, de propósito.
+  // (25/09/2026, sem o Drauzio Varella) mais o balde `newsdata`; são texto, não FK, de propósito.
   //
   // As duas histórias que os gatilhos da §15 existem para pegar estão aqui:
   // a Superinteressante em `FAILED` há três dias (o `ETIMEDOUT` de 03/09,
-  // que também aparece 12–13 dias atrás com a Veja Saúde e o Drauzio), e a
+  // que também aparece 12–13 dias atrás com a Veja Saúde), e a
   // Trivela **definhando** — `kept` de ~12 por dia caindo para ~2 na última
-  // semana, sem falhar nunca. Os dois feeds de saúde ficam `EMPTY` no fim de
+  // semana, sem falhar nunca. O feed de saúde fica `EMPTY` no fim de
   // semana, que é o normal que não pode acender luz. Determinístico e
   // idempotente: `createMany` com `skipDuplicates` sobre a chave `(source, day)`.
   type SeedSource = { name: string; kind: SourceKind; fetched: number; keptRatio: number; latencyMs: number };
@@ -747,16 +747,14 @@ async function main() {
     { name: 'Olhar Digital', kind: SourceKind.RSS, fetched: 22, keptRatio: 0.55, latencyMs: 640 },
     { name: 'Superinteressante', kind: SourceKind.RSS, fetched: 10, keptRatio: 0.8, latencyMs: 1_900 },
     { name: 'Veja Saúde', kind: SourceKind.RSS, fetched: 8, keptRatio: 0.75, latencyMs: 1_400 },
-    { name: 'Drauzio Varella', kind: SourceKind.RSS, fetched: 6, keptRatio: 0.8, latencyMs: 1_250 },
   ];
   const FEED_TIMEOUT_MS = 30_000;
   const TIMED_OUT = 'fetch failed: ETIMEDOUT';
   const FAILED_SOURCE_DAYS: Record<string, number[]> = {
     Superinteressante: [0, 1, 2, 12, 13],
     'Veja Saúde': [12, 13],
-    'Drauzio Varella': [12, 13],
   };
-  const WEEKEND_EMPTY = new Set(['Veja Saúde', 'Drauzio Varella']);
+  const WEEKEND_EMPTY = new Set(['Veja Saúde']);
 
   const sourceRows: {
     source: string;
