@@ -510,7 +510,11 @@ Regras que não são óbvias no código:
     `GoldenSignals` lança no render e o `admin/metrics/error.tsx` renderiza
     — sem `throw` no produto. O relato do boundary **não** é interceptado:
     com a API de pé, cada captura dessa rota grava uma linha `WEB` de verdade
-    no banco local, visível na `/admin/security` depois do flush
+    no banco local, visível na `/admin/security` depois do flush. **E a foto
+    espera a tela sem esqueleto** (nenhum `.animate-pulse`), não só o
+    `networkidle`: contra um branch do Neon (Fase 12 do plano, ~1,7 s por
+    consulta) a `/admin` saiu toda em esqueleto com HTTP 200. Se não assentar
+    em 30 s, a foto **falha com o motivo**
 
 ## SEO (Fase 7)
 

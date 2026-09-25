@@ -176,16 +176,20 @@ export const MAX_DUPLICATE_RATE = 0.6;
  * (nenhuma categoria em comum). Acima disto avisa. É estatística normalizada,
  * então não apodrece com o acervo crescendo; o que a calibra é o ensaio.
  *
- * **Calibrado por cima até o ensaio contra produção.** O banco local não tem
- * série real de categoria (a `DailyMetric` semeada repete a mesma
- * distribuição, e os únicos dias com deriva são a costura entre dois blocos
- * de seed, em 0,41–0,51); o ruído de um dia normal contra o outro em produção
- * nunca foi medido. Meio da massa mudando de categoria é um limiar que só
- * uma mudança de classificador ou de fontes alcança — e é o aviso que se
- * quer sem o custo de um `SUCCESS_DEGRADED` por dia. O `gates:rehearse`
- * imprime a distribuição; quando o p95 real for conhecido, o teto desce.
+ * **Calibrado contra produção em 24/09/2026** (Fase 12, A7.04 — o
+ * `gates:rehearse` sobre um branch do Neon, 155 dias com linha de base). Até
+ * ali era 0,5, calibrado por cima: o banco local não tem série real. A
+ * distribuição tem **dois regimes**: 16–21/08, a transição do classificador
+ * de categoria, com deriva de 0,828 a 0,184; e desde 26/08, o regime
+ * estável, com **máximo 0,177 e p95 0,101**. O p95 do conjunto (0,172) caía
+ * no meio do regime estável e faria um dia normal como 02/09 (0,177) sair
+ * `SUCCESS_DEGRADED`; 0,25 fica acima de todo dia estável com folga e abaixo
+ * de quatro dos seis dias da transição — que é o que o aviso existe para
+ * pegar: uma mudança de classificador ou de fontes. **O número é para
+ * ajustar**: o `gates:rehearse` imprime o p95, e o gatilho do §16 ("mais de
+ * um dia por semana") diz quando.
  */
-export const MAX_CATEGORY_DRIFT = 0.5;
+export const MAX_CATEGORY_DRIFT = 0.25;
 
 /** Uma linha de `DailyMetric` da janela — o que a linha de base lê. */
 export interface BaselineDay {

@@ -661,6 +661,15 @@ const MUTATIONS = [
     edits: [{ find: 'if (error.statusCode >= 500) {', replace: 'if (error.statusCode >= 600) {' }],
     expect: 'answers an AppError of 500 with the documented 500 contract',
   },
+  {
+    id: 'A1.43',
+    what: 'o enterro volta a olhar só o run de hoje (M7a — o cadáver de 03/09)',
+    pkg: 'api',
+    test: 'tests/services/pipeline.test.ts',
+    file: 'apps/api/src/services/pipeline.service.ts',
+    edits: [{ find: 'for (const run of dead) await buryDeadRun(run);', replace: 'void dead;' }],
+    expect: 'buries a dead run from a previous day before the day is checked',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

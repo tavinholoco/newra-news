@@ -704,7 +704,9 @@ caíram junto.
   - (a) uma linha velha em cada uma das **sete** tabelas que a etapa 8 expurga
     (`News` 31 d, `PipelineLog` 31 d, `Article` 91 d, `ProductEvent` 91 d,
     `ErrorEvent` 15 d, `AuditEvent` 366 d, `SourceHealth` 91 d);
-  - (b) um `PipelineLog` `RUNNING` de 20 min atrás;
+  - (b) um `PipelineLog` `RUNNING` de 20 min atrás — **e outro de três dias
+    atrás** (acrescentado em 25/09, depois do A7.05): é a prova ao vivo da
+    varredura que enterra o cadáver de qualquer dia, e não só o de hoje;
   - (c) uma `News` com HTML no `content`;
   - (d) a janela de 7 dias de `DailyMetric` com `articleGenerated` (linha de
     base). **O `newsByCategory` do seed é sintético** (WORLD 31,5 %) e o
@@ -725,9 +727,11 @@ caíram junto.
   `outcome: started`. **Clicar de novo com o run em curso** →
   `already-running` na tela e no `AuditEvent` — é o único jeito de ver esse
   desfecho sem um quarto run. · L
-- [ ] **A4.02 — O cadáver foi enterrado.** O `RUNNING` de A4.00b virou `FAILED`
-  com `errorStage` **nulo**, evento de etapa 0 `ERROR`, e `ErrorEvent`
-  `PIPELINE_STAGE_FAILED · stage-0` com o id **do run morto**. · L
+- [ ] **A4.02 — O cadáver foi enterrado.** Os **dois** `RUNNING` de A4.00b —
+  o de hoje e o de três dias atrás — viraram `FAILED` com `errorStage`
+  **nulo**, um evento de etapa 0 `ERROR` cada, e `ErrorEvent`
+  `PIPELINE_STAGE_FAILED · stage-0` com o id **do run morto**. O de três dias
+  atrás é o que o código de antes do A7.05 deixava para sempre. · L
 - [ ] **A4.03 — As 14 etapas anunciam.** Eventos das etapas 1, 3, 4, 5, **5.5**,
   6, **6.5**, 7, 7.5, 8, 8.5, 9, 9.5 e o resumo final (a etapa 2 não grava
   evento); toda linha de log do run com `pipelineLogId`. · L
@@ -989,11 +993,17 @@ caíram junto.
   Billing as *free instance hours* de setembro **por serviço** (a API e o
   `NetsheetEngine`) e a data da suspensão, e anota. É **agora** ou nunca: no
   dia 1º o contador zera. É o número contra o qual o A7.05 confere o arco. · P
-- [ ] **A7.02 — As pré-checagens da promoção.** `dev..main` = 0; nenhuma
+- [x] **A7.02 — As pré-checagens da promoção.** `dev..main` = 0; nenhuma
   migration nova desde o #215; nenhuma env nova; `git ls-tree -r --name-only
   origin/main | git check-ignore --stdin` vazio; as specs do smoke iguais às
   da promoção (`git diff 4efbacd.. -- apps/web/e2e` vazio em 24/09). Repetidas
   no A7.12, na véspera de promover. · C
+  - 24/09 21:00 UTC: `dev..main` = 0 (`main..dev` = 34); `git diff
+    origin/main origin/dev` e `origin/main HEAD` em `migrations/`: vazio;
+    env: a única diferença em `env.ts`/`render.yaml`/`.env.example` é o
+    `import './load-env-file'` do #241 — nenhuma variável nova; `git
+    ls-tree -r --name-only origin/main | git check-ignore --stdin`: vazio;
+    `git diff 4efbacd HEAD -- apps/web/e2e`: vazio. Repetir no A7.12.
 - [x] **A7.03 — O branch do Neon.** **Criado em 24/09/2026, antes do M0:**
   `fase-12-ensaio` = `br-divine-poetry-an2fw98r`, filho de `production`
   (`br-fancy-tree-anbql74y`), endpoint `read_write` `ep-dry-flower-anm16wsr`,
@@ -1028,12 +1038,40 @@ caíram junto.
   projeto, 100 CU-h/mês, 0,5 GB — o filho é *copy-on-write* e nasce sem
   consumir espaço. Como o dado de produção não muda enquanto a API está
   suspensa, criar o branch cedo ou tarde dá o mesmo retrato. · N
-- [ ] **A7.04 — `gates:rehearse` contra os retidos**, com o `DATABASE_URL` do
+- [!] **A7.04 — `gates:rehearse` contra os retidos**, com o `DATABASE_URL` do
   **branch** numa sessão só → **zero reprovações**; a distribuição de tamanho e
   de deriva calibra `MAX_ARTICLE_CONTENT_LENGTH` (p95 × 2) e `MAX_CATEGORY_DRIFT`
   (p95 real) — se mudar, PR com os números. O script só lê, e o branch tira o
   risco do resto. · N
-- [ ] **A7.05 — As três abas com dado de produção.** API e web **locais** com
+  - **Primeira vez contra os retidos de produção** (24/09 21:05 UTC, o
+    `DATABASE_URL` do branch carregado por `scratchpad/with-env-file.mjs`,
+    nunca na linha de comando). **Portão de saída, 88 briefings:** zero
+    bloqueios e zero avisos nos seis checks; corpo p50 8.007 · p95 10.691
+    · máx. 11.921; português 0,195–0,339 contra o piso 0,08. **Portão de
+    entrada, 158 dias:** volume/mediana 0,52–2,26 contra o piso 0,3 (zero
+    bloqueios); deriva p95 0,172, máx. 0,828 (dois avisos, 16 e 17/08);
+    frescor zero.
+  - **O defeito era do ensaio:** a primeira passada deu **3 reprovações
+    de diversidade e saída 1** ("o errado é o portão") — 12/09, 04/09 e
+    21/08, com 2 fontes em 15. Mas o portão real alarga para 30 antes de
+    bloquear, e o ensaio não alargava: reconstruindo as 30 mais recentes
+    gravadas em cada dia (`scratchpad/neon-diversity.cjs`), eram **6, 5 e
+    3 fontes** — nenhum teria bloqueado. **Corrigido no PR A:**
+    `scripts/rehearse-gates.ts` reconstrói o alargamento (as `News` do dia
+    UTC, na ordem do `selectTopItems`) e separa `bloquearia` · `passaria
+    alargando` · `indeterminado`. Segunda passada: **zero reprovações,
+    saída 0** — "Nenhum retido reprovaria". A dívida do §16 "os portões
+    nunca foram ensaiados contra produção" fechou.
+  - **Calibração ("se mudar, PR com os números"):**
+    `MAX_ARTICLE_CONTENT_LENGTH` 20.000 → **21.382** (p95 × 2);
+    `MAX_CATEGORY_DRIFT` 0,5 → **0,25**, e **não** o p95 do conjunto: a
+    série tem dois regimes — a transição do classificador (16–21/08,
+    0,828 a 0,184) e o estável desde 26/08 (máx. 0,177, p95 0,101) —, e o
+    p95 geral (0,172) degradaria dias normais como 02/09 (0,177). Com 0,25
+    avisariam 4 de 155 dias, todos da transição. O motivo mora no
+    comentário da constante; a suíte do portão que fixava "0,4 fica
+    abaixo do teto calibrado por cima" passou ao teto novo.
+- [!] **A7.05 — As três abas com dado de produção.** API e web **locais** com
   o `DATABASE_URL` do branch, o `CRON_SCHEDULE` do A0.07 (sem ele, às 08:00 a
   API local roda um pipeline real no branch) e a sessão forjada pela mecânica
   do `capture-admin.mjs` com o `User.id` do dono, que está no dado. Conferir
@@ -1050,8 +1088,70 @@ caíram junto.
   promoção); o painel Portões está **vazio** (zero eventos 5.5). O que o arco
   prova aqui é a **conta** (soma ÷ 3600 contra o SQL), não o total do mês.
   `admin:capture` das três abas com o dado real, cada imagem olhada. · N
-- [ ] **A7.06 — A cota de imagem.** Sonda numa imagem em `MISS` (nunca `HIT`) no
+  - API e web locais sobre o branch (API às 21:09:10 UTC de 24/09, cron
+    neutralizado), sessão forjada com o `User.id` do dono
+    (`72425847-…`, `ADMIN`). **O arco, antes do primeiro tique:**
+    `secondsUsed 43170`, `hoursUsed 11.99` = a única linha de
+    `DailyUptime` (19/09, último tique às **16:04:25 UTC** — o que estreita
+    a suspensão de 19/09 para depois das 16:04, e não "entre 13:00 e
+    17:23"). A conta fecha; o total do mês é o do Billing (A7.01).
+  - **Nota de relógio:** o limite de uso da sessão pausou o trabalho com
+    a API ligada ao branch, e ela ficou de pé até 01:40 UTC de 25/09 — o
+    heartbeat somou ~4,5 h desta máquina ao `DailyUptime` **do branch**
+    (as capturas mostram 16 h). Produção não foi tocada.
+  - **As três abas, conferidas contra o SQL do branch** (16 capturas em
+    `scratchpad/captures/a705/`, olhadas por recorte): `/admin` — "Último
+    briefing há 134 h 35 min, atrasado · 19 de set., 08:01"; faixa com
+    27/08–02/09 verdes, 30–31/08 vazados (a suspensão), e **12 dos 16
+    runs desde 05/09 degradados pela etapa 1**; run de 19/09 "Degradado
+    pelas etapas 1 e 6" (o fallback para o Groq). `/admin/metrics` — as 13
+    fontes "não tentadas" hoje (25/09, sem run), 1 dia em falha para
+    Drauzio Varella e InfoMoney, as 13 latências iguais às da
+    `SourceHealth` (1,8 s · 3 s · 3,5 s · 6 s · 1,5 s · 3,7 s · 7,4 s ·
+    1,1 s · 6,2 s · 4,4 s · 8,1 s · 6,6 s), rosquinha com **386 novas** =
+    Σ`kept` (G1 100, Valor 98, newsdata 75…; "Outras 6" = 32).
+    `/admin/security` — janela de 24 h vazia (o dado para em 19/09) e a de
+    7 d com as sondas da promoção (`AUTH_TOKEN_INVALID` em 7 rotas de
+    admin, 19/09 01:09) mais os `WARN` das etapas 1 e 6; **Invariantes**:
+    19/09 08:01, "1 violada de 12", 123 ms de 2 s; **Portões**: 100% sobre
+    2 runs — runs que nenhum portão viu (a Fase 9 nunca foi a produção);
+    o `apps/web/CLAUDE.md` decidiu que é o estado certo antes da
+    promoção; **Auditoria**: vazia.
+  - **Achado 1 — o cadáver de 03/09.** A invariante violada é
+    `pipeline.no_stale_running`, e o SQL a explica: o run de 03/09, o do
+    `SIGTERM` no meio da 8.5 (item 46), está `RUNNING` há três semanas —
+    10 eventos, o último às 11:01:07 da 8.5 —, e a faixa o desenha cinza
+    cheio, "Rodando". O enterro só olhava o run **de hoje** (o `findFirst`
+    da idempotência é na janela do dia). **Corrigido no PR A:** o
+    `triggerPipeline` enterra todo `RUNNING` além do prazo, de qualquer
+    dia, antes da checagem do dia (`buryDeadRun`); guarda nova em
+    `tests/services/pipeline.test.ts`, vista reprovando antes (A1.43). Em
+    produção ele sai no primeiro disparo depois da promoção.
+  - **Achado 2 — a captura fotografava o esqueleto.** Com a API a ~1,7 s
+    por consulta (o Neon em us-east-1), a primeira `/admin` saiu toda em
+    esqueleto e "0 notícia no total", com HTTP 200: o `networkidle` fecha
+    antes de as consultas do cliente voltarem. **Corrigido no PR A:** o
+    `admin:capture` espera não haver `.animate-pulse` na tela e, se
+    passar de 30 s, **falha a foto com o motivo**. A segunda rodada: 16/16
+    com dado.
+  - **O que o dado real mostrou e é decisão do dono, não defeito:** a
+    etapa 1 degradou por `feed-failed` — **Drauzio Varella em 9 dos 12
+    runs desde 05/09** (quatro seguidos, 08–11/09: o gatilho "Fonte
+    quebrada" do §16 disparou antes de a tela que o mede estar no ar), a
+    Folha em 7, a InfoMoney em 19/09. O feed do Drauzio responde **200 em
+    < 0,6 s daqui** (três tentativas) e falha em 1,8 s saindo do Render —
+    cara de bloqueio de IP de datacenter, que não se reproduz nesta
+    máquina. E o gatilho "Degradação virou norma" (3 dias seguidos pelo
+    mesmo `degradedBy`) também disparou duas vezes (05–12/09, 14–16/09);
+    hoje o alerta está calado, e certo: os runs de 17 e 18/09 foram limpos.
+- [x] **A7.06 — A cota de imagem.** Sonda numa imagem em `MISS` (nunca `HIT`) no
   `/_next/image` de produção — é a Vercel, não o Render. · P
+  - 25/09 01:40 UTC: as imagens da home de produção (`/pt-BR`, `STALE`) em
+    `/_next/image` responderam **`200` com `x-vercel-cache: MISS`** — a
+    cota voltou (em 19/09 era `402` em toda `MISS`). A resposta é imagem
+    otimizada (`image/jpeg`, 8.572 B para `w=1920` de uma foto da BBC de
+    240 px). **Descuido meu:** o laço de sonda devia parar na primeira
+    `MISS` e gastou oito transformações (8 de 5.000).
 
 ## M7b — Produção com o Render (espera a API voltar, e a decisão de promover)
 

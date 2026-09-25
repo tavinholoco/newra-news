@@ -28,6 +28,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
         create: vi.fn(),
         update: vi.fn(),
         findFirst: vi.fn(),
+        findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
       news: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
@@ -99,6 +100,7 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue(null);
+  vi.mocked(prisma.pipelineLog.findMany).mockResolvedValue([]);
   // `startedAt` tem default no schema e o `create` real a devolve; o
   // `triggerPipeline` lê dela para dizer quando o run começou.
   vi.mocked(prisma.pipelineLog.create).mockResolvedValue({

@@ -1510,7 +1510,11 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   com a tela dizendo "já está rodando". É a família do episódio de 25/08 pelo
   avesso. Hoje há `STALE_RUN_MS` (15 min) enterrando o run morto antes de
   seguir. Ao escrever máquina de estado com estado terminal só no fim do
-  caminho feliz, decida **quem marca o estado quando o processo não volta**.
+  caminho feliz, decida **quem marca o estado quando o processo não volta** —
+  **e de que dia**: o enterro olhava só o run de hoje, e o cadáver de 03/09
+  ficou `RUNNING` em produção por três semanas (a faixa o desenhava
+  "Rodando"; a invariante `pipeline.no_stale_running` o acusava em todo run).
+  Achado do ensaio de aceitação em 24/09; hoje a varredura é de qualquer dia.
 
 - **Gatilho agendado que não acorda quem ele chama perde o dia inteiro.** O cron
   das 11h UTC é justamente a hora em que a API mais provavelmente dorme, e o

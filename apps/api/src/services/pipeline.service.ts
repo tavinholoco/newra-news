@@ -104,6 +104,37 @@ function selectTopItems(items: RawNewsItem[], limit = 15): RawNewsItem[] {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
+ * Marca `FAILED` um run que ficou em `RUNNING` além de {@link STALE_RUN_MS}.
+ *
+ * `errorStage` fica **null de propósito**: o processo morreu sem escrever, e
+ * o `currentStage` foi embora com ele. Chutar uma etapa aqui poria no banco
+ * um número que ninguém mediu — a etapa real, quando existe, sai dos
+ * `PipelineEvent` que o run alcançou a gravar.
+ */
+async function buryDeadRun(run: { id: string; startedAt: Date }): Promise<void> {
+  const staleForMs = Date.now() - run.startedAt.getTime();
+  const detail = {
+    message: `Run marked FAILED after ${Math.round(staleForMs / 60_000)} min in RUNNING with no completion — the process very likely died mid-run (SIGTERM, OOM or restart).`,
+    reason: 'stale-running',
+  };
+  await prisma.pipelineLog.update({
+    where: { id: run.id },
+    data: {
+      status: 'FAILED',
+      error: detail.message,
+      errorDetail: detail as unknown as Prisma.InputJsonValue,
+      completedAt: new Date(),
+    },
+  });
+  // Etapa 0: o evento é sobre o run inteiro, não sobre uma das etapas — e 0
+  // não colide com nenhuma delas.
+  await logPipelineEvent(run.id, 0, 'ERROR', detail.message, {
+    ...detail,
+    startedAt: run.startedAt.toISOString(),
+  });
+}
+
+/**
  * Dispara o pipeline do dia — **ou diz que não disparou**.
  *
  * A idempotência por dia é antiga e continua certa: o cron das 11h UTC e o
@@ -120,6 +151,23 @@ export async function triggerPipeline(): Promise<PipelineTrigger> {
   const today = startOfDay(new Date());
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+  /**
+   * **Todo cadáver, de qualquer dia, antes de olhar o de hoje.** O enterro só
+   * alcançava o run **de hoje** — o `findFirst` abaixo é na janela do dia —, e
+   * o de 03/09/2026 (o `SIGTERM` no meio da 8.5) ficou `RUNNING` no banco de
+   * produção por três semanas: a faixa de 30 dias o desenhava como "rodando" e
+   * a invariante `pipeline.no_stale_running` reprovava em todo run. Achado do
+   * ensaio de aceitação (Fase 12, M7a). O corte é o prazo, não o dia: um run
+   * de ontem às 23:55 que ainda roda às 00:05 está vivo.
+   */
+  const dead = await prisma.pipelineLog.findMany({
+    where: { status: 'RUNNING', startedAt: { lt: new Date(Date.now() - STALE_RUN_MS) } },
+    select: { id: true, startedAt: true },
+    orderBy: { startedAt: 'asc' },
+    take: 20,
+  });
+  for (const run of dead) await buryDeadRun(run);
 
   // Idempotency: skip if pipeline already succeeded or is running today
   const existingLog = await prisma.pipelineLog.findFirst({
@@ -145,31 +193,9 @@ export async function triggerPipeline(): Promise<PipelineTrigger> {
       };
     }
 
-    // Enterra o cadáver antes de seguir. Ver `STALE_RUN_MS`.
-    //
-    // `errorStage` fica **null de propósito**: o processo morreu sem escrever, e
-    // o `currentStage` foi embora com ele. Chutar uma etapa aqui poria no banco
-    // um número que ninguém mediu — a etapa real, quando existe, sai dos
-    // `PipelineEvent` que o run alcançou a gravar.
-    const detail = {
-      message: `Run marked FAILED after ${Math.round(staleForMs / 60_000)} min in RUNNING with no completion — the process very likely died mid-run (SIGTERM, OOM or restart).`,
-      reason: 'stale-running',
-    };
-    await prisma.pipelineLog.update({
-      where: { id: existingLog.id },
-      data: {
-        status: 'FAILED',
-        error: detail.message,
-        errorDetail: detail as unknown as Prisma.InputJsonValue,
-        completedAt: new Date(),
-      },
-    });
-    // Etapa 0: o evento é sobre o run inteiro, não sobre uma das etapas — e 0
-    // não colide com nenhuma delas.
-    await logPipelineEvent(existingLog.id, 0, 'ERROR', detail.message, {
-      ...detail,
-      startedAt: existingLog.startedAt.toISOString(),
-    });
+    // Enterra o cadáver antes de seguir. Ver `STALE_RUN_MS`. (A varredura de
+    // cima já o teria levado; este ramo cobre a corrida entre as duas leituras.)
+    await buryDeadRun(existingLog);
 
     // E segue para criar um run novo: o desfecho é `started` porque é o que
     // este chamado fez. Que havia um cadáver no caminho é história do run

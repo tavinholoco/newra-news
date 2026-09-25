@@ -2838,6 +2838,8 @@ sinal da §13.3), e o seed com as duas histórias.
   0,19–0,32, inglês 0,000, espanhol 0,018. Piso **0,08**. Tamanho: teto em
   caracteres (a régua do piso), **20.000**, a calibrar como p95 × 2 dos
   retidos — o banco local só tem briefings semeados (p95 = 1.185).
+  **Calibrado em 24/09/2026** (Fase 12, A7.04, os 88 retidos num branch do
+  Neon): p95 10.691 → teto **21.382**.
 - **O bloqueio é `FAILED` na etapa do portão, e o motivo mora no
   fingerprint**: `PIPELINE_GATE_BLOCKED` com `route: stage-6.5:unanchored-url`
   (o check validado contra `GATE_CHECKS` antes de entrar no `route`; motivo
@@ -2862,6 +2864,11 @@ sinal da §13.3), e o seed com as duas histórias.
   únicos dias com deriva são a costura entre dois blocos de seed, 0,41–0,51).
   Meio da massa mudando só acontece com troca de classificador ou de
   fontes. Desce quando o ensaio contra produção medir o p95 real.
+  **Desceu em 24/09/2026 para 0,25** (Fase 12, A7.04): a série real tem
+  dois regimes — a transição do classificador (16–21/08, 0,828 a 0,184) e
+  o estável desde 26/08 (máximo 0,177, p95 0,101). O p95 do conjunto
+  (0,172) cairia no meio do estável e degradaria dias normais; 0,25 fica
+  acima dele e abaixo da transição. O motivo está no comentário da constante.
 - **O ensaio virou comando** (`pnpm --filter @newranews/api gates:rehearse`),
   pelo argumento do `archive:hygiene`: ninguém lembra de uma medição que não
   é um comando, e o gatilho do §16 exige medir de novo. Lê o `DATABASE_URL`
@@ -3528,8 +3535,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Alerta ativo (e-mail/webhook) | depois de a tela existir e de sabermos qual sinal dispara de fato |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
 | Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL no briefing (`unanchored-url` ou `copied-url`), que é evento único e merece olhar no mesmo dia |
-| Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto calibrado por cima (0,5 e 0,6) pedindo o número real — o `gates:rehearse` imprime o p95 |
-| **Os portões nunca foram ensaiados contra produção** | a §13 manda rodar contra os briefings retidos antes de confiar, e em 20/09/2026 o ensaio só alcançou o banco local (semeado). **Gatilho: a API voltar** — `gates:rehearse` com o `DATABASE_URL` do Neon numa sessão só; qualquer retido reprovando é o portão errado |
+| Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto pedindo o número real — o da deriva foi calibrado contra produção em 24/09 (0,25, Fase 12); o de duplicata segue por cima (0,6) — e o `gates:rehearse` imprime o p95 |
+| ~~**Os portões nunca foram ensaiados contra produção**~~ **Fechada em 24/09/2026** (Fase 12, A7.04) | ~~a §13 manda rodar contra os briefings retidos antes de confiar, e em 20/09/2026 o ensaio só alcançou o banco local (semeado). Gatilho: a API voltar~~ — não precisou da API: `gates:rehearse` sobre um branch do Neon filho de `production`, com os 88 retidos e 158 dias de `DailyMetric` → **zero reprovações, saída 0**. A primeira passada deu três — de diversidade, e eram do **ensaio**, que não simulava o alargamento para 30 que o portão faz antes de bloquear (nos três dias as 30 mais recentes tinham 6, 5 e 3 fontes); o script passou a reconstruí-lo. Calibrados no mesmo dia: `MAX_ARTICLE_CONTENT_LENGTH` 20.000 → **21.382** (p95 × 2) e `MAX_CATEGORY_DRIFT` 0,5 → **0,25** |
 | Advisory sem dono | linha na lista de exceções do `audit` com mais de **90 dias** sem revisão |
 | Fonte quebrada | **3 dias seguidos** de `FAILED` para a mesma fonte |
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |

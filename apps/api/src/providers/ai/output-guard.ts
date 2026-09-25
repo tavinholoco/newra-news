@@ -148,8 +148,12 @@ export interface OutputGuardVerdict {
  * p95 × 2 sobre os briefings retidos (§13, "Idioma e teto de tamanho"): o
  * comando `gates:rehearse` imprime a distribuição e diz se algum retido
  * reprovaria — se reprovar, o errado é a régua.
+ *
+ * **Medido contra produção em 24/09/2026** (Fase 12, A7.04, os 88 briefings
+ * retidos num branch do Neon): p50 8.007, **p95 10.691**, máximo 11.921 — o
+ * teto é p95 × 2. Era 20.000, escrito antes de haver a medida.
  */
-export const MAX_ARTICLE_CONTENT_LENGTH = 20_000;
+export const MAX_ARTICLE_CONTENT_LENGTH = 21_382;
 
 /**
  * Piso da fração de palavras funcionais do português no corpo.
