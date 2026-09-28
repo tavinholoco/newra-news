@@ -112,8 +112,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@tanstack/react-query':
-        specifier: ^5.103.1
-        version: 5.103.1(react@18.3.1)
+        specifier: ^5.103.2
+        version: 5.103.2(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -162,7 +162,7 @@ importers:
         version: 4.3.3
       '@tanstack/react-query-devtools':
         specifier: ^5.103.2
-        version: 5.103.2(@tanstack/react-query@5.103.1(react@18.3.1))(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+        version: 5.103.2(@tanstack/react-query@5.103.2(react@18.3.1))(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@testing-library/jest-dom':
         specifier: ^7.0.1
         version: 7.0.1(@testing-library/dom@10.4.1)(vitest@2.1.9(@types/node@22.20.4)(jsdom@30.1.0)(lightningcss@1.32.0)(msw@2.12.10(@types/node@22.20.4)(typescript@5.9.3)))
@@ -1632,9 +1632,6 @@ packages:
     resolution: {integrity: sha512-Wo1iKt2b9OT7d+YGhvEPD3DXvPv2etTusIMhMUoG7fbhmxcXCtIjJDEygy91Y2JFlwGyjqiBPRozme7UD8hoqg==}
     engines: {node: '>=12'}
 
-  '@tanstack/query-core@5.103.1':
-    resolution: {integrity: sha512-rms8HqTGp6zA00dM+cUQ2eBcgzNJefuu5CAMB37i/6MiGT1zulPOytCFu2a0qjLqVR2n1jENPj9woqFQNuCzWA==}
-
   '@tanstack/query-core@5.103.2':
     resolution: {integrity: sha512-I8DkFXls5jXLqtm8+QpOhEmG07hIblhSZFzafg9wHsMSEvMzULy9hK17wU1T/ahfhMbtITJhbxutwwCoihkR7A==}
 
@@ -1648,8 +1645,8 @@ packages:
       '@types/react': ^18 || ^19
       react: ^18 || ^19
 
-  '@tanstack/react-query@5.103.1':
-    resolution: {integrity: sha512-rmAPPApNEK17VXRJhtE1rja53n23VV5w30C0saCgJhhX+EpdUnVqMGV/s5nnzV43X75KTHKzuoiuxSzGTBIkag==}
+  '@tanstack/react-query@5.103.2':
+    resolution: {integrity: sha512-B+fWiYZBc+0uUD5zDZAeLw9dKj7XEsdnuu6zRZ+no6LNKpeE3P3bJ+N6HINjcIlWR6fW3vUoTneEaGa2V6ehqw==}
     peerDependencies:
       react: ^18 || ^19
 
@@ -6370,8 +6367,6 @@ snapshots:
     dependencies:
       remove-accents: 0.5.0
 
-  '@tanstack/query-core@5.103.1': {}
-
   '@tanstack/query-core@5.103.2': {}
 
   '@tanstack/query-devtools@5.103.2(csstype@3.2.3)':
@@ -6390,18 +6385,18 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/react-query-devtools@5.103.2(@tanstack/react-query@5.103.1(react@18.3.1))(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)':
+  '@tanstack/react-query-devtools@5.103.2(@tanstack/react-query@5.103.2(react@18.3.1))(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)':
     dependencies:
       '@tanstack/query-devtools': 5.103.2(csstype@3.2.3)
-      '@tanstack/react-query': 5.103.1(react@18.3.1)
+      '@tanstack/react-query': 5.103.2(react@18.3.1)
       '@types/react': 18.3.28
       react: 18.3.1
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/react-query@5.103.1(react@18.3.1)':
+  '@tanstack/react-query@5.103.2(react@18.3.1)':
     dependencies:
-      '@tanstack/query-core': 5.103.1
+      '@tanstack/query-core': 5.103.2
       react: 18.3.1
 
   '@testing-library/dom@10.4.1':
