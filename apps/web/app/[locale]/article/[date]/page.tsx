@@ -11,7 +11,10 @@ import { formatArticleDate } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { plainSummary, plainTitle } from '@/lib/markdown-text';
 
-export const revalidate = 3600;
+// Um dia, e é rede de segurança: o conteúdo muda uma vez por dia, no pipeline,
+// e os dois crons invalidam esta página sob demanda. Cada regeneração acorda a
+// API do Render — `lib/daily-revalidation.ts` tem a conta das horas.
+export const revalidate = 86400;
 
 /**
  * Vazio, pelo mesmo motivo da `/news/[id]`: sem esta função o Next marca a rota

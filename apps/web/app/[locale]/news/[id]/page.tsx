@@ -8,7 +8,11 @@ import { pageMetadata } from '@/lib/seo';
 import { breadcrumbJsonLd, newsArticleJsonLd } from '@/lib/json-ld';
 import type { BreadcrumbStep } from '@/lib/json-ld';
 
-export const revalidate = 3600;
+// Sete dias: a matéria não muda depois de coletada, e esta é a rota que os
+// robôs percorrem o dia todo — cada regeneração acorda a API do Render. Fica
+// fora da invalidação diária dos crons; o porquê e o preço estão em
+// `lib/daily-revalidation.ts`.
+export const revalidate = 604800;
 
 /**
  * **Vazio, e é o que liga a ISR nesta rota.**
