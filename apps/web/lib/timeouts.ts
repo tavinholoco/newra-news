@@ -103,3 +103,37 @@ export const PIPELINE_WARM_TIMEOUT_MS = 25_000;
  * o POST, e um disparo que falha custa menos que um dia sem briefing.
  */
 export const PIPELINE_WARM_ATTEMPTS = 2;
+
+/**
+ * **Esperar o pipeline terminar, no disparo agendado** (01/10/2026). O
+ * `revalidate` das páginas passou a ser de um dia — cada regeneração acorda a
+ * API do Render —, e a invalidação no aceite deixava a página que um robô
+ * regenerasse no meio do run com o briefing da véspera por um dia inteiro.
+ * O cron sonda `GET /api/jobs/:id` e invalida de novo no `SUCCESS`; a API já
+ * está acordada pelo próprio run, então a sonda não custa hora nenhuma.
+ *
+ * 150 s contra os ~90 s que o run mede; o pior caso da rota fica em
+ * 70 s (acordar + disparar) + 150 s = 220 s, sob o `maxDuration = 240`.
+ */
+export const PIPELINE_SETTLE_MAX_MS = 150_000;
+
+/** O intervalo entre duas sondas do run. */
+export const PIPELINE_SETTLE_POLL_MS = 10_000;
+
+/**
+ * **Quantas vezes o servidor do Next repete um pedido recusado por excesso**
+ * (`429`, e o `503` de quem ainda está subindo) — 01/10/2026. O build do #255
+ * na Vercel caiu duas vezes com `429 Too Many Requests` em todas as páginas que
+ * chamam a API, logo depois de ela acordar da hibernação: o build manda umas
+ * vinte requisições de uma vez contra um serviço frio. Com a API dormindo de
+ * propósito (as horas do Render), acordá-la por um build vira o caso comum.
+ *
+ * Três novas tentativas, com espera crescente (`API_RETRY_BASE_MS × 2ⁿ`: 2, 4 e
+ * 8 s) ou o `Retry-After` da resposta, limitado a `API_RETRY_MAX_WAIT_MS`. Só
+ * no servidor: no navegador, quem repete é o TanStack Query.
+ */
+export const API_RETRY_ATTEMPTS = 3;
+
+export const API_RETRY_BASE_MS = 2_000;
+
+export const API_RETRY_MAX_WAIT_MS = 15_000;

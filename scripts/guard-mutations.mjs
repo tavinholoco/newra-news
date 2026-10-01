@@ -860,6 +860,34 @@ const MUTATIONS = [
     ],
     expect: 'relança onde o resultado é publicado — a revalidação mantém a última página boa',
   },
+  // ── As horas do Render (01/10/2026) ──────────────────────────────────────
+  {
+    id: 'A1.60',
+    what: 'a `/news` volta ao `revalidate` de uma hora',
+    pkg: 'web',
+    test: 'tests/lib/daily-revalidation.test.ts',
+    file: 'apps/web/app/[locale]/news/page.tsx',
+    edits: [{ find: 'export const revalidate = 86400;', replace: 'export const revalidate = 3600;' }],
+    expect: 'declares every revalidate under app/ as at least one day',
+  },
+  {
+    id: 'A1.61',
+    what: 'a porta dos crons volta a aceitar `Bearer undefined`',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/lib/cron-auth.ts',
+    dropLine: '  if (!secret) return false;',
+    expect: 'returns 401 when CRON_SECRET is not configured',
+  },
+  {
+    id: 'A1.62',
+    what: 'o cron deixa de invalidar de novo quando o run fecha em `SUCCESS`',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    dropLine: "        if (settled === 'SUCCESS') revalidateDailyContent();",
+    expect: 'revalidates again when the run closes in SUCCESS',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

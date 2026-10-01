@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
+import { revalidateDailyContent } from '@/lib/daily-revalidation';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import { logServerError } from '@/lib/log-server-error';
 import {
+  API_TIMEOUT_MS,
+  PIPELINE_SETTLE_MAX_MS,
+  PIPELINE_SETTLE_POLL_MS,
   PIPELINE_TRIGGER_TIMEOUT_MS,
   PIPELINE_WARM_ATTEMPTS,
   PIPELINE_WARM_TIMEOUT_MS,
@@ -11,12 +15,13 @@ import type { PipelineTrigger } from '@newranews/types';
 export const dynamic = 'force-dynamic';
 
 /**
- * 90 s, e o número sai da soma: `PIPELINE_WARM_ATTEMPTS × PIPELINE_WARM_TIMEOUT_MS`
- * mais o disparo dá 70 s no pior caso, e sobra margem para a resposta e para as
- * três revalidações. Era 30 s, o que não deixava espaço para acordar ninguém.
- * O teto do plano Hobby da Vercel é 300 s.
+ * 240 s, e o número sai da soma: `PIPELINE_WARM_ATTEMPTS × PIPELINE_WARM_TIMEOUT_MS`
+ * mais o disparo dá 70 s no pior caso, e a espera pelo fim do run
+ * (`PIPELINE_SETTLE_MAX_MS`) mais 150 s — 220 s, com margem para a resposta e
+ * as revalidações. Era 90 s até 01/10/2026, quando a rota passou a esperar o
+ * run. O teto do plano Hobby da Vercel é 300 s.
  */
-export const maxDuration = 90;
+export const maxDuration = 240;
 
 /**
  * Acorda a API antes de disparar, e diz se conseguiu.
@@ -57,9 +62,53 @@ async function warmApi(jobUrl: string): Promise<boolean> {
   return false;
 }
 
+type RunStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN';
+
+/**
+ * **Espera o run terminar, e diz como terminou.** Sonda `GET /api/jobs/:id` —
+ * a mesma origem do `BACKEND_JOB_URL`, com o mesmo segredo — até o status
+ * deixar de ser `RUNNING` ou o prazo acabar.
+ *
+ * Existe porque o `revalidate` das páginas é de um dia desde 01/10/2026 (as
+ * horas do Render — `lib/daily-revalidation.ts`): a invalidação no aceite é
+ * otimista, e um robô que pegue a Home durante os ~90 s do run a regenera com
+ * o briefing da véspera. Sem esta espera, essa página ficaria um dia no ar.
+ * Era um segundo cron às 13:00 — e o deploy da Vercel o recusou: o Hobby
+ * limita os crons. **A sonda não custa hora do Render**: a API está acordada
+ * pelo próprio run.
+ *
+ * Nunca lança. Qualquer resposta que não seja um `RUNNING` legível encerra a
+ * espera (`UNKNOWN`): esperar às cegas só gastaria o `maxDuration`.
+ */
+async function settleRun(jobUrl: string, pipelineId: string): Promise<RunStatus> {
+  const statusUrl = new URL(encodeURIComponent(pipelineId), jobUrl).toString();
+  const deadline = Date.now() + PIPELINE_SETTLE_MAX_MS;
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, PIPELINE_SETTLE_POLL_MS));
+    try {
+      const res = await fetch(statusUrl, {
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+        headers: { Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}` },
+        cache: 'no-store',
+      });
+      if (!res.ok) return 'UNKNOWN';
+      const body = (await res.json()) as { data?: { status?: unknown } } | null;
+      const status = body?.data?.status;
+      if (status === 'SUCCESS' || status === 'FAILED') return status;
+      if (status !== 'RUNNING') return 'UNKNOWN';
+    } catch (error) {
+      // A sonda caiu (timeout, rede): o run segue no servidor, e só a segunda
+      // invalidação se perde — a linha é o que diz que ela se perdeu.
+      logServerError('cron.daily-news.settle', error);
+      return 'UNKNOWN';
+    }
+  }
+  return 'RUNNING';
+}
+
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -113,31 +162,26 @@ export async function GET(request: Request) {
     // quente para regenerá-la a partir do mesmo banco — custo sem troco.
     const revalidated = data.outcome === 'started';
 
+    let settled: RunStatus | null = null;
     if (revalidated) {
-      // **O disparo foi aceito, não concluído** — a rota da API responde
-      // `{ outcome: 'started' }` e o pipeline segue no servidor por ~55 s. A
-      // invalidação aqui é otimista de propósito: ela derruba o HTML velho, e
-      // quem chegar depois regenera. Se a visita cair no meio da execução, a
-      // página nasce com o dado antigo e espera o `revalidate` de 3600 s.
-      //
-      // **Dívida, com gatilho:** esperar a conclusão exigiria sondar
-      // `GET /api/jobs/:id`, que é outra chamada autenticada dentro do
-      // `maxDuration` desta rota. Vale a pena quando alguém reclamar de ver
-      // conteúdo do dia anterior depois de um disparo manual, que é o sintoma
-      // que isto produz.
-      //
-      // O cache do Next grava as tags com o padrão literal da rota (ex.:
-      // "_N_T_/[locale]/layout") — por isso revalidamos o padrão `/[locale]`,
-      // que cobre as páginas dos dois idiomas.
-      revalidatePath('/[locale]', 'layout');
-      revalidatePath('/sitemap.xml');
-      // O news sitemap tem janela de 48h e é a rota que o Google Notícias lê
-      // logo depois de a matéria sair; deixá-lo esperar o `revalidate` de 15 min
-      // atrasaria justamente o que ele existe para acelerar.
-      revalidatePath('/news-sitemap.xml');
+      // **Primeiro no aceite, depois na conclusão.** A invalidação no aceite
+      // derruba o HTML velho na hora; a segunda, depois do `SUCCESS`, conserta
+      // a página que alguém tenha regenerado no meio do run — com o
+      // `revalidate` de um dia, ninguém mais a conserta. O conjunto, e por que
+      // a `/news/[id]` não entra, está em `lib/daily-revalidation.ts`.
+      revalidateDailyContent();
+
+      // **Só no disparo agendado.** O botão do painel reentra por aqui de
+      // dentro de outra requisição (`x-actor-id`) e espera esta resposta;
+      // segurá-lo por até 150 s seria a tela travada. O preço é aceito: o
+      // disparo manual fica só com a invalidação no aceite.
+      if (!actorId) {
+        settled = await settleRun(jobUrl, data.pipelineId);
+        if (settled === 'SUCCESS') revalidateDailyContent();
+      }
     }
 
-    return NextResponse.json({ success: true, data, revalidated, warmed });
+    return NextResponse.json({ success: true, data, revalidated, warmed, settled });
   } catch (error) {
     /**
      * **O 01/09/2026 é este `catch`.** A API tinha acabado de voltar de um mês
