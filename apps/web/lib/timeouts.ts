@@ -119,3 +119,21 @@ export const PIPELINE_SETTLE_MAX_MS = 150_000;
 
 /** O intervalo entre duas sondas do run. */
 export const PIPELINE_SETTLE_POLL_MS = 10_000;
+
+/**
+ * **Quantas vezes o servidor do Next repete um pedido recusado por excesso**
+ * (`429`, e o `503` de quem ainda está subindo) — 01/10/2026. O build do #255
+ * na Vercel caiu duas vezes com `429 Too Many Requests` em todas as páginas que
+ * chamam a API, logo depois de ela acordar da hibernação: o build manda umas
+ * vinte requisições de uma vez contra um serviço frio. Com a API dormindo de
+ * propósito (as horas do Render), acordá-la por um build vira o caso comum.
+ *
+ * Três novas tentativas, com espera crescente (`API_RETRY_BASE_MS × 2ⁿ`: 2, 4 e
+ * 8 s) ou o `Retry-After` da resposta, limitado a `API_RETRY_MAX_WAIT_MS`. Só
+ * no servidor: no navegador, quem repete é o TanStack Query.
+ */
+export const API_RETRY_ATTEMPTS = 3;
+
+export const API_RETRY_BASE_MS = 2_000;
+
+export const API_RETRY_MAX_WAIT_MS = 15_000;

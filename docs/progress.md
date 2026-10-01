@@ -8586,6 +8586,14 @@ falhou em 22 s, antes do build (o build local compila, com as fontes
 simuladas). O Hobby limita os crons — a guarda agora exige um só no
 `vercel.json`.
 
+**E o preview ainda caiu, agora com `429 Too Many Requests`** em toda página
+que chama a API (log da Vercel, 22:08 UTC). Os logs do Render mostram a API
+indo dormir às 21:54 e nenhum tráfego além do health check: o build é que a
+acordou mandando umas vinte requisições de uma vez. Com a API dormindo de
+propósito, acordá-la por um build vira o caso comum — então `fetchApi`, **só
+no servidor**, repete `429` e `503` até três vezes (2, 4 e 8 s, ou o
+`Retry-After`, limitado a 15 s). Guarda em `tests/lib/api-retry.test.ts`.
+
 **Achado de passagem, de segurança:** o cron comparava
 `authorization !== \`Bearer ${process.env.CRON_SECRET}\``. Com a variável
 ausente, o esperado vira a string `Bearer undefined`, que qualquer um sabe
@@ -8600,7 +8608,7 @@ acontecer com outra variável (`AUTH_JWT_SECRET`).
 ≥ 86.400; todo caminho do conjunto aponta para uma rota que existe; nada de
 `'layout'` nem `/news/[id]` no conjunto; um cron só no `vercel.json`; a
 segunda invalidação só no `SUCCESS`, e nunca no disparo manual; e o cron
-recusa `Bearer undefined`. **907 → 916 no web.**
+recusa `Bearer undefined`. **907 → 923 no web.**
 
 **O que continua acordando a API, e é tráfego real:** o analytics
 (`/api/events`, por visitante com JS), as listagens filtradas do `/news` no
