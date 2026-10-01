@@ -190,6 +190,16 @@ updates:
       # Gatilho: vitest + vite + plugin-react num PR só, com a suíte inteira.
       - dependency-name: vitest
         update-types: ['version-update:semver-major']
+      # `@vitest/coverage-v8` acompanha a major do `vitest` acima, versão a
+      # versão: o 5 importa `BaseCoverageProvider` de `vitest/node`, que o
+      # vitest 2 não exporta — `test:coverage` caiu antes de rodar um teste
+      # (#237 em 21/09, e o #248 em 28/09, o mesmo bump uma versão depois).
+      # Sobe no mesmo PR do vitest. **Entrou pela `dev` e chega à `main` na
+      # promoção da Fase 12 (01/10/2026)**, e não por um PR próprio na `main`:
+      # a promoção era o passo seguinte, e o atalho economizava dois PRs e um
+      # deploy de produção para o mesmo resultado.
+      - dependency-name: '@vitest/coverage-v8'
+        update-types: ['version-update:semver-major']
       # `@typescript-eslint/*@8` exige o ESLint 9 — o plugin 8 sobre o 8.57 cai
       # com "Cannot use in operator to search for type" antes de lintar
       # (#220). Acompanha a major do `eslint`, já acima, na migração do ESLint.

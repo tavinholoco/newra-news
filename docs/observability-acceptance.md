@@ -1629,13 +1629,38 @@ caíram junto.
 > propósito com a API fora — **não se promove antes**, e nenhum push na `main`
 > (o Smoke roda em todo push nela).
 
-- [ ] **A7.10 — A API voltou.** `/api/health` 200. · P
-- [ ] **A7.11 — O `ignore` do #237 na `main`, e a `dev` em dia.** Um PR na
-  `main` só com o `.github/dependabot.yml` (a entrada do
-  `@vitest/coverage-v8`, que acompanha a major do vitest — o motivo escrito
-  como os outros); o Smoke do push roda verde; e a sincronização `main → dev`
-  por PR, o terceiro estado do `CLAUDE.md`, até `dev..main` = 0. Fecha o
-  #237. · P
+- [x] **A7.10 — A API voltou.** `/api/health` 200. · P
+  - **01/10/2026, 16:21 UTC:** `HTTP/1.1 200`, sem `x-render-routing`,
+    corpo `{"status":"ok", … "uptime":1037.9}` em 0,30 s. O cron das 11:00
+    UTC já tinha rodado o código **antigo** da `main`: briefing de 01/10
+    gerado às 11:31:48 (`/api/articles/latest`), 524 notícias, Gemini, 76 s
+    (`/api/metrics/weekly`), com `pipelineErrors > 0` — **Drauzio Varella e
+    Veja Saúde com 0 itens** no run (os outros 10 feeds e a NewsData
+    trouxeram). O Drauzio é o do #243, que só está na `dev`; **a Veja Saúde
+    é novidade** — daqui o feed responde 200 com 47 itens, e um dia só não
+    dispara o gatilho de 3 dias da §15: fica para o A7.14/A7.15. Do lado da
+    Vercel: dez rotas sondadas em 200 e o endereço errado em 404, o briefing de 19/09
+    — que era a 500 estática durante a suspensão — em 200, `sitemap.xml`
+    com 364 `<loc>` e `news-sitemap.xml` com 403 (tinham caído a 10 e 0 no
+    item 82), e **a cota de imagem de volta**: a primeira `/_next/image` em
+    `MISS` respondeu 200 (sonda parada nela). **O que a volta não trouxe:**
+    o #231 (a ISR determinística) não é ancestral da `origin/main` — a cota
+    zerou porque a janela passou, não porque a causa saiu do ar; sai na
+    promoção (A7.16).
+- [ ] **A7.11 — O `ignore` do #237, e a `dev` em dia.** A entrada do
+  `@vitest/coverage-v8` no `.github/dependabot.yml`, que acompanha a major
+  do vitest — o motivo escrito como os outros. Fecha o #237 (e o #248, o
+  mesmo bump uma versão depois). · P
+  - **Decidido em 01/10: pela `dev`, e a promoção a leva à `main`.** O plano
+    pedia um PR na `main` só com o arquivo, um Smoke no push e uma
+    sincronização `main → dev` por PR — o caminho certo quando a promoção
+    está longe. Com a API de volta, **a promoção é o passo seguinte**, e o
+    atalho chega ao mesmo estado (a configuração na branch padrão, `dev..main`
+    = 0) com dois PRs e um deploy de produção a menos. O custo é o #248 ficar
+    aberto até a promoção. A entrada foi escrita no PR C; a guarda
+    `dependabot-config.test.ts` passa (4/4). **Fecha quando a promoção
+    estiver na `main`**: o #248 fechado e `git show origin/main:.github/dependabot.yml`
+    com a entrada.
 - [ ] **A7.12 — A promoção (decisão do dono)** e os dois deploys de pé; as
   pré-checagens do A7.02 repetidas; Smoke E2E automático (31 passed, 6 skipped
   enquanto os segredos E2E não existirem — hoje o repositório só tem
