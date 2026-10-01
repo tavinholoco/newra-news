@@ -19,9 +19,10 @@ gatilho.
 > publicada: `eslint@8`, `vitest@2`, o CLI do `shadcn`. Uma lista de exceção com
 > 35 linhas é a armadilha 21 do §17 do plano de observabilidade — vira ruído,
 > alguém desliga o passo, e ele deixa de existir de fato enquanto continua
-> existindo no arquivo. Com `--prod` são **18** — 16 com alcance analisado nos
+> existindo no arquivo. Com `--prod` são **22** — 16 com alcance analisado nos
 > itens **9.S** e **10.S** do `docs/progress.md`, mais as **duas *critical* do
-> `next`** que chegaram em 09/09/2026 e foram medidas na hora.
+> `next`** que chegaram em 09/09/2026 e as **quatro do `fastify`** que chegaram
+> em 01/10/2026, as seis medidas na hora.
 >
 > O outro lado fica com o **Dependabot**, que abre PR semanal para dependência de
 > desenvolvimento também. A diferença entre os dois é o que cada um faz quando
@@ -29,14 +30,14 @@ gatilho.
 
 ## As três dívidas, e são só três
 
-**18** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
+**22** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
 neste documento têm guarda **derivada da lista**, porque número em prosa que
 descreve uma coleção é a armadilha do `13` dos feeds (item 41).
 
 | Gatilho | Advisories | Onde o aceite foi escrito |
 |---|---|---|
 | **`next` 14 → 15** | 10 do `next` + 5 da cadeia de build que ele carrega | item 10.S do `docs/progress.md`, e as duas de 09/09 na seção de medição abaixo |
-| **`fastify` 4 → 5** | `fastify` e `find-my-way` | item 9.S |
+| **`fastify` 4 → 5** | 5 do `fastify` e 1 do `find-my-way` | item 9.S, e as quatro de 01/10 na seção de medição abaixo |
 | **UI do Swagger em produção** | `@fastify/static` | item 9.S |
 
 No dia em que qualquer um dos três acontecer — ou um bump corrigir a
@@ -76,6 +77,10 @@ com a lista vazia e recusa toda exceção que não casa mais com achado nenhum.
 | GHSA-83w8-p2f5-377r | `@fastify/static` | Bypass de route guard por travessia — o pacote só entra pelo `@fastify/swagger-ui`, que **deixou de ser registrado em produção** na Fase 9 (`isDocsUiEnabled`) | 23/08/2026 | reabrir a UI do Swagger em produção |
 | GHSA-p293-qw3h-jr36 | `next` | RCE por travessia de caminho, e a advisory diz **exclusivamente** *Windows filesystem* — o web é publicado só na Vercel (Linux), e o `render.yaml` declara um serviço só, que é a API | 09/09/2026 | publicar o web em host Windows, ou `next@15` |
 | GHSA-2xp9-vwfh-vxw4 | `next` | RCE no `libheif` do `sharp` ao otimizar AVIF, e **`sharp` não está no `pnpm-lock.yaml` nem no `node_modules`** — o `/_next/image` é servido pela plataforma da Vercel, não pela app (medido em 09/09; ver a nota abaixo) | 09/09/2026 | trazer a otimização de imagem para dentro — proxy próprio, `output: standalone`, self-host —, `sharp` entrar na árvore, ou `next@15` |
+| GHSA-667r-xxjv-c9mm | `fastify` | Troca do pedaço validado da requisição pelo resultado de uma validação **assíncrona** — exige schema de requisição `$async`, e a validação daqui é do compilador do Zod, que é síncrono; nenhum `$async` no `src/`. Guarda: `apps/api/tests/security/fastify-advisory-premises.test.ts` | 01/10/2026 | o primeiro schema `$async` ou compilador de validação assíncrono, ou `fastify@5` |
+| GHSA-p68q-wchp-6fh7 | `fastify` | URL malformada cai no not-found handler **encapsulado** de outro prefixo, sem o `preHandler` dele — há um handler só, na raiz do `buildApp`, sem opções, e ele devolve `{ error: 'Not Found' }`: não há dado protegido atrás de um 404. Mesma guarda | 01/10/2026 | um segundo `setNotFoundHandler`, num plugin com prefixo, ou `fastify@5` |
+| GHSA-hwr6-493r-vm6h | `fastify` | Pedaço do schema declarado como booleano `false` não é compilado — nenhuma rota declara schema booleano; os schemas são objetos do Zod. Mesma guarda | 01/10/2026 | o primeiro pedaço de schema booleano numa rota, ou `fastify@5` |
+| GHSA-9q9j-q6p8-xq58 | `fastify` | `dependencies` num schema de `headers` não acompanha a caixa baixa do Node — nenhuma rota declara schema de `headers` (com o type provider ele **substitui** `request.headers`, decisão do 5b do plano de observabilidade). Mesma guarda | 01/10/2026 | o primeiro schema de `headers` numa rota, ou `fastify@5` |
 
 > **Quem aceita:** Pedro Levi. As linhas de 23/08/2026 vêm dos itens 9.S e 10.S do
 > `docs/progress.md`, onde cada "não alcança" já era uma afirmação sobre o código
@@ -85,7 +90,9 @@ com a lista vazia e recusa toda exceção que não casa mais com achado nenhum.
 > 24/09/2026. As de **09/09/2026** são as duas
 > *critical* do `next` que apareceram entre o PR #161 passar e o merge dele na
 > `dev`, e o alcance das duas foi **medido**, não deduzido — a medição está logo
-> abaixo.
+> abaixo. As de **01/10/2026** são as quatro do `fastify` que reprovaram o CI da
+> `dev` na véspera da promoção da Fase 12 do plano de observabilidade — a seção
+> de medição delas também está abaixo.
 
 ### Como o alcance da GHSA-2xp9-vwfh-vxw4 foi medido — 09/09/2026
 
@@ -122,6 +129,33 @@ o que ele sabe fazer.
 desenvolvimento é Windows, e `next dev` é um servidor em filesystem Windows. A
 exposição é o que alcança `localhost`, não a internet — pequena, mas não é zero, e
 é o único lugar onde essa advisory encosta neste projeto.
+
+### Como o alcance das quatro do `fastify` foi medido — 01/10/2026
+
+As quatro foram publicadas em **30/09/2026, entre 23:44 e 23:45 UTC**, e o CI da
+`dev` reprovou no merge seguinte — o do #249, que só mexia em YAML e em
+documentação. É a lição de 09/09 outra vez: **CI vermelho depois de um merge não
+é, por padrão, o código mergeado.** Na mesma rodada vieram duas do `fast-uri`
+(GHSA-qw65-cvwx-89v3, GHSA-58mr-gqgx-xq4g) e duas do `brace-expansion`
+(GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p), e essas **não ganharam linha**: têm
+correção dentro da major que a árvore já usa, e saíram por `pnpm update -r
+fast-uri brace-expansion` (2.4.7/3.1.8 e 2.1.7) — o passo 2 abaixo.
+
+As do `fastify` só têm correção na `5.12.2`. Cada advisory diz a sua
+pré-condição por escrito, e a pergunta foi se este código a cumpre:
+
+| O que a advisory exige | Qual (CVSS) | O que o código tem |
+|---|---|---|
+| schema de requisição `$async` | GHSA-667r-xxjv-c9mm (8,1) | `app.setValidatorCompiler(validatorCompiler)` do `fastify-type-provider-zod`, síncrono; nenhum `$async` |
+| um not-found handler encapsulado que **serve dado protegido** | GHSA-p68q-wchp-6fh7 (7,5) | um `setNotFoundHandler` só, em `src/app.ts`, sem `preHandler`, devolvendo `{ error: 'Not Found' }` (o corpo é guardado em `tests/plugins/error-handler.test.ts`) |
+| `body`/`querystring`/`params`/`headers` declarado como `false` | GHSA-hwr6-493r-vm6h (7,5) | nenhum schema booleano em rota |
+| schema de `headers` com `dependencies` | GHSA-9q9j-q6p8-xq58 (7,5) | nenhum schema de `headers` em rota |
+
+**As quatro premissas viraram uma suíte** —
+`apps/api/tests/security/fastify-advisory-premises.test.ts`, pelo parser do
+TypeScript —, cada uma vista reprovando por uma mutação do `pnpm guard:mutations`
+(A1.54–A1.58). O aceite deixa de ser verdade no dia em que uma rota passar a
+cumprir a pré-condição, e é ali que reprova.
 
 ## Como acrescentar uma linha
 

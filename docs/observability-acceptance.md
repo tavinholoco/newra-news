@@ -1665,6 +1665,22 @@ caíram junto.
   pré-checagens do A7.02 repetidas; Smoke E2E automático (31 passed, 6 skipped
   enquanto os segredos E2E não existirem — hoje o repositório só tem
   `DATABASE_URL`). · P
+  - **As pré-checagens repetidas em 01/10 acharam o CI da `dev` vermelho**
+    no push do merge do #249 (`d4f2c21`, 17:08 UTC) — um PR só de YAML e
+    documentação. O `pnpm audit --audit-level=high --prod` reprovou por
+    **oito advisories publicadas na véspera** (30/09, 23:44–23:45 UTC): quatro
+    do `fastify` (corrigidas só na `5.12.2`), duas do `fast-uri` e duas do
+    `brace-expansion`. Não é defeito do código, é a esteira fazendo o que o
+    A6.01 provou — e é exatamente o que a promoção teria levado ao ar com o CI
+    vermelho. Correção no PR `fix/audit-advisories-2026-10-01`, contra a
+    `dev`: o `fast-uri` (2.4.7/3.1.8) e o `brace-expansion` (2.1.7) por
+    `pnpm update -r` no lockfile; as quatro do `fastify` **aceitas com
+    alcance medido** em `docs/security-advisories.md` (`$async`, not-found
+    handler encapsulado, schema booleano, schema de `headers` — nenhuma
+    pré-condição existe aqui), com as premissas viradas em
+    `tests/security/fastify-advisory-premises.test.ts` e as mutações
+    A1.54–A1.58. Depois dele: `pnpm audit --prod` com 20 *high* e 2
+    *critical*, todas ignoradas.
 - [ ] **A7.12b — A segunda janela da correção da ESPN** (decidida pelo dono em
   25/09, A4.04). A ESPN escreve a hora de Brasília com o rótulo `EST`, e tudo
   o que o código **antigo** gravou dela está 2 h adiantado. A correção é

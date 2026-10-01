@@ -789,6 +789,63 @@ const MUTATIONS = [
     dropLine: '        news: deletedNews.count,',
     expect: 'names every purged table in the cleanup event',
   },
+  // ── As premissas das quatro advisories do fastify aceitas em 01/10/2026 ──
+  {
+    id: 'A1.54',
+    what: 'uma rota passa a declarar schema de headers (GHSA-9q9j-q6p8-xq58)',
+    pkg: 'api',
+    test: 'tests/security/fastify-advisory-premises.test.ts',
+    file: 'apps/api/src/routes/account/index.ts',
+    edits: [
+      {
+        find: '{ schema: { response: { 200: preferencesResponseSchema } } },',
+        replace: '{ schema: { headers: preferencesResponseSchema, response: { 200: preferencesResponseSchema } } },',
+      },
+    ],
+    expect: 'no route declares a headers schema',
+  },
+  {
+    id: 'A1.55',
+    what: 'uma rota passa a declarar um pedaço do schema como booleano (GHSA-hwr6-493r-vm6h)',
+    pkg: 'api',
+    test: 'tests/security/fastify-advisory-premises.test.ts',
+    file: 'apps/api/src/routes/account/index.ts',
+    edits: [
+      {
+        find: '{ schema: { response: { 200: preferencesResponseSchema } } },',
+        replace: '{ schema: { body: false, response: { 200: preferencesResponseSchema } } },',
+      },
+    ],
+    expect: 'no route schema part is a boolean schema',
+  },
+  {
+    id: 'A1.56',
+    what: 'um segundo not-found handler, dentro de um plugin (GHSA-p68q-wchp-6fh7)',
+    pkg: 'api',
+    test: 'tests/security/fastify-advisory-premises.test.ts',
+    file: 'apps/api/src/routes/admin/audit.ts',
+    append:
+      '\nexport const segundoNotFound = (a: FastifyInstance) => a.setNotFoundHandler((_q, r) => r.send({}));\n',
+    expect: 'one not-found handler, at the root, with no options',
+  },
+  {
+    id: 'A1.57',
+    what: 'um schema `$async` aparece no src (GHSA-667r-xxjv-c9mm)',
+    pkg: 'api',
+    test: 'tests/security/fastify-advisory-premises.test.ts',
+    file: 'apps/api/src/routes/admin/audit.ts',
+    append: "\nexport const esquemaAssincrono = { $async: true, type: 'object' };\n",
+    expect: 'no `$async` schema anywhere in src',
+  },
+  {
+    id: 'A1.58',
+    what: 'a validação deixa de passar pelo compilador do Zod (GHSA-667r-xxjv-c9mm)',
+    pkg: 'api',
+    test: 'tests/security/fastify-advisory-premises.test.ts',
+    file: 'apps/api/src/app.ts',
+    dropLine: '  app.setValidatorCompiler(validatorCompiler);',
+    expect: 'validation goes through the zod compiler',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
