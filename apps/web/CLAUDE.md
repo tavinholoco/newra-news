@@ -683,7 +683,10 @@ Regras que não são óbvias no código:
 - **`.catch(() => valor)` numa página é proibido, e há guarda.** Ele confunde "a
   API disse não" com "a API não respondeu", e a ISR fixa a confusão por uma
   hora. Em `catch` que alimente `notFound()`, use `nullIfNotFound`. Onde o valor
-  vira `initialData`, continua sendo `prefetch` (que falha em `undefined`).
+  vira `initialData`, continua sendo `prefetch` — que falha em `undefined` no
+  CI e no local, e **relança na Vercel** desde 01/10/2026: com `undefined`, a
+  revalidação da `/news` com a API dormindo gravou a listagem **sem nenhuma
+  matéria** por uma hora (Fase 12 do plano de observabilidade, A7.16).
   **A guarda alcança tudo sob `app/` com `export const revalidate`** — não só
   `app/[locale]`: os dois sitemaps ficaram fora dela por diretório até
   19/09/2026, e regeneraram vazios com a API suspensa.
