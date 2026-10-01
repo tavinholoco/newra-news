@@ -78,6 +78,36 @@ const FREEZE_CSS = `
   }
 `;
 
+/**
+ * **Imagem `loading="lazy"` abaixo da dobra sai em branco na foto de página
+ * inteira.** O Chromium só busca as que estão perto da área visível, e o
+ * `networkidle` não espera o que nunca foi pedido: a recaptura de 01/10/2026
+ * (Fase 12 do plano de observabilidade, A7.13) gravou os destaques das quatro
+ * seções de categoria da Home como retângulos brancos — e a `home--1440.jpg`
+ * é a imagem do README. Nada falhava: HTTP 200, 51/51.
+ *
+ * Aqui toda `lazy` vira `eager` antes da foto, e a função devolve **quantas
+ * continuam sem carregar** depois do prazo — quem chama reprova a captura,
+ * em vez de gravar o branco calado. Imagem quebrada não conta: `complete` é
+ * verdadeiro também para o erro, e o `SafeImage` troca pelo placeholder.
+ */
+const IMAGE_TIMEOUT_MS = 20_000;
+
+async function settleImages(page) {
+  await page.evaluate(() => {
+    for (const img of document.querySelectorAll('img[loading="lazy"]')) img.loading = 'eager';
+  });
+  await page
+    .waitForFunction(() => [...document.images].every((img) => img.complete), undefined, {
+      timeout: IMAGE_TIMEOUT_MS,
+    })
+    .catch(() => {
+      /* o que sobrar é medido abaixo */
+    });
+  await page.waitForLoadState('networkidle').catch(() => {});
+  return page.evaluate(() => [...document.images].filter((img) => !img.complete).length);
+}
+
 async function resolveRoutes() {
   const routes = [
     { slug: 'home', url: '/pt-BR' },
@@ -154,6 +184,7 @@ async function capture(browser, route, viewport, theme) {
     });
     await page.addStyleTag({ content: FREEZE_CSS });
     await page.evaluate(() => document.fonts.ready);
+    const pendingImages = await settleImages(page);
     await page.screenshot({
       path: file,
       fullPage: true,
@@ -163,6 +194,10 @@ async function capture(browser, route, viewport, theme) {
     });
 
     const status = response?.status() ?? 0;
+    if (pendingImages > 0) {
+      console.error(`  ${path.basename(file)} (HTTP ${status}) — ${pendingImages} imagem(ns) sem carregar`);
+      return { file: path.basename(file), route: route.url, status, pendingImages, ok: false };
+    }
     console.log(`  ${path.basename(file)} (HTTP ${status})`);
     return { file: path.basename(file), route: route.url, status, ok: true };
   } catch (error) {

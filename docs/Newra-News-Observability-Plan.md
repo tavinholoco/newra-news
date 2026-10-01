@@ -1,9 +1,11 @@
 # Plano de Observabilidade e Painel do Admin — Newra News
 
-> **Estado (24/09/2026):** as onze fases de implementação estão na `dev`
-> (a 9 fechou em 20/09, com o pós-merge em 21/09). **Aberta: a Fase 12, o
-> ensaio de aceitação (§22)** — só de teste, sobre a matriz
-> `docs/observability-acceptance.md`. O estado de cada fase vive no §19.
+> **Estado (01/10/2026):** as onze fases de implementação estão **em
+> produção** desde a promoção #251. **A Fase 12, o ensaio de aceitação (§22),
+> fecha depois do run de 02/10** — a matriz `docs/observability-acceptance.md`
+> tem o estado linha a linha. **A Fase 13 (§23) foi criada em 01/10** com o que
+> o ensaio achou e não cabia nele: o alerta de fora, o denominador das horas, a
+> métrica de leitura. O estado de cada fase vive no §19.
 > **Criado em:** 01/09/2026, depois das Fases 0–12 da V2.
 > **Relação com o plano da V2:** este é um plano **à parte**. O
 > `Newra-News-V2-Frontend-Redesign-Plan.md` cuida do produto que o leitor vê;
@@ -3532,7 +3534,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
-| Alerta ativo (e-mail/webhook) | depois de a tela existir e de sabermos qual sinal dispara de fato |
+| Alerta ativo (e-mail/webhook) | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
 | Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL no briefing (`unanchored-url` ou `copied-url`), que é evento único e merece olhar no mesmo dia |
 | Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto pedindo o número real — o da deriva foi calibrado contra produção em 24/09 (0,25, Fase 12); o de duplicata segue por cima (0,6) — e o `gates:rehearse` imprime o p95 |
@@ -3541,10 +3543,11 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Fonte quebrada | **3 dias seguidos** de `FAILED` para a mesma fonte |
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
 | Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
-| **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo |
+| **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo. **Treze medições de zero até 01/10/2026, a última no push da promoção #251 — virou trabalho: Fase 13, item 13.6 (§23)** |
 | **A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou** | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
 | **O `htmlToText` devolve texto que pode conter `<script>` literal** | o `js/incomplete-multi-character-sanitization` do CodeQL em `providers/news/feed-text.ts` (aberto desde 05/09, o único alerta que a Fase 12 deixou aberto — A6.03): decodifica, tira tag, decodifica de novo, então `&amp;lt;script&amp;gt;` do feed volta como `<script>` **em texto**, e o conteúdo de um `<script>` aninhado sobrevive como texto. Nenhum consumidor o trata como HTML — o React escapa, a newsletter escapa antes de enviar —, então não há onde isso execute. **Gatilho: o primeiro consumidor que renderizar `News.content`/`description` como HTML** (um `dangerouslySetInnerHTML`, um e-mail com o corpo da matéria, um RSS nosso); aí o texto passa por um sanitizador de verdade, e não por outra regex. No web o gatilho tem guarda: `tests/security/browser-surface.test.ts` reprova o terceiro `dangerouslySetInnerHTML` além dos dois auditados (JSON-LD e o script do tema) |
 | **Erro de servidor nas duas páginas ISR de detalhe é a 500 estática do Next, e nenhum boundary a alcança** | medido na 7b (17/09/2026): `/news/[id]` e `/article/[date]` são render de geração (`revalidate` + `generateStaticParams` vazio), e erro na geração — do `generateMetadata` ou do corpo — é "a geração falhou", não "renderize o `error.tsx`"; a navegação de cliente cai para navegação dura no 500 do RSC. O `digest` existe no log e não chega a ninguém, e nada é reportado. **Gatilho: a primeira linha `CLIENT_ERROR` com `route` de uma das duas em que alguém precise do digest — ou a primeira medição de `/news/[id]` respondendo 500 em produção fora de uma acordada da API.** A saída é decisão sobre ISR e SEO (metadata resiliente à falha de transporte + o que o CDN cacheia de um render de erro), não sobre boundary |
+| **A `/news` raspa o piso de 90 do Lighthouse, e a primeira medição depois de um deploy reprova** | medido na promoção da Fase 12 (01/10/2026, A7.13): três minutos depois do deploy, mediana **86** `[85, 86, 90]` e o gate vermelho; onze minutos depois, **91** `[92, 91, 88]` e verde. O TBT dela (180–390 ms, contra 80–120 nas outras seis) sai do runtime do App Router (`6160-*.js`) processando o payload RSC da listagem (~147 KB), **com o mesmo hash da promoção #215** — não é regressão, é patamar: `[89, 90, 81]` em 24/08 (§10.6 do plano da V2), 89 no agendado de 14/09, 91 em 19/09. **Gatilho: duas execuções agendadas seguidas (segunda, 09:00 UTC) com a mediana da `/news` abaixo de 90**, fora de deploy recente e com a API respondendo — aí é trabalho na página (o tamanho do payload inicial: quantos itens e facetas vão no HTML; o LCP de imagem de terceiro do §10.6), não no gate. **Até lá, o ritual não mede a `/news` nos primeiros ~10 min depois de um deploy** — o primeiro número sai frio e não diz nada sobre o patamar |
 
 ---
 
@@ -4506,3 +4509,150 @@ recrie com `./scripts/dev-bootstrap.sh`).
 > cabeçalho da matriz `docs/observability-acceptance.md`, e trabalhe na branch
 > `observability/fase-12-acceptance-c`. Comece pela sonda do A7.10: se a API
 > do Render ainda estiver suspensa, pare e me diga.
+
+---
+
+## §23 Fase 13 — O que o ensaio deixou aberto: o alerta, as horas e a métrica que mente
+
+> **Criada em 01/10/2026, a pedido do dono, depois da promoção #251** — no
+> mesmo dia em que a Fase 12 mediu produção pela primeira vez. Não é fase nova
+> de instrumentação: é o fechamento do que o ensaio de aceitação achou **e não
+> cabia nele** (a §22 é só de teste). Abre depois de a Fase 12 fechar (M8).
+
+**Fecha:** o plano construiu três abas que dizem tudo o que aconteceu — **para
+quem as abre**. Em setembro, os três incidentes caros foram descobertos de
+fora: a suspensão do Render (19/09 → 01/10, **doze dias sem briefing**) por uma
+sonda manual, a cota de imagem por um advisory, as oito advisories de 30/09
+pelo CI. **Nada no sistema avisa ninguém**, e o que mede mora dentro da API —
+quando ela cai, o painel cai junto. E duas das medidas que o painel mostra
+afirmam coisas que não são verdade: o arco das horas divide pelo teto inteiro
+um consumo que é só de um dos serviços que o dividem, e a profundidade de
+leitura conta as nossas próprias ferramentas como leitores.
+
+### O terreno, medido em 01/10/2026
+
+| # | Brecha | O que foi medido | Onde está no código |
+|---|---|---|---|
+| 13.1 | **Nenhum alerta sai do sistema** | o §16 adiava "depois de a tela existir e de sabermos qual sinal dispara" — a única dívida sem número, e as duas condições se cumpriram. O sinal que importa é um: **o briefing do dia não existe** (cobre API suspensa, cron que não acordou a API, portão que bloqueou, pipeline que morreu) | não existe; os seis workflows são CI, CodeQL, Gitleaks, Smoke, Migrate e Lighthouse |
+| 13.2 | **O arco das horas divide pelo teto do workspace** | `RENDER_FREE_PLAN_HOURS = 750` é o denominador do `DailyUptime` **desta** API; as 750 h são do workspace, que divide com o `NetsheetEngine`. Setembro estourou em **753,4 h** no total do workspace (A7.01) — o arco teria mostrado folga | `apps/api/src/services/uptime.service.ts`, `saturation.service.ts` |
+| 13.3 | **A acordada do Render contra o envelope do cron** | acordada medida em **~52 s** (01/10, 19:13 UTC — a sonda achou o processo com 11 s); em 24/08 eram 4,9 s. O cron tem `2 × 25 s` de aquecimento + `20 s` de disparo = **70 s**, sob `maxDuration = 90`. Cabe, com 18 s de folga, numa amostra só | `apps/web/lib/timeouts.ts` (`PIPELINE_WARM_*`), `app/api/cron/daily-news/route.ts` |
+| 13.4 | **A profundidade de leitura conta as ferramentas** | `/admin/metrics`, 01/10: `article_scroll_25/50/90` em **1.036 · 1.035 · 1.034** contra **0 aberturas**, "leitura completa 0 %". O `ScrollDepth` mede na montagem, e texto que cabe na tela "nasce 100 % lido"; o Lighthouse (21 carregamentos por rodada), a baseline, o Smoke e o `admin:capture` abrem as telas de leitura num Chromium headless. E a "abertura" é o clique no card (`article_open` com `source`) — quem chega direto não abre nada | `apps/web/components/analytics/scroll-depth.tsx`, `lib/analytics/consent.ts` |
+| 13.5 | **Uma fonte bloqueada a partir do datacenter** | Veja Saúde: `feed-failed` / `fetch failed` em **1,8 s** no run de 01/10, o mesmo padrão do Drauzio (removido no #243); daqui (IP residencial) o feed responde 200 com 47 itens. Um dia não dispara o gatilho de 3 da §15 | `apps/api/src/config/rss-sources.ts` |
+| 13.6 | **O Gitleaks varre zero commits no push de merge** | **13 medições** desde 07/09 — a última no push da própria promoção #251. O PR é sempre varrido; o buraco é a base ficar sem varredura sobre o que entra por merge | `.github/workflows/gitleaks.yml` (a action, sem intervalo explícito) |
+| 13.7 | **Os fluxos autenticados do Smoke nunca rodaram em produção** | `31 passed, 6 skipped` nas duas promoções; o repositório só tem o segredo `DATABASE_URL` | `apps/web/e2e/support/session.ts` |
+
+### O que a fase entrega
+
+**13.1 — O batimento de fora (o alerta).** Um workflow agendado, uma vez por
+dia, **depois** da janela do cron: o Hobby da Vercel dispara o cron em
+qualquer minuto da hora das 11:00 UTC, e o run leva ~1,5 min — então
+`12:40 UTC`. Ele faz três perguntas e reprova o job, com a resposta no resumo,
+se alguma falhar:
+
+1. o site responde (`/pt-BR` 200);
+2. a API responde — e, se não, **por quê**: `503` com `x-render-routing:
+   suspend` é "o Render suspendeu", que pede uma ação diferente de timeout;
+3. **o briefing de hoje existe** (`GET /api/articles/latest`, `date` = hoje
+   UTC) — o sinal que cobre todos os outros.
+
+Job reprovado vira **e-mail do GitHub** para o dono, sem segredo novo, sem
+serviço de terceiro e sem custo. O preço em horas do Render foi feito antes de
+escrever, como o §17 manda: uma acordada por dia são ~15 min de instância,
+**~7,5 h/mês** contra as 750 — e quase sempre a API ainda está de pé do run
+das 11h. **Duas armadilhas que o PR tem de fechar:** a notificação de um
+workflow agendado vai para **quem editou a linha do `cron` por último** (o
+dono confere a configuração de notificação); e o GitHub **desliga** workflow
+agendado de repositório público depois de 60 dias sem atividade no
+repositório — o próprio batimento não conta como atividade. E ele **registra
+a duração da sonda da API** no resumo: é a série de acordadas que o 13.3
+precisa, de graça. **Fecha a linha "Alerta ativo" do §16.**
+
+**13.2 — O denominador honesto.** Decisão do dono antes do código:
+
+- **(a)** o `NetsheetEngine` saiu do workspace → as 750 h voltam a ser desta
+  API, e a premissa vira texto com data no `uptime.service.ts` e no painel;
+- **(b)** ele fica → o denominador vira a **parte** desta API
+  (`RENDER_HOURS_BUDGET`, com default 750 e motivo no `render.yaml`), e o
+  painel diz por extenso que o teto é do workspace e dividido.
+
+Nos dois casos o `planPace` passa a projetar contra o mesmo denominador.
+Guarda: o denominador lido de um lugar só.
+
+> **Decidido pelo dono em 01/10/2026: (b).** O `NetsheetEngine` fica no
+> workspace — consome poucas horas, nas palavras dele —, e a intenção é
+> **ver o gasto das duas aplicações**, não só dividir o teto. O PR 13b
+> começa pela pergunta de onde vem o número do outro serviço (a API daqui
+> só conhece o próprio `DailyUptime`; o total do workspace está no Billing
+> do Render, que não tem CLI válida desde 19/09).
+
+**13.3 — O envelope do cron dimensionado pela acordada medida.** Com uma
+semana da série do 13.1: se alguma acordada passar de **45 s**, o aquecimento
+ganha uma terceira tentativa — e `3 × 25 + 20 = 95 s` não cabe no
+`maxDuration = 90`, que sobe junto (conferir o teto do plano na documentação
+da Vercel antes). Se não passar, nada muda e a decisão fica escrita com o
+número. O gatilho tem precedente caro: o dia sem briefing de 01/09.
+
+**13.4 — A métrica de leitura volta a medir leitores.** Primeiro o
+inventário, que decide a correção: quantos dos eventos de rolagem caem nas
+horas em que as ferramentas rodaram (os runs do Lighthouse e do Smoke têm hora
+no GitHub), e quais delas expõem `navigator.webdriver`. As saídas prováveis,
+nessa ordem: `isTrackingAllowed()` recusando automação
+(`navigator.webdriver`), como já recusa DNT e GPC; a primeira medição do
+`ScrollDepth` deixando de contar como leitura quando o texto cabe na tela sem
+o leitor rolar; e a razão "leitura completa" passando a ter como denominador
+uma **visualização** da tela de leitura, e não o clique no card — que nunca
+acontece para quem chega pelo buscador. Guarda nas três.
+
+**13.5 — Veja Saúde: medir de um datacenter e decidir.** O gatilho "Fonte
+quebrada" (3 dias) cai em **04/10**. Antes dele, um `workflow_dispatch`
+descartável busca o feed de um runner do GitHub (IP de datacenter, não o do
+Render, mas a mesma classe): 200 lá e falha no Render é bloqueio da faixa do
+provedor; falha nos dois é bloqueio de datacenter. A decisão é do dono, e o
+precedente é o #243 — tirar a fonte é uma linha em `rss-sources.ts` e as
+contagens em prosa (o `feed-count-drift` cobra).
+
+**13.6 — O Gitleaks varre o intervalo do push.** No `push`, a varredura passa
+a cobrir `before..after` explicitamente, merges incluídos — a 14.ª medição tem
+de dizer o número de commits do merge, não zero. É mudança em workflow de
+segurança: a guarda dos workflows (SHA fixado, permissões) vale, e o PR prova o
+número num push real na `dev`. **Fecha a linha do Gitleaks no §16.**
+
+**13.7 — Os fluxos autenticados do Smoke: decisão, não trabalho.** Ligá-los
+põe o `NEXTAUTH_SECRET` de produção no runner do CI (quatro segredos:
+`E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL`, `E2E_ADMIN_USER_ID`).
+O ganho é a conta e o admin medidos a cada promoção; o custo é o segredo de
+assinatura de sessão fora da Vercel. A fase registra a decisão do dono com a
+data — sim, e os seis pulados passam a rodar; não, e a linha sai do "em
+aberto" do `CLAUDE.md` com o motivo.
+
+### O que fica de fora, e por quê
+
+- **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
+  escritos; não cabem numa fase de fechamento.
+- **A `/news` raspando o Lighthouse** — virou linha do §16 em 01/10, com
+  gatilho de duas medições agendadas seguidas.
+- **O painel "Portões" contando o run de 01/10, sem portão, como aprovado** —
+  sai da janela de 7 dias em 08/10 sozinho, e todo run daqui em diante passa
+  pelos dois.
+- **Os `throw new Error` crus do pipeline e dos providers** (gatilho da Fase
+  3) — reescrita de taxonomia, não brecha de produção.
+
+### A ordem, e os PRs
+
+| PR | Itens | Depende de |
+|---|---|---|
+| **13a** | 13.1 (o batimento) | a Fase 12 fechada |
+| **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
+| **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
+| **13d** | 13.6 (o Gitleaks) | — |
+| — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
+
+Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
+O 13a vale mais sozinho do que todos os outros juntos — é ele que transforma o
+próximo apagão de doze dias num e-mail na mesma manhã.
+
+**O prompt de abertura:**
+
+> Vamos implementar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
+> Leia o §19 (o ritual), a §23 (esta fase) e o §17 (armadilhas), e comece pelo
+> PR 13a — o batimento de fora.
