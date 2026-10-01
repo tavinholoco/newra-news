@@ -8594,6 +8594,14 @@ propósito, acordá-la por um build vira o caso comum — então `fetchApi`, **s
 no servidor**, repete `429` e `503` até três vezes (2, 4 e 8 s, ou o
 `Retry-After`, limitado a 15 s). Guarda em `tests/lib/api-retry.test.ts`.
 
+**A repetição não bastou, e o motivo foi medido.** O terceiro build caiu com
+429 em todas as tentativas por 2,5 min; logo depois, um `curl` isolado do
+dono respondeu 200 com `uptime: 13,8` — a API **dormia** durante o build
+inteiro. As ~20 requisições simultâneas do prerender contra a instância
+hibernada são recusadas pelo Render sem acordá-la; uma requisição isolada
+acorda. `scripts/warm-api.mjs` roda antes do `next build`, só na Vercel, e
+acorda a API com uma requisição por vez (4 × 30 s); nunca reprova o build.
+
 **Achado de passagem, de segurança:** o cron comparava
 `authorization !== \`Bearer ${process.env.CRON_SECRET}\``. Com a variável
 ausente, o esperado vira a string `Bearer undefined`, que qualquer um sabe
