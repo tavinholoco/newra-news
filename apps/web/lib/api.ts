@@ -196,9 +196,27 @@ function newsFilterParams(filters: NewsFilters = {}): URLSearchParams {
  * Vale para todo prefetch cujo resultado vira `initialData`. Onde o valor é só
  * renderizado no servidor, sem query atrás, `.catch(() => null)` continua certo:
  * ali `null` já significa ausência e a tela desenha o estado vazio.
+ *
+ * **E onde o resultado é publicado, relança — a regra do `nullUnlessPublishing`
+ * logo abaixo.** `undefined` é certo para quem renderiza na hora; para a ISR,
+ * é uma página **sem dado** guardada por uma hora. Medido na promoção da Fase
+ * 12 do plano de observabilidade (01/10/2026, A7.16): a revalidação da
+ * `/pt-BR/news` encontrou a API dormindo — a acordada do free do Render mediu
+ * ~50 s, e o prazo daqui é 8 s —, e a ISR trocou a página do build (20
+ * matérias, 147 KB de RSC) por uma de **zero matérias** (97 KB): o leitor via
+ * o esqueleto enquanto o cliente esperava a API acordar, e o buscador lia a
+ * listagem vazia. Relançando, a revalidação falha, o Next mantém a última
+ * página boa e tenta de novo na requisição seguinte. Só as duas listagens ISR
+ * (`/news`, `/article`) usam esta função; no build do CI e no local, sem
+ * `VERCEL`, ela continua devolvendo `undefined`.
  */
 export async function prefetch<T>(promise: Promise<T>): Promise<T | undefined> {
-  return promise.catch(() => undefined);
+  try {
+    return await promise;
+  } catch (error) {
+    if (process.env.VERCEL) throw error;
+    return undefined;
+  }
 }
 
 /**
