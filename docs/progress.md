@@ -8551,6 +8551,82 @@ em produção, com o `gates:rehearse` pronto para o dia em que ela voltar.
 **1.377 → 1.384 na API; 904 no web.** A Fase 9 não deve nada além do
 ensaio contra produção.
 
+### 85. As horas do Render: a ISR parou de acordar a API, e a porta dos crons parou de aceitar `Bearer undefined` ✅ 2026-10-01
+
+**Por que agora:** às ~19 h UTC do dia 1º o painel do Render já marcava
+**28 h de 750** — setembro tinha fechado em **753,4 h** no workspace (API +
+`NetsheetEngine`), e no ritmo do dia 1º outubro estouraria de novo. O
+conteúdo muda **uma vez por dia** (pipeline das 11:00 UTC); quem acordava a
+API o resto do tempo era a própria ISR:
+
+- `revalidate = 3600` na Home, `/news`, `/article`, `/article/[date]` e no
+  `sitemap.ts`, nos dois idiomas — cada regeneração é uma chamada à API;
+- `revalidate = 900` no news sitemap, que o Google Notícias lê mais de 4×/h
+  — um keep-alive em outra roupa (a API dorme aos ~15 min);
+- o cron invalidava `('/[locale]', 'layout')`, que leva as **milhares** de
+  `/news/[id]` junto: cada uma que um robô tocasse depois do cron virava uma
+  acordada.
+
+**O que mudou:** o `revalidate` passou a **86.400 s** (um dia) em tudo, e
+**604.800 s** (sete dias) na `/news/[id]`, que não muda depois de coletada;
+virou rede de segurança. O mecanismo de frescor é `revalidateDailyContent()`
+(`lib/daily-revalidation.ts`), com `'page'` em cada rota do conjunto e sem a
+`/news/[id]`, chamado pelo cron diário **duas vezes**: no aceite do disparo
+e, no disparo agendado, de novo quando `GET /api/jobs/:id` responde
+`SUCCESS` (`settleRun`, sonda a cada 10 s por até 150 s; `maxDuration` de 90
+para 240 s). É o que conserta a página que um robô regenerou no meio do run,
+e não custa hora do Render: o run já mantém a API acordada. O botão do
+painel não espera (seguraria a tela por minutos) e fica só com a invalidação
+no aceite. Preço aceito: as relacionadas e uma recategorização da 8.5
+chegam à matéria com até uma semana de atraso.
+
+**A primeira versão tinha um segundo cron, e a Vercel recusou o deploy.** Um
+`/api/cron/refresh` às 13:00 fazia a segunda invalidação; o preview do #255
+falhou em 22 s, antes do build (o build local compila, com as fontes
+simuladas). O Hobby limita os crons — a guarda agora exige um só no
+`vercel.json`.
+
+**E o preview ainda caiu, agora com `429 Too Many Requests`** em toda página
+que chama a API (log da Vercel, 22:08 UTC). Os logs do Render mostram a API
+indo dormir às 21:54 e nenhum tráfego além do health check: o build é que a
+acordou mandando umas vinte requisições de uma vez. Com a API dormindo de
+propósito, acordá-la por um build vira o caso comum — então `fetchApi`, **só
+no servidor**, repete `429` e `503` até três vezes (2, 4 e 8 s, ou o
+`Retry-After`, limitado a 15 s). Guarda em `tests/lib/api-retry.test.ts`.
+
+**A repetição não bastou, e o motivo foi medido.** O terceiro build caiu com
+429 em todas as tentativas por 2,5 min; logo depois, um `curl` isolado do
+dono respondeu 200 com `uptime: 13,8` — a API **dormia** durante o build
+inteiro. As ~20 requisições simultâneas do prerender contra a instância
+hibernada são recusadas pelo Render sem acordá-la; uma requisição isolada
+acorda. `scripts/warm-api.mjs` roda antes do `next build`, só na Vercel, e
+acorda a API com uma requisição por vez (4 × 30 s); nunca reprova o build.
+
+**Achado de passagem, de segurança:** o cron comparava
+`authorization !== \`Bearer ${process.env.CRON_SECRET}\``. Com a variável
+ausente, o esperado vira a string `Bearer undefined`, que qualquer um sabe
+escrever. Hoje é `isCronAuthorized` (`lib/cron-auth.ts`): variável ausente
+fecha a porta, comparação em tempo constante. O alcance era zero enquanto a
+Vercel tiver o `CRON_SECRET` — mas é o modo de falha que este projeto já viu
+acontecer com outra variável (`AUTH_JWT_SECRET`).
+
+**Guardas** (`tests/lib/daily-revalidation.test.ts` e
+`tests/routes/daily-news-api.test.ts`; mutações A1.60–A1.62 no
+`guard-mutations.mjs`, vistas reprovando): todo `revalidate` sob `app/`
+≥ 86.400; todo caminho do conjunto aponta para uma rota que existe; nada de
+`'layout'` nem `/news/[id]` no conjunto; um cron só no `vercel.json`; a
+segunda invalidação só no `SUCCESS`, e nunca no disparo manual; e o cron
+recusa `Bearer undefined`. **907 → 923 no web.**
+
+**O que continua acordando a API, e é tráfego real:** o analytics
+(`/api/events`, por visitante com JS), as listagens filtradas do `/news` no
+navegador, a primeira visita de cada `/news/[id]` por deploy, o cron diário,
+o Lighthouse de segunda e o Smoke de cada push na `main`. **Só o painel diz
+se basta:** Render → Billing → horas por serviço. Conta para conferir: com a
+API dormindo, um dia normal deve custar **poucas horas**, não 24; se o
+contador subir ~1 h por hora de relógio por serviço depois deste deploy, há
+outro despertador.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -33,6 +33,9 @@ import type {
   InvariantReport,
 } from '@newranews/types';
 import {
+  API_RETRY_ATTEMPTS,
+  API_RETRY_BASE_MS,
+  API_RETRY_MAX_WAIT_MS,
   API_TIMEOUT_MS,
   BFF_TIMEOUT_MS,
   PIPELINE_TRIGGER_TIMEOUT_MS,
@@ -123,7 +126,48 @@ export function nullIfNotFound(error: unknown): null {
   throw error;
 }
 
+/** Recusas que passam com o tempo: excesso de pedidos, e serviço subindo. */
+const RETRYABLE_STATUSES = new Set([429, 503]);
+
+/**
+ * Quanto esperar antes da tentativa `attempt` (0, 1, 2…): o `Retry-After` da
+ * resposta quando há um legível em segundos, senão a espera crescente — sempre
+ * limitada a `API_RETRY_MAX_WAIT_MS`, para um `Retry-After: 3600` não segurar o
+ * build por uma hora.
+ */
+export function retryDelayMs(attempt: number, retryAfter: string | null): number {
+  const seconds = retryAfter === null ? Number.NaN : Number(retryAfter);
+  const wanted = Number.isFinite(seconds) && seconds >= 0
+    ? seconds * 1000
+    : API_RETRY_BASE_MS * 2 ** attempt;
+  return Math.min(wanted, API_RETRY_MAX_WAIT_MS);
+}
+
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // **Repetir só no servidor** (build e regeneração da ISR). No navegador o
+  // TanStack Query já repete, e repetir aqui também multiplicaria as duas.
+  const retries = typeof window === 'undefined' ? API_RETRY_ATTEMPTS : 0;
+
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetchApiOnce(endpoint, options);
+    if (attempt < retries && RETRYABLE_STATUSES.has(response.status)) {
+      const wait = retryDelayMs(attempt, response.headers.get('retry-after'));
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new ApiError(
+        `API error: ${response.status} ${response.statusText}`,
+        response.status,
+      );
+    }
+
+    return response.json() as Promise<T>;
+  }
+}
+
+async function fetchApiOnce(endpoint: string, options?: RequestInit): Promise<Response> {
   let response: Response;
 
   try {
@@ -146,14 +190,7 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
     throw new ApiError(`API unreachable: ${endpoint}`, null, cause);
   }
 
-  if (!response.ok) {
-    throw new ApiError(
-      `API error: ${response.status} ${response.statusText}`,
-      response.status,
-    );
-  }
-
-  return response.json() as Promise<T>;
+  return response;
 }
 
 /**
@@ -196,9 +233,27 @@ function newsFilterParams(filters: NewsFilters = {}): URLSearchParams {
  * Vale para todo prefetch cujo resultado vira `initialData`. Onde o valor é só
  * renderizado no servidor, sem query atrás, `.catch(() => null)` continua certo:
  * ali `null` já significa ausência e a tela desenha o estado vazio.
+ *
+ * **E onde o resultado é publicado, relança — a regra do `nullUnlessPublishing`
+ * logo abaixo.** `undefined` é certo para quem renderiza na hora; para a ISR,
+ * é uma página **sem dado** guardada por uma hora. Medido na promoção da Fase
+ * 12 do plano de observabilidade (01/10/2026, A7.16): a revalidação da
+ * `/pt-BR/news` encontrou a API dormindo — a acordada do free do Render mediu
+ * ~50 s, e o prazo daqui é 8 s —, e a ISR trocou a página do build (20
+ * matérias, 147 KB de RSC) por uma de **zero matérias** (97 KB): o leitor via
+ * o esqueleto enquanto o cliente esperava a API acordar, e o buscador lia a
+ * listagem vazia. Relançando, a revalidação falha, o Next mantém a última
+ * página boa e tenta de novo na requisição seguinte. Só as duas listagens ISR
+ * (`/news`, `/article`) usam esta função; no build do CI e no local, sem
+ * `VERCEL`, ela continua devolvendo `undefined`.
  */
 export async function prefetch<T>(promise: Promise<T>): Promise<T | undefined> {
-  return promise.catch(() => undefined);
+  try {
+    return await promise;
+  } catch (error) {
+    if (process.env.VERCEL) throw error;
+    return undefined;
+  }
 }
 
 /**

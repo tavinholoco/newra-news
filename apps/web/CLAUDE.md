@@ -13,7 +13,13 @@
   `useTranslations`/`useLocale`; navegação via `@/i18n/navigation` (Link/
   `usePathname`/`useRouter` aplicam o prefixo automaticamente)
 - **Renderização estática + ISR por idioma** — com `generateStaticParams` +
-  `setRequestLocale`, cada página é SSG (`revalidate: 3600`) para pt-BR e en
+  `setRequestLocale`, cada página é SSG para pt-BR e en. **O `revalidate` é
+  de um dia (sete na `/news/[id]`) desde 01/10/2026, e é rede de segurança**:
+  toda regeneração chama a API do Render, que dorme sem tráfego e cobra hora
+  ligada — com 3600 nas listagens e 900 no news sitemap, setembro fechou em
+  753 h de 750. Quem mantém as páginas frescas é o cron diário
+  (`lib/daily-revalidation.ts`); `tests/lib/daily-revalidation.test.ts`
+  reprova `revalidate` abaixo de 86400 em qualquer arquivo de `app/`
 - **A saída da ISR tem de ser determinística, e o `now` do next-intl está
   fixo por isso** (`STATIC_NOW` em `lib/i18n.ts`, devolvido por
   `i18n/request.ts`). A Vercel mede ISR Write em unidades de 8 KB e **só
@@ -47,9 +53,20 @@
   aplicada (Fase 12 do plano, A5.12; o `global-error` só existe em
   produção — em dev entra o overlay). As cores são os tokens **resolvidos**
   num `THEME`, com guarda na `state-matrix` contra o `tokens.css`
-- **Revalidação on-demand** — `app/api/cron/daily-news/route.ts` chama
-  `revalidatePath('/[locale]', 'layout')` + `revalidatePath('/sitemap.xml')`
-  após o trigger do pipeline. **Gotcha:** o cache do Next grava as tags com o
+- **Revalidação on-demand** — o cron do `vercel.json`
+  (`app/api/cron/daily-news`, 11:00 UTC) chama `revalidateDailyContent()`
+  (`lib/daily-revalidation.ts`) **duas vezes**: no aceite do disparo e, no
+  disparo agendado, de novo quando `GET /api/jobs/:id` diz `SUCCESS`
+  (`settleRun`, até 150 s, `maxDuration = 240`) — conserta a página que um
+  robô regenerou no meio do run, e não custa hora do Render porque o run já
+  mantém a API acordada. **Um cron só**: um segundo (`/api/cron/refresh`)
+  derrubou o deploy em 01/10/2026 — o Hobby limita os crons —, e há guarda.
+  O conjunto é Home, `/news`, `/article`, `/article/[date]` e os dois
+  sitemaps, cada um com `'page'` — **nunca `('/[locale]', 'layout')`**, que
+  levava as milhares de `/news/[id]` junto e fazia cada uma acordar a API no
+  próximo robô. A porta é `isCronAuthorized` (`lib/cron-auth.ts`):
+  `CRON_SECRET` ausente fecha, em vez de aceitar `Bearer undefined`.
+  **Gotcha:** o cache do Next grava as tags com o
   padrão literal da rota (`_N_T_/[locale]/layout`), então revalidar por
   caminho resolvido (`/pt-BR`, `/en`) **não invalida nada** — use sempre o
   padrão `/[...]`
@@ -683,7 +700,10 @@ Regras que não são óbvias no código:
 - **`.catch(() => valor)` numa página é proibido, e há guarda.** Ele confunde "a
   API disse não" com "a API não respondeu", e a ISR fixa a confusão por uma
   hora. Em `catch` que alimente `notFound()`, use `nullIfNotFound`. Onde o valor
-  vira `initialData`, continua sendo `prefetch` (que falha em `undefined`).
+  vira `initialData`, continua sendo `prefetch` — que falha em `undefined` no
+  CI e no local, e **relança na Vercel** desde 01/10/2026: com `undefined`, a
+  revalidação da `/news` com a API dormindo gravou a listagem **sem nenhuma
+  matéria** por uma hora (Fase 12 do plano de observabilidade, A7.16).
   **A guarda alcança tudo sob `app/` com `export const revalidate`** — não só
   `app/[locale]`: os dois sitemaps ficaram fora dela por diretório até
   19/09/2026, e regeneraram vazios com a API suspensa.
