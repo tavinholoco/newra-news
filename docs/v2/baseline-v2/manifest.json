@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-24T21:19:13.161Z",
+  "capturedAt": "2026-10-01T18:15:57.411Z",
   "baseUrl": "https://newra-news-web.vercel.app",
   "format": "jpeg",
   "viewports": [
@@ -70,25 +70,25 @@
     },
     {
       "file": "news-detail--375.jpg",
-      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
+      "route": "/pt-BR/news/bc8cb5d4-85a6-4227-bc11-90e7ceae10ab",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--768.jpg",
-      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
+      "route": "/pt-BR/news/bc8cb5d4-85a6-4227-bc11-90e7ceae10ab",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--1440.jpg",
-      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
+      "route": "/pt-BR/news/bc8cb5d4-85a6-4227-bc11-90e7ceae10ab",
       "status": 200,
       "ok": true
     },
     {
       "file": "news-detail--1440-dark.jpg",
-      "route": "/pt-BR/news/4272ef32-1fc7-422a-9143-aa4fa265e35a",
+      "route": "/pt-BR/news/bc8cb5d4-85a6-4227-bc11-90e7ceae10ab",
       "status": 200,
       "ok": true
     },
@@ -286,31 +286,31 @@
     },
     {
       "file": "article-detail--375.jpg",
-      "route": "/pt-BR/article/2026-08-24",
+      "route": "/pt-BR/article/2026-10-01",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--375-dark.jpg",
-      "route": "/pt-BR/article/2026-08-24",
+      "route": "/pt-BR/article/2026-10-01",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--768.jpg",
-      "route": "/pt-BR/article/2026-08-24",
+      "route": "/pt-BR/article/2026-10-01",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--1440.jpg",
-      "route": "/pt-BR/article/2026-08-24",
+      "route": "/pt-BR/article/2026-10-01",
       "status": 200,
       "ok": true
     },
     {
       "file": "article-detail--1440-dark.jpg",
-      "route": "/pt-BR/article/2026-08-24",
+      "route": "/pt-BR/article/2026-10-01",
       "status": 200,
       "ok": true
     }
