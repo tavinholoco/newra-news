@@ -13,6 +13,7 @@ import { WindowSelector } from '@/components/dashboard/window-selector';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AuditTrail } from './audit-trail';
 import { ErrorGroupsTable } from './error-groups-table';
+import { GatesPanel } from './gates-panel';
 import { InvariantsPanel } from './invariants-panel';
 
 /** As duas janelas que `GET /api/admin/errors` aceita. */
@@ -63,12 +64,14 @@ function ErrorsSkeleton() {
  * A aba **Logs e segurança** (§4.1 e §9 do plano de observabilidade): "o que
  * quebrou e quem tentou o quê?".
  *
- * Cinco painéis, na ordem em que se lê um incidente: o **resumo** da janela
+ * Seis painéis, na ordem em que se lê um incidente: o **resumo** da janela
  * (total, falhas distintas, e as três severidades), a **rosquinha por
  * categoria** — que diz de onde vem a dor sem ler uma linha —, a **tabela de
- * falhas** com busca, filtros e o `lastRequestId`, as **invariantes** (Fase 6:
- * o último relatório da etapa 9.5 — "o que deveria ter acontecido
- * aconteceu?") e a **trilha de auditoria**.
+ * falhas** com busca, filtros e o `lastRequestId`, os **portões** (Fase 9: a
+ * taxa de aprovação de 7 dias e os motivos de bloqueio, derivados dos grupos
+ * de `PIPELINE_GATE_BLOCKED` — §13.3), as **invariantes** (Fase 6: o último
+ * relatório da etapa 9.5 — "o que deveria ter acontecido aconteceu?") e a
+ * **trilha de auditoria**.
  *
  * **Sem `refetchInterval`**, como o resto da área (armadilha 3 do §17).
  *
@@ -195,6 +198,18 @@ export function SecurityClient() {
         * os outros: uma fronteira de rota trocaria a aba inteira pelo estado
         * do painel que falhou.
         */}
+      {/**
+        * Os portões (Fase 9, §13.3): sem rota nova — a derivação lê a janela
+        * de 7 d do `useErrorSummary` e a listagem de runs. Antes da promoção
+        * a API de produção não grava o código, e o painel lê 100 % sobre os
+        * runs da janela com a rosquinha vazia: é o estado certo.
+        */}
+      <section>
+        <SectionTitle>{t('security.gates.title')}</SectionTitle>
+        <p className='mb-4 text-sm text-muted-foreground'>{t('security.gates.description')}</p>
+        <GatesPanel />
+      </section>
+
       <section>
         <SectionTitle>{t('security.invariants.title')}</SectionTitle>
         <p className='mb-4 text-sm text-muted-foreground'>{t('security.invariants.description')}</p>

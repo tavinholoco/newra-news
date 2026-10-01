@@ -1307,11 +1307,13 @@ cliente tem motivo para ver.
 
 **`outcome` e `degradedBy` são derivados na leitura, não colunas** (Fase 8 do
 plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
-pipeline não é: quatro etapas engolem a própria falha com `WARN` e o run segue
-`SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas), o
-fallback para o Groq é um `WARN` da etapa 6, a colheita degradada é um `WARN`
-da etapa 1 e, desde a Fase 11, a escrita da saúde por fonte que falhou é um
-`WARN` da etapa 4. A regra:
+pipeline não é: cinco etapas engolem a própria falha com `WARN` e o run segue
+`SUCCESS` (7.5 newsletter, 8 expurgo, 8.5 renormalização, 9 métricas, 9.5
+invariantes), o fallback para o Groq é um `WARN` da etapa 6, a colheita
+degradada é um `WARN` da etapa 1, desde a Fase 11 a escrita da saúde por
+fonte que falhou é um `WARN` da etapa 4 e, desde a Fase 9, os **avisos dos
+portões** são `WARN` da 5.5 e da 6.5 — inclusive o bloqueio de qualidade do
+Gemini que o Groq recuperou. A regra:
 
 | `outcome` | Quando |
 |---|---|
@@ -1458,11 +1460,14 @@ usado.
 Um grupo é a soma das linhas horárias do mesmo fingerprint: `count` é a soma,
 `hours` é em quantas horas distintas a falha apareceu (1 é pico, 24 é
 crônico), e `message`, `lastSeenAt` e `lastRequestId` são da hora mais
-recente. **`route` é o escopo da falha, e tem quatro formas** — o padrão da
+recente. **`route` é o escopo da falha, e tem cinco formas** — o padrão da
 rota na API (`/api/news/:id`, nunca a URL), a etapa no pipeline (`stage-8.5`),
 desde a Fase 6 o id da invariante (`retention.news`) quando `origin` é
-`INVARIANT`, e desde a Fase 7c o **padrão da página do web**
-(`/[locale]/news/[id]`, nunca o pathname) quando `origin` é `WEB`; as quatro
+`INVARIANT`, desde a Fase 7c o **padrão da página do web**
+(`/[locale]/news/[id]`, nunca o pathname) quando `origin` é `WEB`, e desde a
+Fase 9 **a etapa do portão com o motivo** (`stage-6.5:unanchored-url`) quando
+`code` é `PIPELINE_GATE_BLOCKED` — o motivo é um de onze checks declarados
+(`GATE_CHECKS`), e é ele que dá a distribuição de motivos da §13.3; as cinco
 são conjuntos finitos, que é o que dá teto à tabela. `byCategory` traz **sempre as seis** categorias da taxonomia, na
 ordem dela, com zero onde não houve — a rosquinha tem fatias fixas. `groups`
 vem mais recente primeiro.

@@ -91,6 +91,18 @@ export async function fetchFromNewsData(categories: Category[]): Promise<RawNews
     }
   });
 
+  // **Todas recusadas é o provider fora, não uma colheita vazia.** Uma chave
+  // revogada faz as oito categorias responderem 401; com o `allSettled`, isso
+  // virava lista vazia, o fetcher a lia como `provider-empty` e a saúde por
+  // fonte gravava `EMPTY` sem motivo — "a NewsData não tinha notícia" no lugar
+  // de "a chave foi recusada". É a distinção `feed-empty` × `feed-failed` de
+  // 03/09, no outro provider. Medido no ensaio de aceitação (Fase 12, A4.13).
+  if (results.length > 0 && results.every((result) => result.status === 'rejected')) {
+    const [first] = results as PromiseRejectedResult[];
+    const reason = first!.reason instanceof Error ? first!.reason.message : String(first!.reason);
+    throw new Error(`NewsData: all ${results.length} categories failed — ${reason}`);
+  }
+
   return results
     .filter((r): r is PromiseFulfilledResult<RawNewsItem[]> => r.status === 'fulfilled')
     .flatMap((r) => r.value);

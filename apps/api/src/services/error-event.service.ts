@@ -96,8 +96,32 @@ export const UNHANDLED_CODE = 'UNHANDLED';
 /** Falha que abortou o run do pipeline (o `catch` final de `runPipelineStages`). */
 export const PIPELINE_FAILED_CODE = 'PIPELINE_STAGE_FAILED';
 
-/** Etapa não-crítica que falhou sem abortar o run — o `WARN` das etapas 7.5 a 9.5. */
+/**
+ * Um `WARN` que degradou o run sem abortá-lo — a etapa não-crítica que falhou
+ * (7.5 a 9.5), a colheita ou a saúde por fonte que não gravou (1, 4), o
+ * fallback do Groq (6) e o aviso de um portão (5.5, 6.5). O bloqueio de portão
+ * tem código próprio, abaixo.
+ */
 export const PIPELINE_DEGRADED_CODE = 'PIPELINE_STAGE_DEGRADED';
+
+/**
+ * Um dos dois portões da Fase 9 bloqueou (§13 do plano): o de entrada, na
+ * etapa 5.5, sobre a colheita; o de saída, na 6.5, sobre o briefing que um
+ * provider devolveu.
+ *
+ * Código próprio, e não `PIPELINE_STAGE_FAILED`, porque a pergunta que ele
+ * responde é outra — *"o portão está afrouxando?"* (§13.3: taxa de aprovação
+ * em 7 dias, distribuição de motivos) —, e o **motivo entra no `route`**
+ * (`stage-6.5:unanchored-url`), que é o que faz a distribuição existir. O
+ * conjunto de motivos é finito por construção (`GATE_CHECKS` em
+ * `pipeline-gates.service.ts`), e é isso que mantém o teto da tabela.
+ *
+ * A severidade diz o que aconteceu com o dia: `FATAL` é bloqueio de
+ * **segurança** (o dia falhou, sem fallback — escreve na hora), `ERROR` é
+ * bloqueio de qualidade que falhou o dia, `WARN` é bloqueio de qualidade que
+ * o provider de reserva recuperou.
+ */
+export const PIPELINE_GATE_BLOCKED_CODE = 'PIPELINE_GATE_BLOCKED';
 
 /**
  * A trilha de auditoria (Fase 5) não conseguiu gravar a ação.
@@ -133,7 +157,7 @@ export const CLIENT_ERROR_CODE = 'CLIENT_ERROR';
 
 /**
  * **Todo código que pode chegar à tabela, como tipo.** É o teto do fingerprint
- * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as seis
+ * escrito onde o `tsc` o lê: os literais da taxonomia da API mais as sete
  * constantes deste arquivo. Um `code: \`stage-${n}\`` deixa de compilar, e um
  * `code: algumaString` também. A guarda pelo parser em
  * `tests/services/error-event.test.ts` continua, porque enumera os call sites
@@ -147,6 +171,7 @@ export type RecordedErrorCode =
   | typeof UNHANDLED_CODE
   | typeof PIPELINE_FAILED_CODE
   | typeof PIPELINE_DEGRADED_CODE
+  | typeof PIPELINE_GATE_BLOCKED_CODE
   | typeof AUDIT_WRITE_FAILED_CODE
   | typeof INVARIANT_VIOLATED_CODE
   | typeof CLIENT_ERROR_CODE;
@@ -395,25 +420,47 @@ export async function flushErrorEvents(): Promise<void> {
  * O flush do desligamento: tenta gravar, e **desiste no prazo**.
  *
  * A corrida não cancela a consulta — nada no Prisma cancela —, ela só para de
- * esperar. É o que se quer aqui: o `app.close()` segue, e a promessa pendente
- * termina no `catch` de sempre, escrevendo o `warn`.
+ * esperar, e o `app.close()` segue.
+ *
+ * **A desistência escreve a própria linha.** Este comentário dizia que a
+ * promessa pendente terminaria no `catch` de sempre, escrevendo o `warn` — e
+ * no `server.ts` o `process.exit` vem logo depois do `close`, então aquele
+ * `catch` nunca roda. Medido no ensaio de aceitação (Fase 12, A3.05, 25/09):
+ * Postgres parado, três falhas no buffer, Ctrl+C, o processo saiu em 4,1 s
+ * **sem uma linha dizendo que três falhas se perderam**. A contagem é tirada
+ * antes da corrida: é o teto do que se perdeu (o laço grava em série, e o que
+ * entrou antes do prazo está no banco).
  *
  * Ver {@link ERROR_EVENT_CLOSE_TIMEOUT_MS} para o motivo do prazo.
  */
 export async function flushErrorEventsBeforeClose(
   timeoutMs = ERROR_EVENT_CLOSE_TIMEOUT_MS,
 ): Promise<void> {
+  const fingerprints = buffer.size;
+  let occurrences = 0;
+  for (const entry of buffer.values()) occurrences += entry.count;
+
   let timer: NodeJS.Timeout | undefined;
+  let timedOut = false;
 
   await Promise.race([
     flushErrorEvents(),
     new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
+      timer = setTimeout(() => {
+        timedOut = true;
+        resolve();
+      }, timeoutMs);
       timer.unref();
     }),
   ]);
 
   if (timer !== undefined) clearTimeout(timer);
+  if (timedOut) {
+    baseLogger.warn(
+      { fingerprints, occurrences, timeoutMs },
+      '[error-event] shutdown flush gave up — failures not yet written are lost',
+    );
+  }
 }
 
 /**

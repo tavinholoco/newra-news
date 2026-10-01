@@ -129,20 +129,20 @@ describe('NewsFetcherService', () => {
   });
 
   it('should keep the items from feeds that succeeded when others in the batch failed', async () => {
-    // O desfecho por feed não é tudo-ou-nada: nove feeds podem responder
-    // enquanto três estão fora, e os itens dos nove continuam valendo.
+    // O desfecho por feed não é tudo-ou-nada: os feeds que respondem
+    // continuam valendo enquanto três estão fora.
     vi.mocked(fetchFromNewsData).mockResolvedValue([]);
     vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
-      rss(feedsExcept('Superinteressante', 'Veja Saúde', 'Drauzio Varella'), [
+      rss(feedsExcept('Superinteressante', 'Veja Saúde', 'Olhar Digital'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
         { source: 'Veja Saúde', detail: 'ETIMEDOUT' },
-        { source: 'Drauzio Varella', detail: 'ETIMEDOUT' },
+        { source: 'Olhar Digital', detail: 'ETIMEDOUT' },
       ]),
     );
 
     const result = await fetchAll();
 
-    expect(result.rssItems).toHaveLength(9);
+    expect(result.rssItems).toHaveLength(rssSources.length - 3);
     expect(result.rssItems.map((item) => item.source)).not.toContain('Superinteressante');
   });
 });
@@ -206,8 +206,8 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
     ]);
   });
 
-  it('does not blame all twelve feeds when the RSS provider itself failed', async () => {
-    // O provider caído já tem o aviso dele; repetir doze `feed-empty` afogaria
+  it('does not blame every feed when the RSS provider itself failed', async () => {
+    // O provider caído já tem o aviso dele; repetir um `feed-empty` por feed afogaria
     // justamente a linha que diz o que aconteceu.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
     vi.mocked(fetchFromRssWithOutcomes).mockRejectedValue(new Error('RSS down'));
@@ -228,23 +228,27 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
    * feeds (Superinteressante, Veja Saúde, Drauzio Varella) estavam em
    * `ETIMEDOUT` havia dois dias e saíam como `feed-empty` — a classe que **não**
    * conta em `pipelineErrors` — porque não havia outro lugar para cair.
+   *
+   * O Drauzio saiu de `rss-sources.ts` em 25/09/2026; o terceiro feed daqui é
+   * outro configurado, porque um desfecho de fonte que não está na lista não
+   * é o que o provider devolve.
    */
   it('classifies a feed whose fetch threw as feed-failed, not feed-empty', async () => {
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
     vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(
-      rss(feedsExcept('Superinteressante', 'Veja Saúde', 'Drauzio Varella'), [
+      rss(feedsExcept('Superinteressante', 'Veja Saúde', 'Olhar Digital'), [
         { source: 'Superinteressante', detail: 'ETIMEDOUT' },
         { source: 'Veja Saúde', detail: 'ETIMEDOUT' },
-        { source: 'Drauzio Varella', detail: 'ETIMEDOUT' },
+        { source: 'Olhar Digital', detail: 'ETIMEDOUT' },
       ]),
     );
 
     const result = await fetchAll();
 
     expect(result.warnings).toEqual([
+      { kind: 'feed-failed', source: 'Olhar Digital', detail: 'ETIMEDOUT' },
       { kind: 'feed-failed', source: 'Superinteressante', detail: 'ETIMEDOUT' },
       { kind: 'feed-failed', source: 'Veja Saúde', detail: 'ETIMEDOUT' },
-      { kind: 'feed-failed', source: 'Drauzio Varella', detail: 'ETIMEDOUT' },
     ]);
     // As três contam como erro do run — é o próprio ponto da distinção.
     expect(result.warnings.every((w) => w.kind !== 'feed-empty')).toBe(true);
@@ -287,8 +291,8 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
 
   it('reports provider-empty for rss when every feed resolved with nothing and none threw', async () => {
     // As doze respondem, nenhuma lança, nenhuma traz item: o padrão sugere o
-    // provider inteiro mudo, não doze fontes coincidentemente quietas — por
-    // isso vira um aviso de provider, não doze feed-empty repetidos.
+    // provider inteiro mudo, não todas as fontes coincidentemente quietas — por
+    // isso vira um aviso de provider, não um feed-empty por fonte.
     vi.mocked(fetchFromNewsData).mockResolvedValue(mockNewsDataItems);
     vi.mocked(fetchFromRssWithOutcomes).mockResolvedValue(rss([]));
 
@@ -302,7 +306,7 @@ describe('NewsFetcherService — o aviso de colheita degradada', () => {
  * **`sources` é o dado bruto; `warnings` é derivado dele.** (Fase 11 do plano
  * de observabilidade)
  *
- * Uma entrada por fonte configurada — os doze feeds mais o balde `newsdata` —
+ * Uma entrada por fonte configurada — cada feed mais o balde `newsdata` —
  * com o que cada uma rendeu e quanto demorou. É o que a `SourceHealth` grava,
  * e é de onde os avisos acima saem: um feed sem entrada aqui não foi tentado,
  * e não há valor para isso de propósito.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { triggerPipeline } from '../../src/services/pipeline.service';
 import { pipelineContext } from '../../src/utils/logger';
+import { passingEntryGate, passingOutputGuard } from '../helpers/gate-fixtures';
 
 /**
  * **O caminho degradado.** A §9.4 não persegue o dia em que tudo dá certo —
@@ -27,6 +28,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
         create: vi.fn(),
         update: vi.fn(),
         findFirst: vi.fn(),
+        findMany: vi.fn(),
         deleteMany: vi.fn(),
       },
       news: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
@@ -57,8 +59,16 @@ vi.mock('../../src/services/newsletter.service', () => ({
 vi.mock('../../src/services/invariants.service', () => ({
   runInvariants: vi.fn(),
 }));
+// O portão de entrada (Fase 9) tem suíte própria; as fixtures daqui são de
+// agosto e de uma fonte só, e o portão real bloquearia todo cenário pelo
+// frescor. Ver `helpers/gate-fixtures.ts`.
+vi.mock('../../src/services/pipeline-gates.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/services/pipeline-gates.service')>();
+  return { ...actual, evaluateEntryGate: vi.fn(), loadEntryBaseline: vi.fn() };
+});
 
 import { prisma } from '@newranews/database';
+import { evaluateEntryGate, loadEntryBaseline } from '../../src/services/pipeline-gates.service';
 import { fetchAll, type FetchWarning } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
@@ -90,6 +100,7 @@ const settle = () => new Promise((resolve) => setImmediate(resolve));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prisma.pipelineLog.findFirst).mockResolvedValue(null);
+  vi.mocked(prisma.pipelineLog.findMany).mockResolvedValue([]);
   // `startedAt` tem default no schema e o `create` real a devolve; o
   // `triggerPipeline` lê dela para dizer quando o run começou.
   vi.mocked(prisma.pipelineLog.create).mockResolvedValue({
@@ -118,7 +129,10 @@ beforeEach(() => {
     article: { title: 'T', summary: 'S', content: 'C' },
     provider: 'gemini',
     modelVersion: 'gemini-2.5-flash',
+    guard: passingOutputGuard(),
   });
+  vi.mocked(loadEntryBaseline).mockResolvedValue([]);
+  vi.mocked(evaluateEntryGate).mockImplementation(passingEntryGate);
   vi.mocked(renormalizeStoredNews).mockResolvedValue({
     dryRun: false,
     scanned: 0,

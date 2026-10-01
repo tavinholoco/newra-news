@@ -165,7 +165,7 @@ function RoutesTable({ routes }: { routes: HttpMetrics['routes'] }) {
 
   return (
     <div className='overflow-x-auto rounded-lg border border-border'>
-      <table className='w-full text-sm'>
+      <table className='w-full text-sm' aria-label={t('signals.routesTitle')}>
         <thead className='bg-surface-raised text-xs uppercase tracking-wider text-muted-foreground'>
           <tr>
             <th scope='col' className='px-3 py-2 text-left font-medium'>{t('signals.colRoute')}</th>

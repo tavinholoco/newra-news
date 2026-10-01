@@ -162,6 +162,27 @@ describe('§7 — o handler global tem quatro ramos, e três deles são novos', 
     expect(line?.route).toBe('/probe/app-error-500');
   });
 
+  it('answers an AppError of 500 with the documented 500 contract — the message stays in the log', async () => {
+    /**
+     * **Achado da Fase 12 (A3.17).** A `docs/api.md` promete que todo 500 é
+     * `{ error: "Internal server error", requestId }`, e só o ramo do erro cru
+     * cumpria: um `AppError` de 500 saía pelo ramo dele com a **própria
+     * frase** no fio e sem `requestId`. Hoje há um só (`Invariant report is
+     * malformed`), mas o status padrão do construtor é 500 — todo
+     * `new AppError('…')` futuro poria a frase escrita para o log na resposta.
+     */
+    const res = await app.inject({ method: 'GET', url: '/probe/app-error-500' });
+    const [line] = appErrorLines();
+
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({
+      error: 'Internal server error',
+      requestId: res.headers['x-request-id'],
+    });
+    expect(res.payload).not.toContain('the archive did not answer');
+    expect((line?.err as { message?: string } | undefined)?.message).toBe('the archive did not answer');
+  });
+
   it('sends a 404 to debug, and still answers 404', async () => {
     const res = await app.inject({ method: 'GET', url: '/probe/not-found' });
     const [line] = appErrorLines();

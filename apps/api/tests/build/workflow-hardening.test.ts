@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -350,6 +350,21 @@ describe('CI: a auditoria de dependência e a lista de exceções', () => {
   it('o job de lint roda `pnpm audit --audit-level=high --prod`', () => {
     const ci = ler(CI);
     expect(ci).toMatch(/pnpm audit --audit-level=high --prod/);
+  });
+
+  /**
+   * **Exceção que não casa mais com achado nenhum reprova o CI.** (Fase 12 do
+   * plano de observabilidade, A6.02.) As asserções abaixo amarram a lista ao
+   * documento, e os dois concordavam sobre duas advisories do `browserslist`
+   * que um bump já tinha corrigido: 20 exceções, 18 ignoradas pelo `audit`.
+   * Quem compara a lista com o **registro** é o `scripts/audit-orphans.mjs`,
+   * que precisa de rede e por isso é passo do job, não teste — e esta asserção
+   * é a que impede o passo de sumir.
+   */
+  it('o job de audit recusa exceção órfã (`scripts/audit-orphans.mjs`)', () => {
+    const ci = ler(CI);
+    expect(ci).toMatch(/run: node scripts\/audit-orphans\.mjs/);
+    expect(existsSync(path.join(RAIZ, 'scripts/audit-orphans.mjs'))).toBe(true);
   });
 
   function ghsasIgnoradas(): string[] {

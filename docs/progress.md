@@ -8093,6 +8093,464 @@ delas. Apagar é decisão de quem as criou.
 
 **Sem teste novo: prosa.** 1.295 na API, 866 no web.
 
+### 81. A promoção `dev → main` (#215), cada rodada do CI lida, e o ritual contra produção — com uma frase minha corrigida ✅ 2026-09-19
+
+> **O merge que publica:** #215, `4efbacd`, às **01:06:32 UTC** de 19/09 —
+> 68 commits, 29 PRs (#175 → #214), 219 arquivos, as Fases 4, 5, 8, 11, 6,
+> 7c e 7b de uma vez. Este item é a leitura de **cada** workflow que o push
+> disparou, as sondas contra produção durante e depois da janela dos
+> deploys, e o ritual. É a primeira medição contra produção de tudo o que o
+> plano fez desde 09/09.
+
+#### As seis rodadas, uma a uma
+
+| Workflow | Resultado | O que o log diz |
+|---|---|---|
+| **Migrate (produção)** | ✅ | `migrate status` listou as **três** pendentes e saiu com exit 1 (é assim que o Prisma sinaliza pendência; o passo é `continue-on-error`, e o `##[error]` vermelho dentro de um passo verde é cosmético). `migrate deploy` aplicou as três em **01:07:02**, 30 s depois do merge, em 0,2 s: `add_error_events`, `add_audit_and_uptime_drop_ai_tokens_used`, `add_source_health`. "All migrations have been successfully applied" |
+| **CI** | ✅ | Lint, Test, Build, `pnpm audit` |
+| **CodeQL** | ✅ | JavaScript/TypeScript |
+| **Gitleaks** | ✅ (`0 commits scanned`) | **Décima segunda medição, e a maior**: 68 commits entraram na `main` com zero varridos — o `--no-merges --first-parent` do §16, agora sobre o lote inteiro. O conteúdo foi varrido nos 29 PRs; o gate do merge continua decorativo |
+| **Smoke E2E** | ✅ **31 passed, 6 skipped**, 15,4 s | esperou os 420 s; os seis pulados são os fluxos de conta e admin sem os quatro segredos, como o workflow imprime. Entre os 31: toda rota `GET` de admin do BFF em 401 (inclusive as **seis** novas deste lote — `errors`, `audit`, `http-metrics`, `sources`, `invariants`, `pipeline/runs`), o `/api/events` anônimo, e **o gêmeo do `/api/errors/client`** (corpo vazio → 400, sem gravar nada) |
+| **Lighthouse CI** (`workflow_dispatch`) | ✅ gate verde | abaixo |
+
+#### A janela dos deploys, medida com relógio
+
+- **01:06:32** merge · **01:07:02** migrations aplicadas · **~01:08:00** a
+  API nova de pé (`uptime: 74 s` às 01:09:15) · às **01:09** o web novo já
+  repassava o 400 da rota nova. **A janela "schema novo × API velha" durou
+  ~1 minuto** — o item 80 previa alguns —, e às 01:09 `GET
+  /api/metrics/weekly` e `/monthly` respondiam **200** com a forma nova (sem
+  `aiTokensUsed`). `/api/health`, `/news`, `/home`: 200 em toda sonda. O
+  cron das 11:00 UTC estava a dez horas de distância.
+
+#### Sondas contra produção, anônimas
+
+- **A matriz de autorização vale no ar:** sete rotas de admin da API
+  (`/admin/errors`, `/audit`, `/invariants`, `/sources`, `/pipeline/runs`,
+  `/metrics/http`, `/metrics/dashboard`) e seis do BFF → **401**. As duas
+  portas anônimas com corpo vazio → **400** (o `/errors/client` devolve o
+  erro do Zod — `message` e `path` obrigatórios). Rota inexistente → **404
+  `{"error":"Not Found"}`**, o contrato da Fase 3. `x-request-id` ecoado e
+  respeitado quando enviado; `x-ratelimit-*` presentes; a CSP da API e a do
+  web nas duas pontas. **Nenhum relato válido foi enviado de propósito**:
+  gravaria uma falha falsa na primeira leitura das abas.
+- **Um vislumbre do dado:** `/api/metrics/weekly` → `pipelineSuccessRate:
+  0.5` nos últimos 6 dias (três com `pipelineErrors > 0`), `aiProviderUsage:
+  { gemini: 6 }`. É a faixa de desfechos da `/admin` que vai dizer o que
+  foram — e é a primeira coisa a olhar na leitura com credencial.
+- **Higiene da `main`:** 0 PNGs de `.admin-captures` rastreados (eram 13);
+  `dependabot.yml` idêntico nas duas — os sete `ignore` passaram a valer.
+  **A `dev` foi realinhada por fast-forward** (`dev..main` = 0,
+  `main..dev` = 0).
+
+#### Lighthouse — sete rotas, medianas de 3 execuções (artefato baixado, não a tabela impressa)
+
+`/pt-BR` **94** · `/news` **91** · `/article` **94** · `/about` **96** ·
+`/en` **95** · `/news/[id]` **96** · `/article/[date]` **95**.
+Acessibilidade **100** e SEO **100** nas sete. LCP entre 2,43 s e 3,04 s (a
+`/news` é a mais lenta, como em 24/08 — entrega de imagem, §10.6). A
+primeira execução da `/pt-BR` saiu em **75** e as duas seguintes em 94/95:
+é o padrão da API fria que o aquecimento do workflow existe para tirar da
+mediana, e tirou.
+
+**Best practices em 96 em quatro rotas — e o audit é `errors-in-console`:
+`Failed to load resource: 402`.** É o `/_next/image`. **A cota de imagem
+da Vercel NÃO virou.** Eu tinha escrito o contrário no corpo do #215 ("a
+cota virou — a baseline pode ser recapturada") a partir de **uma** imagem
+da home respondendo `200 image/webp`; medindo doze imagens distintas depois
+do Lighthouse, **12 de 12 respondem `402` com `X-Vercel-Cache: MISS`** — a
+que respondeu 200 era um `HIT` da borda, transformada antes de a cota
+estourar. **Sonda de cota se faz numa imagem em `MISS`, nunca numa que a
+borda já tem** — e o Lighthouse a fez por mim. O 🟡 do `CLAUDE.md` continua
+valendo; a baseline visual continua sendo ruído até o período virar. As
+três rotas sem foto (`/article`, `/about`, `/article/[date]`) estão em 100.
+
+#### O que a promoção deixa para a leitura com credencial
+
+Tudo o que este lote existe para mostrar só é visível com a sessão ADMIN
+de produção, e é o próximo passo: a faixa de desfechos e o batimento na
+`/admin` (os três dias com erro da semana), o arco das horas do plano
+(`DailyUptime` começou a contar às ~01:08 de 19/09 — o ritmo do mês se cala
+por 24 h), os quatro sinais e o painel "Fontes" na `/admin/metrics` (a
+`SourceHealth` só ganha a primeira linha no run das 11:00), e na
+`/admin/security` os `ErrorEvent` que a API passou a gravar — o
+`AUTH_TOKEN_INVALID` das minhas sondas 401 deve ser a primeira linha —, as
+invariantes ("nenhuma verificação ainda" até o primeiro run com a 9.5) e a
+trilha de auditoria vazia.
+
+#### A terceira rodada do Dependabot, três minutos depois — e uma guarda que nasceu de um erro meu
+
+O `dependabot.yml` chegou à `main` com a promoção e passou a valer: às
+01:09–01:11 o Dependabot abriu **cinco PRs contra a `dev`** (#216–#220), o
+que o item 80 previa. Cada um lido pelo CI:
+
+| PR | Bump | CI | Causa |
+|---|---|---|---|
+| #216 | `turbo` 2.10.12 → .13, `@types/node` 22.19 → 22.20 (grupo dev) | ✅ | minor |
+| #219 | `@testing-library/jest-dom` 6 → 7 | ✅ | major de lib de teste; suíte verde |
+| #217 | **`zod` 3 → 4** — produção da API | ❌ **258 testes** | o `fastify-type-provider-zod` da árvore não fala zod 4: toda rota com schema em 500, OpenAPI sem gerar |
+| #218 | `vitest` 2 → 5 | ❌ | `ERR_PACKAGE_PATH_NOT_EXPORTED ./module-runner` — exige vite 7, que só vem com o `@vitejs/plugin-react` 6 (já ignorado) |
+| #220 | `@typescript-eslint/eslint-plugin` 7 → 8 | ❌ | cai no ESLint 8.57 antes de lintar — exige o ESLint 9 (já ignorado) |
+
+**Três majors que a lista de `ignore` não previa**, cada um acompanhando
+uma major já decidida (`fastify-type-provider-zod` + `fastify@5`; vite +
+plugin-react; ESLint 9). Entraram no **#222, direto na `main`** como o
+#193 — é a branch que o Dependabot lê —, com o motivo medido em cada
+comentário. A nota do `dependabot.yml` que dizia "a major do vitest é bump
+legítimo e fica fora de propósito" estava errada, e foi reescrita: medido,
+ela não sobe sozinha. Os dois verdes ficam para decisão; os três vermelhos
+podem ser fechados, e com a lista na `main` não reabrem.
+
+**E o erro meu, que virou guarda:** ao escrever as entradas por `node -e`
+dentro de aspas simples do Bash, as aspas de
+`'@typescript-eslint/eslint-plugin'` foram comidas — e `@` no início de um
+valor é **indicador reservado em YAML**. O arquivo ficou inválido, e **nada
+no CI acusaria**: a guarda dos workflows lê só `.github/workflows/`, e o
+Dependabot não reclama de configuração que não parseia — ele **para de
+abrir PR**, em silêncio. Vi pelo `grep` de conferência (duas linhas em vez
+de quatro), corrigi antes do merge, e escrevi
+`apps/api/tests/build/dependabot-config.test.ts`: parseia com o `yaml`
+(devDependency nova da API — já estava no lockfile por override), cobra
+`target-branch: dev` nas duas entradas (a política de 09/09), aspas em todo
+pacote com escopo (nomeando a linha), e só majors na lista de ignore. Vista
+reprovando nas quatro sobre o defeito exato. **A pergunta era de sintaxe —
+parser, não regex.** Lição de ferramenta, pela enésima vez: texto com aspas
+não passa por `node -e` em Bash; vai pelo Write.
+
+**1.295 → 1.299 na API (88 → 89 suítes); 866 no web.** Prosa, sondas, três
+workflows lidos, cinco PRs de bump lidos, uma guarda.
+
+### 82. Dois e-mails de cota, e o `new Date()` que fazia toda regeneração da ISR ser cobrada ✅ 2026-09-19
+
+> Investigação a pedido, sobre dois avisos recebidos: o Render em **629 de
+> 750 h** e a Vercel em **75% de ISR Writes** (150 mil de 200 mil) mais **100%
+> de transformações de imagem**. Os dois têm a mesma forma — **cota da conta,
+> não do projeto** —, e o da Vercel tinha causa no código, medida. Este PR é o
+> conserto do lado que é nosso; o que é decisão de painel está no fim.
+
+#### Render — o "segundo serviço" do §9.0 tem nome
+
+O e-mail lista **dois** web services free no workspace: `newra-news-api` e
+**`NetsheetEngine`**. O `docs/setup.md` §9.0 tinha escrito em 01/09 que a
+conta da suspensão de 29/08 só fechava com "um segundo serviço free no mesmo
+workspace" — era ele. 750 − 629 = 121 h entre o aviso e a suspensão de 19/09;
+se o aviso é de ~17/09, os dois juntos queimavam **40–48 h/dia**.
+
+E a hora da suspensão ficou mais apertada: a Home foi regenerada às
+**13:00:06 UTC** com a API respondendo (é o `now` gravado no HTML dela, e o
+`Age` bate), então a suspensão foi **entre 13:00 e 17:23**, não "depois das
+11:02".
+
+**A projeção do §9.0 ("60–150 h/mês sem keep-alive") não contou dois
+despertadores.** Toda regeneração ISR chama a API — Home, `/news` e `/article`
+com `revalidate = 3600` são 24 despertares/dia de 15 min, **≥ 6 h/dia**, se um
+bot visita a cada hora; e o `news-sitemap.xml` tem `revalidate = 900`: se o
+Google o lê mais de 4×/hora, a API nunca dorme. Quanto é Newra e quanto é
+NetsheetEngine, só **Billing → free instance hours** por serviço diz — a CLI do
+Render e o `neonctl` estavam com sessão expirada, e o `DailyUptime` da Fase 5
+só começou às 01:08 de 19/09.
+
+#### Vercel — ISR Write é unidade de 8 KB, e conteúdo igual não cobra
+
+Nunca esteve em documento nenhum do projeto. Três fatos da documentação da
+Vercel: **write é unidade de 8 KB**, HTML e payload RSC gravados juntos;
+**revalidação com conteúdo idêntico não incorre em unidade nenhuma**; e a
+lista de "escritas inesperadas" começa com *"check that you're not using
+`new Date()` in the ISR output"*.
+
+Medido em produção (HTML + RSC → unidades): **Home 53**, matéria 36, briefing
+42, `/news` 28, `/article` 26 — e `/about`, sem dado, 27 (95 KB de flight RSC
+para 25 KB de marcação: as mensagens dos dois idiomas inteiras, mais a árvore).
+
+**E a saída nunca era idêntica.** O `NextIntlClientProvider` do layout
+serializa `"now":"$D…"`, e o `getConfig` do next-intl 3.26 faz
+`now: result.now || new Date()` a cada requisição. Três páginas, três valores:
+`01:07:33` na `/about` (o build), `10:08:47` na matéria, `13:00:06` na Home — a
+hora de cada geração. **Ninguém no web lê esse relógio** (nenhum `useNow`,
+`getNow` ou `relativeTime`). O `sitemap.ts` tinha o seu próprio:
+`lastModified: new Date()` nas rotas fixas.
+
+A conta fecha sem tráfego: **3 listagens × 2 idiomas × 24 regenerações/dia ×
+26–53 unidades ≈ 5.100 unidades/dia ≈ 150 mil em 30 dias** — o número do
+aviso. Crawlers em matérias antigas (36 unidades, ×2 idiomas, ~16 mil URLs
+alcançáveis) somam por cima; a amostra de `vercel logs` mostrou um varrendo a
+árvore `/en` em rajada (8 hits em `/en/news` num segundo — as oito categorias —
+e quatro matérias em `MISS cold` no segundo seguinte).
+
+**O time da Vercel tem cinco projetos** (`newra-news-web`, `trak-acessoria`,
+`portfolio`, `jessica`, `dandarkness`) e as cotas são do time. E **o Hobby não
+tem ciclo de faturamento** — a documentação diz "espera-se 30 dias", sem dizer
+se é janela móvel ou 30 dias a partir do estouro. Nada aqui pode escrever "vira
+no dia X".
+
+#### O achado colateral, ao vivo: os dois sitemaps regeneraram vazios
+
+Entre duas sondas, `sitemap.xml` caiu de **386 para 10 URLs** e
+`news-sitemap.xml` de **612 para 0** — com `200` e `HIT`. Os dois tinham
+`.catch(() => [])`, e a guarda `api-failure.test.ts` varria só `app/[locale]`.
+A justificativa escrita no news-sitemap ("500 tira do rodízio; vazio só diz
+'nada novo'") estava **invertida para ISR**: pela regra da Vercel, 5xx na
+revalidação é falha e **mantém o documento anterior** (nova tentativa em
+30 s); 200 vazio é sucesso e substitui. É o "news sitemap com zero URLs" da
+suspensão de 29/08, agora com mecanismo — a mesma classe do
+`nullUnlessPublishing`.
+
+#### O que o PR fez
+
+- **`now` fixo** (`STATIC_NOW = new Date(0)` em `lib/i18n.ts`, devolvido pelo
+  `i18n/request.ts`). A época é reconhecível como pino; nada o lê.
+- **`sitemap.ts` determinístico**: a data das listagens é a do item mais novo
+  que elas mostram, `/about` e `/newsletter` não declaram data. E
+  `nullUnlessPublishing` no lugar do `.catch(() => [])`.
+- **`news-sitemap.xml`**: a linha de log da 7a fica, e `nullUnlessPublishing`
+  relança onde publica. No CI (sem API, sem publicação) o documento continua
+  válido e vazio.
+- **Guardas**: `isr-determinism.test.ts` (o pino na configuração, o layout sem
+  `now=` próprio, nenhum leitor do relógio — com o detector visto casando —, e
+  o `sitemap()` produzindo a mesma saída com o relógio andando); e a
+  `api-failure` passou a varrer **toda a superfície da ISR** (`export const
+  revalidate` sob `app/`), com os dois sitemaps nomeados. **Quatro quebras de
+  propósito, nove testes vistos reprovando**, cada quebra pela guarda desenhada
+  para ela. Build do CI sem API verde, com os dois sitemaps `○`.
+
+**866 → 881 no web (85 → 86 suítes).**
+
+#### O que isto resolve, e o que não
+
+- **ISR Writes:** o piso de ~5.100 unidades/dia some — regeneração com o mesmo
+  dado deixa de ser cobrada. O que sobra é escrita **quando o conteúdo muda**
+  (uma vez por dia, depois do pipeline e da etapa 8.5) e a primeira geração de
+  cada matéria que um crawler descobre (36 unidades). O número só começa a cair
+  depois da promoção à `main`, e no ritmo em que os dias velhos saem da janela
+  de 30 dias. A leitura de confirmação é o gráfico diário de ISR Writes no
+  Usage, uma semana depois do deploy.
+- **Sitemaps:** corrigido para a próxima queda da API. Para esta, eles seguem
+  vazios até a API voltar — e **a promoção não deve acontecer com a API
+  suspensa**: o build da Vercel chama a API (`nullUnlessPublishing` na Home e
+  agora nos sitemaps), então ele falha e o deploy anterior fica. Isso é o
+  comportamento desenhado, mas significa que nada disto chega ao ar antes de
+  01/10.
+- **Render:** **não resolvido por este PR.** Fixar `now` não muda quantas
+  vezes a API acorda; o que muda é o `revalidate` das listagens (o cron já
+  invalida sob demanda — o 3600 era a rede de segurança da invalidação
+  otimista, dívida escrita no próprio cron) e a partilha com o NetsheetEngine,
+  que é decisão de painel. Entrou no §16 do plano com gatilho.
+- **Imagem:** não tocado. Se o aviso de 17/09 for um **novo** cruzamento, o
+  corte de 09/09 não bastou e o gatilho do item 54 ("Pro") disparou — só o
+  gráfico diário diz.
+
+**Lições de ferramenta:** o `next-intl/server` resolve para o build de cliente
+no Vitest e `getRequestConfig` lança — o mock reproduz o servidor, que é a
+identidade (conferido no fonte). E o "quebre de propósito" comeu duas rodadas
+por CRLF e por `node -e` engolindo escapes: script em arquivo, com regex
+tolerante a `\r?\n`.
+
+#### O CI do PR: dois vermelhos, um deles meu
+
+- **Vercel: o build do preview falhou, e é o desenho.** A API suspensa
+  respondeu 503 e depois 429 (o roteador do Render limita quem bate num
+  serviço suspenso); a Home caiu nos dois idiomas — **já cairia sem este
+  PR**, é o `nullUnlessPublishing` dela — e os dois sitemaps caíram junto,
+  agora de propósito. Foi o primeiro build de preview desde a suspensão
+  (13:00–17:23 UTC), por isso ninguém tinha visto. Todo PR vai vermelho no
+  Vercel até a API voltar; o CI do GitHub (Lint, Test, Build sem API) é o que
+  vale para mergear na `dev`.
+- **CodeQL: `js/file-system-race` (high) no `collect` do teste novo** —
+  `statSync(full).isDirectory()` e depois `readFileSync(full)`, o check-then-
+  use que o CodeQL trata como TOCTOU. Copiado da `api-failure`, que tem o
+  mesmo — e **a `main` tem dez alertas abertos, sete deles este padrão, em
+  sete guardas que andam a árvore** (`api-failure`, `design-tokens`, `images`,
+  `seo`, `browser-surface`, `a11y-guards`, `runtime-deps`). O item 47 escreveu
+  em 05/09 que o que a análise semanal achasse "entra como trabalho próprio":
+  ninguém abriu esse trabalho, e o cheque do PR só reprova alerta **novo**, então
+  os sete nunca reprovaram nada. Aqui: `readdirSync(dir, { withFileTypes:
+  true })` e o tipo da entrada vem da listagem, sem `stat` — mais a asserção
+  que faltava, de que o coletor **acha** arquivos. Os outros sete são trabalho
+  próprio, e agora estão nomeados.
+
+### 83. Fase 9 — os dois portões: antes da IA e depois dela, e o ensaio que ainda não alcançou produção ✅ 2026-09-20
+
+> A §13 do plano de observabilidade, num PR só (sem schema, sem env, sem
+> rota, sem página nova), sobre `02051e1` — a `dev` com o #231. **É a
+> última fase do plano.** Fecha: o briefing ia para a capa **sem ninguém
+> conferir se ele deveria** — `parseMarkdownResponse` confere forma, e nada
+> mais. Um briefing bem-formado carregando um link que o material injetou
+> saía assinado pelo site e indexado pelo Google Notícias.
+
+**O que entrou:** a **etapa 5.5** (`services/pipeline-gates.service.ts`) —
+volume contra a mediana de `newsCollected` dos sete dias anteriores (só com
+briefing; menos de três dias e o portão **não opina**, e diz), três fontes
+distintas entre os selecionados (alargando para 30 uma vez antes de
+bloquear, e **a seleção que segue é a do veredito**), um item das últimas
+24 h; duplicata e deriva de categoria avisam. A **etapa 6.5**
+(`providers/ai/output-guard.ts`, puro) **por tentativa dentro de
+`generateArticle`**: URL que não está no texto do material e envelope do
+prompt ecoado **falham o dia sem chamar o Groq** (segurança); idioma e teto
+de tamanho caem para o Groq uma vez (qualidade); URL copiada do material e
+texto em forma de instrução avisam. O bloqueio é `FAILED` na etapa do
+portão e `PIPELINE_GATE_BLOCKED` com **o motivo no `route`**
+(`stage-6.5:unanchored-url`, conjunto finito validado) — `FATAL` para
+segurança (escreve na hora), `ERROR` para qualidade que falhou o dia,
+`WARN` para a que o Groq recuperou. O **ensaio virou comando**
+(`gates:rehearse`), e o **painel "Portões"** na `/admin/security` deriva a
+taxa de aprovação de 7 dias e a rosquinha de motivos dos grupos do
+`GET /api/admin/errors` — sem rota nova —, com os dois gatilhos do §16 como
+alerta. O seed ganhou as duas histórias (o dia bloqueado por volume, o dia
+em que o guarda recusou o Gemini por idioma e o Groq serviu).
+
+#### As decisões que a §13 deixou para a fase, tomadas
+
+- **A URL não ancorada ancora no texto do material, porque o conjunto que
+  o plano descrevia é vazio.** O `formatNewsItems` não manda URL nenhuma ao
+  modelo e o prompt proíbe link; toda URL na saída foi inventada ou
+  injetada — a menos que o texto do material a cite e o modelo a tenha
+  copiado (`copied-url`, avisa). Só `https?://` conta; o `context` recebe o
+  host, nunca a URL.
+- **Idioma é razão de *stopwords*, e a lista é o que decide.** A primeira
+  (as cem mais frequentes) dava português 0,47 e **espanhol 0,195** — a um
+  fio de qualquer piso, porque as sete mais frequentes são pan-românicas.
+  A lista de exclusão dá português 0,19–0,32, inglês 0,000, espanhol 0,018;
+  piso 0,08. Teto de tamanho em caracteres (a régua do piso): 20.000, a
+  calibrar como p95 × 2 dos retidos.
+- **"Ancoragem das fontes" não existe** — a `BriefingSource` nasce do mesmo
+  `selected` que foi ao modelo. Tirada da tabela, com o motivo escrito.
+- **Aviso de portão degrada o dia**, e o campo é `findings`, não
+  `warnings` (`isDegradingWarn` lê `context.warnings` como avisos de
+  colheita).
+- **A deriva de categoria nasce calibrada por cima (0,5)** — o banco local
+  não tem série real (ver o ensaio), e meio da massa mudando só acontece
+  com troca de classificador ou de fontes.
+
+#### O ensaio contra o banco local, e o que ele não alcança (armadilha 18)
+
+`gates:rehearse` sobre 9 briefings e 56 dias de `DailyMetric`: **zero
+reprovações reais**. Volume 0,85–1,23 da mediana, português 0,228–0,340
+contra o piso de 0,08, zero URL, zero envelope, zero instrução. As três
+"reprovações" impressas são artefatos do banco local — o briefing de 21/08
+com **12 fontes semeadas à mão** a partir de notícias de cinco dias antes
+(diversidade e frescor), e um run local de 12/09 com três itens. A deriva de
+categoria só tem sinal na **costura entre dois blocos de seed** (0,41–0,51;
+a série semeada repete `WORLD:121 TECHNOLOGY:62 ECONOMY:51`), por isso o
+teto ficou por cima. **Contra produção o ensaio não rodou**: a API do Render
+segue suspensa desde 19/09, o `neonctl` expirou, e só um briefing sobrevive
+na borda da Vercel (o de 18/09; os outros nove sondados dão 500). É a
+primeira coisa a fazer quando ela voltar — e se algum dos ~88 retidos
+reprovar, o errado é o portão.
+
+#### Achados no caminho, nenhum do plano
+
+- **A guarda do `code` não via shorthand** — `code,` num call site de
+  `recordError` passaria invisível pelo `error-event.test.ts`, com o
+  `toBeGreaterThanOrEqual(3)` verde pelos outros. Ensinada a ler
+  `ShorthandPropertyAssignment`, com asserção nomeando o call site.
+- **Dois testes do enterro do run morto não esperavam o run de fundo**, e
+  o `await` a mais da 5.5 fez o `FAILED` de um aparecer no teste seguinte.
+  Corrida pré-existente.
+- **O `tsc` pegou o que os testes não pegavam**: o painel lia `data.runs` e
+  a resposta é `{ data: { runs }, meta }` — os dois testes novos devolviam a
+  mesma forma errada no mock. Mock parcial mente por omissão, em dado.
+- **A captura de 375 saiu com 853 px, e não era do painel novo.** Os
+  `sr-only` "Id da requisição:" da tabela de falhas (5c) são absolutos e o
+  contêiner que rola não era `relative`: a página inteira rolava na
+  horizontal no celular sempre que a janela de 24 h tinha linha — o que só
+  acontecia com o seed recém-rodado. A tabela de fontes (11c) tinha o mesmo
+  desenho. `relative` nos três contêineres, e **o `admin:capture` passou a
+  medir `scrollWidth` contra a viewport** e a reprovar a foto mais larga. É o
+  mecanismo que achou, permanente — quinta fase seguida em que a captura
+  pagou. Armadilha 44.
+- **Duas contagens fora do inventário** (`system-architecture.mermaid`,
+  `packages/types/src/pipeline.ts`), e as cinco do inventário.
+- **O Docker caiu no boot pelo `.sock` órfão** (a receita da memória:
+  matar tudo, renomear as duas pastas, subir uma vez) e **o Playwright
+  pediu a revisão 1243** (bump do Dependabot) com a 1234 instalada —
+  `CHROMIUM_PATH` resolve. E o heredoc do Bash comeu uma barra invertida
+  dentro de uma string JavaScript, de novo.
+
+**1.299 → 1.377 na API (89 → 91 suítes), 881 → 904 no web (86 → 89).** Os
+três diagramas parseiam no Mermaid 11. **O plano de observabilidade está
+inteiro na `dev`.** O que resta é a promoção — decidindo antes se a 9 sobe
+sozinha (a política de 07/09) ou com o que a `dev` acumulou desde o #215 —,
+o ensaio contra os retidos, e a primeira leitura das três abas com a
+credencial de produção. Nada disso anda com a API suspensa.
+
+### 84. A verificação pós-merge da Fase 9: o aviso que publicava o link injetado, o briefing real como guarda, e o script que ninguém tipava ✅ 2026-09-21
+
+> Sobre a árvore mergeada (`3010757`, #232). Três enumerações e um
+> atravessamento: a prosa que a fase envelheceu fora do diff, o que a §13
+> pedia em guarda e o PR entregou só em partes, e o que nasceu sem guarda.
+> Gitleaks `0 commits scanned` no push do merge — décima terceira medição.
+
+**O achado que importa: `copied-url` só avisava, e um `WARN` publicava o
+briefing com o link injetado.** A §13 pede "um caso de injeção sintético —
+material com 'ignore as instruções anteriores' no título — atravessando
+entrada e saída"; o PR tinha as duas pontas em suítes separadas
+(`prompt-injection` na entrada, `output-guard` na saída) e nunca o
+atravessamento. Escrito como camada 4 do `prompt-injection.test.ts` — a
+ordem **e o link** no título do item, a saída bem-formada que obedeceu —,
+ele mostrou o que o inventário de 19/09 tinha decidido errado: URL que está
+no texto do material era "o modelo copiou, violação de formato, avisa". Mas
+o texto do material é escrito por terceiros; uma descrição de feed dizendo
+"acesse https://…" é exatamente como se injeta um link, e um modelo obediente
+o repete. A regra do plano era "toda URL na saída foi inventada ou injetada"
+— o inventário a afrouxou, e o `WARN` deixava o link ir ao ar, indexado.
+**Hoje toda URL na saída bloqueia, por segurança, sem fallback**; o material
+só distingue a procedência, que vai para o motivo (`copied-url` ×
+`unanchored-url`). O gatilho do §16 e o alerta do painel cobrem as duas, e
+há um teste afirmando que URL nunca é aviso.
+
+#### As outras duas enumerações
+
+- **Um briefing real de produção passa em todos os portões — agora como
+  guarda.** O único retido alcançável com a API suspensa (18/09, `STALE` na
+  borda da Vercel) virou `apps/api/tests/fixtures/briefing-2026-09-18.json`:
+  texto renderizado com `**` e `##` restaurados (o Markdown gravado não chega
+  ao cliente; as réguas medem tokens e caracteres, que coincidem). 7.045
+  caracteres, razão de português acima do dobro do piso, zero URL, zero
+  aviso. A `_provenance` está no próprio JSON.
+- **O `scripts/rehearse-gates.ts` não era tipado por ninguém** — `.ts` fora
+  de `src/` e `tests/`, a família do `seed.ts` do item 63. `scripts/**/*.ts`
+  entrou no `tsconfig.tests.json`; tipou limpo na primeira.
+- **Oito frases envelhecidas fora do diff**: "quatro/cinco etapas engolem"
+  (`docs/api.md`, `run-outcome.ts` e seu teste, `packages/types` — que
+  ainda dizia "quatro", velho desde a Fase 6), "três camadas" da defesa do
+  prompt (`ai-utils.ts` — são quatro), "quatro formas" do `route`
+  (`packages/types/src/observability.ts`), a doc de
+  `PIPELINE_DEGRADED_CODE` ("etapas 7.5 a 9.5" — sempre foi mais que isso),
+  o `degradedBy` sem as duas etapas novas, e o comentário do seed. E **uma
+  contradição pré-existente entre as armadilhas 17 e 22** — a 17 dizia que
+  todo bloqueio cai para o Groq; qualificada.
+- **O seed contava a história pela metade**: o dia bloqueado na 5.5 tinha
+  um briefing semeado. Um dia bloqueado não tem briefing, e é o caso que a
+  §13 aceita de olhos abertos — `briefing.one_per_day` sai VIOLADA nos dois
+  runs seguintes. O seed pula o briefing daquele dia e o relatório sintético
+  da 9.5 mostra a violação: a `/admin/security` local desenha o que produção
+  desenharia no dia seguinte a um bloqueio.
+- **A captura completa, com a medição de largura nas seis rotas: 21/21.**
+  A guarda nova do `admin:capture` não reprova nada pré-existente; a `/admin`
+  desenha a etapa 5.5 com as medidas, o dia bloqueado em vermelho na faixa
+  e o degradado por 6.5 em laranja.
+
+#### O que a auditoria da fase confirmou, cláusula a cláusula da §13
+
+Entrada: volume ≥ 30 % da mediana (bloqueia), diversidade alargando antes
+de bloquear, frescor de 24 h (bloqueia), duplicata e deriva (avisam), linha
+de base < 3 dias → não opina e diz. Saída: URL (bloqueia, segurança —
+**as duas procedências**, desde este item), envelope (bloqueia, segurança),
+idioma e teto (bloqueiam, qualidade → Groq uma vez), instrução (avisa,
+nunca bloqueia), "ancoragem das fontes" fora com motivo. Segurança sem
+fallback, `FAILED` com `errorStage: 6.5`, `recordError` `FATAL`. §13.3:
+evento por decisão, `PIPELINE_GATE_BLOCKED` com motivo no `route`, taxa de
+aprovação e rosquinha na aba de segurança, os dois gatilhos. Arquivos da
+tabela mais os três. Guarda: cada portão reprovando o caso exato e
+aprovando o vizinho, o briefing real (guarda), o atravessamento (guarda).
+**O que continua pendente é o que a API suspensa bloqueia**: o ensaio
+contra os ~88 retidos — a §19 mandava rodar em modo observador antes de
+ligar o bloqueio, e com a promoção antes disso a primeira medição real será
+em produção, com o `gates:rehearse` pronto para o dia em que ela voltar.
+
+**1.377 → 1.384 na API; 904 no web.** A Fase 9 não deve nada além do
+ensaio contra produção.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -88,7 +88,7 @@ describe('a tabela aviso → desfecho, exaustiva nos dois sentidos', () => {
   /**
    * O desfecho que cada classe de aviso produz **na fonte a que se refere**:
    * o `provider-*` da NewsData é o balde `newsdata`; o do RSS é cada um dos
-   * doze feeds, porque o provider caiu (ou emudeceu) por cima deles.
+   * feeds, porque o provider caiu (ou emudeceu) por cima deles.
    */
   const OUTCOME_OF_WARNING: Record<FetchWarningKind, SourceOutcome> = {
     'provider-failed': 'FAILED',

@@ -24,10 +24,13 @@ export interface ErrorGroup {
   code: string;
   category: string;
   /**
-   * O escopo da falha, em quatro formas — todas de conjunto finito, nunca a
+   * O escopo da falha, em cinco formas — todas de conjunto finito, nunca a
    * URL: o padrão da rota na API (`/api/news/:id`), a etapa do pipeline
-   * (`stage-6`), o id da invariante (`retention.news`) e, desde a Fase 7c, o
-   * padrão da página do web (`/[locale]/news/[id]`) quando `origin` é `WEB`.
+   * (`stage-6`), o id da invariante (`retention.news`), desde a Fase 7c o
+   * padrão da página do web (`/[locale]/news/[id]`) quando `origin` é `WEB`,
+   * e desde a Fase 9 a etapa do portão com o motivo
+   * (`stage-6.5:unanchored-url`) quando `code` é `PIPELINE_GATE_BLOCKED` —
+   * é o que `lib/gate-decisions.ts` lê.
    */
   route: string | null;
   statusCode: number | null;

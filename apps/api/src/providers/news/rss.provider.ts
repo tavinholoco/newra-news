@@ -80,7 +80,7 @@ export interface RssFetchResult {
  * responder" é o dia anterior ao `ETIMEDOUT` — visível só se alguém medir.
  *
  * O aviso por fonte continua saindo no log do Render, ao lado do resto da
- * execução. **Não vira teste de rede**: uma suíte que bate nos doze feeds
+ * execução. **Não vira teste de rede**: uma suíte que bate em todos os feeds
  * reprovaria no dia em que um publisher espirrasse, e gate que falha por
  * motivo alheio é gate que se aprende a ignorar.
  */
@@ -138,8 +138,8 @@ export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<R
 
 async function fetchFeedXml(url: string): Promise<string> {
   // **Prazo, pela mesma razão que o resto da fase.** Um feed que aceita a
-  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e doze
-  // fontes em paralelo significam que basta uma. O provider de e-mail já tinha
+  // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e com
+  // todas as fontes em paralelo basta uma. O provider de e-mail já tinha
   // o seu (15 s); este não tinha nenhum. Trinta segundos é folga sobre o pior
   // caso observado num feed lento e cabe no orçamento do cron diário.
   const response = await fetch(url, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
@@ -180,6 +180,34 @@ function extractImageUrl(
   return extractImageFromHtml(content);
 }
 
+const RFC822_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A hora de parede de um `pubDate` RFC 822, sem o fuso: `dd Mon yyyy hh:mm[:ss]`. */
+const RFC822_WALL_CLOCK = /^(?:[A-Za-z]{3},\s*)?(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/;
+
+/**
+ * O instante de publicação de um item.
+ *
+ * **Com `zone`, a hora de parede do `pubDate` é lida naquele deslocamento, e o
+ * rótulo do feed é ignorado** — é o conserto do feed que declara o fuso errado
+ * (a ESPN escreve a hora de Brasília com `EST`; ver `rss-sources.ts`). Um
+ * `pubDate` fora da forma RFC 822 cai no `Date` de sempre: é melhor guardar a
+ * data que o feed disse do que inventar uma.
+ */
+export function parsePubDate(raw: string | undefined, zone: string | undefined, now: Date = new Date()): Date {
+  if (!raw) return now;
+  if (zone) {
+    const match = RFC822_WALL_CLOCK.exec(raw.trim());
+    const month = match ? RFC822_MONTHS.indexOf(match[2]!) : -1;
+    if (match && month >= 0) {
+      const [, day, , year, hour, minute, second = '00'] = match;
+      const pad = (value: string) => value.padStart(2, '0');
+      return new Date(`${year}-${pad(String(month + 1))}-${pad(day!)}T${hour}:${minute}:${pad(second)}${zone}`);
+    }
+  }
+  return new Date(raw);
+}
+
 async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
   const xml = await fetchFeedXml(source.url);
   const feed = await parser.parseString(xml);
@@ -218,7 +246,7 @@ async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
         // 320 caracteres mudaria a categoria de metade do acervo sem que nada
         // acusasse.
         category: source.category ?? classifyCategory(title, fullText),
-        publishedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+        publishedAt: parsePubDate(item.pubDate, source.pubDateZone),
       };
     });
 }

@@ -362,7 +362,10 @@ describe('a matriz de estado das rotas', () => {
 
     expect(globalError).toMatch(/^'use client';/);
     expect(globalError).toMatch(/<html[\s\S]*?<body/);
-    expect(globalError).toContain("import '@/styles/globals.css'");
+    // O estilo é o `<style>` próprio: o `import` do `globals.css` passava esta
+    // guarda e o empacotador o descartava (Fase 12, A5.12 — ver o teste abaixo).
+    expect(globalError).toMatch(/<style>\{GLOBAL_ERROR_CSS\}<\/style>/);
+    expect(globalError).not.toContain('globals.css');
     expect(globalError).toMatch(/applyStoredTheme\(\)/);
     expect(globalError).not.toContain('ThemeInit');
     // Armadilha 9: `useTranslations` sem provider lança dentro do boundary —
@@ -373,6 +376,60 @@ describe('a matriz de estado das rotas', () => {
     expect(globalError).toContain("from '@/messages/pt-BR.json'");
     expect(globalError).toContain("from '@/messages/en.json'");
     expect(globalError).toMatch(/localeFromPathname\(/);
+  });
+
+  it('a tela de crash pinta com os tokens do `tokens.css`, resolvidos — no claro e no escuro', () => {
+    /**
+     * **O `import` do `globals.css` no `global-error.tsx` não produzia CSS.**
+     * Medido em build de produção no ensaio de aceitação (Fase 12 do plano
+     * de observabilidade, A5.12): zero `<link rel="stylesheet">`, zero
+     * `<style>`, Times New Roman, e fundo branco com a classe `dark` no
+     * `<html>`. O boundary raiz **substitui** o layout raiz, e é ao layout
+     * raiz que o Next prendeu o chunk — o `import` repetido é deduplicado.
+     * Hoje a tela traz o próprio `<style>`, com os valores **resolvidos**; e
+     * esta asserção é o que impede esses valores de virarem um segundo lugar
+     * onde a cor é decidida.
+     */
+    const tokens = readFileSync(path.resolve(WEB_ROOT, 'styles/tokens.css'), 'utf8');
+    const block = (selector: RegExp): Record<string, string> => {
+      const body = tokens.match(selector)?.[1] ?? '';
+      return Object.fromEntries(
+        [...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2]!.trim()]),
+      );
+    };
+    const root = block(/:root\s*\{([\s\S]*?)\n\s*\}/);
+    const darkBlock = block(/\.dark\s*\{([\s\S]*?)\n\s*\}/);
+    const resolve = (name: string, scope: Record<string, string>): string => {
+      const raw = scope[name] ?? root[name];
+      if (raw === undefined) throw new Error(`token ${name} não existe`);
+      const ref = raw.match(/^var\((--[\w-]+)\)$/);
+      return ref ? resolve(ref[1]!, scope) : raw.toLowerCase();
+    };
+
+    const source = readFileSync(path.resolve(WEB_ROOT, 'app/global-error.tsx'), 'utf8');
+    const themeOf = (key: 'light' | 'dark'): Record<string, string> => {
+      const body = source.match(new RegExp(`${key}: \\{([\\s\\S]*?)\\}`))?.[1] ?? '';
+      return Object.fromEntries([...body.matchAll(/(\w+): '([^']+)'/g)].map((m) => [m[1], m[2]!.toLowerCase()]));
+    };
+    const TOKEN_OF = {
+      bg: '--bg',
+      ink: '--ink',
+      inkSecondary: '--ink-secondary',
+      inkMuted: '--ink-muted',
+      brandSolid: '--brand-solid',
+      onBrand: '--on-brand',
+    } as const;
+
+    for (const [key, scope] of [
+      ['light', {}],
+      ['dark', darkBlock],
+    ] as const) {
+      const theme = themeOf(key);
+      expect(Object.keys(theme).sort(), `as chaves do THEME.${key}`).toEqual(Object.keys(TOKEN_OF).sort());
+      for (const [field, token] of Object.entries(TOKEN_OF)) {
+        expect(theme[field], `THEME.${key}.${field} × ${token}`).toBe(resolve(token, scope));
+      }
+    }
   });
 
   it('todo boundary de erro desenha pela casca única, e é ela que reporta', () => {

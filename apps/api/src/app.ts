@@ -201,6 +201,18 @@ export async function buildApp() {
 
     if (error instanceof AppError) {
       logAppError(request.log, error, { route, requestId: request.id });
+      /**
+       * **Um 5xx escolhido responde como o 5xx cru** — o contrato do 500 da
+       * `docs/api.md`, com o `requestId`. A frase do `AppError` é escrita para
+       * o log, e o status padrão do construtor é 500: sem isto, todo
+       * `new AppError('…')` punha a frase no fio. Achado do ensaio de
+       * aceitação (Fase 12, A3.17), sobre o `Invariant report is malformed`.
+       */
+      if (error.statusCode >= 500) {
+        return reply
+          .status(error.statusCode)
+          .send({ error: 'Internal server error', requestId: request.id });
+      }
       return reply.status(error.statusCode).send({ error: error.message });
     }
 

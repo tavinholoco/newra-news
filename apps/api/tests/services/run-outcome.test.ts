@@ -11,8 +11,9 @@ import {
  *
  * `PipelineLog.status` é binário e o pipeline não é: cinco etapas engolem a
  * própria falha de propósito (7.5, 8, 8.5, 9 e 9.5), o fallback para o Groq é
- * um `WARN` da etapa 6, e a colheita degradada é um `WARN` da etapa 1. Um run
- * pode ter sete coisas erradas e reportar `SUCCESS`. O desfecho é **função pura**
+ * um `WARN` da etapa 6, a colheita degradada é um `WARN` da etapa 1, a saúde
+ * por fonte é um `WARN` da 4, e os avisos dos portões (Fase 9) são `WARN` da
+ * 5.5 e da 6.5. Um run pode ter dez coisas erradas e reportar `SUCCESS`. O desfecho é **função pura**
  * sobre o run e seus eventos — sem coluna nova, sem migration (§17.19) —, e é
  * por isso que cabe no `turbo test`, sem banco.
  */

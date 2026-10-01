@@ -277,6 +277,32 @@ async function capture(browser, cookie, route, viewport, theme) {
       return { file: path.basename(file), ok: false, reason: 'sessão recusada' };
     }
 
+    /**
+     * **Rede quieta não é dado na tela.** O `networkidle` são 500 ms sem
+     * conexão, e as consultas do painel saem do navegador depois da
+     * hidratação: com o banco local elas voltavam antes da janela fechar, e
+     * a espera bastava. Contra um branch do Neon (Fase 12 do plano de
+     * observabilidade, A7.05 — ~1,7 s por consulta, a API local falando com
+     * us-east-1) a primeira foto da `/admin` saiu com **todos os esqueletos**
+     * e "0 notícia no total", com HTTP 200 e sem erro nenhum — a mesma classe
+     * da espera fixa que a primeira versão deste script tinha. O esqueleto é
+     * o `components/ui/skeleton` (`animate-pulse`, e só ele usa a classe);
+     * a foto espera todos sumirem, e se não sumirem ela **falha com o
+     * motivo**, em vez de fotografar a espera.
+     */
+    const settled = await page
+      .waitForFunction(() => document.querySelectorAll('.animate-pulse').length === 0, null, {
+        timeout: 30_000,
+      })
+      .then(
+        () => true,
+        () => false,
+      );
+    if (!settled) {
+      console.error(`  FALHOU ${path.basename(file)}: esqueleto na tela depois de 30 s`);
+      return { file: path.basename(file), ok: false, reason: 'esqueleto' };
+    }
+
     if (route.expand) {
       /**
        * **Pelo nome acessível, e não por `[aria-expanded]`.**
@@ -330,6 +356,23 @@ async function capture(browser, cookie, route, viewport, theme) {
     await page.addStyleTag({ content: FREEZE_CSS });
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: file, fullPage: true, animations: 'disabled', type: FORMAT });
+
+    /**
+     * **A página não pode ser mais larga que a viewport.** Uma foto `fullPage`
+     * de 853 px numa viewport de 375 é a página inteira rolando na horizontal
+     * no celular — e ninguém repara, porque o `fullPage` só alarga a imagem.
+     * Foi assim que a Fase 9 achou os `sr-only` da tabela de falhas (Fase 5)
+     * escapando do contêiner que rola: `position: absolute` sem ancestral
+     * `relative` tem o documento como bloco de contenção, e o de 24 h só
+     * tinha linha na captura quando o seed acabava de rodar. A largura do
+     * documento é uma medida, e a captura passa a fazê-la.
+     */
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    if (scrollWidth > viewport.width) {
+      const reason = `documento com ${scrollWidth} px numa viewport de ${viewport.width} — a página rola na horizontal`;
+      console.error(`  ${path.basename(file)} (HTTP ${status}) — ${reason}`);
+      return { file: path.basename(file), ok: false, reason };
+    }
 
     console.log(`  ${path.basename(file)} (HTTP ${status})`);
     return { file: path.basename(file), ok: true };

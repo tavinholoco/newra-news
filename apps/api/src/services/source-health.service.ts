@@ -63,8 +63,8 @@ import { NEWSDATA_SOURCE, type SourceFetch } from './news-fetcher.service';
  *
  * **90 — mais que os 14 do `ErrorEvent` e os 30 do `PipelineLog`**, porque
  * "esta fonte vale a pena?" é pergunta trimestral; e igual à do `Article`, para
- * cruzar "o briefing daquele dia" com "quem o alimentou". 90 dias × 13 fontes
- * ≈ 1.170 linhas. Quem apaga é a etapa 8 do pipeline diário.
+ * cruzar "o briefing daquele dia" com "quem o alimentou". 90 dias × 12 fontes
+ * (os 11 feeds e a NewsData) ≈ 1.080 linhas. Quem apaga é a etapa 8 do pipeline diário.
  */
 export const SOURCE_HEALTH_RETENTION_DAYS = 90;
 

@@ -14,6 +14,16 @@
   `usePathname`/`useRouter` aplicam o prefixo automaticamente)
 - **Renderização estática + ISR por idioma** — com `generateStaticParams` +
   `setRequestLocale`, cada página é SSG (`revalidate: 3600`) para pt-BR e en
+- **A saída da ISR tem de ser determinística, e o `now` do next-intl está
+  fixo por isso** (`STATIC_NOW` em `lib/i18n.ts`, devolvido por
+  `i18n/request.ts`). A Vercel mede ISR Write em unidades de 8 KB e **só
+  cobra quando o conteúdo mudou**; o `NextIntlClientProvider` serializa `now`
+  no payload RSC e o padrão é `new Date()` por requisição — então nenhuma
+  regeneração era igual à anterior, e as três listagens de hora em hora nos
+  dois idiomas custavam ~5.100 unidades/dia (item 82 do `docs/progress.md`).
+  **Nada lê esse relógio** (`useNow`, `getNow`, `relativeTime`) e a guarda
+  `tests/lib/isr-determinism.test.ts` mantém assim; quem precisar de "agora"
+  lê no cliente, num efeito. Não passe `now=` ao provider do layout
 - **Restrição importante** — o `app/layout.tsx` raiz é pass-through (sem
   `<html>`) e **importa o `globals.css`, que mora só ali**; **não criar
   `loading.tsx`/`error.tsx` na raiz** (seus boundaries caem fora do `<html>` e
@@ -29,7 +39,14 @@
   quem o insere num client component (armadilha 40); lá o tema é
   `applyStoredTheme()` num `useEffect`, e as strings saem dos JSONs lidos
   direto, no idioma do pathname (`useTranslations` sem provider lança dentro
-  do boundary; uma cópia fixa das frases derivaria dos JSONs em silêncio)
+  do boundary; uma cópia fixa das frases derivaria dos JSONs em silêncio).
+  **E o estilo é um `<style>` próprio, não o `globals.css`**: o boundary
+  raiz **substitui** o layout raiz, e é a ele que o Next prende o chunk do
+  CSS — o `import` repetido era deduplicado, e em build de produção a tela
+  saía sem folha nenhuma, em Times New Roman e branca com a classe `dark`
+  aplicada (Fase 12 do plano, A5.12; o `global-error` só existe em
+  produção — em dev entra o overlay). As cores são os tokens **resolvidos**
+  num `THEME`, com guarda na `state-matrix` contra o `tokens.css`
 - **Revalidação on-demand** — `app/api/cron/daily-news/route.ts` chama
   `revalidatePath('/[locale]', 'layout')` + `revalidatePath('/sitemap.xml')`
   após o trigger do pipeline. **Gotcha:** o cache do Next grava as tags com o
@@ -268,9 +285,10 @@ Regras que não são óbvias no código:
 - /[locale]/admin/security → **Logs e segurança** (Fase 5 do plano de
   observabilidade, PR 5c): as falhas registradas por fingerprint com busca,
   filtros e colunas ordenáveis (`/api/admin/errors`), a rosquinha de erro por
-  categoria, **o painel de invariantes** (`admin/invariants-panel`, via
-  `/api/admin/invariants` — Fase 6 do plano) e a trilha de auditoria
-  (`/api/admin/audit`)
+  categoria, **o painel de portões** (`admin/gates-panel` sobre
+  `lib/gate-decisions.ts` — Fase 9 do plano, sem rota nova), **o painel de
+  invariantes** (`admin/invariants-panel`, via `/api/admin/invariants` —
+  Fase 6 do plano) e a trilha de auditoria (`/api/admin/audit`)
   - o guard de sessão + role vive em `app/[locale]/admin/layout.tsx` e vale
     para todo o segmento — página nova sob `/admin` já nasce protegida
   - **a casca do painel vive no mesmo layout**: contêiner e faixa de abas
@@ -435,6 +453,34 @@ Regras que não são óbvias no código:
     `CHECK_KEY`, porque chave montada em runtime parece órfã; a tabela tem
     `aria-label` — é a segunda tabela da aba, e um `getByRole('table')` sem
     nome acharia duas (a suíte da aba deixa o painel em `null` por padrão)
+  - **o painel "Portões" é derivação sobre duas consultas que já existiam**
+    (Fase 9 do plano, §13.3 — `admin/gates-panel` sobre
+    `lib/gate-decisions.ts`): os grupos de `PIPELINE_GATE_BLOCKED` do
+    `useErrorSummary('7d')` (o motivo está no `route`,
+    `stage-6.5:unanchored-url`) e a listagem de runs do `usePipelineRuns`.
+    Aprovação = 1 − bloqueios que falharam o dia / runs **fechados** da
+    janela — `null` (um traço) sem run, porque a taxa de zero runs não é
+    100 %; o bloqueio de qualidade que o Groq recuperou (`WARN`) conta na
+    rosquinha e não na taxa. Os dois gatilhos do §16 saem como alerta
+    (`role='status'`): a taxa abaixo de 90 %, e **qualquer** bloqueio por
+    URL no briefing (`copied-url` ou `unanchored-url` — as duas são
+    segurança desde o pós-merge da Fase 9), em vermelho. Os rótulos por motivo estão por extenso
+    em `GATE_CHECK_KEY`, e `tests/lib/gate-checks.test.ts` deriva o
+    conjunto dos dois tuples da API — check novo lá reprova aqui. Antes da
+    promoção a API de produção não grava o código: o painel lê 100 % com a
+    rosquinha vazia, que é o estado certo, não "indisponível". O painel
+    pede sempre a janela de 7 d — a suíte da aba deixou de olhar a "última"
+    chamada do `useErrorSummary` e passou a olhar a primeira de cada render
+  - **`sr-only` dentro de um contêiner que rola escapa dele** (armadilha 44
+    do plano, achada pela captura da Fase 9): `sr-only` é `position:
+    absolute`, e sem um ancestral posicionado o bloco de contenção é o
+    documento — os "Id da requisição:" da tabela de falhas pousavam em
+    x = 853 numa viewport de 375, e a página inteira rolava na horizontal
+    sempre que a janela de 24 h tinha linha. Todo contêiner `overflow-x-auto`
+    com `sr-only` dentro é `relative` (tabela de falhas, de fontes, de
+    invariantes), e **o `admin:capture` mede `scrollWidth` contra a viewport
+    e reprova a foto mais larga** — a foto `fullPage` só alargava a imagem, e
+    ninguém media a imagem
   - **`tests/lib/admin-surface.test.ts` cobra `requireRole: 'ADMIN'` de todo
     handler sob `app/api/admin/**`**, pelo parser, com um mapa de exceções em
     que o `run-pipeline` é a única entrada (reentra no cron com `CRON_SECRET`)
@@ -471,7 +517,11 @@ Regras que não são óbvias no código:
     `GoldenSignals` lança no render e o `admin/metrics/error.tsx` renderiza
     — sem `throw` no produto. O relato do boundary **não** é interceptado:
     com a API de pé, cada captura dessa rota grava uma linha `WEB` de verdade
-    no banco local, visível na `/admin/security` depois do flush
+    no banco local, visível na `/admin/security` depois do flush. **E a foto
+    espera a tela sem esqueleto** (nenhum `.animate-pulse`), não só o
+    `networkidle`: contra um branch do Neon (Fase 12 do plano, ~1,7 s por
+    consulta) a `/admin` saiu toda em esqueleto com HTTP 200. Se não assentar
+    em 30 s, a foto **falha com o motivo**
 
 ## SEO (Fase 7)
 
@@ -526,6 +576,15 @@ Regras que não são óbvias no código:
   BCP-47 da rota. Janela de 48h e teto de 1.000 URLs são do formato.
 - **Dois sitemaps no `robots.txt`.** O geral descreve o acervo; o de notícias, a
   janela. O cron diário invalida os dois.
+- **Os dois sitemaps relançam a falha da API onde o resultado é publicado, e
+  nenhum tem `new Date()` na saída.** Pela regra da Vercel, 5xx na
+  revalidação é falha e **mantém o documento anterior**; 200 vazio é sucesso
+  e o substitui — foi assim que, com a API suspensa em 19/09/2026, o geral
+  caiu de 386 para 10 URLs e o de notícias de 612 para zero. É
+  `nullUnlessPublishing`, como na Home: no CI (sem API, sem publicação) o
+  documento sai válido e vazio. E o `lastModified` das listagens é a data do
+  item mais novo, `/about` e `/newsletter` não declaram data — um `lastmod`
+  que muda toda hora regenerava o documento toda hora.
 - **`formatArticleDate` lê em UTC; `formatDate`/`formatDateTime`, no fuso local.**
   `Article.date` é data de calendário gravada à meia-noite UTC — lida no fuso
   local, num fuso negativo ela vira a véspera. Era assim que `/article/2026-08-22`
@@ -625,6 +684,9 @@ Regras que não são óbvias no código:
   API disse não" com "a API não respondeu", e a ISR fixa a confusão por uma
   hora. Em `catch` que alimente `notFound()`, use `nullIfNotFound`. Onde o valor
   vira `initialData`, continua sendo `prefetch` (que falha em `undefined`).
+  **A guarda alcança tudo sob `app/` com `export const revalidate`** — não só
+  `app/[locale]`: os dois sitemaps ficaram fora dela por diretório até
+  19/09/2026, e regeneraram vazios com a API suspensa.
 - **A Home usa `nullUnlessPublishing`, e "build" não é uma coisa só.** Onde o
   resultado é **publicado** — build da Vercel e revalidação da ISR — a exceção
   sobe: o deploy anterior fica no ar, ou a última página boa fica. Onde nada é

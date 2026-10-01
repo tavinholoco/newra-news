@@ -53,6 +53,14 @@ jobs:
       - name: Audit de dependências de produção
         run: pnpm audit --audit-level=high --prod
 
+      # A outra ponta da lista: exceção que não casa mais com achado nenhum —
+      # corrigida por um bump — reprova aqui. A guarda acima amarra a lista ao
+      # documento; esta a amarra ao registro. Fase 12 do plano de
+      # observabilidade (A6.02): duas do `browserslist` ficaram silenciadas
+      # depois de corrigidas.
+      - name: Nenhuma exceção de advisory órfã
+        run: node scripts/audit-orphans.mjs
+
   test:
     name: Test
     runs-on: ubuntu-latest

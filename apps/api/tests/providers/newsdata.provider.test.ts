@@ -191,15 +191,36 @@ describe('fetchFromNewsData', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('comes back empty instead of throwing when every category fails', async () => {
-    // Quem decide o que fazer com a colheita vazia é o `fetchAll`, que a
-    // transforma em aviso gravado no run. Lançar aqui nao acrescentaria
-    // informacao e custaria as categorias boas do dia em que so uma quebrou.
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
+  /**
+   * **Todas recusadas lança, com o motivo.** Este teste afirmava o contrário
+   * ("lançar não acrescentaria informação e custaria as categorias boas do dia
+   * em que só uma quebrou") — e a segunda metade vale só para falha parcial,
+   * que continua devolvendo o resto (os três testes acima). Com as oito
+   * recusadas não há categoria boa a perder, e a informação que se perdia era a
+   * que importa: no ensaio de aceitação (Fase 12, A4.13) uma chave inválida fez
+   * as oito responderem **401**, o `fetchAll` leu a lista vazia como
+   * `provider-empty`, e a saúde por fonte gravou `EMPTY` sem motivo. Uma chave
+   * revogada aparecia no painel como "a NewsData não tinha notícia".
+   */
+  it('throws with the reason when every category fails — a refused key is not an empty harvest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 401, statusText: 'UNAUTHORIZED' })),
+    );
 
-    await expect(
-      fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS]),
-    ).resolves.toEqual([]);
+    await expect(fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS])).rejects.toThrow(
+      'NewsData: all 2 categories failed — NewsData error: 401 UNAUTHORIZED',
+    );
+  });
+
+  it('still comes back empty, without throwing, when every category answers with nothing', async () => {
+    // Vazio de verdade é outra coisa: a API respondeu, e não havia notícia.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => new Response(JSON.stringify({ status: 'success', results: [] }), { status: 200 })),
+    );
+
+    await expect(fetchFromNewsData([Category.TECHNOLOGY, Category.SPORTS])).resolves.toEqual([]);
   });
 
   it('names the category that failed and the one that came back empty', async () => {

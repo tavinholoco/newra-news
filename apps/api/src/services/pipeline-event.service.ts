@@ -3,8 +3,20 @@ import type { PipelineEventLevel } from '@newranews/database';
 import {
   PIPELINE_DEGRADED_CODE,
   PIPELINE_FAILED_CODE,
+  PIPELINE_GATE_BLOCKED_CODE,
   recordError,
+  type RecordedErrorCode,
 } from './error-event.service';
+import {
+  GATE_STAGES,
+  GateBlockedError,
+  isGate,
+  isGateCheck,
+  isGateReason,
+  type Gate,
+  type GateCheck,
+} from './pipeline-gates.service';
+import type { GateReason } from '../providers/ai/output-guard';
 import type { ErrorCategory } from '../utils/errors';
 import { baseLogger } from '../utils/logger';
 import type { RunOutcome } from '@newranews/types';
@@ -23,6 +35,15 @@ export interface PipelineErrorDetail {
   statusCode?: number;
   // Erro primário que disparou o fallback (ex.: Gemini falhou antes do Groq)
   primaryError?: PipelineErrorDetail;
+  /**
+   * Fase 9: o portão que bloqueou, o motivo e a natureza — os três **escalares
+   * e planos**, porque é assim que chegam ao `context` do `ErrorEvent`
+   * (`scrubErrorContext` descarta objeto aninhado) e é por eles que
+   * `recordPipelineEvent` sabe que a falha é de portão.
+   */
+  gate?: Gate;
+  check?: GateCheck;
+  reason?: GateReason;
 }
 
 export interface PipelineEventView {
@@ -112,6 +133,15 @@ export function extractErrorDetail(error: unknown): PipelineErrorDetail {
     if (match) detail.statusCode = Number(match[1]);
   }
 
+  // O bloqueio de portão atravessa o `ai.service` e chega ao `catch` do
+  // pipeline como erro; é aqui que ele volta a ser dado — e é o que faz o
+  // `errorDetail` do run e o `ErrorEvent` dizerem *qual* portão e *por quê*.
+  if (error instanceof GateBlockedError) {
+    detail.gate = error.gate;
+    detail.check = error.check;
+    detail.reason = error.reason;
+  }
+
   return detail;
 }
 
@@ -161,7 +191,9 @@ function categoryForStageFailure(context?: Record<string, unknown>): ErrorCatego
  * **Dois códigos, e não um com duas severidades**, porque a diferença é de
  * natureza: `ERROR` aborta o run e `WARN` é etapa não-crítica que falhou
  * sozinha (a newsletter, o cleanup, a renormalização). São os dois estados que
- * pedem ações diferentes de quem lê a tela.
+ * pedem ações diferentes de quem lê a tela. **O terceiro é o portão** (Fase
+ * 9): `PIPELINE_GATE_BLOCKED`, reconhecido pela forma do `context` — ver
+ * `gateBlockOf`.
  *
  * **O `WARN` que não degrada não vira falha** (pós-merge da Fase 8). O da
  * etapa 1 dispara para qualquer aviso de colheita, e `feed-empty` está entre
@@ -172,6 +204,35 @@ function categoryForStageFailure(context?: Record<string, unknown>): ErrorCatego
  * desfecho do mesmo run em `SUCCESS`. O `PipelineEvent` continua sendo escrito
  * — é o rastro da sequência de dias vazios, que a Fase 11 lê.
  */
+/**
+ * O bloqueio de portão que um `context` carrega, quando carrega — os três
+ * campos que `extractErrorDetail` põe num `GateBlockedError`, **validados**
+ * contra os conjuntos declarados. Um `check` fora de `GATE_CHECKS` não entra
+ * no `route`: o teto da tabela é a razão de o conjunto existir.
+ */
+function gateBlockOf(
+  context?: Record<string, unknown>,
+): { gate: Gate; check: GateCheck; reason: GateReason } | null {
+  if (!context) return null;
+  const { gate, check, reason } = context;
+  if (!isGate(gate) || !isGateCheck(check) || !isGateReason(reason)) return null;
+  return { gate, check, reason };
+}
+
+/**
+ * A categoria de um bloqueio de portão — de quem é a culpa.
+ *
+ * Entrada: a colheita não prestou, e a colheita vem de fora (`upstream`).
+ * Saída por segurança: o briefing foi **recusado por uma guarda** por carregar
+ * o que o material injetou — `authorization`, que é a categoria da recusa e a
+ * que sai em `warn` (§3.2). Saída por qualidade: o modelo não entregou o que
+ * o prompt pediu — `contract`.
+ */
+function gateCategory(gate: Gate, reason: GateReason): ErrorCategory {
+  if (gate === 'entry') return 'upstream';
+  return reason === 'security' ? 'authorization' : 'contract';
+}
+
 function recordPipelineEvent(
   pipelineLogId: string,
   stage: number,
@@ -182,13 +243,28 @@ function recordPipelineEvent(
   if (level === 'INFO') return;
   if (level === 'WARN' && !isDegradingWarn({ stage, level, context: context ?? null })) return;
 
+  // **O bloqueio de portão tem código próprio, e o motivo no `route`** (Fase
+  // 9, §13.3): `PIPELINE_GATE_BLOCKED · stage-6.5:unanchored-url`. A
+  // severidade é o destino do dia — `FATAL` para segurança (escreve na hora;
+  // o dia falhou sem fallback), `ERROR` para qualidade que falhou o dia, e
+  // `WARN` para qualidade que o provider de reserva recuperou (o evento é
+  // `WARN`, o run é `SUCCESS_DEGRADED`). O `route` leva a etapa do **portão**,
+  // não a do evento: o mesmo bloqueio não pode virar duas linhas conforme
+  // quem o escreveu.
+  const gate = gateBlockOf(context);
+  const code: RecordedErrorCode = gate
+    ? PIPELINE_GATE_BLOCKED_CODE
+    : level === 'ERROR'
+      ? PIPELINE_FAILED_CODE
+      : PIPELINE_DEGRADED_CODE;
+
   recordError({
     origin: 'PIPELINE',
-    severity: level === 'ERROR' ? 'ERROR' : 'WARN',
-    code: level === 'ERROR' ? PIPELINE_FAILED_CODE : PIPELINE_DEGRADED_CODE,
-    category: categoryForStageFailure(context),
+    severity: gate?.reason === 'security' ? 'FATAL' : level === 'ERROR' ? 'ERROR' : 'WARN',
+    code,
+    category: gate ? gateCategory(gate.gate, gate.reason) : categoryForStageFailure(context),
     message,
-    route: stageScope(stage),
+    route: gate ? `${stageScope(GATE_STAGES[gate.gate])}:${gate.check}` : stageScope(stage),
     // Explícito, e não pelo `AsyncLocalStorage`: o enterro do run morto roda
     // fora do contexto do run, e o id está na mão de quem chama.
     pipelineLogId,

@@ -16,7 +16,7 @@ const nextConfig = {
      * imagem. O feed é `g1.globo.com` e a imagem vem de `s2-g1.glbimg.com`.
      *
      * O segundo derruba a ideia de vez, e só aparece varrendo o acervo inteiro
-     * em vez de 100 itens por fonte. **O pipeline não ingere só os 13 feeds
+     * em vez de 100 itens por fonte. **O pipeline não ingere só os feeds
      * RSS: ele ingere também a NewsData.io**, que agrega centenas de veículos.
      * Medido em 24/08/2026, sobre 3.000 itens de um acervo de 6.441:
      *

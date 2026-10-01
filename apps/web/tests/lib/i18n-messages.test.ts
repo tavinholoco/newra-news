@@ -83,7 +83,11 @@ describe('i18n messages', () => {
       // do `useTranslations('footer')` e a chave, do `t('items.stack')`. Buscar
       // só a folha perderia toda chave aninhada.
       const lookup = rest.join('.');
-      return !new RegExp(`['"\`]${lookup.replace(/\./g, '\\.')}['"\`]`).test(blob);
+      // Escape de todo metacaractere, e não só do ponto (o
+      // `js/incomplete-sanitization` do CodeQL): uma chave com `+` ou `(`
+      // viraria outra regex.
+      const escaped = lookup.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return !new RegExp(`['"\`]${escaped}['"\`]`).test(blob);
     });
 
     expect(orphans).toEqual([]);

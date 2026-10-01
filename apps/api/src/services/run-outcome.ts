@@ -8,9 +8,11 @@ import type { FetchWarningKind } from './news-fetcher.service';
  * **`PipelineLog.status` é binário e o pipeline não é.** Cinco etapas engolem
  * a própria falha de propósito para o run terminar (7.5, 8, 8.5, 9 e 9.5 —
  * `WARN`, e o run segue `SUCCESS`), o fallback para o Groq é um `WARN` da
- * etapa 6 e a colheita degradada é um `WARN` da etapa 1. Um run pode ter
- * **sete coisas erradas** e reportar `SUCCESS`; o `SUCCESS_DEGRADED` é o valor
- * que carrega toda essa informação, e `degradedBy` diz qual etapa.
+ * etapa 6, a colheita degradada é um `WARN` da etapa 1, a saúde por fonte que
+ * não gravou é um `WARN` da 4, e os avisos dos dois portões (Fase 9) são
+ * `WARN` da 5.5 e da 6.5. Um run pode ter **dez coisas erradas** e reportar
+ * `SUCCESS`; o `SUCCESS_DEGRADED` é o valor que carrega toda essa informação,
+ * e `degradedBy` diz qual etapa.
  *
  * **Função pura, sem coluna e sem banco — de propósito.** O desfecho é lido dos
  * eventos que o run já grava; uma coluna pediria migration e divergiria dos

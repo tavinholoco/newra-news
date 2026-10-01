@@ -14,6 +14,7 @@ import {
   tickUptime,
   uptimeCreditedUntil,
 } from '../../src/services/uptime.service';
+import { baseLogger } from '../../src/utils/logger';
 
 /**
  * **A guarda das horas do plano — §3.1 e §4.3 do plano de observabilidade, 5b.**
@@ -167,6 +168,27 @@ describe('§3.1 — o desligamento', () => {
     await flushUptimeBeforeClose(50, new Date('2026-09-12T10:05:00.000Z'));
 
     expect(Date.now() - startedAt).toBeLessThan(1_000);
+  });
+
+  it('a desistência diz quantos segundos ficaram sem crédito', async () => {
+    // O `catch` do tique nunca roda depois do `process.exit` do `server.ts`
+    // (ensaio de aceitação, A3.05): a linha tem de sair antes de devolver.
+    startUptimeClock(new Date('2026-09-12T10:00:00.000Z'));
+    vi.mocked(prisma.dailyUptime.upsert).mockImplementationOnce(
+      () => new Promise(() => undefined) as never,
+    );
+    const warn = vi.spyOn(baseLogger, 'warn');
+
+    try {
+      await flushUptimeBeforeClose(50, new Date('2026-09-12T10:04:10.000Z'));
+
+      expect(warn).toHaveBeenCalledWith(
+        { uncreditedSeconds: 250, timeoutMs: 50 },
+        expect.stringContaining('shutdown credit gave up'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

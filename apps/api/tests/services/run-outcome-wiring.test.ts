@@ -90,9 +90,16 @@ describe('todo WARN de etapa dentro do run entra em `degradedBy`', () => {
   const calls = collectWarnCalls();
 
   it('finds the WARN emissions at all — a parser that finds nothing would pass everything', () => {
-    // Nove dentro do run (1, 4, 6, 7.5, 8, 8.5, 9 e duas da 9.5 — a Fase 11
-    // pôs a 4 e a Fase 6 as duas da 9.5) e uma no `catch`.
-    expect(calls.length).toBeGreaterThanOrEqual(10);
+    // Doze dentro do run (1, 4, 5.5, 6, duas da 6.5, 7.5, 8, 8.5, 9 e duas da
+    // 9.5 — a Fase 11 pôs a 4, a Fase 6 as duas da 9.5, e a Fase 9 a 5.5 e
+    // as duas da 6.5) e uma no `catch`.
+    expect(calls.length).toBeGreaterThanOrEqual(13);
+  });
+
+  it('sees the two gate stages of Phase 9 — the case this guard was written for', () => {
+    const stages = calls.map((call) => call.stageText);
+    expect(stages).toContain('5.5');
+    expect(stages).toContain('6.5');
   });
 
   it.each(calls.map((call) => [call.stageText, call.line, call] as const))(
@@ -100,9 +107,12 @@ describe('todo WARN de etapa dentro do run entra em `degradedBy`', () => {
     (stageText, _line, call) => {
       // A exceção, e o motivo: o `WARN` do `catch` final escreve o erro
       // primário de um run que vai sair `FAILED` — não há resumo da etapa 9
-      // para carregar `degradedBy`, e a etapa é `currentStage`, não um
-      // literal.
-      if (stageText === 'currentStage') return;
+      // para carregar `degradedBy`, e a etapa é uma variável, não um literal
+      // (`primaryStage` desde a Fase 9: a do portão de saída quando foi ele
+      // que bloqueou o primário, 6 no resto). **Nomeada, e não "qualquer
+      // variável"**: um `WARN` dentro do run com etapa em variável seria uma
+      // forma nova, e tem de reprovar aqui até alguém escrever o motivo.
+      if (stageText === 'primaryStage') return;
 
       // A etapa 1 empurra sob condição (`if (degrading > 0) degradedBy.push(1)`,
       // sem chaves): o `if` não abre bloco, então o `push` continua sendo do

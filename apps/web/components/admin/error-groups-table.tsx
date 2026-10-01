@@ -146,8 +146,15 @@ export function ErrorGroupsTable({ groups, categories }: ErrorGroupsTableProps) 
         </div>
       </div>
 
-      <div className='overflow-x-auto rounded-lg border border-border'>
-        <table className='w-full text-sm'>
+      {/**
+        * `relative` no contêiner que rola: os `sr-only` das células são
+        * `position: absolute`, e sem um ancestral posicionado o bloco de
+        * contenção deles é o documento — a 375 px eles pousavam em x = 853,
+        * fora da tabela, e a página inteira ganhava rolagem horizontal.
+        * Achado pela captura da Fase 9, com a janela de 24 h populada.
+        */}
+      <div className='relative overflow-x-auto rounded-lg border border-border'>
+        <table className='w-full text-sm' aria-label={t('security.errors.tableTitle')}>
           <thead className='bg-surface-raised text-xs text-muted-foreground'>
             <tr>
               <th scope='col' className='px-3 py-2 text-left font-medium uppercase tracking-wider'>

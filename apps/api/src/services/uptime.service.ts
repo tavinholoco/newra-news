@@ -168,22 +168,42 @@ export async function tickUptime(now: Date = new Date()): Promise<void> {
  * do `ErrorEvent`, pelo mesmo motivo: a hora em que o processo está sendo
  * derrubado é uma hora em que o banco pode ser o suspeito, e o `app.close()`
  * não pode ficar preso nele.
+ *
+ * **E, como o do `ErrorEvent`, a desistência escreve a própria linha**: o
+ * `catch` do `tickUptime` nunca roda depois do `process.exit` do `server.ts`
+ * (ensaio de aceitação, A3.05). São os segundos que o `DailyUptime` não vai
+ * ter — a diferença entre o arco da `/admin` e o Billing do Render.
  */
 export async function flushUptimeBeforeClose(
   timeoutMs = ERROR_EVENT_CLOSE_TIMEOUT_MS,
   now: Date = new Date(),
 ): Promise<void> {
+  const uncreditedSeconds =
+    creditedUntil === undefined
+      ? 0
+      : Math.max(0, Math.floor((now.getTime() - creditedUntil.getTime()) / 1000));
+
   let timer: NodeJS.Timeout | undefined;
+  let timedOut = false;
 
   await Promise.race([
     tickUptime(now),
     new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
+      timer = setTimeout(() => {
+        timedOut = true;
+        resolve();
+      }, timeoutMs);
       timer.unref();
     }),
   ]);
 
   if (timer !== undefined) clearTimeout(timer);
+  if (timedOut) {
+    baseLogger.warn(
+      { uncreditedSeconds, timeoutMs },
+      '[uptime] shutdown credit gave up — these seconds are lost',
+    );
+  }
 }
 
 /**

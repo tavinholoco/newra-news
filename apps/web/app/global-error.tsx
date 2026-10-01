@@ -1,9 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Inter, Newsreader } from 'next/font/google';
-import '@/styles/globals.css';
-import { cn } from '@/lib/utils';
 import { applyStoredTheme } from '@/lib/theme';
 import { DEFAULT_LOCALE, localeFromPathname, type Locale } from '@/lib/i18n';
 import { ErrorState } from '@/components/errors/error-state';
@@ -19,8 +16,22 @@ import en from '@/messages/en.json';
  * proibido porque o boundary cairia fora do `<html>`; o `global-error.tsx`
  * renderiza o próprio `<html>`/`<body>`, e é por isso que existe. **O
  * modelo é o `app/not-found.tsx`**, que já pagou a lição: renderizando fora
- * de todo layout, precisa do próprio `globals.css` e das próprias fontes —
- * a ausência disso mandou uma página em Times New Roman para produção.
+ * de todo layout, precisa do próprio estilo — a ausência disso mandou uma
+ * página em Times New Roman para produção.
+ *
+ * **O estilo daqui é inline, e não o `globals.css`.** A primeira versão
+ * importava o `globals.css` e as fontes do `next/font`, como o `not-found`, e
+ * a guarda conferia o `import`. Em build de produção a tela saía **sem folha
+ * de estilo nenhuma** — Times New Roman, botão do navegador, fundo branco com
+ * a classe `dark` aplicada (ensaio de aceitação, Fase 12 do plano, A5.12): o
+ * Next prende o chunk do CSS ao layout raiz, que este boundary **substitui**,
+ * e o `import` repetido é deduplicado — a mesma causa que o comentário da
+ * `state-matrix` registra para a 404. O `not-found` funciona porque renderiza
+ * **dentro** do layout raiz; este, não. Daí o `<style>` próprio, por
+ * elemento (as utilities da casca não têm CSS aqui), com os valores
+ * **resolvidos** dos tokens em {@link THEME} — e a guarda os compara com o
+ * `styles/tokens.css`, para esta tela não virar um segundo lugar onde a cor
+ * é decidida. Fonte do sistema: a do `next/font` também não carregava.
  *
  * **Duas coisas do modelo mudam de lado, e as duas são armadilhas do plano:**
  *
@@ -47,14 +58,47 @@ import en from '@/messages/en.json';
  * o `digest` e reporta uma vez por montagem pela porta anônima da 7c.
  */
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
-const newsreader = Newsreader({
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-  fallback: ['Georgia', 'Times New Roman', 'serif'],
-  adjustFontFallback: false,
-});
+/**
+ * Os tokens semânticos da camada 2 que esta tela usa, **resolvidos** a partir
+ * do `styles/tokens.css` (`--bg`, `--ink`, `--ink-secondary`, `--ink-muted`,
+ * `--brand-solid`, `--on-brand`), no claro e no `.dark`. A guarda em
+ * `tests/lib/state-matrix.test.ts` resolve os mesmos nomes do arquivo e cobra
+ * a igualdade.
+ */
+const THEME = {
+  light: {
+    bg: '#faf9f7',
+    ink: '#111315',
+    inkSecondary: '#34383d',
+    inkMuted: '#697178',
+    brandSolid: '#a83e1c',
+    onBrand: '#ffffff',
+  },
+  dark: {
+    bg: '#0f1113',
+    ink: '#f3f1ee',
+    inkSecondary: '#c4cad0',
+    inkMuted: '#a8afb5',
+    brandSolid: '#a83e1c',
+    onBrand: '#ffffff',
+  },
+} as const;
+
+const { light, dark } = THEME;
+const GLOBAL_ERROR_CSS = [
+  `html{color-scheme:light}html.dark{color-scheme:dark}`,
+  `body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:${light.bg};color:${light.ink};font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased}`,
+  `html.dark body{background:${dark.bg};color:${dark.ink}}`,
+  `main{flex:1;display:flex;align-items:center;justify-content:center;padding:3rem 1rem}`,
+  `main>div{display:flex;flex-direction:column;align-items:center;gap:1rem;text-align:center}`,
+  `h1{margin:0;font-family:Georgia,'Times New Roman',serif;font-size:1.75rem;font-weight:700}`,
+  `p{margin:0;max-width:68ch;line-height:1.5;color:${light.inkSecondary}}html.dark p{color:${dark.inkSecondary}}`,
+  `p:last-child{font-size:.8125rem;color:${light.inkMuted}}html.dark p:last-child{color:${dark.inkMuted}}`,
+  `code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;user-select:all}`,
+  `button{font:inherit;font-weight:500;background:${light.brandSolid};color:${light.onBrand};border:0;border-radius:8px;padding:.5rem 1.25rem;cursor:pointer}`,
+  `html.dark button{background:${dark.brandSolid};color:${dark.onBrand}}`,
+  `button:focus-visible{outline:2px solid currentColor;outline-offset:2px}`,
+].join('');
 
 const MESSAGES: Record<Locale, typeof ptBR> = { 'pt-BR': ptBR, en };
 
@@ -75,13 +119,12 @@ export default function GlobalError({
   const messages = MESSAGES[locale];
 
   return (
-    <html
-      lang={locale}
-      suppressHydrationWarning
-      className={cn(inter.variable, newsreader.variable)}
-    >
-      <body className={cn('flex min-h-screen flex-col bg-bg font-sans antialiased', inter.className)}>
-        <main className='flex flex-1 flex-col justify-center'>
+    <html lang={locale} suppressHydrationWarning>
+      <head>
+        <style>{GLOBAL_ERROR_CSS}</style>
+      </head>
+      <body>
+        <main>
           <ErrorState
             title={messages.errors.genericTitle}
             description={messages.errors.genericDesc}

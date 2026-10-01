@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   ApiError,
@@ -155,10 +155,12 @@ describe('a guarda: nenhum `catch` volta a afirmar o pessimista', () => {
   }
 
   function collect(dir: string, out: Array<{ file: string; source: string }> = []) {
-    for (const entry of readdirSync(dir)) {
-      const full = path.join(dir, entry);
-      if (statSync(full).isDirectory()) collect(full, out);
-      else if (/\.tsx?$/.test(entry)) {
+    // `withFileTypes`: o tipo vem da listagem, e o caminho só é tocado no
+    // `readFileSync` — sem `statSync` no meio (o `js/file-system-race` do CodeQL).
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) collect(full, out);
+      else if (/\.tsx?$/.test(entry.name)) {
         out.push({
           file: path.relative(WEB_ROOT, full).replace(/\\/g, '/'),
           source: stripComments(readFileSync(full, 'utf8')),
@@ -204,5 +206,44 @@ describe('a guarda: nenhum `catch` volta a afirmar o pessimista', () => {
 
     expect(home).toContain('nullUnlessPublishing(getHome())');
     expect(home).not.toMatch(/getHome\(\)\s*\.catch/);
+  });
+
+  /**
+   * **O alcance era `app/[locale]`, e os dois sitemaps moram fora dele.**
+   *
+   * `app/sitemap.ts` e `app/news-sitemap.xml/route.ts` têm `revalidate` — são
+   * ISR como as páginas — e tinham exatamente o `.catch(() => [])` que esta
+   * guarda proíbe, sem que ela os alcançasse. Custou em produção: com a API
+   * suspensa (19/09/2026), a revalidação regenerou o sitemap de 386 para 10
+   * URLs e o news sitemap de 612 para zero, com 200 — e a ISR gravou os dois.
+   * O que a ISR guarda define o alcance, não o diretório.
+   */
+  const SUPERFICIE_ISR = collect(path.resolve(WEB_ROOT, 'app')).filter(({ source }) =>
+    /export const revalidate\s*=/.test(source),
+  );
+
+  it('a superfície da ISR passa das páginas de idioma — os dois sitemaps estão nela', () => {
+    const files = SUPERFICIE_ISR.map(({ file }) => file);
+
+    expect(files).toContain('app/sitemap.ts');
+    expect(files).toContain('app/news-sitemap.xml/route.ts');
+    expect(files.length).toBeGreaterThanOrEqual(7);
+  });
+
+  it('nada que a ISR guarda responde a uma falha com valor vazio', () => {
+    const pessimistas = SUPERFICIE_ISR.filter(({ source }) =>
+      /\.catch\(\s*\(\)\s*=>\s*(null|\{|\[)/.test(source),
+    ).map(({ file }) => file);
+
+    expect(pessimistas).toEqual([]);
+  });
+
+  it('os dois sitemaps relançam onde o resultado é publicado', () => {
+    // Pela mesma peça da Home: 5xx na revalidação é falha, e falha mantém o
+    // documento anterior; 200 vazio é sucesso, e substitui.
+    for (const file of ['app/sitemap.ts', 'app/news-sitemap.xml/route.ts']) {
+      const source = readFileSync(path.resolve(WEB_ROOT, file), 'utf8');
+      expect(source, file).toContain('nullUnlessPublishing(');
+    }
   });
 });

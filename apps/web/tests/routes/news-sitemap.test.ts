@@ -4,10 +4,21 @@ import { SITE_URL } from '@/lib/seo';
 
 const getNewsMock = vi.fn();
 const getArticlesMock = vi.fn();
+const logServerErrorMock = vi.fn();
 
-vi.mock('@/lib/api', () => ({
-  getNews: (...args: unknown[]) => getNewsMock(...args),
-  getArticles: (...args: unknown[]) => getArticlesMock(...args),
+vi.mock('@/lib/api', async (importOriginal) => {
+  // `nullUnlessPublishing` é o real de propósito: o que se mede abaixo é a
+  // costura entre a rota e a regra "relança onde publica", não uma cópia dela.
+  const actual = await importOriginal<typeof import('@/lib/api')>();
+  return {
+    nullUnlessPublishing: actual.nullUnlessPublishing,
+    getNews: (...args: unknown[]) => getNewsMock(...args),
+    getArticles: (...args: unknown[]) => getArticlesMock(...args),
+  };
+});
+
+vi.mock('@/lib/log-server-error', () => ({
+  logServerError: (...args: unknown[]) => logServerErrorMock(...args),
 }));
 
 const HOJE = '2026-08-22T09:00:00.000Z';
@@ -25,12 +36,14 @@ function newsPage(
 beforeEach(() => {
   getNewsMock.mockReset();
   getArticlesMock.mockReset();
+  logServerErrorMock.mockReset();
   getNewsMock.mockResolvedValue(newsPage([]));
   getArticlesMock.mockResolvedValue(newsPage([]));
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe('GET /news-sitemap.xml', () => {
@@ -131,19 +144,52 @@ describe('GET /news-sitemap.xml', () => {
     expect(body).not.toContain('2026-08-15');
   });
 
-  it('API fora do ar devolve documento válido e vazio, nunca 500', async () => {
-    // Sitemap que responde erro sai do rodízio de leitura do buscador; um
-    // vazio só diz "nada novo agora".
-    getNewsMock.mockRejectedValue(new Error('API down'));
-    getArticlesMock.mockRejectedValue(new Error('API down'));
+  /**
+   * **A falha da API sobe onde o resultado é publicado.** Até 19/09/2026 esta
+   * suíte fixava o contrário ("documento válido e vazio, nunca 500"), e foi
+   * medido o que isso custava: com a API suspensa, a revalidação da ISR
+   * regenerou o sitemap de 612 URLs para **zero**, com 200 — e a Vercel
+   * gravou, porque 200 é revalidação bem-sucedida. 5xx é falha, e falha
+   * mantém o documento anterior no ar. O CI, que constrói sem API e não
+   * publica nada, continua recebendo o documento vazio.
+   */
+  describe('API fora do ar', () => {
+    beforeEach(() => {
+      getNewsMock.mockRejectedValue(new Error('API down'));
+      getArticlesMock.mockRejectedValue(new Error('API down'));
+    });
 
-    const res = await GET();
-    const body = await res.text();
+    it('relança onde o resultado é publicado — a ISR mantém o sitemap anterior', async () => {
+      vi.stubEnv('VERCEL', '1');
 
-    expect(res.status).toBe(200);
-    expect(body).toContain('<urlset');
-    expect(body).toContain('</urlset>');
-    expect(body).not.toContain('<url>');
+      await expect(GET()).rejects.toThrow('API down');
+    });
+
+    it('e a causa sobrevive na linha de log, uma por coleção', async () => {
+      vi.stubEnv('VERCEL', '1');
+
+      await GET().catch(() => undefined);
+
+      const collections = logServerErrorMock.mock.calls
+        .map(([scope, , context]) => [scope, (context as { collection: string }).collection])
+        .sort();
+      expect(collections).toEqual([
+        ['bff.news-sitemap', 'briefings'],
+        ['bff.news-sitemap', 'news'],
+      ]);
+    });
+
+    it('no build do CI, que não publica, sai um documento válido e vazio', async () => {
+      vi.stubEnv('VERCEL', '');
+
+      const res = await GET();
+      const body = await res.text();
+
+      expect(res.status).toBe(200);
+      expect(body).toContain('<urlset');
+      expect(body).toContain('</urlset>');
+      expect(body).not.toContain('<url>');
+    });
   });
 
   it('pagina até o teto de 1.000 URLs do formato', async () => {
