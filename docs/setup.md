@@ -484,10 +484,13 @@ perto de 24 h:   a API não dorme — há outro despertador
 
 **Todo deploy acorda a API uma vez, de propósito.** O prerender do `next
 build` na Vercel chama a API; contra a instância hibernada, a rajada de ~20
-requisições simultâneas voltou `429` por minutos **sem acordá-la** (medido em
-01/10). Por isso o `build` do web roda `scripts/warm-api.mjs` antes — uma
-requisição por vez, até 4 × 30 s, nunca reprova — e o `fetchApi` do servidor
-repete 429/503. Se um deploy de produção cair com 429 no prerender, a Vercel
+requisições simultâneas voltou `429` por minutos **sem acordá-la**, e até uma
+requisição isolada da máquina de build volta `429` em 0,1 s (medido em 01/10):
+o Render não acorda a instância free para o IP de build da Vercel. Por isso o
+`build` do web roda `scripts/warm-api.mjs` antes — ele acorda a API **pelo
+site em produção** (`POST /api/events` com lote vazio, numa função da Vercel,
+que acorda como o cron) e sonda direto até 120 s; nunca reprova — e o
+`fetchApi` do servidor repete 429/503. Se um deploy de produção cair com 429 no prerender, a Vercel
 mantém o site anterior no ar: confira o `[warm-api]` no topo do log.
 
 ### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)

@@ -718,8 +718,12 @@ Regras que não são óbvias no código:
   repete 429/503.** Com a API dormindo de propósito (as horas do Render), a
   rajada de ~20 requisições do prerender contra a instância hibernada voltava
   `429` por minutos sem acordá-la, e o deploy caía (01/10/2026, três vezes no
-  #255). O `build` roda `scripts/warm-api.mjs` antes do `next build` — só onde
-  `VERCEL` existe, uma requisição por vez, nunca reprova — e o `fetchApi`
+  #255). E até a requisição **isolada** da máquina de build volta 429 em
+  0,1 s: o Render não acorda a instância free para o IP de build da Vercel.
+  O `build` roda `scripts/warm-api.mjs` antes do `next build` — só onde
+  `VERCEL` existe, nunca reprova —, que acorda a API **pelo site em
+  produção** (`POST /api/events` com lote vazio, numa função, que acorda
+  como o cron) e sonda direto até ela responder; e o `fetchApi`
   repete 429/503 **só no servidor** (`API_RETRY_*` em `lib/timeouts.ts`; no
   navegador quem repete é o TanStack Query). Guarda em
   `tests/lib/api-retry.test.ts`, que roda em ambiente `node` de propósito.

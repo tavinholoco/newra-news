@@ -3798,10 +3798,16 @@ Não-objetivos declarados como número, nunca como item de lista.
     isolado respondeu 200 com `uptime: 13,8` — a API **dormia** o build
     inteiro. O nosso limitador (100/min por IP, `x-ratelimit-*`) não era: do
     IP do dono ele respondia 99 e 98 restantes. Com a API dormindo de
-    propósito, todo deploy pega o caso. **Acorde com uma requisição por vez
-    antes da rajada** (`apps/web/scripts/warm-api.mjs`, no `build` do web,
-    só na Vercel, nunca reprova) e mantenha a repetição de 429/503 no
-    `fetchApi` do servidor para o resto. Diagnóstico de 429 vindo de um
+    propósito, todo deploy pega o caso. **E não é a rajada: o primeiro
+    build a frio depois do `warm-api` (23:39 de 01/10) mostrou a requisição
+    isolada da máquina de build levando `429` em 0,1 s, quatro vezes** — o
+    Render recusa acordar a instância free para o IP de build da Vercel,
+    respondendo de fora da aplicação. A **função** da Vercel a acorda (é o
+    que o cron faz todo dia), então o `apps/web/scripts/warm-api.mjs` (no
+    `build` do web, só na Vercel, nunca reprova) acorda **pelo site em
+    produção** — `POST /api/events` com lote vazio, que a função repassa e a
+    API recusa com 400 depois de acordar — e sonda direto até ela responder;
+    a repetição de 429/503 no `fetchApi` do servidor cobre o resto. Diagnóstico de 429 vindo de um
     serviço hibernável: compare o `uptime` do `/api/health` com a hora da
     falha antes de culpar o limitador.
 
@@ -4583,12 +4589,15 @@ pelos testes da própria noite.
 **O que isto deixa para a fase — três itens novos, sem PR próprio ainda:**
 
 - **13.8 — A prova a frio do `warm-api`.** O build de produção do #256
-  rodou com a API acordada (`[warm-api] tentativa 1: 200 em 0.1 s`); a
-  primeira linha que vale é a de um deploy com a API dormindo — `tentativa
-  1` levando dezenas de segundos e nenhum 429 no prerender. Se vier 429
-  mesmo assim, o próximo passo é limitar a concorrência do prerender
-  (`experimental.cpus`/`workerThreads`) ou trocar a espera por `ok` por uma
-  espera pelo `uptime` crescer.
+  rodou com a API acordada (`[warm-api] tentativa 1: 200 em 0.1 s`). O
+  primeiro build a frio (o preview do #257, 23:39) **reprovou**: a sonda
+  isolada também levou 429 em 0,1 s (armadilha 45), e a primeira versão do
+  script não tinha outro caminho. A segunda acorda pelo site em produção e
+  espera até 120 s; **a prova que vale é o próximo build a frio** — no log,
+  `acordada pelo site … 400`, depois `sonda direta: 200`, e nenhum 429 no
+  prerender. Se ainda reprovar, a saída deixa de ser acordar e passa a ser
+  o build não depender da API (gerar as páginas da API no primeiro acesso,
+  não no build).
 - **13.9 — A série de horas da API depois do corte.** Uma semana de
   `DailyUptime` (o arco da `/admin`) contra a faixa acima. **Gatilho:** dois
   dias seguintes acima de 10 h sem deploy nem incidente — aí o suspeito é

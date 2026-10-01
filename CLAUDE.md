@@ -367,8 +367,9 @@ a suíte de unidade, que roda sem rede.
   segundo derrubou o deploy da Vercel (o Hobby limita crons). A porta dos
   crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`), o
   `fetchApi` do servidor repete 429/503, e o `scripts/warm-api.mjs` acorda a
-  API antes do `next build` — a rajada do prerender contra a instância
-  hibernada voltava 429 sem acordá-la. **Esperado: 1–4 h/dia para a API**
+  API antes do `next build` **pelo site em produção** — o Render recusa (429
+  em 0,1 s) acordar a instância free para o IP de build da Vercel, mesmo numa
+  requisição isolada; a função da Vercel acorda. A prova a frio é o 13.8. **Esperado: 1–4 h/dia para a API**
   (tabela no `docs/setup.md` §9.0); **só o painel confirma** — Render →
   Billing → horas por serviço, a partir de 02/10.
   **Próxima sessão: a Fase 13 do plano de observabilidade** (§23, agora na
