@@ -1735,7 +1735,44 @@ caíram junto.
     preciso; o arquivo da credencial foi apagado logo depois. **Para a 2.ª
     janela, então, a conferência do `dry` sobre a 1.ª deve dizer 0 no
     futuro**, e a execução é `<2026-09-25T21:30:00.000Z> <deploy>`.
-- [ ] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
+- [!] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
+  - **Lighthouse, duas rodadas — e a primeira reprovou.** `gh workflow run
+    "Lighthouse CI" --ref main` às 18:09:47, **três minutos depois do
+    deploy** (run 36904768835): gate vermelho, `categories.performance …
+    found: 0.86`. Medianas calculadas dos `lhr-*.json` (a tabela impressa é a
+    execução representativa — mostrava `/pt-BR` em **71**, que era só a
+    primeira das três, `[71, 94, 95]`): **`/pt-BR` 94 · `/news` 86 `[85, 86,
+    90]`** · `/article` 96 · `/about` 95 · `/en` 93 · `/news/[id]` 95 ·
+    `/article/[date]` 95. O audit da `/news`: TBT 370–390 ms (as outras
+    rotas, 80–120), quase todo no **`6160-ce5cabbc630d5d81.js`** — o
+    runtime do App Router (redutores do roteador, cliente do RSC) —, e
+    **é o mesmo arquivo, com o mesmo hash, da promoção #215**, quando a
+    `/news` passou com 91 (`[90, 93, 91]`); o `news` e o `b4d6b93a…` também
+    iguais. Nenhum JS mudou. O que mudou foi o ambiente: as imagens voltaram
+    (em 19/09 eram 402 — "Other" no thread principal 629 ms contra 409) e a
+    medição saiu com tudo frio. **Uma** segunda rodada às 18:20 (run
+    36906058317, verde): **95 · 91 `[92, 91, 88]` · 96 · 96 · 95 · 96 ·
+    95**, e **acessibilidade, best practices e SEO em 100 nas sete** —
+    best practices tinha ficado em 96 nas rotas com foto em 19/09 pelos
+    `errors-in-console: 402`: **a cota de imagem voltou, medida por outro
+    caminho**. A `/news` raspando o piso não é novidade (§10.6 do plano da
+    V2, desde 24/08: `[89, 90, 81]`; 14/09: 89 no agendado), mas não tinha
+    gatilho numérico — **ganhou linha no §16** do plano de observabilidade.
+  - **Baseline: 51/51, e a ferramenta tinha um defeito.** A primeira
+    recaptura (`BASE_URL` de produção, `WIDTHS=375,768,1440`, `jpeg`,
+    `CHROMIUM_PATH` no headless 1234) deu 51/51 em HTTP 200 — e gravou os
+    destaques de Tecnologia, Política, Economia e Esportes da Home como
+    **retângulos brancos**: `loading="lazy"` abaixo da dobra nunca é pedido
+    antes da foto de página inteira. No navegador do painel a mesma imagem
+    carregava (`complete: true`, 582 px naturais). A `home--1440.jpg` é a
+    imagem do README. **Corrigido no PR D** (`capture-visual-baseline.mjs`):
+    toda `lazy` vira `eager` antes da foto, e a captura **reprova** quando
+    sobra imagem incompleta depois de 20 s — a forma do `admin:capture`
+    medindo a largura do documento. Vista reprovando por uma sonda
+    descartável: sem a troca, **10 de 28** imagens da Home incompletas; com
+    ela, 0. Recaptura: **51/51, 42 telas mudaram** (a anterior era de
+    24/08 — o card de texto, o briefing renderizado, as abas da conta e as
+    fotos de volta).
 - [ ] **A7.14 — O primeiro run das 11:00 UTC depois da volta.** Espera-se
   **`baseline: 'insufficient'`** no evento 5.5 nos primeiros dias — a suspensão
   apagou a série de `DailyMetric` desde 19/09, e o portão de volume não opina
@@ -1746,7 +1783,30 @@ caíram junto.
 - [ ] **A7.15 — A leitura com a sessão ADMIN do dono, no site publicado.** O
   dono entra (o agente nunca digita credencial); o agente confere o que o A7.05
   não alcançava: o run do A7.14 nas três abas, a `DailyUptime` voltando a
-  crescer, as sondas do smoke novo na tabela de falhas. · P
+  crescer, ~~as sondas do smoke novo na tabela de falhas~~. · P
+  - **A expectativa riscada estava errada, e o Smoke de 01/10 provou.** Ele
+    é desenhado para **não** escrever no `ErrorEvent` de produção: as treze
+    rotas protegidas que ele sonda (nove de admin, quatro de conta) recusam
+    com 401 **no BFF**, sem sessão, antes de chegar à API; o `POST /api/errors/client` vai com **corpo vazio** de propósito
+    (`e2e/authorization.spec.ts`: "um relato válido gravaria uma falha falsa
+    na tabela de produção a cada push na `main`"). Lido às 18:21 UTC, três
+    minutos depois do Smoke (`31 passed`, 18:15): as **mesmas três linhas**
+    de antes — as duas invariantes e a coleta degradada do run das 11:31.
+    Zero linha do Smoke é o comportamento certo.
+  - **Leitura de antes do primeiro run novo (01/10, com a sessão do dono,
+    código antigo e depois o novo):** o run de 01/10 é `SUCCESS_DEGRADED`
+    pela etapa 1 (`feed-failed`/`fetch failed` em Veja Saúde e Drauzio,
+    1,8 s cada; 11 fontes OK, `kept` 509); a 9.5 com 12 checadas e 2
+    violadas, as duas esperadas — `briefing.one_per_day` (1 de 7, a
+    suspensão) e `pipeline.no_stale_running` (o run de 03/09 ainda
+    `RUNNING`: o código antigo não o enterrava, A7.05); o arco **7 h de
+    750 h** às 17:15 UTC, com "o ritmo do mês só é projetado com 24 h de
+    amostra". Depois do deploy, o painel **"Portões" no ar** — e ele
+    mostra **100 % de aprovação sobre 1 run**, que é o de 01/10, **que não
+    passou por portão nenhum** (código antigo): a taxa conta como aprovado
+    todo run fechado sem bloqueio. É transitório — o run sai da janela de 7
+    dias em 08/10, e todo run daqui em diante passa pelos dois —, e não
+    pede correção.
 - [ ] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
   com `revalidate` (`/pt-BR/news` ou `/pt-BR/article`, sem run do pipeline
   entre elas) com payload RSC idêntico; os dois sitemaps com contagem estável;
