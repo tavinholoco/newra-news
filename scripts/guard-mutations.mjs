@@ -846,6 +846,20 @@ const MUTATIONS = [
     dropLine: '  app.setValidatorCompiler(validatorCompiler);',
     expect: 'validation goes through the zod compiler',
   },
+  {
+    id: 'A1.59',
+    what: 'o `prefetch` volta a engolir a falha onde o resultado é publicado (A7.16)',
+    pkg: 'web',
+    test: 'tests/lib/api-failure.test.ts',
+    file: 'apps/web/lib/api.ts',
+    edits: [
+      {
+        find: lines('    if (process.env.VERCEL) throw error;', '    return undefined;'),
+        replace: '    return undefined;',
+      },
+    ],
+    expect: 'relança onde o resultado é publicado — a revalidação mantém a última página boa',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

@@ -94,11 +94,29 @@ describe('nullIfNotFound', () => {
 });
 
 describe('prefetch', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('continua falhando em `undefined`, nunca em valor vazio', async () => {
     // A regra que a `/news` ensinou em produção. Está aqui de novo porque o
     // `ApiError` mexeu no que é lançado, e a promessa do `prefetch` é sobre o
-    // que ele **devolve**.
+    // que ele **devolve** — fora de onde o resultado é publicado.
+    vi.stubEnv('VERCEL', '');
+
     await expect(prefetch(Promise.reject(new ApiError('x', null)))).resolves.toBeUndefined();
+    await expect(prefetch(Promise.resolve({ data: [] }))).resolves.toEqual({ data: [] });
+  });
+
+  it('relança onde o resultado é publicado — a revalidação mantém a última página boa', async () => {
+    // Achado de 01/10/2026 (Fase 12, A7.16): com `undefined`, a revalidação da
+    // `/news` com a API dormindo gravou a listagem com **zero** matérias por
+    // uma hora. Relançando, a ISR mantém a página anterior.
+    vi.stubEnv('VERCEL', '1');
+
+    await expect(prefetch(Promise.reject(new ApiError('sem resposta', null)))).rejects.toBeInstanceOf(
+      ApiError,
+    );
     await expect(prefetch(Promise.resolve({ data: [] }))).resolves.toEqual({ data: [] });
   });
 });
