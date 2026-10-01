@@ -4578,6 +4578,13 @@ precisa, de graça. **Fecha a linha "Alerta ativo" do §16.**
 Nos dois casos o `planPace` passa a projetar contra o mesmo denominador.
 Guarda: o denominador lido de um lugar só.
 
+> **Decidido pelo dono em 01/10/2026: (b).** O `NetsheetEngine` fica no
+> workspace — consome poucas horas, nas palavras dele —, e a intenção é
+> **ver o gasto das duas aplicações**, não só dividir o teto. O PR 13b
+> começa pela pergunta de onde vem o número do outro serviço (a API daqui
+> só conhece o próprio `DailyUptime`; o total do workspace está no Billing
+> do Render, que não tem CLI válida desde 19/09).
+
 **13.3 — O envelope do cron dimensionado pela acordada medida.** Com uma
 semana da série do 13.1: se alguma acordada passar de **45 s**, o aquecimento
 ganha uma terceira tentativa — e `3 × 25 + 20 = 95 s` não cabe no
