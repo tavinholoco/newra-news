@@ -1807,12 +1807,33 @@ caíram junto.
     todo run fechado sem bloqueio. É transitório — o run sai da janela de 7
     dias em 08/10, e todo run daqui em diante passa pelos dois —, e não
     pede correção.
-- [ ] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
+- [!] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
   com `revalidate` (`/pt-BR/news` ou `/pt-BR/article`, sem run do pipeline
   entre elas) com payload RSC idêntico; os dois sitemaps com contagem estável;
   e, se a API cair de novo, o documento anterior mantido (5xx na revalidação).
   **Não a `/about`**: ela não tem `revalidate`, é gerada no build e nunca
   regenera (o item 82 mediu o `now` dela como a hora do build). · P
+  - **01/10 — o `now` no ar, e a comparação achou outro defeito.** Antes da
+    promoção, o payload RSC de `/pt-BR/news` carregava
+    `"now":"$D2026-10-01T16:21:50.579Z"`, a hora da regeneração; às 18:09,
+    depois do deploy, `"now":"$D1970-01-01T00:00:00.000Z"` em `/news` e em
+    `/article` — o `STATIC_NOW`. Os sitemaps: 364 e 402 `<loc>` às 18:09 e
+    às 19:12 (o news sitemap é janela de 48 h; 403 → 402 às 16:21 é ela
+    andando). **A comparação byte a byte** (amostra 1: o `PRERENDER` do
+    build às 18:09; amostra 2: a primeira regeneração, `HIT` com `age` 19
+    às 19:12:19) **deu diferente, e não pelo `now`**: `/news` foi de 147.237
+    para **97.331 bytes, com zero `sourceUrl` e sem `total`** — a
+    regeneração gravou a listagem **sem nenhuma matéria**; `/article`, de
+    180.291 para 89.259. Causa: a revalidação das 19:11:58 encontrou a API
+    **dormindo** — a sonda das 19:13:14 levou **52,6 s** e achou o processo
+    com 11 s de vida —, o prazo do `prefetch` é 8 s, e o `prefetch`
+    devolvia `undefined`, que a ISR guardou por uma hora. A Home e os
+    sitemaps já relançavam onde o resultado é publicado
+    (`nullUnlessPublishing`); as duas listagens, não. **Corrigido no #254**
+    (`prefetch` relança na Vercel; guarda em `api-failure.test.ts`,
+    mutação A1.59). **A linha volta a ser medida depois da promoção do
+    #254**: as duas regenerações seguidas com payload idêntico ainda não
+    foram vistas — hoje uma das amostras não tinha dado.
 
 ## M8 — Fechamento
 
