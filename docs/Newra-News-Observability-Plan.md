@@ -6,6 +6,10 @@
 > tem o estado linha a linha. **A Fase 13 (§23) foi criada em 01/10** com o que
 > o ensaio achou e não cabia nele: o alerta de fora, o denominador das horas, a
 > métrica de leitura. O estado de cada fase vive no §19.
+> **Na noite de 01/10, antes de a 13 abrir, as horas do Render foram
+> atacadas pela raiz** (#255, promovido no #256, `e477231`): a ISR deixou de
+> acordar a API a cada hora. O que mudou e o que isso deixou para a 13 estão
+> no começo da §23.
 > **Criado em:** 01/09/2026, depois das Fases 0–12 da V2.
 > **Relação com o plano da V2:** este é um plano **à parte**. O
 > `Newra-News-V2-Frontend-Redesign-Plan.md` cuida do produto que o leitor vê;
@@ -3544,7 +3548,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
 | Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
 | **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo. **Treze medições de zero até 01/10/2026, a última no push da promoção #251 — virou trabalho: Fase 13, item 13.6 (§23)** |
-| **A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou** | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
+| ~~**A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou**~~ **Fechada em 01/10/2026 (#255 → #256), antes do gatilho:** outubro abriu com 28 h no primeiro dia e não deu para esperar o `DailyUptime`. `revalidate` de um dia em tudo (sete na `/news/[id]`), invalidação no aceite **e** no fim do run (`settleRun` sondando `GET /api/jobs/:id`), news sitemap a um dia; detalhe na §23 e no item 85 do `docs/progress.md`. Texto original: | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
 | **O `htmlToText` devolve texto que pode conter `<script>` literal** | o `js/incomplete-multi-character-sanitization` do CodeQL em `providers/news/feed-text.ts` (aberto desde 05/09, o único alerta que a Fase 12 deixou aberto — A6.03): decodifica, tira tag, decodifica de novo, então `&amp;lt;script&amp;gt;` do feed volta como `<script>` **em texto**, e o conteúdo de um `<script>` aninhado sobrevive como texto. Nenhum consumidor o trata como HTML — o React escapa, a newsletter escapa antes de enviar —, então não há onde isso execute. **Gatilho: o primeiro consumidor que renderizar `News.content`/`description` como HTML** (um `dangerouslySetInnerHTML`, um e-mail com o corpo da matéria, um RSS nosso); aí o texto passa por um sanitizador de verdade, e não por outra regex. No web o gatilho tem guarda: `tests/security/browser-surface.test.ts` reprova o terceiro `dangerouslySetInnerHTML` além dos dois auditados (JSON-LD e o script do tema) |
 | **Erro de servidor nas duas páginas ISR de detalhe é a 500 estática do Next, e nenhum boundary a alcança** | medido na 7b (17/09/2026): `/news/[id]` e `/article/[date]` são render de geração (`revalidate` + `generateStaticParams` vazio), e erro na geração — do `generateMetadata` ou do corpo — é "a geração falhou", não "renderize o `error.tsx`"; a navegação de cliente cai para navegação dura no 500 do RSC. O `digest` existe no log e não chega a ninguém, e nada é reportado. **Gatilho: a primeira linha `CLIENT_ERROR` com `route` de uma das duas em que alguém precise do digest — ou a primeira medição de `/news/[id]` respondendo 500 em produção fora de uma acordada da API.** A saída é decisão sobre ISR e SEO (metadata resiliente à falha de transporte + o que o CDN cacheia de um render de erro), não sobre boundary |
 | **A `/news` raspa o piso de 90 do Lighthouse, e a primeira medição depois de um deploy reprova** | medido na promoção da Fase 12 (01/10/2026, A7.13): três minutos depois do deploy, mediana **86** `[85, 86, 90]` e o gate vermelho; onze minutos depois, **91** `[92, 91, 88]` e verde. O TBT dela (180–390 ms, contra 80–120 nas outras seis) sai do runtime do App Router (`6160-*.js`) processando o payload RSC da listagem (~147 KB), **com o mesmo hash da promoção #215** — não é regressão, é patamar: `[89, 90, 81]` em 24/08 (§10.6 do plano da V2), 89 no agendado de 14/09, 91 em 19/09. **Gatilho: duas execuções agendadas seguidas (segunda, 09:00 UTC) com a mediana da `/news` abaixo de 90**, fora de deploy recente e com a API respondendo — aí é trabalho na página (o tamanho do payload inicial: quantos itens e facetas vão no HTML; o LCP de imagem de terceiro do §10.6), não no gate. **Até lá, o ritual não mede a `/news` nos primeiros ~10 min depois de um deploy** — o primeiro número sai frio e não diz nada sobre o patamar |
@@ -3784,6 +3788,29 @@ Não-objetivos declarados como número, nunca como item de lista.
     fontes do 11c, só com linha na janela. `relative` no contêiner que rola,
     e o `admin:capture` mede `scrollWidth` contra a viewport — a foto
     `fullPage` só alargava a imagem, e ninguém media a imagem.
+
+45. **Uma rajada de requisições contra a instância free hibernada do Render
+    volta 429 — e não a acorda.** Medido em 01/10/2026 no preview do #255:
+    o `next build` da Vercel dispara ~20 requisições simultâneas no
+    prerender (Home, listagens, sitemaps, nos dois idiomas), e todas
+    voltaram `429 Too Many Requests` por **2,5 min seguidos**, mesmo com
+    três novas tentativas de 2, 4 e 8 s cada; logo depois, um `curl`
+    isolado respondeu 200 com `uptime: 13,8` — a API **dormia** o build
+    inteiro. O nosso limitador (100/min por IP, `x-ratelimit-*`) não era: do
+    IP do dono ele respondia 99 e 98 restantes. Com a API dormindo de
+    propósito, todo deploy pega o caso. **Acorde com uma requisição por vez
+    antes da rajada** (`apps/web/scripts/warm-api.mjs`, no `build` do web,
+    só na Vercel, nunca reprova) e mantenha a repetição de 429/503 no
+    `fetchApi` do servidor para o resto. Diagnóstico de 429 vindo de um
+    serviço hibernável: compare o `uptime` do `/api/health` com a hora da
+    falha antes de culpar o limitador.
+
+46. **O Hobby da Vercel recusa o deploy com um segundo cron, antes do
+    build.** Um `/api/cron/refresh` às 13:00 no `vercel.json` derrubou o
+    preview em 22 s, sem log de build; o mesmo código compilava no local.
+    Trabalho que "precisaria de um segundo cron" cabe no primeiro — aqui, a
+    espera pelo fim do run (`settleRun`), dentro do `maxDuration`. Há
+    guarda (`tests/lib/daily-revalidation.test.ts`: um cron só).
 
 ---
 
@@ -4519,6 +4546,63 @@ recrie com `./scripts/dev-bootstrap.sh`).
 > de instrumentação: é o fechamento do que o ensaio de aceitação achou **e não
 > cabia nele** (a §22 é só de teste). Abre depois de a Fase 12 fechar (M8).
 
+### Antes de a fase abrir: as horas do Render, atacadas em 01/10 (#255 → #256)
+
+**Por quê, no mesmo dia em que a fase foi escrita:** às ~19 h UTC do dia 1º o
+painel do Render marcava **28 h de 750** — mais de uma hora de instância por
+hora de relógio, o ritmo de fechar o mês perto de 1.000 h depois de setembro
+ter estourado em **753,4 h**. O 13.2 (o denominador) mede; isto cortou o
+consumo. O detalhe está no item **85** do `docs/progress.md`.
+
+**O que entrou na `main`** (promoção #256, `e477231`; Smoke E2E verde):
+
+- `revalidate` de **um dia** em todas as páginas guardadas e nos dois
+  sitemaps, **sete dias** na `/news/[id]` — é rede de segurança, com guarda
+  reprovando qualquer `revalidate` abaixo de 86.400 sob `app/`;
+- o cron invalida só o conjunto do dia (`lib/daily-revalidation.ts`, com
+  `'page'` — nunca mais `('/[locale]', 'layout')`, que levava as milhares
+  de matérias junto) **no aceite e de novo quando o run fecha em
+  `SUCCESS`** (`settleRun`, sonda de 10 em 10 s por até 150 s;
+  `maxDuration` de 90 para **240 s**). Um cron só: o segundo foi recusado
+  pelo Hobby (armadilha 46);
+- `isCronAuthorized` (`lib/cron-auth.ts`): `CRON_SECRET` ausente fecha a
+  porta, em vez de aceitar `Bearer undefined`; comparação em tempo
+  constante;
+- o `fetchApi` do servidor repete 429/503 (até 3×, 2/4/8 s ou o
+  `Retry-After`, teto de 15 s), e o `scripts/warm-api.mjs` acorda a API
+  **antes** do `next build` na Vercel (armadilha 45).
+
+**A conta esperada, para ler o Billing** (o painel do dono, por serviço):
+a API deve somar **1 a 4 h por dia** — ~0,3 h do cron, 0,25–1 h das
+regenerações do dia, 0–4 h de robôs abrindo matérias pela primeira vez,
+~0,25 h por sessão de visitante isolada. **Até ~4 h/dia é o esperado; 4–10 h
+é robô, e pede olhar os logs; perto de 24 h é que ela não dorme** — há outro
+despertador. O workspace deve fechar outubro em ~100–200 h. 01/10 fecha alto
+pelos testes da própria noite.
+
+**O que isto deixa para a fase — três itens novos, sem PR próprio ainda:**
+
+- **13.8 — A prova a frio do `warm-api`.** O build de produção do #256
+  rodou com a API acordada (`[warm-api] tentativa 1: 200 em 0.1 s`); a
+  primeira linha que vale é a de um deploy com a API dormindo — `tentativa
+  1` levando dezenas de segundos e nenhum 429 no prerender. Se vier 429
+  mesmo assim, o próximo passo é limitar a concorrência do prerender
+  (`experimental.cpus`/`workerThreads`) ou trocar a espera por `ok` por uma
+  espera pelo `uptime` crescer.
+- **13.9 — A série de horas da API depois do corte.** Uma semana de
+  `DailyUptime` (o arco da `/admin`) contra a faixa acima. **Gatilho:** dois
+  dias seguintes acima de 10 h sem deploy nem incidente — aí o suspeito é
+  robô em `/news/[id]`, e as saídas são `robots.txt` para os rastreadores de
+  IA e o Bot Protection da Vercel (painel do dono). Entra no 13.2, que já
+  mede as horas.
+- **13.10 — O aviso do Turbo sobre variáveis.** Todo build da Vercel
+  termina com "missing from turbo.json" para `BACKEND_JOB_*`, `CRON_SECRET`,
+  `NEXTAUTH_*` e `AUTH_JWT_SECRET`. Hoje é inócuo — são lidas em runtime,
+  não no `next build` —, mas o modo estrito do Turbo as **esconde** do
+  build se uma delas passar a ser lida lá. Declarar em `globalPassThroughEnv`
+  (nunca em `env`, que as poria na chave de cache) é uma linha; decidir com
+  o 13a.
+
 **Fecha:** o plano construiu três abas que dizem tudo o que aconteceu — **para
 quem as abre**. Em setembro, os três incidentes caros foram descobertos de
 fora: a suspensão do Render (19/09 → 01/10, **doze dias sem briefing**) por uma
@@ -4535,7 +4619,7 @@ leitura conta as nossas próprias ferramentas como leitores.
 |---|---|---|---|
 | 13.1 | **Nenhum alerta sai do sistema** | o §16 adiava "depois de a tela existir e de sabermos qual sinal dispara" — a única dívida sem número, e as duas condições se cumpriram. O sinal que importa é um: **o briefing do dia não existe** (cobre API suspensa, cron que não acordou a API, portão que bloqueou, pipeline que morreu) | não existe; os seis workflows são CI, CodeQL, Gitleaks, Smoke, Migrate e Lighthouse |
 | 13.2 | **O arco das horas divide pelo teto do workspace** | `RENDER_FREE_PLAN_HOURS = 750` é o denominador do `DailyUptime` **desta** API; as 750 h são do workspace, que divide com o `NetsheetEngine`. Setembro estourou em **753,4 h** no total do workspace (A7.01) — o arco teria mostrado folga | `apps/api/src/services/uptime.service.ts`, `saturation.service.ts` |
-| 13.3 | **A acordada do Render contra o envelope do cron** | acordada medida em **~52 s** (01/10, 19:13 UTC — a sonda achou o processo com 11 s); em 24/08 eram 4,9 s. O cron tem `2 × 25 s` de aquecimento + `20 s` de disparo = **70 s**, sob `maxDuration = 90`. Cabe, com 18 s de folga, numa amostra só | `apps/web/lib/timeouts.ts` (`PIPELINE_WARM_*`), `app/api/cron/daily-news/route.ts` |
+| 13.3 | **A acordada do Render contra o envelope do cron** | acordada medida em **~52 s** (01/10, 19:13 UTC — a sonda achou o processo com 11 s); em 24/08 eram 4,9 s. O cron tem `2 × 25 s` de aquecimento + `20 s` de disparo = **70 s**; desde o #255 soma-se a espera pelo fim do run (até 150 s) = **220 s**, sob `maxDuration = 240` (era 90). Cabe, com 20 s de folga, numa amostra só | `apps/web/lib/timeouts.ts` (`PIPELINE_WARM_*`), `app/api/cron/daily-news/route.ts` |
 | 13.4 | **A profundidade de leitura conta as ferramentas** | `/admin/metrics`, 01/10: `article_scroll_25/50/90` em **1.036 · 1.035 · 1.034** contra **0 aberturas**, "leitura completa 0 %". O `ScrollDepth` mede na montagem, e texto que cabe na tela "nasce 100 % lido"; o Lighthouse (21 carregamentos por rodada), a baseline, o Smoke e o `admin:capture` abrem as telas de leitura num Chromium headless. E a "abertura" é o clique no card (`article_open` com `source`) — quem chega direto não abre nada | `apps/web/components/analytics/scroll-depth.tsx`, `lib/analytics/consent.ts` |
 | 13.5 | **Uma fonte bloqueada a partir do datacenter** | Veja Saúde: `feed-failed` / `fetch failed` em **1,8 s** no run de 01/10, o mesmo padrão do Drauzio (removido no #243); daqui (IP residencial) o feed responde 200 com 47 itens. Um dia não dispara o gatilho de 3 da §15 | `apps/api/src/config/rss-sources.ts` |
 | 13.6 | **O Gitleaks varre zero commits no push de merge** | **13 medições** desde 07/09 — a última no push da própria promoção #251. O PR é sempre varrido; o buraco é a base ficar sem varredura sobre o que entra por merge | `.github/workflows/gitleaks.yml` (a action, sem intervalo explícito) |
@@ -4587,9 +4671,10 @@ Guarda: o denominador lido de um lugar só.
 
 **13.3 — O envelope do cron dimensionado pela acordada medida.** Com uma
 semana da série do 13.1: se alguma acordada passar de **45 s**, o aquecimento
-ganha uma terceira tentativa — e `3 × 25 + 20 = 95 s` não cabe no
-`maxDuration = 90`, que sobe junto (conferir o teto do plano na documentação
-da Vercel antes). Se não passar, nada muda e a decisão fica escrita com o
+ganha uma terceira tentativa — e `3 × 25 + 20 + 150 = 245 s` não cabe no
+`maxDuration = 240` (o #255 já o subiu de 90 para 240 por causa do
+`settleRun`); ou ele sobe junto, até o teto de 300 s do Hobby (conferir na
+documentação da Vercel antes), ou a espera pelo run encurta. Se não passar, nada muda e a decisão fica escrita com o
 número. O gatilho tem precedente caro: o dia sem briefing de 01/09.
 
 **13.4 — A métrica de leitura volta a medir leitores.** Primeiro o
@@ -4646,6 +4731,7 @@ aberto" do `CLAUDE.md` com o motivo.
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
+| — | 13.8, 13.9, 13.10 | o próximo deploy a frio; uma semana de `DailyUptime`; junto do 13a |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
 O 13a vale mais sozinho do que todos os outros juntos — é ele que transforma o

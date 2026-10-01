@@ -356,17 +356,25 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- 🟠 **As horas do Render (2026-10-01): a ISR parou de acordar a API.**
-  Item **85**. Outubro abriu com **28 h de 750** usadas no primeiro dia
+- 🟢 **As horas do Render (2026-10-01): a ISR parou de acordar a API — e
+  está em produção** (#255, promovido no **#256**, `e477231`; Smoke E2E
+  verde). Item **85**. Outubro abriu com **28 h de 750** no primeiro dia
   (setembro fechou em 753,4 h no workspace, com o `NetsheetEngine`). O
   `revalidate` de toda página é de **um dia** (sete na `/news/[id]`) e virou
   rede de segurança; o frescor vem do cron diário invalidando só o conjunto
   do dia (`lib/daily-revalidation.ts`), no aceite e de novo quando o run fecha
   em `SUCCESS` — nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
-  segundo derrubou o deploy da Vercel (o Hobby limita crons). Junto,
-  a porta dos crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`).
-  **Só vale depois da promoção `dev → main`**, e **só o painel confirma**:
-  Render → Billing → horas por serviço, conferido nos dias seguintes ao deploy.
+  segundo derrubou o deploy da Vercel (o Hobby limita crons). A porta dos
+  crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`), o
+  `fetchApi` do servidor repete 429/503, e o `scripts/warm-api.mjs` acorda a
+  API antes do `next build` — a rajada do prerender contra a instância
+  hibernada voltava 429 sem acordá-la. **Esperado: 1–4 h/dia para a API**
+  (tabela no `docs/setup.md` §9.0); **só o painel confirma** — Render →
+  Billing → horas por serviço, a partir de 02/10.
+  **Próxima sessão: a Fase 13 do plano de observabilidade** (§23, agora na
+  `dev`), pelo prompt de abertura no fim dela — com os três itens que esta
+  noite acrescentou (13.8 a prova a frio do `warm-api`, 13.9 a série de horas,
+  13.10 o aviso do Turbo).
 
 - **Plano de observabilidade (2026-09-25): a Fase 12 fechou tudo o que não
   depende do Render — M0–M7a, M4 e M5 mergeados na `dev` (#242, #243, #244),

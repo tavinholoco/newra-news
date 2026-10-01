@@ -456,6 +456,40 @@ de observabilidade, com gatilho — e o `DailyUptime` da Fase 5, que começou a
 contar em 19/09, é o que vai dizer quantas horas por dia a API de fato fica
 acordada a partir de outubro.
 
+#### Resolvido em 01/10/2026 — a ISR parou de acordar a API (#255 → #256)
+
+Outubro abriu com **28 h de 750** no primeiro dia, e o corte entrou na mesma
+noite: `revalidate` de **um dia** em tudo (sete na `/news/[id]`), o news
+sitemap também a um dia, e o cron invalidando só as páginas do dia — no
+disparo e de novo quando o run termina. Item 85 do `docs/progress.md`; o
+porquê de cada número está em `apps/web/lib/daily-revalidation.ts`.
+
+**Quantas horas esperar, para ler o Billing** (Dashboard → Billing → horas
+por serviço). Cada acordada custa a instância ligada até ~15 min depois da
+última requisição — o que pesa é quantas vezes, espaçadas, ela é acordada:
+
+| Quem acorda | Quando | Custo aproximado |
+|---|---|---|
+| o cron (aquece, dispara, espera o run) | 1×/dia, ~11h UTC | ~0,3 h |
+| a regeneração das páginas do dia | logo depois do cron, ou ao longo do dia | 0,25–1 h |
+| robôs abrindo matérias pela primeira vez | imprevisível | 0–4 h |
+| visitantes (analytics, filtros do acervo) | por sessão isolada | ~0,25 h |
+| Lighthouse de segunda, Smoke e builds de deploy | eventual | 0,25–0,5 h cada |
+
+```
+esperado:        1–4 h/dia para a API   (~100–200 h/mês no workspace)
+4–10 h/dia:      robô — olhe os logs (rajada de /api/news/<id>)
+perto de 24 h:   a API não dorme — há outro despertador
+```
+
+**Todo deploy acorda a API uma vez, de propósito.** O prerender do `next
+build` na Vercel chama a API; contra a instância hibernada, a rajada de ~20
+requisições simultâneas voltou `429` por minutos **sem acordá-la** (medido em
+01/10). Por isso o `build` do web roda `scripts/warm-api.mjs` antes — uma
+requisição por vez, até 4 × 30 s, nunca reprova — e o `fetchApi` do servidor
+repete 429/503. Se um deploy de produção cair com 429 no prerender, a Vercel
+mantém o site anterior no ar: confira o `[warm-api]` no topo do log.
+
 ### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
 
 **O segredo é o mesmo nos dois serviços** — o web assina o JWT, a API valida —,

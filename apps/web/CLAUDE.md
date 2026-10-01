@@ -714,6 +714,15 @@ Regras que não são óbvias no código:
   devolve `null` e a tela desenha o estado vazio. A primeira versão simplesmente
   não capturava, e o job Build reprovou com `ECONNREFUSED` — foi o CI que
   ensinou a distinção.
+- **O build da Vercel acorda a API antes de gerar as páginas, e o servidor
+  repete 429/503.** Com a API dormindo de propósito (as horas do Render), a
+  rajada de ~20 requisições do prerender contra a instância hibernada voltava
+  `429` por minutos sem acordá-la, e o deploy caía (01/10/2026, três vezes no
+  #255). O `build` roda `scripts/warm-api.mjs` antes do `next build` — só onde
+  `VERCEL` existe, uma requisição por vez, nunca reprova — e o `fetchApi`
+  repete 429/503 **só no servidor** (`API_RETRY_*` em `lib/timeouts.ts`; no
+  navegador quem repete é o TanStack Query). Guarda em
+  `tests/lib/api-retry.test.ts`, que roda em ambiente `node` de propósito.
 - **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
   existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
   mandaria URL digitada errada para a página de erro.
