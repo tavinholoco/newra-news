@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GET } from '@/app/api/cron/daily-news/route';
+import { DAILY_REVALIDATION_PATHS } from '@/lib/daily-revalidation';
 
 const revalidatePathMock = vi.fn();
 
@@ -47,7 +48,7 @@ afterEach(() => {
 });
 
 describe('GET /api/cron/daily-news', () => {
-  it('revalidates the /[locale] layout (covers pt-BR and en) and the sitemap after success', async () => {
+  it('revalidates the daily set (listings, briefing and both sitemaps) after success — never the whole layout', async () => {
     const data = {
       outcome: 'started',
       pipelineId: 'pipeline-1',
@@ -71,14 +72,20 @@ describe('GET /api/cron/daily-news', () => {
       revalidated: true,
       warmed: true,
     });
-    expect(revalidatePathMock).toHaveBeenCalledTimes(3);
+    // O conjunto mora em `lib/daily-revalidation.ts`, e a guarda dele está em
+    // `tests/lib/daily-revalidation.test.ts`; aqui basta a rota usá-lo inteiro.
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
     // O padrão /[locale] cobre as duas línguas de uma vez — revalidar por
     // caminho resolvido (/pt-BR, /en) não invalida nada (gotcha documentado).
-    expect(revalidatePathMock).toHaveBeenCalledWith('/[locale]', 'layout');
+    expect(revalidatePathMock).toHaveBeenCalledWith('/[locale]', 'page');
     expect(revalidatePathMock).toHaveBeenCalledWith('/sitemap.xml');
     // O news sitemap tem janela de 48h: ele é justamente o que precisa refletir
     // a matéria que o pipeline acabou de gravar.
     expect(revalidatePathMock).toHaveBeenCalledWith('/news-sitemap.xml');
+    // **Até 01/10/2026 era `('/[locale]', 'layout')`**, que invalidava as
+    // milhares de `/news/[id]` junto — e cada uma que um robô tocasse depois
+    // acordava a API do Render.
+    expect(revalidatePathMock).not.toHaveBeenCalledWith('/[locale]', 'layout');
   });
 
   /**
@@ -200,6 +207,23 @@ describe('GET /api/cron/daily-news', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when CRON_SECRET is not configured, even for "Bearer undefined"', async () => {
+    // A comparação antiga montava `Bearer ${process.env.CRON_SECRET}`: com a
+    // variável ausente, o valor esperado era a string `Bearer undefined`.
+    delete process.env.CRON_SECRET;
+    vi.stubGlobal('fetch', vi.fn());
+
+    const res = await GET(
+      new Request('http://localhost:3000/api/cron/daily-news', {
+        headers: { authorization: 'Bearer undefined' },
+      }),
+    );
+
+    expect(res.status).toBe(401);
     expect(fetch).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
+import { revalidateDailyContent } from '@/lib/daily-revalidation';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import { logServerError } from '@/lib/log-server-error';
 import {
   PIPELINE_TRIGGER_TIMEOUT_MS,
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic';
 /**
  * 90 s, e o número sai da soma: `PIPELINE_WARM_ATTEMPTS × PIPELINE_WARM_TIMEOUT_MS`
  * mais o disparo dá 70 s no pior caso, e sobra margem para a resposta e para as
- * três revalidações. Era 30 s, o que não deixava espaço para acordar ninguém.
+ * revalidações. Era 30 s, o que não deixava espaço para acordar ninguém.
  * O teto do plano Hobby da Vercel é 300 s.
  */
 export const maxDuration = 90;
@@ -58,8 +59,7 @@ async function warmApi(jobUrl: string): Promise<boolean> {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -115,26 +115,15 @@ export async function GET(request: Request) {
 
     if (revalidated) {
       // **O disparo foi aceito, não concluído** — a rota da API responde
-      // `{ outcome: 'started' }` e o pipeline segue no servidor por ~55 s. A
+      // `{ outcome: 'started' }` e o pipeline segue no servidor por ~80 s. A
       // invalidação aqui é otimista de propósito: ela derruba o HTML velho, e
       // quem chegar depois regenera. Se a visita cair no meio da execução, a
-      // página nasce com o dado antigo e espera o `revalidate` de 3600 s.
-      //
-      // **Dívida, com gatilho:** esperar a conclusão exigiria sondar
-      // `GET /api/jobs/:id`, que é outra chamada autenticada dentro do
-      // `maxDuration` desta rota. Vale a pena quando alguém reclamar de ver
-      // conteúdo do dia anterior depois de um disparo manual, que é o sintoma
-      // que isto produz.
-      //
-      // O cache do Next grava as tags com o padrão literal da rota (ex.:
-      // "_N_T_/[locale]/layout") — por isso revalidamos o padrão `/[locale]`,
-      // que cobre as páginas dos dois idiomas.
-      revalidatePath('/[locale]', 'layout');
-      revalidatePath('/sitemap.xml');
-      // O news sitemap tem janela de 48h e é a rota que o Google Notícias lê
-      // logo depois de a matéria sair; deixá-lo esperar o `revalidate` de 15 min
-      // atrasaria justamente o que ele existe para acelerar.
-      revalidatePath('/news-sitemap.xml');
+      // página nasce com o dado antigo — e desde 01/10 o `revalidate` das
+      // páginas é de um dia, então quem a conserta é o segundo cron
+      // (`app/api/cron/refresh`, 13:00 UTC), que invalida o mesmo conjunto
+      // sem chamar a API. O que entra no conjunto, e por que a `/news/[id]`
+      // não entra, está em `lib/daily-revalidation.ts`.
+      revalidateDailyContent();
     }
 
     return NextResponse.json({ success: true, data, revalidated, warmed });

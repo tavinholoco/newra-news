@@ -4,7 +4,10 @@ import { getArticles, prefetch } from '@/lib/api';
 import { ArticlePageClient } from '@/components/article/article-page-client';
 import { pageMetadata } from '@/lib/seo';
 
-export const revalidate = 3600;
+// Um dia, e é rede de segurança: o conteúdo muda uma vez por dia, no pipeline,
+// e os dois crons invalidam esta página sob demanda. Cada regeneração acorda a
+// API do Render — `lib/daily-revalidation.ts` tem a conta das horas.
+export const revalidate = 86400;
 
 interface Props {
   params: { locale: string };

@@ -356,6 +356,17 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟠 **As horas do Render (2026-10-01): a ISR parou de acordar a API.**
+  Item **85**. Outubro abriu com **28 h de 750** usadas no primeiro dia
+  (setembro fechou em 753,4 h no workspace, com o `NetsheetEngine`). O
+  `revalidate` de toda página é de **um dia** (sete na `/news/[id]`) e virou
+  rede de segurança; o frescor vem de dois crons (`daily-news` 11:00 e o novo
+  `refresh` 13:00, que não chama a API) invalidando só o conjunto do dia
+  (`lib/daily-revalidation.ts`) — nunca mais `('/[locale]', 'layout')`. Junto,
+  a porta dos crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`).
+  **Só vale depois da promoção `dev → main`**, e **só o painel confirma**:
+  Render → Billing → horas por serviço, conferido nos dias seguintes ao deploy.
+
 - **Plano de observabilidade (2026-09-25): a Fase 12 fechou tudo o que não
   depende do Render — M0–M7a, M4 e M5 mergeados na `dev` (#242, #243, #244),
   13 defeitos corrigidos com guarda e mutação.** Três deles de produto,
