@@ -1,8 +1,8 @@
 import { timingSafeEqual } from 'node:crypto';
 
 /**
- * **A porta dos dois crons da Vercel** (`app/api/cron/daily-news`,
- * `app/api/cron/refresh`): a Vercel manda `Authorization: Bearer <CRON_SECRET>`.
+ * **A porta do cron da Vercel** (`app/api/cron/daily-news`, e o botão do painel
+ * que reentra por ele): a Vercel manda `Authorization: Bearer <CRON_SECRET>`.
  *
  * A comparação antiga era `header !== \`Bearer ${process.env.CRON_SECRET}\``, e
  * com a variável ausente o template vira `Bearer undefined` — um valor que

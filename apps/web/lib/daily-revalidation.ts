@@ -1,10 +1,11 @@
 import { revalidatePath } from 'next/cache';
 
 /**
- * **O que muda quando sai um briefing — e só isso.** Chamado pelos dois crons
- * (`app/api/cron/daily-news` depois do disparo, `app/api/cron/refresh` duas
- * horas depois), e é o mecanismo que mantém as páginas frescas: o `revalidate`
- * de cada página passou a ser de um dia e virou rede de segurança.
+ * **O que muda quando sai um briefing — e só isso.** Chamado pelo cron
+ * (`app/api/cron/daily-news`) duas vezes: no aceite do disparo e de novo
+ * quando o run fecha em `SUCCESS`. É o mecanismo que mantém as páginas
+ * frescas: o `revalidate` de cada página passou a ser de um dia e virou rede
+ * de segurança.
  *
  * **Por que isto existe — as horas do Render (01/10/2026).** Toda regeneração
  * da ISR chama a API, e a API dorme com ~15 min sem tráfego no plano free.

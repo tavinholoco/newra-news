@@ -103,3 +103,19 @@ export const PIPELINE_WARM_TIMEOUT_MS = 25_000;
  * o POST, e um disparo que falha custa menos que um dia sem briefing.
  */
 export const PIPELINE_WARM_ATTEMPTS = 2;
+
+/**
+ * **Esperar o pipeline terminar, no disparo agendado** (01/10/2026). O
+ * `revalidate` das páginas passou a ser de um dia — cada regeneração acorda a
+ * API do Render —, e a invalidação no aceite deixava a página que um robô
+ * regenerasse no meio do run com o briefing da véspera por um dia inteiro.
+ * O cron sonda `GET /api/jobs/:id` e invalida de novo no `SUCCESS`; a API já
+ * está acordada pelo próprio run, então a sonda não custa hora nenhuma.
+ *
+ * 150 s contra os ~90 s que o run mede; o pior caso da rota fica em
+ * 70 s (acordar + disparar) + 150 s = 220 s, sob o `maxDuration = 240`.
+ */
+export const PIPELINE_SETTLE_MAX_MS = 150_000;
+
+/** O intervalo entre duas sondas do run. */
+export const PIPELINE_SETTLE_POLL_MS = 10_000;

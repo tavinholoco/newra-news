@@ -8,7 +8,7 @@ import { NewsPageClient } from '@/components/news/news-page-client';
 import { pageMetadata } from '@/lib/seo';
 
 // Um dia, e é rede de segurança: o conteúdo muda uma vez por dia, no pipeline,
-// e os dois crons invalidam esta página sob demanda. Cada regeneração acorda a
+// e o cron diário a invalida sob demanda. Cada regeneração acorda a
 // API do Render — `lib/daily-revalidation.ts` tem a conta das horas.
 export const revalidate = 86400;
 

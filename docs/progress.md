@@ -8571,14 +8571,22 @@ API o resto do tempo era a própria ISR:
 **604.800 s** (sete dias) na `/news/[id]`, que não muda depois de coletada;
 virou rede de segurança. O mecanismo de frescor é `revalidateDailyContent()`
 (`lib/daily-revalidation.ts`), com `'page'` em cada rota do conjunto e sem a
-`/news/[id]`, chamado por **dois** crons: o `daily-news` (11:00) depois do
-disparo e o novo `refresh` (13:00), **sem chamar a API**, que conserta a
-página que um robô regenerou no meio do run (o Hobby dispara em qualquer
-minuto da hora; o das 11:00 saiu às 11:31 em 01/10). Preço aceito: as
-relacionadas e uma recategorização da 8.5 chegam à matéria com até uma
-semana de atraso.
+`/news/[id]`, chamado pelo cron diário **duas vezes**: no aceite do disparo
+e, no disparo agendado, de novo quando `GET /api/jobs/:id` responde
+`SUCCESS` (`settleRun`, sonda a cada 10 s por até 150 s; `maxDuration` de 90
+para 240 s). É o que conserta a página que um robô regenerou no meio do run,
+e não custa hora do Render: o run já mantém a API acordada. O botão do
+painel não espera (seguraria a tela por minutos) e fica só com a invalidação
+no aceite. Preço aceito: as relacionadas e uma recategorização da 8.5
+chegam à matéria com até uma semana de atraso.
 
-**Achado de passagem, de segurança:** os dois crons comparavam
+**A primeira versão tinha um segundo cron, e a Vercel recusou o deploy.** Um
+`/api/cron/refresh` às 13:00 fazia a segunda invalidação; o preview do #255
+falhou em 22 s, antes do build (o build local compila, com as fontes
+simuladas). O Hobby limita os crons — a guarda agora exige um só no
+`vercel.json`.
+
+**Achado de passagem, de segurança:** o cron comparava
 `authorization !== \`Bearer ${process.env.CRON_SECRET}\``. Com a variável
 ausente, o esperado vira a string `Bearer undefined`, que qualquer um sabe
 escrever. Hoje é `isCronAuthorized` (`lib/cron-auth.ts`): variável ausente
@@ -8586,12 +8594,13 @@ fecha a porta, comparação em tempo constante. O alcance era zero enquanto a
 Vercel tiver o `CRON_SECRET` — mas é o modo de falha que este projeto já viu
 acontecer com outra variável (`AUTH_JWT_SECRET`).
 
-**Guardas** (`tests/lib/daily-revalidation.test.ts`, mutações A1.60 e A1.61
-no `guard-mutations.mjs`, vistas reprovando): todo `revalidate` sob `app/`
+**Guardas** (`tests/lib/daily-revalidation.test.ts` e
+`tests/routes/daily-news-api.test.ts`; mutações A1.60–A1.62 no
+`guard-mutations.mjs`, vistas reprovando): todo `revalidate` sob `app/`
 ≥ 86.400; todo caminho do conjunto aponta para uma rota que existe; nada de
-`'layout'` nem `/news/[id]` no conjunto; o `refresh` ≥ 2 h depois do
-`daily-news` no `vercel.json`; o `refresh` não chama `fetch`; e os dois crons
-recusam `Bearer undefined`. **907 → 915 no web.**
+`'layout'` nem `/news/[id]` no conjunto; um cron só no `vercel.json`; a
+segunda invalidação só no `SUCCESS`, e nunca no disparo manual; e o cron
+recusa `Bearer undefined`. **907 → 916 no web.**
 
 **O que continua acordando a API, e é tráfego real:** o analytics
 (`/api/events`, por visitante com JS), as listagens filtradas do `/news` no

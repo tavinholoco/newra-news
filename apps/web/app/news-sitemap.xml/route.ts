@@ -7,7 +7,7 @@ import { DEFAULT_LOCALE } from '@/lib/i18n';
 
 // Um dia. Era 15 minutos, e com o Google Notícias lendo mais de 4×/hora a API
 // do Render nunca dormia — um keep-alive em outra roupa (`docs/setup.md` §9.0).
-// O que o mantém fresco é a invalidação dos dois crons depois do pipeline, que
+// O que o mantém fresco é a invalidação do cron diário depois do pipeline, que
 // é a única hora em que entra matéria nova (`lib/daily-revalidation.ts`);
 // isto é só a rede de segurança.
 export const revalidate = 86400;

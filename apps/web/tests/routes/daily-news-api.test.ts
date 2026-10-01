@@ -8,6 +8,14 @@ vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
 }));
 
+// A espera pelo fim do run sonda a cada 10 s por até 150 s; aqui ela sonda
+// sem pausa e desiste em 50 ms, para a suíte não esperar relógio de verdade.
+vi.mock('@/lib/timeouts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/timeouts')>()),
+  PIPELINE_SETTLE_POLL_MS: 0,
+  PIPELINE_SETTLE_MAX_MS: 50,
+}));
+
 const CRON_SECRET = 'cron-secret';
 const JOB_URL = 'https://api.example.com/jobs/daily-pipeline';
 const JOB_SECRET = 'job-secret';
@@ -71,6 +79,8 @@ describe('GET /api/cron/daily-news', () => {
       data,
       revalidated: true,
       warmed: true,
+      // A sonda devolveu o corpo do disparo, que não é um status legível.
+      settled: 'UNKNOWN',
     });
     // O conjunto mora em `lib/daily-revalidation.ts`, e a guarda dele está em
     // `tests/lib/daily-revalidation.test.ts`; aqui basta a rota usá-lo inteiro.
@@ -123,6 +133,8 @@ describe('GET /api/cron/daily-news', () => {
         data,
         revalidated: false,
         warmed: true,
+        // Nada disparado, nada a esperar.
+        settled: null,
       });
       expect(revalidatePathMock).not.toHaveBeenCalled();
     });
@@ -336,8 +348,11 @@ describe('GET /api/cron/daily-news', () => {
         data: trigger,
         revalidated: true,
         warmed: true,
+        settled: 'UNKNOWN',
       });
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      // Duas para acordar, o disparo, e a sonda do fim do run (sem resposta
+      // neste mock, ela encerra a espera em `UNKNOWN`).
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
     it('triggers anyway when it never manages to wake the API', async () => {
@@ -364,8 +379,9 @@ describe('GET /api/cron/daily-news', () => {
         revalidated: true,
         // e a resposta conta que o aquecimento não pegou
         warmed: false,
+        settled: 'UNKNOWN',
       });
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
     it('does not spend a second attempt when the first one wakes it', async () => {
@@ -381,7 +397,8 @@ describe('GET /api/cron/daily-news', () => {
 
       await GET(authorizedRequest());
 
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // Uma para acordar, o disparo, e a sonda do fim do run.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
     it('wakes the same host it triggers, derived from BACKEND_JOB_URL', async () => {
@@ -403,5 +420,88 @@ describe('GET /api/cron/daily-news', () => {
       const [triggerUrl] = fetchMock.mock.calls[1] as [string];
       expect(new URL(warmUrl).origin).toBe(new URL(triggerUrl).origin);
     });
+  });
+});
+
+/**
+ * **A espera pelo fim do run** (01/10/2026). O `revalidate` das páginas é de um
+ * dia, então a página que um robô regenerar durante o run fica com o briefing
+ * da véspera até alguém a invalidar de novo — e quem invalida é esta espera.
+ */
+describe('GET /api/cron/daily-news — a espera pelo fim do run', () => {
+  const trigger = {
+    outcome: 'started',
+    pipelineId: '11111111-2222-3333-4444-555555555555',
+    startedAt: '2026-10-01T11:00:00.000Z',
+  };
+  const ok = (body: unknown) => ({ ok: true, status: 200, json: vi.fn().mockResolvedValue(body) });
+  const status = (value: string) => ok({ data: { id: trigger.pipelineId, status: value } });
+
+  it('revalidates again when the run closes in SUCCESS, polling the status of the same run', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 }) // acordar
+      .mockResolvedValueOnce(ok(trigger)) // disparo
+      .mockResolvedValueOnce(status('RUNNING'))
+      .mockResolvedValueOnce(status('SUCCESS'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(authorizedRequest());
+
+    expect((await res.json()).settled).toBe('SUCCESS');
+    expect(revalidatePathMock).toHaveBeenCalledTimes(2 * DAILY_REVALIDATION_PATHS.length);
+    const [statusUrl, init] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(statusUrl).toBe(`https://api.example.com/jobs/${trigger.pipelineId}`);
+    expect(init.headers).toEqual({ Authorization: `Bearer ${JOB_SECRET}` });
+  });
+
+  it('does not revalidate a second time when the run FAILED', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce(ok(trigger))
+        .mockResolvedValueOnce(status('FAILED')),
+    );
+
+    const res = await GET(authorizedRequest());
+
+    expect((await res.json()).settled).toBe('FAILED');
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+  });
+
+  it('gives up at the deadline with the run still RUNNING, and says so', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce(ok(trigger))
+        .mockResolvedValue(status('RUNNING')),
+    );
+
+    const res = await GET(authorizedRequest());
+
+    expect((await res.json()).settled).toBe('RUNNING');
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+  });
+
+  it('does not wait on a manual trigger from the panel — the button would hang', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValueOnce(ok(trigger));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(
+      new Request('http://localhost:3000/api/cron/daily-news', {
+        headers: { authorization: `Bearer ${CRON_SECRET}`, 'x-actor-id': 'user-1' },
+      }),
+    );
+
+    expect((await res.json()).settled).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
   });
 });

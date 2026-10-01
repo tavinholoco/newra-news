@@ -874,10 +874,19 @@ const MUTATIONS = [
     id: 'A1.61',
     what: 'a porta dos crons volta a aceitar `Bearer undefined`',
     pkg: 'web',
-    test: 'tests/lib/daily-revalidation.test.ts',
+    test: 'tests/routes/daily-news-api.test.ts',
     file: 'apps/web/lib/cron-auth.ts',
     dropLine: '  if (!secret) return false;',
     expect: 'returns 401 when CRON_SECRET is not configured',
+  },
+  {
+    id: 'A1.62',
+    what: 'o cron deixa de invalidar de novo quando o run fecha em `SUCCESS`',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    dropLine: "        if (settled === 'SUCCESS') revalidateDailyContent();",
+    expect: 'revalidates again when the run closes in SUCCESS',
   },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {

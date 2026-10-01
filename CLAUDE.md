@@ -360,9 +360,10 @@ a suíte de unidade, que roda sem rede.
   Item **85**. Outubro abriu com **28 h de 750** usadas no primeiro dia
   (setembro fechou em 753,4 h no workspace, com o `NetsheetEngine`). O
   `revalidate` de toda página é de **um dia** (sete na `/news/[id]`) e virou
-  rede de segurança; o frescor vem de dois crons (`daily-news` 11:00 e o novo
-  `refresh` 13:00, que não chama a API) invalidando só o conjunto do dia
-  (`lib/daily-revalidation.ts`) — nunca mais `('/[locale]', 'layout')`. Junto,
+  rede de segurança; o frescor vem do cron diário invalidando só o conjunto
+  do dia (`lib/daily-revalidation.ts`), no aceite e de novo quando o run fecha
+  em `SUCCESS` — nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
+  segundo derrubou o deploy da Vercel (o Hobby limita crons). Junto,
   a porta dos crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`).
   **Só vale depois da promoção `dev → main`**, e **só o painel confirma**:
   Render → Billing → horas por serviço, conferido nos dias seguintes ao deploy.
