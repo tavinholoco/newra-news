@@ -1647,7 +1647,7 @@ caíram junto.
     o #231 (a ISR determinística) não é ancestral da `origin/main` — a cota
     zerou porque a janela passou, não porque a causa saiu do ar; sai na
     promoção (A7.16).
-- [ ] **A7.11 — O `ignore` do #237, e a `dev` em dia.** A entrada do
+- [x] **A7.11 — O `ignore` do #237, e a `dev` em dia.** A entrada do
   `@vitest/coverage-v8` no `.github/dependabot.yml`, que acompanha a major
   do vitest — o motivo escrito como os outros. Fecha o #237 (e o #248, o
   mesmo bump uma versão depois). · P
@@ -1661,7 +1661,16 @@ caíram junto.
     `dependabot-config.test.ts` passa (4/4). **Fecha quando a promoção
     estiver na `main`**: o #248 fechado e `git show origin/main:.github/dependabot.yml`
     com a entrada.
-- [ ] **A7.12 — A promoção (decisão do dono)** e os dois deploys de pé; as
+  - **Fechou com a promoção #251 (01/10, 18:06:34 UTC, `3f1f377`).** A
+    entrada está na `main` (`git show origin/main:.github/dependabot.yml`
+    casa `coverage-v8'` uma vez), e **o #248 já estava fechado quando o
+    agente foi fechá-lo** — o próprio Dependabot o fechou às 18:06:41, **7 s
+    depois do merge**, comentando *"@vitest/coverage-v8 is no longer being
+    updated by Dependabot"*: a prova de que ele releu a configuração na
+    branch padrão. A `dev`
+    foi realinhada por fast-forward no mesmo minuto (`b5882cb..3f1f377`):
+    `dev..main` = 0 e `main..dev` = 0.
+- [x] **A7.12 — A promoção (decisão do dono)** e os dois deploys de pé; as
   pré-checagens do A7.02 repetidas; Smoke E2E automático (31 passed, 6 skipped
   enquanto os segredos E2E não existirem — hoje o repositório só tem
   `DATABASE_URL`). · P
@@ -1680,7 +1689,26 @@ caíram junto.
     pré-condição existe aqui), com as premissas viradas em
     `tests/security/fastify-advisory-premises.test.ts` e as mutações
     A1.54–A1.58. Depois dele: `pnpm audit --prod` com 20 *high* e 2
-    *critical*, todas ignoradas.
+    *critical*, todas ignoradas. **#250, mergeado pelo dono às 17:57.**
+  - **A promoção: #251, mergeada pelo dono em 01/10 às 18:06:34 UTC
+    (`3f1f377`)** — 62 commits, 20 PRs (#219 → #250), 109 arquivos, o lote
+    que a Fase 12 ensaiou e mais nada (os bumps #245–#247 ficaram de fora de
+    propósito). Pré-checagens repetidas sobre `b5882cb`, todas verdes.
+    No push: **Migrate** `7 migrations found … No pending migrations to
+    apply`; **CI, CodeQL** verdes; **Gitleaks** `0 commits scanned` — a
+    dívida do §16, 13.ª medição, agora no push da promoção. **Os dois
+    deploys:** a Vercel de produção `Ready` às 18:06:39 (criado 5 s depois
+    do merge); o Render sem CLI (a sessão expirou de novo), medido por um
+    vigia de `/api/health` a cada 30 s que **mantinha a API acordada** —
+    então um `uptime` que cai é processo novo, não acordada: `333 → 21 s`
+    às 18:08:31, **processo novo às ~18:08:10 UTC**, e daí em diante 52,
+    82, 113 s. O código novo servindo, nos dois lados: o payload RSC de
+    `/pt-BR/news` e `/pt-BR/article` passou a carregar
+    `"now":"$D1970-01-01T00:00:00.000Z"` (o `STATIC_NOW` do #231 — antes,
+    `…T16:21:50.579Z`, a hora da regeneração); o Dependabot fechou o #248
+    sozinho (A7.11). **Smoke E2E automático: `31 passed (12.6s)`, `6
+    skipped`** — os mesmos 31/6 da promoção #215, depois do `sleep 420`
+    pelos deploys. A `dev` realinhada por fast-forward no mesmo minuto.
 - [ ] **A7.12b — A segunda janela da correção da ESPN** (decidida pelo dono em
   25/09, A4.04). A ESPN escreve a hora de Brasília com o rótulo `EST`, e tudo
   o que o código **antigo** gravou dela está 2 h adiantado. A correção é
