@@ -112,10 +112,11 @@ export const PIPELINE_WARM_ATTEMPTS = 2;
  * O cron sonda `GET /api/jobs/:id` e invalida de novo no `SUCCESS`; a API já
  * está acordada pelo próprio run, então a sonda não custa hora nenhuma.
  *
- * 150 s contra os ~90 s que o run mede; o pior caso da rota fica em
- * 70 s (acordar + disparar) + 150 s = 220 s, sob o `maxDuration = 240`.
+ * 90 s, o que o run mede (~1,5 min). Era 150 s; encolheu para caber a
+ * repetição do 429 (abaixo) sob o `maxDuration` — se o run passar disso, a
+ * página regenerada no meio fica até o `revalidate` de um dia.
  */
-export const PIPELINE_SETTLE_MAX_MS = 150_000;
+export const PIPELINE_SETTLE_MAX_MS = 90_000;
 
 /** O intervalo entre duas sondas do run. */
 export const PIPELINE_SETTLE_POLL_MS = 10_000;
@@ -137,3 +138,17 @@ export const API_RETRY_ATTEMPTS = 3;
 export const API_RETRY_BASE_MS = 2_000;
 
 export const API_RETRY_MAX_WAIT_MS = 15_000;
+
+/**
+ * **A borda do Render recusa tráfego da Vercel com 429, de forma
+ * intermitente** (medido em 01/10/2026: a API nunca registrou um 429; a
+ * resposta vinha em 0,1 s de fora dela, com a instância acordada e
+ * respondendo 200 a outra função dois minutos antes). O cron repete o
+ * aquecimento e o disparo quando recebe 429/503 — sem isso, as duas
+ * tentativas de aquecer saíam em 0,2 s e o disparo recusado deixava o dia
+ * sem briefing.
+ */
+export const PIPELINE_REFUSED_PAUSE_MS = 15_000;
+
+/** Quantas vezes o disparo é tentado quando a borda devolve 429/503. */
+export const PIPELINE_TRIGGER_ATTEMPTS = 4;

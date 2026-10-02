@@ -57,7 +57,7 @@
   (`app/api/cron/daily-news`, 11:00 UTC) chama `revalidateDailyContent()`
   (`lib/daily-revalidation.ts`) **duas vezes**: no aceite do disparo e, no
   disparo agendado, de novo quando `GET /api/jobs/:id` diz `SUCCESS`
-  (`settleRun`, até 150 s, `maxDuration = 240`) — conserta a página que um
+  (`settleRun`, até 90 s, `maxDuration = 290`, repetindo o 429 da borda do Render) — conserta a página que um
   robô regenerou no meio do run, e não custa hora do Render porque o run já
   mantém a API acordada. **Um cron só**: um segundo (`/api/cron/refresh`)
   derrubou o deploy em 01/10/2026 — o Hobby limita os crons —, e há guarda.
@@ -714,19 +714,17 @@ Regras que não são óbvias no código:
   devolve `null` e a tela desenha o estado vazio. A primeira versão simplesmente
   não capturava, e o job Build reprovou com `ECONNREFUSED` — foi o CI que
   ensinou a distinção.
-- **O build da Vercel acorda a API antes de gerar as páginas, e o servidor
-  repete 429/503.** Com a API dormindo de propósito (as horas do Render), a
-  rajada de ~20 requisições do prerender contra a instância hibernada voltava
-  `429` por minutos sem acordá-la, e o deploy caía (01/10/2026, três vezes no
-  #255). E até a requisição **isolada** da máquina de build volta 429 em
-  0,1 s: o Render não acorda a instância free para o IP de build da Vercel.
-  O `build` roda `scripts/warm-api.mjs` antes do `next build` — só onde
-  `VERCEL` existe, nunca reprova —, que acorda a API **pelo site em
-  produção** (`POST /api/events` com lote vazio, numa função, que acorda
-  como o cron) e sonda direto até ela responder; e o `fetchApi`
-  repete 429/503 **só no servidor** (`API_RETRY_*` em `lib/timeouts.ts`; no
-  navegador quem repete é o TanStack Query). Guarda em
-  `tests/lib/api-retry.test.ts`, que roda em ambiente `node` de propósito.
+- **A borda do Render devolve 429 a tráfego da Vercel, de vez em quando, e o
+  servidor resiste em vez de contornar.** Medido em 01/10/2026: 429 em 0,1 s,
+  de fora da API (ela loga todo status e não há 429), até com a instância
+  acordada, e só contra a Vercel. O `fetchApi` repete 429/503 **só no
+  servidor** (`API_RETRY_*` em `lib/timeouts.ts`; no navegador quem repete é
+  o TanStack Query — guarda em `tests/lib/api-retry.test.ts`, em ambiente
+  `node`); o cron espera e repete aquecimento, disparo e sonda do run
+  (`PIPELINE_REFUSED_PAUSE_MS`, `PIPELINE_TRIGGER_ATTEMPTS`). Um build que
+  cai com 429 no prerender deixa o deploy anterior no ar — "Redeploy" mais
+  tarde. O `scripts/warm-api.mjs`, no `build`, é diagnóstico: diz se o 429 veio
+  da API (`x-ratelimit-*`) ou da borda.
 - **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
   existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
   mandaria URL digitada errada para a página de erro.

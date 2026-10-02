@@ -3789,27 +3789,26 @@ Não-objetivos declarados como número, nunca como item de lista.
     e o `admin:capture` mede `scrollWidth` contra a viewport — a foto
     `fullPage` só alargava a imagem, e ninguém media a imagem.
 
-45. **Uma rajada de requisições contra a instância free hibernada do Render
-    volta 429 — e não a acorda.** Medido em 01/10/2026 no preview do #255:
-    o `next build` da Vercel dispara ~20 requisições simultâneas no
-    prerender (Home, listagens, sitemaps, nos dois idiomas), e todas
-    voltaram `429 Too Many Requests` por **2,5 min seguidos**, mesmo com
-    três novas tentativas de 2, 4 e 8 s cada; logo depois, um `curl`
-    isolado respondeu 200 com `uptime: 13,8` — a API **dormia** o build
-    inteiro. O nosso limitador (100/min por IP, `x-ratelimit-*`) não era: do
-    IP do dono ele respondia 99 e 98 restantes. Com a API dormindo de
-    propósito, todo deploy pega o caso. **E não é a rajada: o primeiro
-    build a frio depois do `warm-api` (23:39 de 01/10) mostrou a requisição
-    isolada da máquina de build levando `429` em 0,1 s, quatro vezes** — o
-    Render recusa acordar a instância free para o IP de build da Vercel,
-    respondendo de fora da aplicação. A **função** da Vercel a acorda (é o
-    que o cron faz todo dia), então o `apps/web/scripts/warm-api.mjs` (no
-    `build` do web, só na Vercel, nunca reprova) acorda **pelo site em
-    produção** — `POST /api/events` com lote vazio, que a função repassa e a
-    API recusa com 400 depois de acordar — e sonda direto até ela responder;
-    a repetição de 429/503 no `fetchApi` do servidor cobre o resto. Diagnóstico de 429 vindo de um
-    serviço hibernável: compare o `uptime` do `/api/health` com a hora da
-    falha antes de culpar o limitador.
+45. **A borda do Render devolve 429 a tráfego vindo da Vercel, de forma
+    intermitente — e com a instância acordada.** Medido em 01/10/2026, em
+    cinco builds e uma função: a resposta vem em 0,1 s, **sem passar pela
+    API** (o hook de acesso registra todo status, inclusive o 429 do nosso
+    limitador, e não há nenhuma linha `"statusCode":429`); às 23:39 a
+    instância respondia 200 a uma função da Vercel (`/api/news/:id/related`)
+    e 429 à máquina de build no mesmo minuto; às 23:50 o `POST /api/events`
+    de uma função também levou 429. Do IP residencial do dono, sempre 200,
+    com os `x-ratelimit-*` da nossa API. A hipótese que sobra é limite por IP
+    de origem na borda, com os IPs de saída da Vercel partilhados por muitos
+    clientes. **Duas tentativas de contornar falharam e saíram** (acordar
+    antes do build; acordar pelo site em produção). O que fica: o cron
+    **espera e repete** aquecimento, disparo e sonda do run quando recebe
+    429/503 (antes, as duas tentativas de aquecer saíam em 0,2 s e o disparo
+    recusado deixava o dia sem briefing); o `fetchApi` do servidor repete
+    429/503; a ISR mantém a última página boa; e o build que cai deixa o
+    deploy anterior no ar — **o remédio é "Redeploy" na Vercel mais tarde**.
+    O `warm-api.mjs` passou a ser diagnóstico: diz no log se o 429 veio da
+    API (`x-ratelimit-*`) ou da borda. Antes de culpar o limitador, procure o
+    `"statusCode":429` no log da API.
 
 46. **O Hobby da Vercel recusa o deploy com um segundo cron, antes do
     build.** Um `/api/cron/refresh` às 13:00 no `vercel.json` derrubou o
@@ -4568,15 +4567,15 @@ consumo. O detalhe está no item **85** do `docs/progress.md`.
 - o cron invalida só o conjunto do dia (`lib/daily-revalidation.ts`, com
   `'page'` — nunca mais `('/[locale]', 'layout')`, que levava as milhares
   de matérias junto) **no aceite e de novo quando o run fecha em
-  `SUCCESS`** (`settleRun`, sonda de 10 em 10 s por até 150 s;
-  `maxDuration` de 90 para **240 s**). Um cron só: o segundo foi recusado
+  `SUCCESS`** (`settleRun`, sonda de 10 em 10 s por até 90 s;
+  `maxDuration` de 90 para **290 s**, com a repetição do 429). Um cron só: o segundo foi recusado
   pelo Hobby (armadilha 46);
 - `isCronAuthorized` (`lib/cron-auth.ts`): `CRON_SECRET` ausente fecha a
   porta, em vez de aceitar `Bearer undefined`; comparação em tempo
   constante;
 - o `fetchApi` do servidor repete 429/503 (até 3×, 2/4/8 s ou o
-  `Retry-After`, teto de 15 s), e o `scripts/warm-api.mjs` acorda a API
-  **antes** do `next build` na Vercel (armadilha 45).
+  `Retry-After`, teto de 15 s), e o cron repete aquecimento, disparo e
+  sonda quando a borda do Render recusa (armadilha 45).
 
 **A conta esperada, para ler o Billing** (o painel do dono, por serviço):
 a API deve somar **1 a 4 h por dia** — ~0,3 h do cron, 0,25–1 h das
@@ -4588,16 +4587,17 @@ pelos testes da própria noite.
 
 **O que isto deixa para a fase — três itens novos, sem PR próprio ainda:**
 
-- **13.8 — A prova a frio do `warm-api`.** O build de produção do #256
-  rodou com a API acordada (`[warm-api] tentativa 1: 200 em 0.1 s`). O
-  primeiro build a frio (o preview do #257, 23:39) **reprovou**: a sonda
-  isolada também levou 429 em 0,1 s (armadilha 45), e a primeira versão do
-  script não tinha outro caminho. A segunda acorda pelo site em produção e
-  espera até 120 s; **a prova que vale é o próximo build a frio** — no log,
-  `acordada pelo site … 400`, depois `sonda direta: 200`, e nenhum 429 no
-  prerender. Se ainda reprovar, a saída deixa de ser acordar e passa a ser
-  o build não depender da API (gerar as páginas da API no primeiro acesso,
-  não no build).
+- **13.8 — A borda do Render recusando a Vercel (armadilha 45).** Os
+  previews do #257 caíram três vezes com 429 da borda, não da API, inclusive
+  com a instância acordada; um deploy de produção pode cair igual, e então
+  fica o anterior no ar até um "Redeploy". **Gatilho para agir de verdade:**
+  um deploy de produção que não passe em três "Redeploy" espaçados, ou **um
+  dia sem briefing com 429 no log do cron** (`cron.daily-news`, `warmed:
+  false` e `Backend returned 429`). As saídas, nessa ordem: o build deixar de
+  depender da API (gerar Home, listagens e sitemaps no primeiro acesso em
+  vez de no build — o preço é a primeira visita depois de cada deploy
+  esperar a API), ou tirar a API do free do Render (Starter, US$ 7/mês, ou
+  outro host), que é o que resolve as duas pontas.
 - **13.9 — A série de horas da API depois do corte.** Uma semana de
   `DailyUptime` (o arco da `/admin`) contra a faixa acima. **Gatilho:** dois
   dias seguintes acima de 10 h sem deploy nem incidente — aí o suspeito é
@@ -4628,7 +4628,7 @@ leitura conta as nossas próprias ferramentas como leitores.
 |---|---|---|---|
 | 13.1 | **Nenhum alerta sai do sistema** | o §16 adiava "depois de a tela existir e de sabermos qual sinal dispara" — a única dívida sem número, e as duas condições se cumpriram. O sinal que importa é um: **o briefing do dia não existe** (cobre API suspensa, cron que não acordou a API, portão que bloqueou, pipeline que morreu) | não existe; os seis workflows são CI, CodeQL, Gitleaks, Smoke, Migrate e Lighthouse |
 | 13.2 | **O arco das horas divide pelo teto do workspace** | `RENDER_FREE_PLAN_HOURS = 750` é o denominador do `DailyUptime` **desta** API; as 750 h são do workspace, que divide com o `NetsheetEngine`. Setembro estourou em **753,4 h** no total do workspace (A7.01) — o arco teria mostrado folga | `apps/api/src/services/uptime.service.ts`, `saturation.service.ts` |
-| 13.3 | **A acordada do Render contra o envelope do cron** | acordada medida em **~52 s** (01/10, 19:13 UTC — a sonda achou o processo com 11 s); em 24/08 eram 4,9 s. O cron tem `2 × 25 s` de aquecimento + `20 s` de disparo = **70 s**; desde o #255 soma-se a espera pelo fim do run (até 150 s) = **220 s**, sob `maxDuration = 240` (era 90). Cabe, com 20 s de folga, numa amostra só | `apps/web/lib/timeouts.ts` (`PIPELINE_WARM_*`), `app/api/cron/daily-news/route.ts` |
+| 13.3 | **A acordada do Render contra o envelope do cron** | acordada medida em **~52 s** (01/10, 19:13 UTC — a sonda achou o processo com 11 s); em 24/08 eram 4,9 s. O cron tem `2 × 25 s` de aquecimento + `20 s` de disparo = **70 s**; desde o #255/#257 soma-se a repetição do 429 da borda e a espera pelo fim do run (até 90 s) — pior caso **280 s**, sob `maxDuration = 290` (era 90). Numa amostra só | `apps/web/lib/timeouts.ts` (`PIPELINE_WARM_*`), `app/api/cron/daily-news/route.ts` |
 | 13.4 | **A profundidade de leitura conta as ferramentas** | `/admin/metrics`, 01/10: `article_scroll_25/50/90` em **1.036 · 1.035 · 1.034** contra **0 aberturas**, "leitura completa 0 %". O `ScrollDepth` mede na montagem, e texto que cabe na tela "nasce 100 % lido"; o Lighthouse (21 carregamentos por rodada), a baseline, o Smoke e o `admin:capture` abrem as telas de leitura num Chromium headless. E a "abertura" é o clique no card (`article_open` com `source`) — quem chega direto não abre nada | `apps/web/components/analytics/scroll-depth.tsx`, `lib/analytics/consent.ts` |
 | 13.5 | **Uma fonte bloqueada a partir do datacenter** | Veja Saúde: `feed-failed` / `fetch failed` em **1,8 s** no run de 01/10, o mesmo padrão do Drauzio (removido no #243); daqui (IP residencial) o feed responde 200 com 47 itens. Um dia não dispara o gatilho de 3 da §15 | `apps/api/src/config/rss-sources.ts` |
 | 13.6 | **O Gitleaks varre zero commits no push de merge** | **13 medições** desde 07/09 — a última no push da própria promoção #251. O PR é sempre varrido; o buraco é a base ficar sem varredura sobre o que entra por merge | `.github/workflows/gitleaks.yml` (a action, sem intervalo explícito) |
@@ -4680,10 +4680,10 @@ Guarda: o denominador lido de um lugar só.
 
 **13.3 — O envelope do cron dimensionado pela acordada medida.** Com uma
 semana da série do 13.1: se alguma acordada passar de **45 s**, o aquecimento
-ganha uma terceira tentativa — e `3 × 25 + 20 + 150 = 245 s` não cabe no
-`maxDuration = 240` (o #255 já o subiu de 90 para 240 por causa do
-`settleRun`); ou ele sobe junto, até o teto de 300 s do Hobby (conferir na
-documentação da Vercel antes), ou a espera pelo run encurta. Se não passar, nada muda e a decisão fica escrita com o
+ganha uma terceira tentativa — e mais 25 s passam do teto de 300 s do Hobby
+com o `maxDuration = 290` de hoje (aquecer, repetir o disparo recusado e
+esperar o run); a espera pelo run ou as repetições do disparo encurtam
+junto. Se não passar, nada muda e a decisão fica escrita com o
 número. O gatilho tem precedente caro: o dia sem briefing de 01/09.
 
 **13.4 — A métrica de leitura volta a medir leitores.** Primeiro o
@@ -4740,7 +4740,7 @@ aberto" do `CLAUDE.md` com o motivo.
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
-| — | 13.8, 13.9, 13.10 | o próximo deploy a frio; uma semana de `DailyUptime`; junto do 13a |
+| — | 13.8, 13.9, 13.10 | o gatilho da armadilha 45; uma semana de `DailyUptime`; junto do 13a |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
 O 13a vale mais sozinho do que todos os outros juntos — é ele que transforma o

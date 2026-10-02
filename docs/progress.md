@@ -8631,16 +8631,19 @@ variáveis). Duas armadilhas novas no §17 do plano: a 45 (rajada contra a
 instância hibernada volta 429 sem acordá-la) e a 46 (o Hobby recusa um
 segundo cron).
 
-**E o primeiro build a frio reprovou o `warm-api` — por um motivo que nenhum
-build anterior mostrava.** No preview do #257 (23:39, a API dormindo havia
-~30 min), a sonda **isolada** da máquina de build levou `429` em 0,1 s nas
-quatro tentativas: não é a rajada, é o Render recusando acordar a instância
-free para o IP de build da Vercel (resposta rápida demais para ter passado
-pela aplicação, que dormia). A função da Vercel acorda — o cron prova todo
-dia —, então o script passou a acordar **pelo site em produção**
-(`POST /api/events` com lote vazio: a função repassa, a API recusa com 400
-depois de acordar) e a sondar direto até 120 s. Ensaiado contra um servidor
-falso (429 → acordada → 200); a prova real é o próximo build a frio (13.8).
+**E os previews do #257 mostraram que o 429 não é da API, nem de ela
+dormir.** Três builds e uma função levaram `429` em 0,1 s da **borda do
+Render** — a API nunca registrou um 429 (o hook de acesso loga todo status),
+e às 23:39 ela respondia 200 a uma função da Vercel e 429 ao build no mesmo
+minuto. É intermitente (os builds de 22:38 e 22:52 passaram) e só contra a
+Vercel (do IP do dono, sempre 200). Acordar antes do build e acordar pelo
+site em produção foram tentados e saíram. **O que fica é resistir:** o cron
+espera e repete aquecimento, disparo e sonda do run em 429/503 — antes as
+duas tentativas de aquecer saíam em 0,2 s, e um disparo recusado deixava o
+dia sem briefing (`maxDuration` 290 s; a espera pelo run encolheu para 90 s);
+o `fetchApi` do servidor repete; o build que cai deixa o deploy anterior no
+ar, e o remédio é "Redeploy" mais tarde. O `warm-api.mjs` virou diagnóstico.
+Armadilha 45 e item 13.8 do plano, com gatilho. **915 → 927 no web.**
 
 **A conta esperada:** a API deve somar **1 a 4 h por dia** (até ~4 h é o
 esperado; 4–10 h é robô; perto de 24 h é que ela não dorme), e o workspace

@@ -366,16 +366,17 @@ a suíte de unidade, que roda sem rede.
   em `SUCCESS` — nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
   segundo derrubou o deploy da Vercel (o Hobby limita crons). A porta dos
   crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`), o
-  `fetchApi` do servidor repete 429/503, e o `scripts/warm-api.mjs` acorda a
-  API antes do `next build` **pelo site em produção** — o Render recusa (429
-  em 0,1 s) acordar a instância free para o IP de build da Vercel, mesmo numa
-  requisição isolada; a função da Vercel acorda. A prova a frio é o 13.8. **Esperado: 1–4 h/dia para a API**
+  `fetchApi` do servidor e o cron repetem 429/503 — **a borda do Render
+  recusa tráfego da Vercel de vez em quando** (429 em 0,1 s, de fora da API,
+  até acordada; armadilha 45 do plano). Um deploy pode cair por isso: fica o
+  anterior no ar, e o remédio é "Redeploy" mais tarde (item 13.8, com
+  gatilho). **Esperado: 1–4 h/dia para a API**
   (tabela no `docs/setup.md` §9.0); **só o painel confirma** — Render →
   Billing → horas por serviço, a partir de 02/10.
   **Próxima sessão: a Fase 13 do plano de observabilidade** (§23, agora na
   `dev`), pelo prompt de abertura no fim dela — com os três itens que esta
-  noite acrescentou (13.8 a prova a frio do `warm-api`, 13.9 a série de horas,
-  13.10 o aviso do Turbo).
+  noite acrescentou (13.8 a borda do Render recusando a Vercel, 13.9 a série
+  de horas, 13.10 o aviso do Turbo).
 
 - **Plano de observabilidade (2026-09-25): a Fase 12 fechou tudo o que não
   depende do Render — M0–M7a, M4 e M5 mergeados na `dev` (#242, #243, #244),

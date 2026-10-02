@@ -482,16 +482,21 @@ esperado:        1–4 h/dia para a API   (~100–200 h/mês no workspace)
 perto de 24 h:   a API não dorme — há outro despertador
 ```
 
-**Todo deploy acorda a API uma vez, de propósito.** O prerender do `next
-build` na Vercel chama a API; contra a instância hibernada, a rajada de ~20
-requisições simultâneas voltou `429` por minutos **sem acordá-la**, e até uma
-requisição isolada da máquina de build volta `429` em 0,1 s (medido em 01/10):
-o Render não acorda a instância free para o IP de build da Vercel. Por isso o
-`build` do web roda `scripts/warm-api.mjs` antes — ele acorda a API **pelo
-site em produção** (`POST /api/events` com lote vazio, numa função da Vercel,
-que acorda como o cron) e sonda direto até 120 s; nunca reprova — e o
-`fetchApi` do servidor repete 429/503. Se um deploy de produção cair com 429 no prerender, a Vercel
-mantém o site anterior no ar: confira o `[warm-api]` no topo do log.
+**A borda do Render recusa tráfego da Vercel com 429, de vez em quando**
+(medido em 01/10/2026: a resposta vem em 0,1 s, de fora da API, até com a
+instância acordada). Três consequências:
+
+- **Um deploy da Vercel pode cair no prerender com `429`.** A Vercel mantém o
+  deploy anterior no ar; o remédio é **Deployments → Redeploy** mais tarde. O
+  `[warm-api]` no topo do log diz quem recusou (`a borda` ou `a API`).
+- **O cron repete** aquecimento, disparo e sonda quando recebe 429/503. Se
+  mesmo assim um dia ficar sem briefing, o log da função `cron.daily-news`
+  mostra `Backend returned 429` — é o gatilho do item 13.8 do plano de
+  observabilidade.
+- **A ISR mantém a última página boa** quando a regeneração leva 429.
+
+Antes de culpar o limitador da API, procure `"statusCode":429` no log do
+Render: a API registra todo status, e se não houver linha, foi a borda.
 
 ### 9.1 Rotacionar o `AUTH_JWT_SECRET` (runbook)
 
