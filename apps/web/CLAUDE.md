@@ -57,7 +57,7 @@
   (`app/api/cron/daily-news`, 11:00 UTC) chama `revalidateDailyContent()`
   (`lib/daily-revalidation.ts`) **duas vezes**: no aceite do disparo e, no
   disparo agendado, de novo quando `GET /api/jobs/:id` diz `SUCCESS`
-  (`settleRun`, até 150 s, `maxDuration = 240`) — conserta a página que um
+  (`settleRun`, até 90 s, `maxDuration = 290`, repetindo o 429 da borda do Render) — conserta a página que um
   robô regenerou no meio do run, e não custa hora do Render porque o run já
   mantém a API acordada. **Um cron só**: um segundo (`/api/cron/refresh`)
   derrubou o deploy em 01/10/2026 — o Hobby limita os crons —, e há guarda.
@@ -714,6 +714,17 @@ Regras que não são óbvias no código:
   devolve `null` e a tela desenha o estado vazio. A primeira versão simplesmente
   não capturava, e o job Build reprovou com `ECONNREFUSED` — foi o CI que
   ensinou a distinção.
+- **A borda do Render devolve 429 a tráfego da Vercel, de vez em quando, e o
+  servidor resiste em vez de contornar.** Medido em 01/10/2026: 429 em 0,1 s,
+  de fora da API (ela loga todo status e não há 429), até com a instância
+  acordada, e só contra a Vercel. O `fetchApi` repete 429/503 **só no
+  servidor** (`API_RETRY_*` em `lib/timeouts.ts`; no navegador quem repete é
+  o TanStack Query — guarda em `tests/lib/api-retry.test.ts`, em ambiente
+  `node`); o cron espera e repete aquecimento, disparo e sonda do run
+  (`PIPELINE_REFUSED_PAUSE_MS`, `PIPELINE_TRIGGER_ATTEMPTS`). Um build que
+  cai com 429 no prerender deixa o deploy anterior no ar — "Redeploy" mais
+  tarde. O `scripts/warm-api.mjs`, no `build`, é diagnóstico: diz se o 429 veio
+  da API (`x-ratelimit-*`) ou da borda.
 - **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
   existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
   mandaria URL digitada errada para a página de erro.

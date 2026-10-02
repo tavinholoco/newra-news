@@ -4,8 +4,10 @@ import { isCronAuthorized } from '@/lib/cron-auth';
 import { logServerError } from '@/lib/log-server-error';
 import {
   API_TIMEOUT_MS,
+  PIPELINE_REFUSED_PAUSE_MS,
   PIPELINE_SETTLE_MAX_MS,
   PIPELINE_SETTLE_POLL_MS,
+  PIPELINE_TRIGGER_ATTEMPTS,
   PIPELINE_TRIGGER_TIMEOUT_MS,
   PIPELINE_WARM_ATTEMPTS,
   PIPELINE_WARM_TIMEOUT_MS,
@@ -15,13 +17,17 @@ import type { PipelineTrigger } from '@newranews/types';
 export const dynamic = 'force-dynamic';
 
 /**
- * 240 s, e o número sai da soma: `PIPELINE_WARM_ATTEMPTS × PIPELINE_WARM_TIMEOUT_MS`
- * mais o disparo dá 70 s no pior caso, e a espera pelo fim do run
- * (`PIPELINE_SETTLE_MAX_MS`) mais 150 s — 220 s, com margem para a resposta e
- * as revalidações. Era 90 s até 01/10/2026, quando a rota passou a esperar o
- * run. O teto do plano Hobby da Vercel é 300 s.
+ * 290 s, e o número sai da soma do pior caso: aquecer (`2 × 25 s` + uma pausa
+ * de 15 s) = 65 s; disparar com a borda recusando (`4 × 20 s` + `3 × 15 s`) =
+ * 125 s; esperar o fim do run (`PIPELINE_SETTLE_MAX_MS`) = 90 s — 280 s. O
+ * teto do plano Hobby da Vercel é 300 s. Era 90 s até 01/10/2026; 240 com a
+ * espera pelo run; 290 com a repetição do 429.
  */
-export const maxDuration = 240;
+export const maxDuration = 290;
+
+/** Recusa que passa com o tempo: a borda do Render limitando, ou subindo. */
+const REFUSED = new Set([429, 503]);
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Acorda a API antes de disparar, e diz se conseguiu.
@@ -47,6 +53,11 @@ async function warmApi(jobUrl: string): Promise<boolean> {
         cache: 'no-store',
       });
       if (res.ok) return true;
+      // **429 da borda do Render chega em 0,1 s**: sem pausa, as duas
+      // tentativas saíam juntas e o aquecimento não esperava nada.
+      if (REFUSED.has(res.status) && attempt < PIPELINE_WARM_ATTEMPTS) {
+        await pause(PIPELINE_REFUSED_PAUSE_MS);
+      }
     } catch {
       // Timeout ou transporte: é o caso esperado com a API hibernando, e a
       // própria tentativa é o que a acorda. Segue para a seguinte.
@@ -92,6 +103,7 @@ async function settleRun(jobUrl: string, pipelineId: string): Promise<RunStatus>
         headers: { Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}` },
         cache: 'no-store',
       });
+      if (REFUSED.has(res.status)) continue;
       if (!res.ok) return 'UNKNOWN';
       const body = (await res.json()) as { data?: { status?: unknown } } | null;
       const status = body?.data?.status;
@@ -134,17 +146,25 @@ export async function GET(request: Request) {
   const warmed = await warmApi(jobUrl);
 
   try {
-    const response = await fetch(jobUrl, {
-      method: 'POST',
-      // O que se espera aqui é o **aceite**, não a execução: a rota da API
-      // responde `{ outcome, pipelineId, startedAt }` e o pipeline segue no
-      // servidor quando o desfecho é `started`.
-      signal: AbortSignal.timeout(PIPELINE_TRIGGER_TIMEOUT_MS),
-      headers: {
-        Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}`,
-        ...(actorId ? { 'x-actor-id': actorId } : {}),
-      },
-    });
+    // **Repetido quando a borda recusa (429/503).** O disparo é idempotente
+    // por dia na API, então repetir um pedido que a borda barrou não roda o
+    // pipeline duas vezes.
+    let response!: Response;
+    for (let attempt = 1; attempt <= PIPELINE_TRIGGER_ATTEMPTS; attempt++) {
+      response = await fetch(jobUrl, {
+        method: 'POST',
+        // O que se espera aqui é o **aceite**, não a execução: a rota da API
+        // responde `{ outcome, pipelineId, startedAt }` e o pipeline segue no
+        // servidor quando o desfecho é `started`.
+        signal: AbortSignal.timeout(PIPELINE_TRIGGER_TIMEOUT_MS),
+        headers: {
+          Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}`,
+          ...(actorId ? { 'x-actor-id': actorId } : {}),
+        },
+      });
+      if (!REFUSED.has(response.status) || attempt === PIPELINE_TRIGGER_ATTEMPTS) break;
+      await pause(PIPELINE_REFUSED_PAUSE_MS);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -173,7 +193,7 @@ export async function GET(request: Request) {
 
       // **Só no disparo agendado.** O botão do painel reentra por aqui de
       // dentro de outra requisição (`x-actor-id`) e espera esta resposta;
-      // segurá-lo por até 150 s seria a tela travada. O preço é aceito: o
+      // segurá-lo por até 90 s seria a tela travada. O preço é aceito: o
       // disparo manual fica só com a invalidação no aceite.
       if (!actorId) {
         settled = await settleRun(jobUrl, data.pipelineId);

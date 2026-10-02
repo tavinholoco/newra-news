@@ -888,6 +888,20 @@ const MUTATIONS = [
     dropLine: "        if (settled === 'SUCCESS') revalidateDailyContent();",
     expect: 'revalidates again when the run closes in SUCCESS',
   },
+  {
+    id: 'A1.63',
+    what: 'o cron deixa de repetir o disparo que a borda do Render recusou',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    edits: [
+      {
+        find: "      if (!REFUSED.has(response.status) || attempt === PIPELINE_TRIGGER_ATTEMPTS) break;",
+        replace: '      break;',
+      },
+    ],
+    expect: 'triggers again when the edge refuses the trigger with 429',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

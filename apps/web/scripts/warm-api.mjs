@@ -1,41 +1,60 @@
 /**
- * **Acorda a API do Render antes do `next build` publicar** (01/10/2026).
+ * **Tenta acordar a API do Render antes do `next build` publicar, e diz no log
+ * quem recusou** (01/10/2026).
  *
  * O prerender da Home, das listagens e dos dois sitemaps chama a API, e na
  * Vercel a falha relança — o deploy anterior fica no ar (`nullUnlessPublishing`,
- * `prefetch`). Com a API dormindo de propósito (as horas do Render), o build do
- * #255 caiu três vezes com `429 Too Many Requests` em toda página, por 2,5 min
- * seguidos: as ~20 requisições simultâneas do prerender contra a instância
- * hibernada foram recusadas pelo Render **sem acordá-la** — um `curl` isolado,
- * logo depois, a acordou em ~14 s. Aqui vai **uma** requisição por vez, como o
- * `warmApi` do cron.
+ * `prefetch`).
  *
- * Só onde o build publica (`VERCEL`), e **nunca reprova**: se não acordar, o
- * prerender tenta do mesmo jeito, e a repetição de `fetchApi` cobre o resto.
+ * **O que foi medido em 01/10, e por que este script não resolve sozinho:** a
+ * borda do Render (Cloudflare) devolve `429` a tráfego vindo da Vercel em 0,1
+ * s, de forma intermitente — a máquina de build e até uma função da Vercel,
+ * com a instância **acordada** (a API nunca registrou um 429; às 23:39 ela
+ * respondia 200 a uma função e 429 ao build no mesmo minuto). A hipótese mais
+ * provável é um limite por IP de origem, com os IPs de saída da Vercel
+ * partilhados por muitos clientes. Acordar pelo site em produção foi tentado
+ * e também levou 429. Quando a borda libera, a sonda passa e o build também
+ * (22:38 e 22:52 de 01/10); quando não, o build cai e a Vercel mantém o
+ * deploy anterior — **o remédio é o botão "Redeploy" mais tarde**.
+ *
+ * O script espera até 120 s pela borda liberar e imprime os cabeçalhos que
+ * dizem de quem é o 429 (`x-ratelimit-*` é a nossa API; sem eles, é a borda).
+ * Só onde o build publica (`VERCEL`), e **nunca reprova**.
  */
-const ATTEMPTS = 4;
-const TIMEOUT_MS = 30_000;
-const PAUSE_MS = 5_000;
+const PROBE_TIMEOUT_MS = 10_000;
+const WAIT_BUDGET_MS = 120_000;
+const PAUSE_MS = 10_000;
+
+const seconds = (started) => ((Date.now() - started) / 1000).toFixed(1);
+
+async function probe(url) {
+  const started = Date.now();
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+    const who = res.headers.get('x-ratelimit-limit') ? 'a API' : 'a borda';
+    const extra = res.ok
+      ? ''
+      : ` — quem respondeu: ${who} (server=${res.headers.get('server') ?? '?'}, retry-after=${res.headers.get('retry-after') ?? '-'})`;
+    return { ok: res.ok, label: `${res.status} em ${seconds(started)} s${extra}` };
+  } catch (error) {
+    return { ok: false, label: `${error?.name ?? 'erro'} em ${seconds(started)} s` };
+  }
+}
 
 async function main() {
   const base = process.env.NEXT_PUBLIC_API_URL;
   if (!process.env.VERCEL || !base) return;
 
-  const url = `${base.replace(/\/$/, '')}/health`;
-  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    const started = Date.now();
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-      const seconds = ((Date.now() - started) / 1000).toFixed(1);
-      console.log(`[warm-api] tentativa ${attempt}: ${res.status} em ${seconds} s`);
-      if (res.ok) return;
-    } catch (error) {
-      const seconds = ((Date.now() - started) / 1000).toFixed(1);
-      console.log(`[warm-api] tentativa ${attempt}: ${error?.name ?? 'erro'} em ${seconds} s`);
-    }
-    if (attempt < ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
+  const health = `${base.replace(/\/$/, '')}/health`;
+  const deadline = Date.now() + WAIT_BUDGET_MS;
+  for (;;) {
+    const result = await probe(health);
+    console.log(`[warm-api] sonda: ${result.label}`);
+    if (result.ok) return;
+    if (Date.now() + PAUSE_MS >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
   }
-  console.log('[warm-api] a API não acordou; o build segue e o prerender tenta do mesmo jeito');
+  console.log('[warm-api] a borda não liberou; o build segue — se cair, use "Redeploy" na Vercel mais tarde');
 }
 
 main().catch(() => {});

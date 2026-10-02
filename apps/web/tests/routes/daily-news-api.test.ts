@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GET } from '@/app/api/cron/daily-news/route';
 import { DAILY_REVALIDATION_PATHS } from '@/lib/daily-revalidation';
+import { PIPELINE_TRIGGER_ATTEMPTS } from '@/lib/timeouts';
 
 const revalidatePathMock = vi.fn();
 
@@ -14,6 +15,7 @@ vi.mock('@/lib/timeouts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/timeouts')>()),
   PIPELINE_SETTLE_POLL_MS: 0,
   PIPELINE_SETTLE_MAX_MS: 50,
+  PIPELINE_REFUSED_PAUSE_MS: 0,
 }));
 
 const CRON_SECRET = 'cron-secret';
@@ -503,5 +505,81 @@ describe('GET /api/cron/daily-news — a espera pelo fim do run', () => {
     expect((await res.json()).settled).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+  });
+});
+
+/**
+ * **A borda do Render recusa tráfego da Vercel com 429, de forma
+ * intermitente** (01/10/2026). Sem repetir, o disparo recusado deixava o dia
+ * sem briefing.
+ */
+describe('GET /api/cron/daily-news — a borda que recusa', () => {
+  const trigger = {
+    outcome: 'started',
+    pipelineId: '11111111-2222-3333-4444-555555555555',
+    startedAt: '2026-10-02T11:00:00.000Z',
+  };
+  const ok = (body: unknown) => ({ ok: true, status: 200, json: vi.fn().mockResolvedValue(body) });
+  const refused = { ok: false, status: 429, text: vi.fn().mockResolvedValue('Too Many Requests') };
+  const manual = () =>
+    new Request('http://localhost:3000/api/cron/daily-news', {
+      headers: { authorization: `Bearer ${CRON_SECRET}`, 'x-actor-id': 'user-1' },
+    });
+
+  it('triggers again when the edge refuses the trigger with 429, and succeeds', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 }) // acordar
+      .mockResolvedValueOnce(refused)
+      .mockResolvedValueOnce(ok(trigger));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(manual());
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual(trigger);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up with 502 after the last refused attempt', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, status: 200 }).mockResolvedValue(refused);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(manual());
+
+    expect(res.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(1 + PIPELINE_TRIGGER_ATTEMPTS);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an answer about the request — a 401 from the API is final', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValue({ ok: false, status: 401, text: vi.fn().mockResolvedValue('no') });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(manual());
+
+    expect(res.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps waiting for the run when a status poll is refused', async () => {
+    const status = (value: string) => ok({ data: { id: trigger.pipelineId, status: value } });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce(ok(trigger))
+        .mockResolvedValueOnce(refused)
+        .mockResolvedValueOnce(status('SUCCESS')),
+    );
+
+    const res = await GET(authorizedRequest());
+
+    expect((await res.json()).settled).toBe('SUCCESS');
+    expect(revalidatePathMock).toHaveBeenCalledTimes(2 * DAILY_REVALIDATION_PATHS.length);
   });
 });

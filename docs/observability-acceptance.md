@@ -1647,7 +1647,7 @@ caíram junto.
     o #231 (a ISR determinística) não é ancestral da `origin/main` — a cota
     zerou porque a janela passou, não porque a causa saiu do ar; sai na
     promoção (A7.16).
-- [ ] **A7.11 — O `ignore` do #237, e a `dev` em dia.** A entrada do
+- [x] **A7.11 — O `ignore` do #237, e a `dev` em dia.** A entrada do
   `@vitest/coverage-v8` no `.github/dependabot.yml`, que acompanha a major
   do vitest — o motivo escrito como os outros. Fecha o #237 (e o #248, o
   mesmo bump uma versão depois). · P
@@ -1661,7 +1661,16 @@ caíram junto.
     `dependabot-config.test.ts` passa (4/4). **Fecha quando a promoção
     estiver na `main`**: o #248 fechado e `git show origin/main:.github/dependabot.yml`
     com a entrada.
-- [ ] **A7.12 — A promoção (decisão do dono)** e os dois deploys de pé; as
+  - **Fechou com a promoção #251 (01/10, 18:06:34 UTC, `3f1f377`).** A
+    entrada está na `main` (`git show origin/main:.github/dependabot.yml`
+    casa `coverage-v8'` uma vez), e **o #248 já estava fechado quando o
+    agente foi fechá-lo** — o próprio Dependabot o fechou às 18:06:41, **7 s
+    depois do merge**, comentando *"@vitest/coverage-v8 is no longer being
+    updated by Dependabot"*: a prova de que ele releu a configuração na
+    branch padrão. A `dev`
+    foi realinhada por fast-forward no mesmo minuto (`b5882cb..3f1f377`):
+    `dev..main` = 0 e `main..dev` = 0.
+- [x] **A7.12 — A promoção (decisão do dono)** e os dois deploys de pé; as
   pré-checagens do A7.02 repetidas; Smoke E2E automático (31 passed, 6 skipped
   enquanto os segredos E2E não existirem — hoje o repositório só tem
   `DATABASE_URL`). · P
@@ -1680,7 +1689,26 @@ caíram junto.
     pré-condição existe aqui), com as premissas viradas em
     `tests/security/fastify-advisory-premises.test.ts` e as mutações
     A1.54–A1.58. Depois dele: `pnpm audit --prod` com 20 *high* e 2
-    *critical*, todas ignoradas.
+    *critical*, todas ignoradas. **#250, mergeado pelo dono às 17:57.**
+  - **A promoção: #251, mergeada pelo dono em 01/10 às 18:06:34 UTC
+    (`3f1f377`)** — 62 commits, 20 PRs (#219 → #250), 109 arquivos, o lote
+    que a Fase 12 ensaiou e mais nada (os bumps #245–#247 ficaram de fora de
+    propósito). Pré-checagens repetidas sobre `b5882cb`, todas verdes.
+    No push: **Migrate** `7 migrations found … No pending migrations to
+    apply`; **CI, CodeQL** verdes; **Gitleaks** `0 commits scanned` — a
+    dívida do §16, 13.ª medição, agora no push da promoção. **Os dois
+    deploys:** a Vercel de produção `Ready` às 18:06:39 (criado 5 s depois
+    do merge); o Render sem CLI (a sessão expirou de novo), medido por um
+    vigia de `/api/health` a cada 30 s que **mantinha a API acordada** —
+    então um `uptime` que cai é processo novo, não acordada: `333 → 21 s`
+    às 18:08:31, **processo novo às ~18:08:10 UTC**, e daí em diante 52,
+    82, 113 s. O código novo servindo, nos dois lados: o payload RSC de
+    `/pt-BR/news` e `/pt-BR/article` passou a carregar
+    `"now":"$D1970-01-01T00:00:00.000Z"` (o `STATIC_NOW` do #231 — antes,
+    `…T16:21:50.579Z`, a hora da regeneração); o Dependabot fechou o #248
+    sozinho (A7.11). **Smoke E2E automático: `31 passed (12.6s)`, `6
+    skipped`** — os mesmos 31/6 da promoção #215, depois do `sleep 420`
+    pelos deploys. A `dev` realinhada por fast-forward no mesmo minuto.
 - [ ] **A7.12b — A segunda janela da correção da ESPN** (decidida pelo dono em
   25/09, A4.04). A ESPN escreve a hora de Brasília com o rótulo `EST`, e tudo
   o que o código **antigo** gravou dela está 2 h adiantado. A correção é
@@ -1707,7 +1735,44 @@ caíram junto.
     preciso; o arquivo da credencial foi apagado logo depois. **Para a 2.ª
     janela, então, a conferência do `dry` sobre a 1.ª deve dizer 0 no
     futuro**, e a execução é `<2026-09-25T21:30:00.000Z> <deploy>`.
-- [ ] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
+- [!] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
+  - **Lighthouse, duas rodadas — e a primeira reprovou.** `gh workflow run
+    "Lighthouse CI" --ref main` às 18:09:47, **três minutos depois do
+    deploy** (run 36904768835): gate vermelho, `categories.performance …
+    found: 0.86`. Medianas calculadas dos `lhr-*.json` (a tabela impressa é a
+    execução representativa — mostrava `/pt-BR` em **71**, que era só a
+    primeira das três, `[71, 94, 95]`): **`/pt-BR` 94 · `/news` 86 `[85, 86,
+    90]`** · `/article` 96 · `/about` 95 · `/en` 93 · `/news/[id]` 95 ·
+    `/article/[date]` 95. O audit da `/news`: TBT 370–390 ms (as outras
+    rotas, 80–120), quase todo no **`6160-ce5cabbc630d5d81.js`** — o
+    runtime do App Router (redutores do roteador, cliente do RSC) —, e
+    **é o mesmo arquivo, com o mesmo hash, da promoção #215**, quando a
+    `/news` passou com 91 (`[90, 93, 91]`); o `news` e o `b4d6b93a…` também
+    iguais. Nenhum JS mudou. O que mudou foi o ambiente: as imagens voltaram
+    (em 19/09 eram 402 — "Other" no thread principal 629 ms contra 409) e a
+    medição saiu com tudo frio. **Uma** segunda rodada às 18:20 (run
+    36906058317, verde): **95 · 91 `[92, 91, 88]` · 96 · 96 · 95 · 96 ·
+    95**, e **acessibilidade, best practices e SEO em 100 nas sete** —
+    best practices tinha ficado em 96 nas rotas com foto em 19/09 pelos
+    `errors-in-console: 402`: **a cota de imagem voltou, medida por outro
+    caminho**. A `/news` raspando o piso não é novidade (§10.6 do plano da
+    V2, desde 24/08: `[89, 90, 81]`; 14/09: 89 no agendado), mas não tinha
+    gatilho numérico — **ganhou linha no §16** do plano de observabilidade.
+  - **Baseline: 51/51, e a ferramenta tinha um defeito.** A primeira
+    recaptura (`BASE_URL` de produção, `WIDTHS=375,768,1440`, `jpeg`,
+    `CHROMIUM_PATH` no headless 1234) deu 51/51 em HTTP 200 — e gravou os
+    destaques de Tecnologia, Política, Economia e Esportes da Home como
+    **retângulos brancos**: `loading="lazy"` abaixo da dobra nunca é pedido
+    antes da foto de página inteira. No navegador do painel a mesma imagem
+    carregava (`complete: true`, 582 px naturais). A `home--1440.jpg` é a
+    imagem do README. **Corrigido no PR D** (`capture-visual-baseline.mjs`):
+    toda `lazy` vira `eager` antes da foto, e a captura **reprova** quando
+    sobra imagem incompleta depois de 20 s — a forma do `admin:capture`
+    medindo a largura do documento. Vista reprovando por uma sonda
+    descartável: sem a troca, **10 de 28** imagens da Home incompletas; com
+    ela, 0. Recaptura: **51/51, 42 telas mudaram** (a anterior era de
+    24/08 — o card de texto, o briefing renderizado, as abas da conta e as
+    fotos de volta).
 - [ ] **A7.14 — O primeiro run das 11:00 UTC depois da volta.** Espera-se
   **`baseline: 'insufficient'`** no evento 5.5 nos primeiros dias — a suspensão
   apagou a série de `DailyMetric` desde 19/09, e o portão de volume não opina
@@ -1718,13 +1783,57 @@ caíram junto.
 - [ ] **A7.15 — A leitura com a sessão ADMIN do dono, no site publicado.** O
   dono entra (o agente nunca digita credencial); o agente confere o que o A7.05
   não alcançava: o run do A7.14 nas três abas, a `DailyUptime` voltando a
-  crescer, as sondas do smoke novo na tabela de falhas. · P
-- [ ] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
+  crescer, ~~as sondas do smoke novo na tabela de falhas~~. · P
+  - **A expectativa riscada estava errada, e o Smoke de 01/10 provou.** Ele
+    é desenhado para **não** escrever no `ErrorEvent` de produção: as treze
+    rotas protegidas que ele sonda (nove de admin, quatro de conta) recusam
+    com 401 **no BFF**, sem sessão, antes de chegar à API; o `POST /api/errors/client` vai com **corpo vazio** de propósito
+    (`e2e/authorization.spec.ts`: "um relato válido gravaria uma falha falsa
+    na tabela de produção a cada push na `main`"). Lido às 18:21 UTC, três
+    minutos depois do Smoke (`31 passed`, 18:15): as **mesmas três linhas**
+    de antes — as duas invariantes e a coleta degradada do run das 11:31.
+    Zero linha do Smoke é o comportamento certo.
+  - **Leitura de antes do primeiro run novo (01/10, com a sessão do dono,
+    código antigo e depois o novo):** o run de 01/10 é `SUCCESS_DEGRADED`
+    pela etapa 1 (`feed-failed`/`fetch failed` em Veja Saúde e Drauzio,
+    1,8 s cada; 11 fontes OK, `kept` 509); a 9.5 com 12 checadas e 2
+    violadas, as duas esperadas — `briefing.one_per_day` (1 de 7, a
+    suspensão) e `pipeline.no_stale_running` (o run de 03/09 ainda
+    `RUNNING`: o código antigo não o enterrava, A7.05); o arco **7 h de
+    750 h** às 17:15 UTC, com "o ritmo do mês só é projetado com 24 h de
+    amostra". Depois do deploy, o painel **"Portões" no ar** — e ele
+    mostra **100 % de aprovação sobre 1 run**, que é o de 01/10, **que não
+    passou por portão nenhum** (código antigo): a taxa conta como aprovado
+    todo run fechado sem bloqueio. É transitório — o run sai da janela de 7
+    dias em 08/10, e todo run daqui em diante passa pelos dois —, e não
+    pede correção.
+- [!] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
   com `revalidate` (`/pt-BR/news` ou `/pt-BR/article`, sem run do pipeline
   entre elas) com payload RSC idêntico; os dois sitemaps com contagem estável;
   e, se a API cair de novo, o documento anterior mantido (5xx na revalidação).
   **Não a `/about`**: ela não tem `revalidate`, é gerada no build e nunca
   regenera (o item 82 mediu o `now` dela como a hora do build). · P
+  - **01/10 — o `now` no ar, e a comparação achou outro defeito.** Antes da
+    promoção, o payload RSC de `/pt-BR/news` carregava
+    `"now":"$D2026-10-01T16:21:50.579Z"`, a hora da regeneração; às 18:09,
+    depois do deploy, `"now":"$D1970-01-01T00:00:00.000Z"` em `/news` e em
+    `/article` — o `STATIC_NOW`. Os sitemaps: 364 e 402 `<loc>` às 18:09 e
+    às 19:12 (o news sitemap é janela de 48 h; 403 → 402 às 16:21 é ela
+    andando). **A comparação byte a byte** (amostra 1: o `PRERENDER` do
+    build às 18:09; amostra 2: a primeira regeneração, `HIT` com `age` 19
+    às 19:12:19) **deu diferente, e não pelo `now`**: `/news` foi de 147.237
+    para **97.331 bytes, com zero `sourceUrl` e sem `total`** — a
+    regeneração gravou a listagem **sem nenhuma matéria**; `/article`, de
+    180.291 para 89.259. Causa: a revalidação das 19:11:58 encontrou a API
+    **dormindo** — a sonda das 19:13:14 levou **52,6 s** e achou o processo
+    com 11 s de vida —, o prazo do `prefetch` é 8 s, e o `prefetch`
+    devolvia `undefined`, que a ISR guardou por uma hora. A Home e os
+    sitemaps já relançavam onde o resultado é publicado
+    (`nullUnlessPublishing`); as duas listagens, não. **Corrigido no #254**
+    (`prefetch` relança na Vercel; guarda em `api-failure.test.ts`,
+    mutação A1.59). **A linha volta a ser medida depois da promoção do
+    #254**: as duas regenerações seguidas com payload idêntico ainda não
+    foram vistas — hoje uma das amostras não tinha dado.
 
 ## M8 — Fechamento
 
