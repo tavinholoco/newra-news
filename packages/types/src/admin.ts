@@ -35,8 +35,11 @@ export interface PipelineTrigger {
  * Sucesso: { success: true, data, revalidated }.
  * Falha: { success: false, error, detail? }.
  *
- * `revalidated` é `false` quando nada foi disparado — invalidar o cache de um
- * run que não aconteceu joga fora uma página quente para regenerar a mesma.
+ * `revalidated` diz se o conjunto do dia foi invalidado: no `started`, e no
+ * `already-succeeded-today` também — o run do dia pode ter sido disparado por
+ * outro caminho (o cron interno da API), e o site tem de mostrá-lo mesmo
+ * assim (02/10/2026). No `already-running` do botão, `false`: o botão não
+ * espera o run.
  */
 export interface RunPipelineResult {
   success: boolean;
