@@ -59,7 +59,13 @@
   disparo agendado, de novo quando `GET /api/jobs/:id` diz `SUCCESS`
   (`settleRun`, até 90 s, `maxDuration = 290`, repetindo o 429 da borda do Render) — conserta a página que um
   robô regenerou no meio do run, e não custa hora do Render porque o run já
-  mantém a API acordada. **Um cron só**: um segundo (`/api/cron/refresh`)
+  mantém a API acordada. **E invalida também quando não foi ele quem
+  disparou** (02/10/2026): o cron interno da API (`CRON_SCHEDULE`, 08:00 de
+  São Paulo = 11:00 UTC) dispara sozinho quando a instância está acordada, e
+  o cron da Vercel chega depois com `already-succeeded-today` (invalida uma
+  vez) ou `already-running` (espera o mesmo run e invalida no `SUCCESS`).
+  Antes só o `started` invalidava, e a Home ficou o dia inteiro no HTML do
+  build da véspera com o briefing novo no banco. **Um cron só**: um segundo (`/api/cron/refresh`)
   derrubou o deploy em 01/10/2026 — o Hobby limita os crons —, e há guarda.
   O conjunto é Home, `/news`, `/article`, `/article/[date]` e os dois
   sitemaps, cada um com `'page'` — **nunca `('/[locale]', 'layout')`**, que
