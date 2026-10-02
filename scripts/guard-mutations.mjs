@@ -902,6 +902,20 @@ const MUTATIONS = [
     ],
     expect: 'triggers again when the edge refuses the trigger with 429',
   },
+  {
+    id: 'A1.64',
+    what: 'o cron volta a ignorar o run do dia que o cron interno da API disparou',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    edits: [
+      {
+        find: "    } else if (data.outcome === 'already-succeeded-today') {",
+        replace: "    } else if (data.outcome === ('never' as string)) {",
+      },
+    ],
+    expect: 'revalidates once when the run of the day already succeeded without us',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

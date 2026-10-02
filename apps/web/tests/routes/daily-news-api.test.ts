@@ -101,46 +101,118 @@ describe('GET /api/cron/daily-news', () => {
   });
 
   /**
-   * **Nada disparado, nada invalidado.**
+   * **O run do dia que outro caminho disparou também chega ao site.**
    *
-   * O `triggerPipeline` da API e idempotente por dia: com um run de hoje ja em
-   * `SUCCESS` ou `RUNNING` ele devolve o id daquele e nao executa nada.
-   * Invalidar o cache ai joga fora uma pagina quente para regenerar a mesma —
-   * e, no caso de `already-running`, regenera a partir do banco que ainda esta
-   * sendo escrito.
+   * Em 02/10/2026 o cron interno da API disparou às 11:00 em ponto, este cron
+   * chegou depois e ouviu `already-succeeded-today` — e, como só invalidava no
+   * `started`, a Home ficou o dia inteiro no HTML do build da véspera, com o
+   * briefing novo já no banco. O `revalidate` é de um dia: ninguém mais a
+   * consertaria.
    */
-  for (const outcome of ['already-running', 'already-succeeded-today'] as const) {
-    it(`does not revalidate when the outcome is ${outcome}`, async () => {
-      const data = {
-        outcome,
-        pipelineId: 'pipeline-1',
-        startedAt: '2026-08-25T11:00:00.000Z',
-      };
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue(data),
-        }),
-      );
+  const existingRun = (outcome: 'already-running' | 'already-succeeded-today') => ({
+    outcome,
+    pipelineId: 'pipeline-1',
+    startedAt: '2026-10-02T11:00:00.000Z',
+  });
+  const okJson = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    json: vi.fn().mockResolvedValue(body),
+  });
 
-      const res = await GET(authorizedRequest());
+  it('revalidates once when the run of the day already succeeded without us', async () => {
+    const data = existingRun('already-succeeded-today');
+    const fetchMock = vi.fn().mockResolvedValue(okJson(data));
+    vi.stubGlobal('fetch', fetchMock);
 
-      expect(res.status).toBe(200);
-      // `success: true` continua certo: a chamada deu certo. Quem conta o que
-      // aconteceu e o `outcome`, e ele viaja inteiro ate o painel.
-      expect(await res.json()).toEqual({
-        success: true,
-        data,
-        revalidated: false,
-        warmed: true,
-        // Nada disparado, nada a esperar.
-        settled: null,
-      });
-      expect(revalidatePathMock).not.toHaveBeenCalled();
+    const res = await GET(authorizedRequest());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: true,
+      data,
+      revalidated: true,
+      warmed: true,
+      // O run já fechou: nada a esperar.
+      settled: null,
     });
-  }
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+    // Acordar e disparar, e nenhuma sonda de status.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits for the run already running and revalidates when it closes in SUCCESS', async () => {
+    const data = existingRun('already-running');
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 }) // acordar
+      .mockResolvedValueOnce(okJson(data)) // disparo
+      .mockResolvedValueOnce(okJson({ data: { id: data.pipelineId, status: 'RUNNING' } }))
+      .mockResolvedValueOnce(okJson({ data: { id: data.pipelineId, status: 'SUCCESS' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(authorizedRequest());
+
+    expect(await res.json()).toEqual({
+      success: true,
+      data,
+      revalidated: true,
+      warmed: true,
+      settled: 'SUCCESS',
+    });
+    // Uma vez, e só no fim: invalidar no aceite regeneraria a partir do banco
+    // ainda sendo escrito.
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+    const [statusUrl] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(statusUrl).toBe(`https://api.example.com/jobs/${data.pipelineId}`);
+  });
+
+  it('does not revalidate a run already running that FAILED', async () => {
+    const data = existingRun('already-running');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce(okJson(data))
+        .mockResolvedValueOnce(okJson({ data: { id: data.pipelineId, status: 'FAILED' } })),
+    );
+
+    const res = await GET(authorizedRequest());
+
+    expect(await res.json()).toMatchObject({ revalidated: false, settled: 'FAILED' });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it('does not wait for a run already running on a manual trigger from the panel', async () => {
+    const data = existingRun('already-running');
+    const fetchMock = vi.fn().mockResolvedValue(okJson(data));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(
+      new Request('http://localhost:3000/api/cron/daily-news', {
+        headers: { authorization: `Bearer ${CRON_SECRET}`, 'x-actor-id': 'user-1' },
+      }),
+    );
+
+    expect(await res.json()).toMatchObject({ revalidated: false, settled: null });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it('revalidates on a manual trigger when the run of the day already succeeded — the panel refreshes the site', async () => {
+    const data = existingRun('already-succeeded-today');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson(data)));
+
+    const res = await GET(
+      new Request('http://localhost:3000/api/cron/daily-news', {
+        headers: { authorization: `Bearer ${CRON_SECRET}`, 'x-actor-id': 'user-1' },
+      }),
+    );
+
+    expect(await res.json()).toMatchObject({ revalidated: true, settled: null });
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+  });
 
   it('forwards the pipeline trigger as POST with the job secret', async () => {
     vi.stubGlobal(

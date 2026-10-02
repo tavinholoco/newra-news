@@ -356,6 +356,14 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **02/10/2026: a Home presa no build da véspera, e o pipeline tinha
+  rodado.** O cron interno da API disparou às 11:00 em ponto, o cron da
+  Vercel chegou depois com `already-succeeded-today`, e a rota só invalidava
+  no `started` — com o `revalidate` de um dia, a Home ficou em
+  `PRERENDER` com o dia anterior. Hoje o cron invalida também quando outro
+  caminho disparou o run do dia (item **86**). **Lição:** "o pipeline não
+  rodou" se confere na API (`/api/articles/latest`), não na Home.
+
 - 🟢 **As horas do Render (2026-10-01): a ISR parou de acordar a API — e
   está em produção** (#255, promovido no **#256**, `e477231`; Smoke E2E
   verde). Item **85**. Outubro abriu com **28 h de 750** no primeiro dia

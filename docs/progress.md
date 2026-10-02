@@ -8658,6 +8658,43 @@ API dormindo, um dia normal deve custar **poucas horas**, não 24; se o
 contador subir ~1 h por hora de relógio por serviço depois deste deploy, há
 outro despertador.
 
+### 86. A Home presa no build da véspera: o run do dia que o cron da Vercel não disparou ✅ 2026-10-02
+
+**O sintoma:** em 02/10, às ~16 h UTC, a Home mostrava as notícias de 01/10
+e linkava o briefing de 01/10, e parecia que o pipeline não tinha rodado.
+**Rodou:** medido por um runner do GitHub (o container do agente não alcança
+o Render nem a Vercel), a API devolvia o briefing de 02/10 gerado às
+**11:00:19 UTC** e as notícias coletadas às 11:00:11, e `GET /api/home` já
+tinha o destaque do dia. Quem estava velha era a Vercel: `/pt-BR`, `/en`,
+`/pt-BR/news` e `/pt-BR/article` em `x-vercel-cache: PRERENDER` — o HTML do
+build do #258 (00:26 UTC, ainda 01/10) —, com 33 datas "01 de out." e o link
+para `/pt-BR/article/2026-10-01`.
+
+**A causa:** o run começou às 11:00 em ponto, e o cron da Vercel no Hobby
+dispara em qualquer minuto da hora (em 01/10 foi às 11:31). Quem disparou foi
+o **cron interno da API** (`CRON_SCHEDULE`, 08:00 de São Paulo), que só roda
+com a instância acordada — e ela estava. O cron da Vercel chegou depois,
+ouviu `already-succeeded-today`, e a rota só invalidava no `started` ("custo
+sem troco"). Até 01/10 isso não aparecia: o `revalidate = 3600` regenerava as
+páginas de hora em hora. Com o `revalidate` de um dia do item 85, a página
+fica velha até o dia seguinte. O 19/09 (`createdAt` 11:00:31) provavelmente
+foi o mesmo caso, escondido pela regeneração horária.
+
+**A correção** (`app/api/cron/daily-news/route.ts`): `already-succeeded-today`
+invalida o conjunto do dia uma vez (no botão do painel, vira "atualizar o
+site"); `already-running`, no disparo agendado, espera **o mesmo** run pelo
+`settleRun` e invalida no `SUCCESS`. Os testes que garantiam o contrário
+("does not revalidate when the outcome is…") viraram cinco casos, e a
+mutação **A1.64** (`guard-mutations.mjs`) reprova dois deles. **927 → 930 no
+web.** O deploy da promoção refaz as páginas com o dado do dia, então o
+02/10 se conserta junto.
+
+**De passagem:** o Lighthouse manual de 02/10 (16:24 UTC, run 37033643912)
+reprovou com a `/news` em **87** `[87, 88, 87]` — a linha do §16 do plano
+de observabilidade, cujo gatilho é de duas medições **agendadas**; e o
+`/api/metrics/weekly` diz `pipelineSuccessRate: 0` sobre os dois dias com
+briefing (01/10 e 02/10), não investigado.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

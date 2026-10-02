@@ -176,20 +176,27 @@ export async function GET(request: Request) {
 
     const data = (await response.json()) as PipelineTrigger;
 
-    // **Nada disparado, nada a invalidar.** O `triggerPipeline` é idempotente
-    // por dia: com um run de hoje já em `SUCCESS` ou `RUNNING`, ele devolve o id
-    // daquele e não executa nada. Invalidar o cache aí joga fora uma página
-    // quente para regenerá-la a partir do mesmo banco — custo sem troco.
-    const revalidated = data.outcome === 'started';
-
+    // **Quem começou o run do dia não importa — o site tem de mostrá-lo.** O
+    // `triggerPipeline` é idempotente por dia: com um run de hoje já em
+    // `SUCCESS` ou `RUNNING`, ele devolve o id daquele e não executa nada. Até
+    // 02/10/2026 esta rota só invalidava no `started` ("custo sem troco") — e
+    // naquele dia o **cron interno da API** (`CRON_SCHEDULE`, 08:00 de São
+    // Paulo) disparou às 11:00 em ponto com a instância acordada, este cron
+    // chegou depois, ouviu `already-succeeded-today` e não invalidou nada: a
+    // Home ficou no HTML do build da véspera (`x-vercel-cache: PRERENDER`)
+    // com o briefing de 02/10 já no banco. Com o `revalidate` de um dia, nada
+    // mais a consertaria. Item 86 do `docs/progress.md`.
+    let revalidated = false;
     let settled: RunStatus | null = null;
-    if (revalidated) {
+
+    if (data.outcome === 'started') {
       // **Primeiro no aceite, depois na conclusão.** A invalidação no aceite
       // derruba o HTML velho na hora; a segunda, depois do `SUCCESS`, conserta
       // a página que alguém tenha regenerado no meio do run — com o
       // `revalidate` de um dia, ninguém mais a conserta. O conjunto, e por que
       // a `/news/[id]` não entra, está em `lib/daily-revalidation.ts`.
       revalidateDailyContent();
+      revalidated = true;
 
       // **Só no disparo agendado.** O botão do painel reentra por aqui de
       // dentro de outra requisição (`x-actor-id`) e espera esta resposta;
@@ -198,6 +205,21 @@ export async function GET(request: Request) {
       if (!actorId) {
         settled = await settleRun(jobUrl, data.pipelineId);
         if (settled === 'SUCCESS') revalidateDailyContent();
+      }
+    } else if (data.outcome === 'already-succeeded-today') {
+      // O run do dia terminou sem nós: invalidar uma vez. Custa uma
+      // regeneração por página do conjunto, com a API acordada. No botão do
+      // painel, é o "atualizar o site" depois de um run que outro disparou.
+      revalidateDailyContent();
+      revalidated = true;
+    } else if (data.outcome === 'already-running' && !actorId) {
+      // O run do dia está correndo sem nós: esperar **o mesmo** run e
+      // invalidar quando ele fechar em `SUCCESS`. Invalidar agora regeneraria
+      // a partir do banco ainda sendo escrito. O botão não espera (ver acima).
+      settled = await settleRun(jobUrl, data.pipelineId);
+      if (settled === 'SUCCESS') {
+        revalidateDailyContent();
+        revalidated = true;
       }
     }
 
