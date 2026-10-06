@@ -1,7 +1,13 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { ApiError, fetchApi, retryDelayMs } from '@/lib/api';
-import { API_RETRY_ATTEMPTS, API_RETRY_MAX_WAIT_MS } from '@/lib/timeouts';
+import { ApiError, fetchApi, fetchApiDeadlineMs, retryDelayMs } from '@/lib/api';
+import {
+  API_RENDER_TIMEOUT_MS,
+  API_RETRY_ATTEMPTS,
+  API_RETRY_MAX_WAIT_MS,
+  API_WAKE_MEASURED_MS,
+  VERCEL_FUNCTION_MAX_MS,
+} from '@/lib/timeouts';
 
 /**
  * **O servidor do Next repete o pedido recusado por excesso** (01/10/2026).
@@ -91,5 +97,35 @@ describe('retryDelayMs', () => {
   it('never waits past the cap — a Retry-After of an hour would hold the build', () => {
     expect(retryDelayMs(0, '3600')).toBe(API_RETRY_MAX_WAIT_MS);
     expect(retryDelayMs(10, null)).toBe(API_RETRY_MAX_WAIT_MS);
+  });
+});
+
+describe('fetchApi — o prazo do servidor cobre a acordada do Render', () => {
+  /**
+   * **Com 8 s, a primeira matéria pedida com a API dormindo virava a 500 do
+   * Next** (log da Vercel, 05/10/2026 23:01:23: `/en/news/[id]` em `MISS cold`,
+   * `TimeoutError`; a seguinte, 55 s depois, 200). A acordada mede ~52 s desde
+   * outubro. Este arquivo roda em `node` — o caminho da renderização no
+   * servidor; o do navegador está em `api-deadline-browser.test.ts`.
+   */
+  it('passes the render deadline to the request', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(200, { ok: true })));
+
+    await fetchApi('/home');
+
+    expect(fetchApiDeadlineMs()).toBe(API_RENDER_TIMEOUT_MS);
+    expect(timeoutSpy).toHaveBeenCalledWith(API_RENDER_TIMEOUT_MS);
+    timeoutSpy.mockRestore();
+  });
+
+  it('waits past the measured wake, and the whole chain fits in the function', () => {
+    expect(API_RENDER_TIMEOUT_MS).toBeGreaterThan(API_WAKE_MEASURED_MS);
+    // Prazo cheio + as esperas das repetições do 429/503, abaixo do teto de
+    // 300 s da função (Fluid compute). Um prazo maior entregaria a decisão à
+    // plataforma, que mata a função sem deixar o `catch` rodar.
+    expect(
+      API_RENDER_TIMEOUT_MS + API_RETRY_ATTEMPTS * API_RETRY_MAX_WAIT_MS,
+    ).toBeLessThan(VERCEL_FUNCTION_MAX_MS);
   });
 });

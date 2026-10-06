@@ -32,9 +32,14 @@
  *   requisição contra 0,22 s numa API quente. Um timeout menor que isso
  *   transformaria toda primeira visita depois da hibernação em erro — trocaria
  *   uma espera por uma falha, que é pior;
- * - **abaixo do teto da função.** O plano Hobby da Vercel mata a função em 10 s.
- *   Desistir aos 8 s deixa margem para o `catch` rodar e a página desenhar o
- *   estado de falha; deixar a função ser morta não deixa.
+ * - **abaixo do teto da função.** O plano Hobby da Vercel matava a função em
+ *   10 s. Desistir aos 8 s deixa margem para o `catch` rodar e a página
+ *   desenhar o estado de falha; deixar a função ser morta não deixa.
+ *
+ * **As duas premissas venceram em outubro de 2026**: a acordada passou a medir
+ * ~52 s, e com Fluid compute o teto do Hobby é 300 s. O que segura os 8 s hoje
+ * é só a ordem das pernas (abaixo do `BFF_TIMEOUT_MS`); a renderização de
+ * página no servidor ganhou prazo próprio, `API_RENDER_TIMEOUT_MS`.
  *
  * `BFF_TIMEOUT_MS = 12000` é o de fora, com folga sobre o de dentro.
  *
@@ -76,8 +81,51 @@
  * Confira isto de novo ao subir para o Next 15.
  */
 
-/** Servidor do Next → API. Acima do cold start medido, abaixo do teto da função. */
+/**
+ * Navegador → API, BFF → API, sign-in, analytics. Acima do cold start de
+ * agosto, abaixo do `BFF_TIMEOUT_MS` — a ordem das duas pernas é o que
+ * importa aqui. **A renderização de página no servidor não usa este número**:
+ * ver `API_RENDER_TIMEOUT_MS`.
+ */
 export const API_TIMEOUT_MS = 8_000;
+
+/**
+ * **A acordada do Render medida em outubro de 2026** — 52,6 s em 01/10 (a
+ * sonda achou o processo com 11 s de vida) e 52,4 s em 05/10 (9 s de vida):
+ * ~43 s do Render subindo a máquina, ~9 s do boot da API. Em agosto eram
+ * 4,9 s, e era sobre esse número que os 8 s acima foram escolhidos.
+ */
+export const API_WAKE_MEASURED_MS = 52_600;
+
+/**
+ * **Servidor do Next → API quando ele monta uma página** (`fetchApi` fora do
+ * navegador: páginas, `generateMetadata`, sitemaps, build) — 05/10/2026.
+ *
+ * Com 8 s, a primeira matéria pedida com a API dormindo virava a 500 estática
+ * do Next: medido no log da Vercel em 05/10, 23:01:23, `/en/news/[id]` em
+ * `MISS cold` → `ApiError: API unreachable … TimeoutError`, e a seguinte, 55 s
+ * depois, 200. A requisição acordava a API e desistia antes de ela responder.
+ * Desde 01/10 a API dorme de propósito (as horas do Render), então isso
+ * acontecia a cada acordada — com robôs e com o leitor que chega num momento
+ * parado. É a mesma causa da listagem gravada vazia de 01/10 (A7.16 da Fase 12
+ * do plano de observabilidade, corrigida no #254 relançando o erro).
+ *
+ * 60 s cobre a acordada medida com folga. O teto que importa é o da função:
+ * com Fluid compute o Hobby dá **300 s** (o cron roda com `maxDuration = 290`
+ * em produção desde 01/10); a premissa "a Vercel mata a função em 10 s",
+ * escrita acima em agosto, era do modelo antigo. Esperar resposta não conta
+ * CPU, e a hora do Render é a mesma: a requisição já acorda a API de qualquer
+ * jeito. A página gerada fica guardada pelo `revalidate` (sete dias na
+ * matéria), então só o primeiro visitante depois de um silêncio espera.
+ *
+ * **A regeneração em segundo plano não tem prazo nenhum** — o Next remove o
+ * `signal` dela (ver o fim do cabeçalho deste arquivo); este número vale para
+ * a requisição que alguém está esperando.
+ */
+export const API_RENDER_TIMEOUT_MS = 60_000;
+
+/** O teto de uma função na Vercel Hobby com Fluid compute. */
+export const VERCEL_FUNCTION_MAX_MS = 300_000;
 
 /** Navegador → rota de BFF. Estritamente maior que o de dentro. */
 export const BFF_TIMEOUT_MS = 12_000;

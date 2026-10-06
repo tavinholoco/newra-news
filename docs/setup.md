@@ -482,6 +482,20 @@ esperado:        1–4 h/dia para a API   (~100–200 h/mês no workspace)
 perto de 24 h:   a API não dorme — há outro despertador
 ```
 
+**A primeira leitura, 05/10/2026** (item 87 do `docs/progress.md`): a API
+fez **9,7 · 4,9 · 5,5 · 8,3 · 6,3 h/dia** (`DailyUptime`; 01/10 com os
+testes da noite) — a faixa de robô, com robôs em `/en/news/[id]` no log da
+Vercel e quase nenhum visitante com JS. **O workspace marcava 124,27 h, e
+~89 h eram do `NetsheetEngine`** (74 % do relógio): a projeção de outubro
+(~740–770 h) encosta nas 750 por causa dele. **As horas do outro serviço =
+total do Billing − `DailyUptime` desta API no mesmo dia** — a tela do Render
+não separa por serviço.
+
+**Acordar a API leva ~52 s desde outubro** (eram 4,9 s em agosto). As
+páginas montadas no servidor esperam até 60 s (`API_RENDER_TIMEOUT_MS`,
+item 88): o primeiro visitante depois de um silêncio vê o esqueleto por
+quase um minuto, em vez da 500 que via até 05/10.
+
 **A borda do Render recusa tráfego da Vercel com 429, de vez em quando**
 (medido em 01/10/2026: a resposta vem em 0,1 s, de fora da API, até com a
 instância acordada). Três consequências:
