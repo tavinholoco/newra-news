@@ -8785,6 +8785,15 @@ volta aos 8 s) vista reprovando. Os comentários que ainda diziam "10 s" em
 `timeouts.ts` e no `bff-seam.test.ts` foram corrigidos. **931 → 934 no
 web.**
 
+**Na `main` na mesma noite — #264 → `dev`, promoção #265 (`b1df9a8`), `dev`
+realinhada; Smoke E2E 31 passed / 6 skipped. Provado em produção às
+01:47 UTC de 06/10:** com 18,8 min sem nenhuma página gerada no servidor
+(log da Vercel), uma `/pt-BR/news/[id]` de 17/09 nunca aberta respondeu
+**200 em 55,2 s**, `x-vercel-cache: MISS`, com o título da matéria; o
+`/api/health` logo depois mostrou o processo com **15,5 s** de vida — a API
+dormia, e a requisição a acordou e esperou. Antes, o mesmo caso era a 500 em
+8 s. A bateria inteira do `guard-mutations.mjs` deu **73/73**.
+
 **Junto, para a próxima sessão:** a retomada da Fase 12 (§22 do plano) foi
 reescrita com o estado de 05/10, a matriz ganhou a evidência do A7.14 e o
 tamanho da 2.ª janela da ESPN (A7.12b: 24 linhas, todas do run de 01/10), e
