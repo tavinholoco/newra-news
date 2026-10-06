@@ -122,6 +122,32 @@ describe('o `now` do next-intl está fixo', () => {
   });
 });
 
+describe('o dicionário vai uma vez por página', () => {
+  /**
+   * **A 404 raiz levava o dicionário pt-BR inteiro para toda página do site.**
+   * O Next serializa a árvore do `app/not-found.tsx` no payload RSC de cada
+   * rota (é o `notFound` do layout raiz), e ela tinha um
+   * `NextIntlClientProvider` com todas as mensagens — sem nenhum componente
+   * cliente que as lesse. Medido em 05/10/2026 numa `/en/news/[id]`: 30 KB de
+   * 110 KB do RSC eram o pt-BR, ao lado dos 29 KB do en que o layout de idioma
+   * manda, e a mesma cópia escapada de novo dentro do HTML. O time estava em
+   * 177 mil de 200 mil ISR Writes em 30 dias.
+   *
+   * O único provider é o do layout de idioma — é ele que serve os componentes
+   * cliente de verdade. Um segundo, em qualquer arquivo de `app/`, é o mesmo
+   * dicionário outra vez em toda página que aquele arquivo alcança.
+   */
+  it('só o layout de idioma renderiza o `NextIntlClientProvider`', () => {
+    const files = collect(path.resolve(WEB_ROOT, 'app'));
+    const providers = files
+      .filter(({ source }) => source.includes('<NextIntlClientProvider'))
+      .map(({ file }) => file);
+
+    expect(files.map(({ file }) => file)).toContain('app/not-found.tsx');
+    expect(providers).toEqual(['app/[locale]/layout.tsx']);
+  });
+});
+
 describe('o sitemap é determinístico', () => {
   const OLDER = '2026-09-18T11:00:00.000Z';
   const NEWEST = '2026-09-19T11:00:09.000Z';
