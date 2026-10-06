@@ -357,7 +357,11 @@ a suíte de unidade, que roda sem rede.
 ## Status Atual
 
 - 🟢 **05/10/2026: as cotas lidas depois do corte, e duas correções em
-  produção.** Itens **87** e **88**.
+  produção.** Itens **87**, **88** e **89**.
+  - **06/10, de madrugada: duas advisories novas** (`proxy-addr` *critical*
+    via `fastify@4`; `source-map-js` *high* via `next@14`) fecharam o
+    `pnpm audit` de toda branch — as duas corrigidas no lockfile, dentro das
+    faixas dos pais, sem aceite (item 89).
   - **No ar** (`dev` = `main`): a 404 raiz deixou de mandar o dicionário
     pt-BR em toda página (#262/#263 — ISR Write por página caiu 15–29 %), e
     o servidor passou a esperar a acordada do Render (60 s) em vez de servir
