@@ -8695,6 +8695,54 @@ de observabilidade, cujo gatilho é de duas medições **agendadas**; e o
 `/api/metrics/weekly` diz `pipelineSuccessRate: 0` sobre os dois dias com
 briefing (01/10 e 02/10), não investigado.
 
+### 87. A 404 raiz mandava o dicionário pt-BR em toda página — ISR Writes em 177K de 200K ✅ 2026-10-05
+
+**Por que agora:** a leitura das cotas de 05/10 (Vercel → Usage, últimos 30
+dias) deu **ISR Writes em 177K de 200K** — o único item apertado do time; os
+outros abaixo de 36 %. A janela ainda carrega 06–19/09, de antes do #231 e
+do #256, mas o custo por escrita é o que esta correção mexe.
+
+**O defeito:** o payload RSC de uma `/en/news/[id]` em produção tinha o
+dicionário do next-intl **duas vezes** — o en do layout de idioma e o
+**pt-BR inteiro** (30 KB de 110 KB). Vinha do `app/not-found.tsx` raiz: o
+Next serializa a árvore dele no payload de toda rota (o `notFound` do layout
+raiz), e ela embrulhava tudo num `NextIntlClientProvider` com todas as
+mensagens, sem componente cliente nenhum que as lesse — as strings da 404
+saem de `getTranslations`. A mesma cópia vai escapada dentro do HTML.
+
+**A correção:** o provider saiu da 404. Guarda em
+`tests/lib/isr-determinism.test.ts`: só `app/[locale]/layout.tsx` renderiza
+`NextIntlClientProvider` sob `app/` — vista reprovando contra o arquivo
+antigo. **Medido no build local contra a mesma página em produção:**
+`/pt-BR/about` de 28 para **20** unidades de 8 KB (−29 %), `/en/about` de 27
+para **20** (−26 %). A 404 conferida no build de produção: estilo, fonte,
+tema escuro e strings, sem erro no console. **930 → 931 no web.**
+
+**Medido junto, e fica registrado:**
+
+- **Render, 124,27 h no workspace em 06/10 ~00:10 UTC** (painel do dono).
+  O `DailyUptime` da API soma **34,9 h** (9,7 · 4,9 · 5,5 · 8,3 · 6,3 h/dia)
+  — então o **NetsheetEngine fez ~89 h, ~74 % do relógio** desde o dia 1º.
+  Projeção do mês: API ~190 h + NetsheetEngine ~550 h ≈ **740–770 h**,
+  contra 750. A API está na faixa "4–10 h: robô" do `docs/setup.md` §9.0, e
+  quase nenhum visitante com JS (24 eventos de produto de 02 a 05/10); o que
+  a acorda são robôs em `/news/[id]` (quatro `MISS cold` numa hora de log).
+  A investigação do NetsheetEngine é do dono. Resposta ao 13.2(b): as horas
+  dele são o total do Billing menos o `DailyUptime` da API no mesmo dia.
+- **Neon (01–05/10):** 9,9 CU-h de 100, 220 MB de egress de 5 GB, banco de
+  38 MB — folgado.
+- **Imagem:** uma `/_next/image` em `MISS` respondeu 200 — a cota de
+  setembro virou (1,8K de 5K).
+- **O `pipelineSuccessRate` do item 86 não é bug de execução:** os cinco
+  runs foram `SUCCESS`; a métrica conta como sucesso só o dia com
+  `pipelineErrors === 0`, e Folha (02, 04, 05/10), Veja Saúde (01, 05/10) e
+  Olhar Digital (04/10) falharam por `fetch failed` na etapa 1.
+- **A primeira matéria pedida com a API dormindo responde 500.** Log da
+  Vercel, 05/10 23:01:23: `ApiError: API unreachable … TimeoutError` numa
+  `/en/news/[id]` em `MISS cold`; a seguinte, 55 s depois, 200. O
+  `API_TIMEOUT_MS` é de 8 s e a acordada do Render mede ~52 s (01/10 e
+  05/10). Decisão pendente do dono.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
