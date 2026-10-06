@@ -8741,7 +8741,54 @@ tema escuro e strings, sem erro no console. **930 → 931 no web.**
   Vercel, 05/10 23:01:23: `ApiError: API unreachable … TimeoutError` numa
   `/en/news/[id]` em `MISS cold`; a seguinte, 55 s depois, 200. O
   `API_TIMEOUT_MS` é de 8 s e a acordada do Render mede ~52 s (01/10 e
-  05/10). Decisão pendente do dono.
+  05/10). Decidido e corrigido no item 88.
+
+**Na `main` na mesma noite — #262 → `dev`, promoção #263 (`6187b7d`), `dev`
+realinhada por fast-forward.** Medido em produção depois do deploy (o build
+da Vercel com as 39 páginas e nenhum 429), em unidades de 8 KB: Home 56 →
+**47**, `/news` 45 → **37**, `/article` 50 → **43**, `/article/[date]` 44 →
+**36**, `/news/[id]` 36 → **28**, `/about` 28 → **20**; um dicionário por
+página, e a 404 em 404. Mutação **A1.65** no `guard-mutations.mjs`.
+
+### 88. A primeira página com a API dormindo era a 500: o servidor passou a esperar a acordada ✅ 2026-10-05
+
+**O defeito** (achado no item 87): o `fetchApi` do servidor desistia em
+**8 s** (`API_TIMEOUT_MS`) e a acordada do Render mede **~52 s** (52,6 s em
+01/10, 52,4 s em 05/10 — ~43 s da máquina subindo, ~9 s do boot). Toda
+página ainda não guardada pedida com a API dormindo — na prática a primeira
+abertura de uma `/news/[id]` depois de cada silêncio de 15 min — virava a
+500 estática do Next (armadilha 41), para robô e para leitor. A requisição
+acordava a API e desistia antes da resposta: log da Vercel, 05/10 23:01:23,
+`/en/news/[id]` em `MISS cold` → `ApiError: API unreachable … TimeoutError`;
+23:02:18, a seguinte em 200. É a mesma causa da listagem gravada vazia de
+01/10 (A7.16, #254). **As duas premissas dos 8 s tinham vencido:** a
+acordada era 4,9 s em agosto, e "a Vercel mata a função em 10 s" era do
+modelo antigo — com Fluid compute (padrão desde 04/2025; o projeto é de
+04/2026) o Hobby dá **300 s**, e o cron já roda com `maxDuration = 290`.
+
+**A correção, decidida pelo dono:** `API_RENDER_TIMEOUT_MS = 60 s`
+(`lib/timeouts.ts`), usado por `fetchApiDeadlineMs()` em `lib/api.ts` **só
+quando o `fetchApi` roda no servidor** (páginas, `generateMetadata`,
+sitemaps, build). O navegador, o proxy do BFF, o sign-in, o analytics e o
+cron mantêm os prazos deles — a ordem "interno < `BFF_TIMEOUT_MS`" segue
+valendo. A regeneração em segundo plano continua sem prazo (o Next remove o
+`signal` dela). O primeiro visitante depois de um silêncio vê o esqueleto por
+~50 s e recebe a página, que fica guardada sete dias; não custa hora a mais
+no Render (a requisição já o acordava) nem CPU ativa na Vercel.
+
+**Guardas:** `tests/lib/api-retry.test.ts` (ambiente `node`): o pedido do
+servidor leva o prazo de 60 s, o prazo passa da acordada medida
+(`API_WAKE_MEASURED_MS`) e prazo + as esperas das repetições cabem nos 300 s
+(`VERCEL_FUNCTION_MAX_MS`); `tests/lib/api-deadline-browser.test.ts`
+(`jsdom`): o navegador continua com 8 s. Mutação **A1.66** (o `fetchApi`
+volta aos 8 s) vista reprovando. Os comentários que ainda diziam "10 s" em
+`timeouts.ts` e no `bff-seam.test.ts` foram corrigidos. **931 → 934 no
+web.**
+
+**Junto, para a próxima sessão:** a retomada da Fase 12 (§22 do plano) foi
+reescrita com o estado de 05/10, a matriz ganhou a evidência do A7.14 e o
+tamanho da 2.ª janela da ESPN (A7.12b: 24 linhas, todas do run de 01/10), e
+a §23 ganhou as leituras de cota (13.2, 13.9, 13.11, ISR Writes).
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

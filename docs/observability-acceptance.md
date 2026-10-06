@@ -56,6 +56,19 @@
 > M8**, e nada anda antes de a API do Render voltar. **Uma sessão nova começa
 > pelo "A retomada" no fim da §22 do plano** — o estado, o que depende do
 > dono, a ordem e o prompt.
+>
+> **05/10/2026 — o estado para a próxima sessão.** A API voltou em 01/10
+> (A7.10) e o M7b andou quase todo: **A7.10, A7.11 e A7.12 `[x]`; A7.13 e
+> A7.16 `[!]`** (os defeitos que acharam viraram o #254 e a correção da
+> baseline). Todos os PRs da fase estão na `main` (C = #249, D = os
+> registros de 01/10), e a `main` recebeu depois o corte das horas do Render
+> (#255–#258), a Home presa na véspera (#259) e, em 05/10, o payload sem o
+> dicionário duplicado (#262/#263) e o prazo de 60 s da renderização no
+> servidor — itens 85–88 do `docs/progress.md`. **Falta:** o **A7.12b** (24 linhas da
+> ESPN do run de 01/10, medidas), o **A7.14** (evidência coletada; uma
+> pergunta aberta sobre o `detail`), o **A7.15** (o login do dono), o
+> **A7.16** (medir de novo, com o terreno que mudou — ver a linha) e o
+> **M8**. A retomada da §22 do plano foi reescrita nesta data.
 
 ## Como ler e preencher
 
@@ -1735,6 +1748,18 @@ caíram junto.
     preciso; o arquivo da credencial foi apagado logo depois. **Para a 2.ª
     janela, então, a conferência do `dry` sobre a 1.ª deve dizer 0 no
     futuro**, e a execução é `<2026-09-25T21:30:00.000Z> <deploy>`.
+  - **05/10/2026 — o tamanho da 2.ª janela, medido (só leitura).** A API
+    ficou suspensa até 01/10, então o código **antigo** gravou ESPN em **um
+    run só**: o de 01/10, 11:31 UTC — **24 linhas** com `createdAt` em
+    01/10, antes da promoção #251 (merge 18:06:34 UTC; o limite da janela é
+    a hora do **deploy do Render** dela, que o painel do Render ou o
+    `uptime` do primeiro `/api/health` depois dela dizem). Hoje nenhuma está
+    "no futuro" (menor idade 6,8 h) — o deslocamento de 2 h não aparece
+    sozinho em item que já tem mais de 2 h; é o `dry` do `espn-fix.cjs` que
+    conta. Os runs de 02 a 05/10 são do código novo (`freshestAgeHours: 0`
+    no 5.5, A7.14). Quem roda em produção continua sendo o dono — **o agente
+    leu o banco de produção nesta sessão por `neonctl connection-string`, só
+    `SELECT`**; escrever é outra decisão.
 - [!] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
   - **Lighthouse, duas rodadas — e a primeira reprovou.** `gh workflow run
     "Lighthouse CI" --ref main` às 18:09:47, **três minutos depois do
@@ -1780,6 +1805,23 @@ caíram junto.
   duas etapas de portão `INFO`; a `SourceHealth` do dia; as invariantes, com
   `briefing.one_per_day` **violada** pelos dias da suspensão (o `detail` nomeia
   as datas da janela de 7 dias). · P
+  - **Evidência coletada em 05/10/2026 (só leitura, `PipelineEvent` e
+    `SourceHealth` de produção via `neonctl connection-string`) — falta
+    decidir uma coisa antes de marcar.** O run de 01/10 (11:31) é do código
+    **antigo** — anterior à promoção #251 —, sem etapas 5.5/6.5. Os quatro
+    seguintes, todos `SUCCESS`: **5.5** `INFO` com `baseline: 'insufficient'`
+    em 02/10 (`baselineDays: 1`) e 03/10 (`2`), e **`'ok'` desde 04/10**
+    (`baselineDays: 3`, `median: 524`, `volumeRatio: 0.893`; 05/10: `499.5`,
+    `0.819`) — `freshestAgeHours: 0` nos quatro, o conserto da ESPN no ar;
+    **6.5** `INFO` nos quatro (`urls: 0`, `ptRatio` 0,219–0,272; Groq em
+    02/10, Gemini nos outros); **`SourceHealth`** em todo dia (13 fontes em
+    01/10, com o Drauzio; 12 depois — `fetched`/`kept` 485/409, 575/412,
+    476/342, 417/322); **9.5** com 11 de 12 `OK` e só
+    `briefing.one_per_day` violada, `observed` 2 → 3 → 4 → 5 contra 7 —
+    sai sozinha em ~07/10. **O que não bate: o `detail` vem `null` nos
+    quatro runs**, e a linha esperava as datas da janela. A sessão seguinte
+    decide: a expectativa estava errada (a invariante só conta) ou é
+    `[!]` (a tela diria "5 de 7" sem dizer quais dias faltam).
 - [ ] **A7.15 — A leitura com a sessão ADMIN do dono, no site publicado.** O
   dono entra (o agente nunca digita credencial); o agente confere o que o A7.05
   não alcançava: o run do A7.14 nas três abas, a `DailyUptime` voltando a
@@ -1834,6 +1876,19 @@ caíram junto.
     mutação A1.59). **A linha volta a ser medida depois da promoção do
     #254**: as duas regenerações seguidas com payload idêntico ainda não
     foram vistas — hoje uma das amostras não tinha dado.
+  - **05/10 — o terreno mudou duas vezes desde então, e a medição tem de
+    saber.** (1) Desde o #256 (01/10) as listagens têm `revalidate` de um dia
+    e só o cron as invalida — no aceite e no `SUCCESS` —, então "duas
+    regenerações seguidas sem run entre elas" não acontece sozinho num dia:
+    as duas do cron caem **depois** do run. Uma saída é comparar a
+    regeneração do `SUCCESS` de um dia com a do aceite do dia seguinte, que
+    só difere se o acervo mudou (e muda); a outra é forçar duas
+    regenerações com o mesmo dado — um "Redeploy" não serve (é build, não
+    regeneração). Decidir antes de medir. (2) **O #262/#263 (05/10) tirou o
+    dicionário pt-BR do payload de toda página** (item 87 do
+    `docs/progress.md`): qualquer amostra de antes de 05/10 ~00:33 UTC não
+    se compara com uma de depois. O `"now"` continua
+    `$D1970-01-01T00:00:00.000Z` — conferido no RSC de produção em 05/10.
 
 ## M8 — Fechamento
 

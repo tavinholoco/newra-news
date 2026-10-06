@@ -36,6 +36,7 @@ import {
   API_RETRY_ATTEMPTS,
   API_RETRY_BASE_MS,
   API_RETRY_MAX_WAIT_MS,
+  API_RENDER_TIMEOUT_MS,
   API_TIMEOUT_MS,
   BFF_TIMEOUT_MS,
   PIPELINE_TRIGGER_TIMEOUT_MS,
@@ -167,16 +168,27 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
   }
 }
 
+/**
+ * O prazo do `fetchApi`: no servidor, o que cobre a acordada do Render; no
+ * navegador, o curto — quem lê uma tela não espera um minuto, e ali o TanStack
+ * Query repete.
+ */
+export function fetchApiDeadlineMs(): number {
+  return typeof window === 'undefined' ? API_RENDER_TIMEOUT_MS : API_TIMEOUT_MS;
+}
+
 async function fetchApiOnce(endpoint: string, options?: RequestInit): Promise<Response> {
   let response: Response;
 
   try {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      // O prazo do servidor do Next para a API. Sem ele, uma API dormindo ou
-      // pendurada segurava a função até o limite da Vercel, e a tela era uma
-      // página que nunca respondia — ver `lib/timeouts.ts` para os números.
-      signal: options?.signal ?? AbortSignal.timeout(API_TIMEOUT_MS),
+      // O prazo para a API. Sem ele, uma API dormindo ou pendurada segurava a
+      // função até o limite da Vercel, e a tela era uma página que nunca
+      // respondia. No servidor ele cobre a acordada do Render (~52 s): com
+      // 8 s, a primeira matéria pedida com a API dormindo virava a 500 do
+      // Next — ver `API_RENDER_TIMEOUT_MS` em `lib/timeouts.ts`.
+      signal: options?.signal ?? AbortSignal.timeout(fetchApiDeadlineMs()),
       headers: {
         'Content-Type': 'application/json',
         ...options?.headers,

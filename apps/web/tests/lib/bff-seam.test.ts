@@ -144,9 +144,11 @@ describe('BFF — o prazo de desistir', () => {
   });
 
   it('keeps the API deadline above the measured cold start and under the function ceiling', () => {
-    // 4,9 s foi o cold start medido na auditoria da Fase 8; 10 s é o teto da
-    // função no plano Hobby da Vercel. Um prazo fora dessa faixa troca uma
-    // espera por uma falha, ou entrega a decisão para a plataforma.
+    // 4,9 s foi o cold start medido na auditoria da Fase 8; 10 s era o teto da
+    // função no plano Hobby antes do Fluid compute. Desde outubro de 2026 a
+    // acordada mede ~52 s e o teto é 300 s — este prazo continua curto pela
+    // ordem das pernas (acima); a renderização de página no servidor usa
+    // `API_RENDER_TIMEOUT_MS`, guardado em `api-retry.test.ts`.
     expect(API_TIMEOUT_MS).toBeGreaterThan(4_900);
     expect(API_TIMEOUT_MS).toBeLessThan(10_000);
     expect(PIPELINE_TRIGGER_TIMEOUT_MS).toBeLessThan(30_000);

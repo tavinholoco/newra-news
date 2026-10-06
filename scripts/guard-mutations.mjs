@@ -916,6 +916,35 @@ const MUTATIONS = [
     ],
     expect: 'revalidates once when the run of the day already succeeded without us',
   },
+  {
+    id: 'A1.65',
+    what: 'a 404 raiz volta a embrulhar a página no provider com o dicionário inteiro',
+    pkg: 'web',
+    test: 'tests/lib/isr-determinism.test.ts',
+    file: 'apps/web/app/not-found.tsx',
+    edits: [
+      {
+        find: '        <ThemeInit />\n',
+        replace:
+          '        <ThemeInit />\n        <NextIntlClientProvider locale={locale} messages={{}} />\n',
+      },
+    ],
+    expect: 'só o layout de idioma renderiza o `NextIntlClientProvider`',
+  },
+  {
+    id: 'A1.66',
+    what: 'o fetchApi do servidor volta ao prazo de 8 s, abaixo da acordada do Render',
+    pkg: 'web',
+    test: 'tests/lib/api-retry.test.ts',
+    file: 'apps/web/lib/api.ts',
+    edits: [
+      {
+        find: 'AbortSignal.timeout(fetchApiDeadlineMs())',
+        replace: 'AbortSignal.timeout(API_TIMEOUT_MS)',
+      },
+    ],
+    expect: 'passes the render deadline to the request',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

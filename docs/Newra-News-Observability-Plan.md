@@ -4471,76 +4471,83 @@ projeto, e o branch expira e é apagado no M8.
 > `docs/observability-acceptance.md`, começando pelo M0. Docker Desktop aberto
 > antes; a API local sempre com o `CRON_SCHEDULE` do A0.07.
 
-### A retomada: M7b e M8 (escrita em 25/09/2026, para uma sessão de contexto zerado)
+### A retomada: o que falta do M7b, e o M8 (reescrita em 05/10/2026, para uma sessão de contexto zerado)
 
-**Onde a fase está.** M0–M7a e o M4/M5 **fechados e mergeados na `dev`**: PR A
-(#242), o Drauzio fora (#243), PR B (#244). **13 defeitos achados e
-corrigidos, cada um com guarda e mutação no `pnpm guard:mutations`.** A matriz
-tem a evidência linha a linha; o cabeçalho dela diz o estado. **Falta o M7b
-(A7.10–A7.16, com a A7.12b) e o M8 (A8.01–A8.04)**, num **PR C** a partir da
-branch **`observability/fase-12-acceptance-c`** (cortada de `0457823`).
+> A versão de 25/09 desta seção esperava a API voltar. Ela voltou em 01/10, e
+> quase todo o M7b andou na mesma tarde. O histórico está na matriz
+> (`docs/observability-acceptance.md`, cabeçalho e linhas A7.10–A7.16).
 
-**O que destrava: a API do Render de volta.** Ela está suspensa desde 19/09
-(as 750 h do workspace estouraram: 753,4 h, A7.01) e as horas zeram no dia
-1º. **Nada do M7b anda antes**: a promoção não acontece com a API fora (o
-build da Vercel a chama e falha de propósito), e nenhum push na `main`
-(regra 10). A primeira coisa da sessão é a sonda:
-`curl -s -o /dev/null -w "%{http_code}" https://newra-news-api.onrender.com/api/health`
-— `200` destrava; `503` com `x-render-routing: suspend` é voltar outro dia.
+**Onde a fase está.** M0–M7a, M4 e M5 fechados. Do M7b: **A7.10, A7.11 e
+A7.12 `[x]`** (a API de volta; o `ignore` do #237 na `main`; a promoção #251
+com o Smoke 31/6); **A7.13 e A7.16 `[!]`** (o ritual achou a baseline com
+imagens em branco — corrigida — e a primeira regeneração gravou as listagens
+vazias — o #254). **Todos os PRs da fase estão na `main`**, e `dev` = `main`.
+Depois da fase, a `main` recebeu o corte das horas do Render (#255–#258), a
+Home presa na véspera (#259), e em 05/10 o payload sem o dicionário pt-BR
+duplicado (#262/#263) e o prazo de 60 s da renderização no servidor — itens
+85 a 88 do `docs/progress.md`.
 
-**O que é do dono, e mais nada:**
+**O que falta, linha a linha:**
 
-1. **Mergear o PR do `dependabot.yml` na `main`** (A7.11) — o agente abre, só
-   com o arquivo; o Smoke do push roda.
-2. **Decidir e mergear a promoção `dev → main`** (A7.12).
-3. **Rodar a correção da ESPN em produção** (A7.12b) — o classificador do
-   agente recusa buscar a credencial de produção; o comando exato está na
-   linha. Ou autorizar o agente.
-4. **Entrar no admin de produção** no navegador do painel para o agente ler as
-   três abas (A7.15) — o agente nunca digita credencial.
-5. Se o `neonctl` ou o `render` pedirem, reautenticar (`npx neonctl@latest
-   auth`; `render login`).
+1. **A7.12b — a 2.ª janela da ESPN.** Medida em 05/10: **24 linhas**, todas
+   do run de 01/10 11:31 UTC (o único que o código antigo rodou depois de
+   25/09 — a API estava suspensa). Janela: `2026-09-25T21:30:00Z ≤
+   createdAt < <deploy do Render da promoção #251>` (merge às 18:06:34 UTC
+   de 01/10; a hora exata do deploy é o painel do Render, ou deduza do
+   `uptime`). Rodar o `dry` do `fase12-kit/espn-fix.cjs` primeiro. **Quem
+   escreve em produção é o dono**, ou o agente se o dono autorizar
+   explicitamente nesta sessão.
+2. **A7.14 — o primeiro run depois da volta.** Evidência coletada em 05/10
+   (na linha). **Uma decisão antes de marcar:** o `detail` da
+   `briefing.one_per_day` vem `null`, e a linha esperava as datas — a
+   expectativa estava errada, ou é `[!]`?
+3. **A7.15 — as três abas com a sessão do dono.** O dono entra no admin de
+   produção no navegador do painel; o agente lê. O agente nunca digita
+   credencial.
+4. **A7.16 — o #231, medido de novo.** O terreno mudou (a linha explica):
+   revalidação diária só pelo cron, e o payload de toda página mudou em
+   05/10. Decidir o método antes de medir.
+5. **M8.** A8.01–A8.02 conferem a matriz (todo `[!]` é PR mergeado com
+   guarda, ou dívida no §16); A8.03 é o registro (o item do
+   `docs/progress.md`, esta §22 marcada ✅, o topo do `CLAUDE.md`, a
+   memória); **A8.04 apaga o branch `fase-12-ensaio` do Neon** (`npx
+   neonctl@latest branches delete fase-12-ensaio --project-id
+   rapid-art-19064809` — expira sozinho em 23/10) e desfaz o banco local
+   (o antigo é `newranews_pre_fase12`, ou `./scripts/dev-bootstrap.sh`).
 
-**A ordem.** A7.10 (a sonda) → A7.11 (o `ignore` do #237, a `main` → `dev`
-por PR até `dev..main = 0`, o terceiro estado do `CLAUDE.md`) → as
-pré-checagens do A7.02 repetidas → **A7.12** (promoção: Migrate sem migration
-nova, os dois deploys, o Smoke) → **A7.12b** (a 2.ª janela da ESPN, logo que o
-deploy do Render com o `pubDateZone` estiver de pé — a hora do deploy é o
-limite da janela) → A7.13 (o ritual: `gh workflow run "Lighthouse CI" --ref
-main` e a baseline visual) → A7.16 (o #231: duas regenerações seguidas com o
-mesmo payload) → **A7.14** (o primeiro run das 11:00 UTC; no evento 5.5,
-`baseline: 'insufficient'` é o esperado, e **`freshestAgeHours` ≥ 0 prova o
-conserto da ESPN no ar**) → A7.15 (as três abas com a sessão do dono) → M8.
+**A branch.** Corte **`observability/fase-12-acceptance-e`** da `dev`
+(`git fetch origin && git checkout -b observability/fase-12-acceptance-e
+origin/dev`); a `-c` e a `-d` já estão na `main`. Um PR contra a `dev` com
+o fechamento; a promoção leva à `main`.
 
-**O M8.** A8.01–A8.02 conferem a matriz; A8.03 é o item 85 do
-`docs/progress.md`, esta §22 marcada ✅, o topo do `CLAUDE.md` e a memória;
-A8.04 apaga o branch do Neon (`npx neonctl@latest branches delete
-fase-12-ensaio --project-id rapid-art-19064809` — ele expira sozinho em 23/10)
-e desfaz o banco local (o antigo está renomeado `newranews_pre_fase12`, ou
-recrie com `./scripts/dev-bootstrap.sh`).
+**O que é do dono, e mais nada:** a escrita da ESPN em produção (ou a
+autorização), o login do A7.15, e a decisão sobre o `detail` (se ele quiser
+opinar). Se o `neonctl` ou o `render` pedirem, reautenticar (`npx
+neonctl@latest auth`; `render login` — o `render` está `unauthorized` desde
+19/09, e o `neonctl` funcionava em 05/10).
 
-**O que uma sessão fria erra aqui, além das regras acima:**
+**O que uma sessão fria erra aqui:**
 
+- **Ler produção é possível e é só leitura:** `npx neonctl@latest
+  connection-string production --project-id rapid-art-19064809` dentro de
+  uma variável, e um script com o Prisma Client do `packages/database` no
+  scratchpad, só `SELECT`. Nunca imprima a string.
 - **O kit de ensaio mora fora do repositório**, em
-  `C:\Users\tavin\.claude\projects\C--Users-tavin-Desktop-Projetos-Newra-News\fase12-kit\`
-  — `espn-fix.cjs` (a correção por janela, com `dry` e backup),
-  `m4-*.{cjs,mjs}` (preparação, botão, disparo, evidência), `forge-session.mjs`
-  e `sign-tokens.mjs` (só locais), `a305.mjs`. Nenhum imprime segredo.
-- **A branch LOCAL do PR A foi reescrita no meio da fase** (Gitleaks) — é
-  história; trabalhe só a partir da `-c`.
+  `C:\Users\tavin\.claude\projects\C--Users-tavin-Desktop-Projetos-Newra-News\fase12-kit\`.
+- **A Vercel Hobby guarda 1 h de log de runtime** (`npx vercel@latest logs
+  -p newra-news-web --environment production --since 1h --json`).
 - **Evidência de texto nunca na forma `chave=valor` com cara de segredo** —
-  o Gitleaks reprovou o PR A por `secret=<palpite>` numa linha da matriz.
-- **`rm -rf` é recusado** — diretório de saída novo em vez de apagar.
-- **O que roda em produção:** só leitura, fora a promoção (dono), o disparo e a
-  correção da ESPN (dono).
+  o Gitleaks reprovou o PR A por isso.
+- **`rm -rf` é recusado** — diretório novo em vez de apagar.
 
 **O prompt de retomada:**
 
-> Vamos continuar a **Fase 12** do `docs/Newra-News-Observability-Plan.md` —
-> o que falta é o **M7b e o M8**. Leia **"A retomada"**, no fim da §22, e o
-> cabeçalho da matriz `docs/observability-acceptance.md`, e trabalhe na branch
-> `observability/fase-12-acceptance-c`. Comece pela sonda do A7.10: se a API
-> do Render ainda estiver suspensa, pare e me diga.
+> Vamos fechar a **Fase 12** do `docs/Newra-News-Observability-Plan.md`.
+> Leia **"A retomada"** no fim da §22 e o cabeçalho da matriz
+> `docs/observability-acceptance.md`. Corte a branch
+> `observability/fase-12-acceptance-e` da `dev` e siga a lista: A7.12b,
+> A7.14, A7.15, A7.16 e o M8. Antes de qualquer escrita em produção, me
+> pergunte.
 
 ---
 
@@ -4611,6 +4618,35 @@ pelos testes da própria noite.
   build se uma delas passar a ser lida lá. Declarar em `globalPassThroughEnv`
   (nunca em `env`, que as poria na chave de cache) é uma linha; decidir com
   o 13a.
+
+**05/10/2026 — a primeira leitura das cotas depois do corte, e o que ela
+mudou** (itens 87 e 88 do `docs/progress.md`):
+
+- **13.2 ganhou o número que faltava.** Render: **124,27 h** no workspace
+  (painel do dono, 06/10 ~00:10 UTC) contra **34,9 h** do `DailyUptime` da
+  API → o **NetsheetEngine fez ~89 h, ~74 % do relógio** — não "poucas
+  horas". Projeção do mês ≈ 740–770 h contra 750: **o risco de outubro é
+  ele, não esta API**. O dono investiga. O método fica para o PR 13b: horas
+  do outro serviço = total do Billing − `DailyUptime` da API no mesmo dia.
+- **13.9, a primeira semana:** 9,7 · 4,9 · 5,5 · 8,3 · 6,3 h/dia (01/10 com
+  os testes da noite). Faixa "4–10 h: robô"; o gatilho (dois dias acima de
+  10 h) não disparou. Quase nenhum visitante com JS (24 eventos de produto
+  de 02 a 05/10); no log da Vercel, robôs em `/en/news/[id]` em `MISS cold`.
+- **13.11 — aberto e fechado em 05/10: a primeira página com a API dormindo
+  era a 500.** O `fetchApi` do servidor desistia em 8 s e a acordada mede
+  ~52 s; no log, `/en/news/[id]` → `TimeoutError` → 500 às 23:01:23, e 200
+  55 s depois. Hoje o servidor espera `API_RENDER_TIMEOUT_MS` (60 s); o
+  navegador, o BFF e o cron mantêm os seus. A premissa "o Hobby mata a
+  função em 10 s" era do modelo antigo — com Fluid compute o teto é 300 s.
+  Guardas em `api-retry.test.ts` e `api-deadline-browser.test.ts`; mutação
+  A1.66.
+- **ISR Writes em 177K de 200K** (Vercel, 30 dias) — o único item apertado.
+  A 404 raiz mandava o dicionário pt-BR em toda página; sem ele, a produção
+  caiu 15–29 % por página (#262/#263, mutação A1.65). A janela ainda leva
+  06–19/09 (de antes do #231 e do #256) e deve cair sozinha até ~19/10 se o
+  ritmo diário estiver baixo — **o gráfico diário do painel é o que diz**.
+  O próximo corte possível: o layout de idioma mandar só os namespaces que
+  componentes cliente leem (~8 unidades por página).
 
 **Fecha:** o plano construiu três abas que dizem tudo o que aconteceu — **para
 quem as abre**. Em setembro, os três incidentes caros foram descobertos de
