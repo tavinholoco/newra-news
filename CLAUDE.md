@@ -333,11 +333,10 @@ a suíte de unidade, que roda sem rede.
   Fase 7 inteira**; e **a promoção `dev → main` aconteceu em 19/09 (#215)**,
   com o ritual medido (item 81); e a **9 (os dois portões) fechou em 20/09,
   num PR só — a última do plano**, com o ensaio contra os retidos pendente
-  da API voltar (item 83).** **Aberta desde 24/09: a Fase 12 — o ensaio de
-  aceitação (§22)**, só de teste, sobre a matriz
-  `docs/observability-acceptance.md`: cada coisa que as onze fases
-  entregaram provocada ao vivo, com evidência observável; só a metade de
-  produção publicada (M7b) espera a API voltar e a promoção.
+  da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
+  fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
+  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A próxima é a Fase 13
+  (§23)**, com o 13.12 achado no fechamento.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -355,6 +354,21 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **06/10/2026: a Fase 12 do plano de observabilidade fechou.** Item
+  **90**. A 2.ª janela da ESPN corrigida em produção (24 linhas, −2 h,
+  checkup verde); `briefing.one_per_day` passou a nomear os dias sem
+  briefing (A7.14, mutação A1.67); as três abas lidas com a sessão do dono;
+  e o #231 provado — duas regenerações da `/article` sem run entre elas
+  deram o mesmo sha256, e a Vercel respondeu `REVALIDATED` com o `Age`
+  preservado.
+  - **Achado do fechamento: a `/news` passou 06/10 no HTML do build**
+    (acervo de 05/10, `PRERENDER`) enquanto o resto do conjunto regenerou;
+    a tag a alcança. Causa a isolar pelo log da hora seguinte ao cron —
+    **13.12** da §23, com o gatilho.
+  - **Próximo: a Fase 13** (§23), pelo prompt de abertura no fim dela. Do
+    M8 sobra o A8.04: apagar o branch `fase-12-ensaio` do Neon (expira
+    sozinho em 23/10) e recriar o banco local.
 
 - 🟢 **05/10/2026: as cotas lidas depois do corte, e duas correções em
   produção.** Itens **87**, **88** e **89**.
@@ -380,9 +394,7 @@ a suíte de unidade, que roda sem rede.
     passou a medir (`baseline: 'ok'`) em 04/10. Folha, Veja Saúde e Olhar
     Digital falham por `fetch failed` em dias alternados — é isso que põe o
     `pipelineSuccessRate` do `/metrics/weekly` em 0,2, não falha de run.
-  - **Próximo: fechar a Fase 12** — A7.12b, A7.14, A7.15, A7.16 e o M8. A
-    sessão nova começa por **"A retomada", no fim da §22 do plano**
-    (reescrita em 05/10), com o prompt de lá.
+  - ~~Próximo: fechar a Fase 12~~ — **feito em 06/10** (item 90, acima).
 
 - 🟢 **02/10/2026: a Home presa no build da véspera, e o pipeline tinha
   rodado.** O cron interno da API disparou às 11:00 em ponto, o cron da
@@ -1450,8 +1462,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.352 em 187 suites (**1.418 API em 95** + **934 web em 92** —
-  todos passando, contados em 05/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.354 em 187 suites (**1.420 API em 95** + **934 web em 92** —
+  todos passando, contados em 06/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

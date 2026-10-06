@@ -8816,6 +8816,47 @@ reescrita com o estado de 05/10, a matriz ganhou a evidência do A7.14 e o
 tamanho da 2.ª janela da ESPN (A7.12b: 24 linhas, todas do run de 01/10), e
 a §23 ganhou as leituras de cota (13.2, 13.9, 13.11, ISR Writes).
 
+### 90. A Fase 12 do plano de observabilidade fechou: a ESPN corrigida em produção, o dia que falta com nome, e a `/news` presa no build ✅ 2026-10-06
+
+O fim do M7b e o M8, numa sessão (branch `observability/fase-12-acceptance-e`,
+PR E). A matriz `docs/observability-acceptance.md` fecha com **81 linhas `[x]`
+e 15 `[!]`, nenhuma aberta**; a §22 do plano está ✅.
+
+- **A7.12b — a 2.ª janela da ESPN, em produção.** O classificador recusou a
+  primeira tentativa de buscar a credencial; o dono liberou e confirmou o
+  `apply` depois do `dry`. As 24 linhas do run de 01/10 (o único que o código
+  antigo rodou depois de 25/09) foram para −2 h — menor idade 6,778 → 8,778 h,
+  backup no kit. **Checkup:** 24/24 deslocadas exatamente −2 h contra o
+  backup, as janelas vizinhas intactas (291 e 101 linhas, mesmas idades), a
+  API e o web servindo a matéria corrigida em 200.
+- **A7.14 → `[!]`, corrigido: `briefing.one_per_day` nomeia os dias sem
+  briefing.** O `detail` vinha `null` em produção ("6 de 7" sem dizer qual).
+  O §10 nunca o pediu — quem o supôs foi a revisão de 24/09 —, mas a irmã
+  `metrics.day_recorded` já listava os dias. Virou um `findMany` de uma
+  coluna e ≤ 7 linhas (a guarda de forma aceita); teste novo, **mutação
+  A1.67**.
+- **A7.15 — as três abas com a sessão do dono.** Arco 39 h de 750 com o
+  ritmo do mês projetando 211 h; a suspensão desenhada como "Não rodou"
+  pela ausência; invariantes 1 de 12 violada em 119 ms; portões 100 % sobre
+  6 runs; 0 % de 5xx e 4xx; `scrollWidth` dentro da viewport. A tela de
+  produto mostra **709** rolagens a 90 % contra **0** aberturas — é o 13.4,
+  que já existia; esta leitura é o número dele.
+- **A7.16 — o #231 provado.** Duas regenerações da `/pt-BR/article` com o
+  mesmo dado e nenhum run entre elas — a do cron e a do botão da `/admin`
+  (`already-succeeded-today`, que invalida sem rodar) — deram o **mesmo
+  sha256, byte a byte**, e a Vercel respondeu `REVALIDATED` **com o `Age`
+  preservado** (o documento não mudou, então não há ISR Write). O mesmo na
+  Home e no briefing do dia.
+- **O achado do fechamento: a `/news` passou o dia no HTML do build.** Às
+  16:40 UTC, `PRERENDER` com o acervo de 05/10 nos dois idiomas, enquanto o
+  resto do conjunto tinha regenerado. A tag a alcança (o botão a regenerou),
+  então a causa é uma regeneração que falhou ou a segunda invalidação que
+  não aconteceu — o log que decide é o da hora seguinte ao cron, e o Hobby
+  guarda 1 h. **Virou o 13.12 da §23**, com gatilho e a medição.
+
+**O que fica:** o A8.04 (o branch `fase-12-ensaio` do Neon — expira sozinho
+em 23/10 — e o banco local) e a **Fase 13**, que pode abrir.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
