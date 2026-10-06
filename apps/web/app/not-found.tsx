@@ -1,5 +1,4 @@
-import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations } from 'next-intl/server';
+import { getTranslations } from 'next-intl/server';
 import { Inter, Newsreader } from 'next/font/google';
 import { SearchX, ArrowLeft } from 'lucide-react';
 import '@/styles/globals.css';
@@ -33,6 +32,18 @@ import { routing } from '@/i18n/routing';
  * versionada** — a captura clara mostrava exatamente isto e ninguém olhou. Foi
  * a captura escura das nove rotas que faltavam (§10.3) que colocou as duas lado
  * a lado.
+ *
+ * **Sem `NextIntlClientProvider`, e é o custo de toda página do site.** O Next
+ * serializa esta árvore no payload RSC de **cada** rota (é o `notFound` do
+ * layout raiz), e o provider que estava aqui levava junto o dicionário pt-BR
+ * inteiro — medido em 05/10/2026 numa `/en/news/[id]`: 30 KB de 110 KB do
+ * RSC, mais a mesma cópia escapada dentro do HTML, ao lado dos 29 KB do
+ * dicionário do próprio idioma que o layout de `[locale]` já manda. A Vercel
+ * cobra ISR Write em unidades de 8 KB, e a conta do time estava em 177 mil de
+ * 200 mil. Nada aqui precisa dele: as strings saem de `getTranslations`, no
+ * servidor. **Componente cliente com `useTranslations` que entrar nesta
+ * página precisa de outro caminho** — há guarda em
+ * `tests/lib/isr-determinism.test.ts`.
  */
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
@@ -46,7 +57,6 @@ const newsreader = Newsreader({
 
 export default async function GlobalNotFound() {
   const locale = routing.defaultLocale;
-  const messages = await getMessages({ locale });
   const t = await getTranslations({ locale, namespace: 'notFound' });
   const tCommon = await getTranslations({ locale, namespace: 'common' });
 
@@ -60,23 +70,21 @@ export default async function GlobalNotFound() {
         {/* Sem isto, quem lê no escuro recebe a página branca — e é o único
             lugar do site onde o tema salvo não era aplicado. */}
         <ThemeInit />
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <div className='mx-auto flex min-h-screen max-w-4xl flex-col items-center px-4 py-24 text-center sm:px-6 lg:px-8'>
-            <SearchX className='mb-6 h-16 w-16 text-line-strong' aria-hidden='true' />
-            <h1 className='mb-3 font-display text-display font-bold text-ink'>404</h1>
-            <p className='mb-2 font-display text-h4 font-semibold text-ink'>
-              {t('title')}
-            </p>
-            <p className='mb-8 text-body text-ink-secondary'>{t('description')}</p>
-            <a
-              href={`/${locale}`}
-              className='flex items-center gap-2 text-body-sm font-medium text-link transition-colors duration-fast hover:text-link-hover'
-            >
-              <ArrowLeft className='size-4' aria-hidden='true' />
-              {tCommon('backToHome')}
-            </a>
-          </div>
-        </NextIntlClientProvider>
+        <div className='mx-auto flex min-h-screen max-w-4xl flex-col items-center px-4 py-24 text-center sm:px-6 lg:px-8'>
+          <SearchX className='mb-6 h-16 w-16 text-line-strong' aria-hidden='true' />
+          <h1 className='mb-3 font-display text-display font-bold text-ink'>404</h1>
+          <p className='mb-2 font-display text-h4 font-semibold text-ink'>
+            {t('title')}
+          </p>
+          <p className='mb-8 text-body text-ink-secondary'>{t('description')}</p>
+          <a
+            href={`/${locale}`}
+            className='flex items-center gap-2 text-body-sm font-medium text-link transition-colors duration-fast hover:text-link-hover'
+          >
+            <ArrowLeft className='size-4' aria-hidden='true' />
+            {tCommon('backToHome')}
+          </a>
+        </div>
       </body>
     </html>
   );
