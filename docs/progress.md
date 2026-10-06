@@ -8794,6 +8794,23 @@ realinhada; Smoke E2E 31 passed / 6 skipped. Provado em produção às
 dormia, e a requisição a acordou e esperou. Antes, o mesmo caso era a 500 em
 8 s. A bateria inteira do `guard-mutations.mjs` deu **73/73**.
 
+### 89. Duas advisories novas fecharam o CI de toda branch ✅ 2026-10-06
+
+O PR só de documentação da prova acima reprovou no `pnpm audit
+--audit-level=high --prod`, meia hora depois de a promoção #265 passar:
+**GHSA-jqcg-44mw-7w3h** (*critical*, `proxy-addr` < 2.0.8 — IP falsificado
+por IPv6 mapeado numa sub-rede confiável; chega por `fastify@4`, publicada
+em 05/10 às 23:30 UTC) e **GHSA-68fv-2mgg-jv7q** (*high*, `source-map-js` <
+1.2.2 — DoS por offsets de source map; chega por `next@14` → `postcss`).
+O alcance aqui seria baixo (o `trustProxy` é contagem de saltos, não
+sub-rede), mas **as duas correções cabem nas faixas que os pais pedem** — o
+lockfile move duas versões e nada é aceito. `pnpm update -r --depth Infinity
+proxy-addr source-map-js`; audit em 0, as 22 exceções ainda casam
+(`audit-orphans`), a guarda do `trustProxy` (`server-hardening`, 17/17), a
+suíte (1.418 + 934) e o build verdes. **É o terceiro gate de advisory em
+uma semana** (30/09, A7.12; agora) — o CI da `dev` reprova no primeiro push
+depois da publicação, e é ele quem avisa.
+
 **Junto, para a próxima sessão:** a retomada da Fase 12 (§22 do plano) foi
 reescrita com o estado de 05/10, a matriz ganhou a evidência do A7.14 e o
 tamanho da 2.ª janela da ESPN (A7.12b: 24 linhas, todas do run de 01/10), e
