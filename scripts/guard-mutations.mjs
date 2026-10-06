@@ -945,6 +945,24 @@ const MUTATIONS = [
     ],
     expect: 'passes the render deadline to the request',
   },
+  {
+    id: 'A1.67',
+    what: '`briefing.one_per_day` volta a dizer só "5 de 7", sem os dias que faltam',
+    pkg: 'api',
+    test: 'tests/services/invariants.service.test.ts',
+    file: 'apps/api/src/services/invariants.service.ts',
+    edits: [
+      {
+        find: lines(
+          '        ok: present.size === RECENT_DAYS,',
+          "        ...(missing.length > 0 ? { detail: missing.join(', ') } : {}),",
+          '',
+        ),
+        replace: lines('        ok: present.size === RECENT_DAYS,', ''),
+      },
+    ],
+    expect: 'names the days without a briefing',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
