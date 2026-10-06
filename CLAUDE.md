@@ -356,6 +356,30 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **05/10/2026: as cotas lidas depois do corte, e duas correções em
+  produção.** Itens **87** e **88**.
+  - **No ar** (`dev` = `main`): a 404 raiz deixou de mandar o dicionário
+    pt-BR em toda página (#262/#263 — ISR Write por página caiu 15–29 %), e
+    o servidor passou a esperar a acordada do Render (60 s) em vez de servir
+    a 500 na primeira página pedida com a API dormindo.
+  - **Render: 124,27 h no workspace, e ~89 h são do `NetsheetEngine`** (74 %
+    do relógio) — a API somou 34,9 h (`DailyUptime`, 5–8 h/dia, faixa
+    "robô"). **Projeção de outubro ≈ 740–770 h contra 750**; o risco é o
+    outro serviço, e o dono está investigando. Horas dele = total do Billing
+    − `DailyUptime` da API no mesmo dia.
+  - **Vercel (30 dias): ISR Writes em 177K de 200K** — o único apertado; a
+    janela ainda carrega 06–19/09 e deve cair até ~19/10, **se** o gráfico
+    diário do painel estiver baixo. Imagem 1,8K/5K, CPU 1h21/4h, o resto
+    abaixo de 25 %. **Neon:** 9,9 de 100 CU-h, 220 MB de 5 GB, banco de
+    38 MB.
+  - **O pipeline rodou todo dia** (01–05/10, `SUCCESS`); o portão de entrada
+    passou a medir (`baseline: 'ok'`) em 04/10. Folha, Veja Saúde e Olhar
+    Digital falham por `fetch failed` em dias alternados — é isso que põe o
+    `pipelineSuccessRate` do `/metrics/weekly` em 0,2, não falha de run.
+  - **Próximo: fechar a Fase 12** — A7.12b, A7.14, A7.15, A7.16 e o M8. A
+    sessão nova começa por **"A retomada", no fim da §22 do plano**
+    (reescrita em 05/10), com o prompt de lá.
+
 - 🟢 **02/10/2026: a Home presa no build da véspera, e o pipeline tinha
   rodado.** O cron interno da API disparou às 11:00 em ponto, o cron da
   Vercel chegou depois com `already-succeeded-today`, e a rota só invalidava
@@ -516,7 +540,9 @@ a suíte de unidade, que roda sem rede.
   **cinco** projetos) e o gráfico diário de imagem (o Hobby não tem ciclo —
   "30 dias", sem a doc dizer se janela móvel ou a partir do estouro).
 
-- 🔴 **A API do Render está suspensa (2026-09-19, medido às 17:23 UTC):
+- ✅ ~~🔴~~ **Resolvido: a API voltou em 01/10/2026** (A7.10 da Fase 12; um
+  briefing por dia desde então). O registro abaixo é histórico.
+  **A API do Render estava suspensa (2026-09-19, medido às 17:23 UTC):
   `503` com `x-render-routing: suspend` em `/api/health`.** O briefing de
   19/09 existe na home, então o cron das 11:00 UTC rodou — e a Home ainda
   regenerou às 13:00:06 com a API respondendo, então a suspensão é de **entre
@@ -885,7 +911,10 @@ a suíte de unidade, que roda sem rede.
   > a armadilha do `Article.date` em outro campo; `formatCalendarDay` lê em
   > UTC, com teste.
 
-- 🟡 **A cota de otimização de imagem da Vercel estourou em 09/09/2026, e o
+- ✅ ~~🟡~~ **Resolvido: a cota virou** — `/_next/image` em `MISS` responde
+  200 desde 01/10 (A7.10; de novo em 05/10), e o painel marcava **1,8K de
+  5K** em 05/10. O registro abaixo é histórico.
+  **A cota de otimização de imagem da Vercel estourou em 09/09/2026, e o
   corte que a faz caber já entrou — falta o mês virar.** Confirmado no painel:
   **5.119 transformações** contra as **5.000/mês** do plano Hobby, e todo
   `/_next/image` respondendo **402**, com o site no ar exibindo o placeholder de
@@ -1417,8 +1446,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.293 em 181 suites (**1.389 API em 92** + **904 web em 89** — todos
-  passando), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.352 em 187 suites (**1.418 API em 95** + **934 web em 92** —
+  todos passando, contados em 05/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

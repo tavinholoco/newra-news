@@ -731,6 +731,23 @@ Regras que não são óbvias no código:
   cai com 429 no prerender deixa o deploy anterior no ar — "Redeploy" mais
   tarde. O `scripts/warm-api.mjs`, no `build`, é diagnóstico: diz se o 429 veio
   da API (`x-ratelimit-*`) ou da borda.
+- **O `fetchApi` tem dois prazos, e o do servidor cobre a acordada do Render**
+  (05/10/2026). A acordada mede ~52 s; com 8 s, a primeira página não
+  guardada pedida com a API dormindo virava a 500 estática do Next (log de
+  05/10, `/en/news/[id]` → `TimeoutError`). `fetchApiDeadlineMs()` devolve
+  `API_RENDER_TIMEOUT_MS` (60 s) fora do navegador e `API_TIMEOUT_MS` (8 s)
+  dentro — o BFF, o sign-in e o cron têm os seus. O teto é o da função: 300 s
+  com Fluid compute no Hobby ("10 s" era o modelo antigo). Guardas em
+  `tests/lib/api-retry.test.ts` (servidor) e
+  `tests/lib/api-deadline-browser.test.ts` (navegador). **Não suba o
+  `API_TIMEOUT_MS` para resolver isso**: ele tem de ficar abaixo do
+  `BFF_TIMEOUT_MS`, e quem filtra o acervo não espera um minuto.
+- **A 404 raiz não tem `NextIntlClientProvider`, e nenhum outro arquivo de
+  `app/` além do layout de idioma pode ter** (05/10/2026). O Next serializa a
+  árvore do `app/not-found.tsx` no payload de **toda** rota; o provider dela
+  levava o dicionário pt-BR inteiro para cada página (30 KB de 110 KB do RSC
+  numa `/news/[id]`), e a Vercel cobra ISR Write por 8 KB. Guarda em
+  `tests/lib/isr-determinism.test.ts`.
 - **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
   existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
   mandaria URL digitada errada para a página de erro.
