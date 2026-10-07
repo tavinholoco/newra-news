@@ -4846,4 +4846,14 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 > Vamos implementar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual), a §23 (esta fase) e o §17 (armadilhas), e comece pelo
-> PR 13a — o batimento de fora.
+> **PR 13a′ — o item 13.12**: depois da invalidação do `SUCCESS`, o cron pede
+> as páginas que invalidou e confere que trazem o run do dia. O gatilho
+> disparou em 07/10 (a Home em `/pt-BR` passou a tarde com o briefing da
+> véspera). Corte a branch da `dev` depois de conferir que o #269 está nela.
+> O 13a′ é promovido sozinho, no mesmo dia; o resto da fase vem depois, numa
+> segunda promoção. Antes de qualquer escrita em produção, me pergunte.
+
+**A promoção é dividida, por decisão de 07/10/2026:** o 13a′ sobe sozinho
+assim que mergear na `dev` — é o único item com dano ao leitor acontecendo,
+e vários outros esperam uma semana de série ou uma decisão do dono. O resto
+da fase vai para a `dev` e sobe numa segunda promoção no fim.
