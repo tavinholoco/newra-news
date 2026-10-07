@@ -3538,7 +3538,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
-| Alerta ativo (e-mail/webhook) | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" |
+| ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo a partir da promoção** que o levar à `main` |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
 | Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL no briefing (`unanchored-url` ou `copied-url`), que é evento único e merece olhar no mesmo dia |
 | Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto pedindo o número real — o da deriva foi calibrado contra produção em 24/09 (0,25, Fase 12); o de duplicata segue por cima (0,6) — e o `gates:rehearse` imprime o p95 |
@@ -3849,7 +3849,8 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **Coluna que sai do schema** | `migrations.test.ts` (o replay acima cobra o `DROP COLUMN`) e `diagram-drift.test.ts`, que desde a Fase 5 compara o ER **coluna a coluna** — o `aiTokensUsed` ficou desenhado depois de sair, e a comparação por entidade não via |
 | **Script fora de `src/` no `packages/database`** (`prisma/seed.ts`, `prisma/cleanup-news-duplicates.ts`) | `pnpm --filter @newranews/database typecheck` (pós-merge do 5a) — o `build` tipa só `src/`, e `tsx` não tipa nada; coluna removida do schema e esquecida no seed passava por tudo |
 | **Model novo no `schema.prisma`** | `schema-docs-drift.test.ts` (Fase 4) — a lista de models e a de enums do `packages/database/CLAUDE.md`; e `diagram-drift.test.ts`, que cobra a entidade no ER |
-| Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example` |
+| Variável de ambiente | `env-parity.test.ts` — `render.yaml` e `.env.example`; **no web, desde o 13a**, `tests/build/turbo-env.test.ts` — toda variável de runtime do `apps/web/.env.example` em `globalPassThroughEnv` do `turbo.json` (o modo estrito do Turbo a esconderia do build), e nenhuma na chave de cache |
+| **Workflow agendado novo** | `workflow-hardening.test.ts` — linha em `FORA` com o motivo, e a contagem em prosa dos dois READMEs; para o `heartbeat.yml`, `tests/scripts/heartbeat.test.ts` cobra a hora depois da janela do cron (derivada do `vercel.json`), Node sem install e só leitura |
 | **Etapa nova no pipeline** | `diagram-drift.test.ts` — as etapas 5.5 e 6.5 têm de entrar no `pipeline-sequence.mermaid` e no `data-flow.mermaid`, porque a guarda compara com o que o pipeline anuncia (visto reprovando na Fase 9); `run-outcome-wiring.test.ts` — o `WARN` da etapa nova tem o `degradedBy.push` no bloco |
 | **Check novo num portão** (`ENTRY_GATE_CHECKS`, `OUTPUT_GUARD_CHECKS`) | `apps/web/tests/lib/gate-checks.test.ts` — o mapa de rótulos do painel "Portões" é derivado dos dois tuples da API, nas duas direções; e `i18n-messages` para a chave nos dois JSONs. O `route` do `ErrorEvent` só aceita o que está no tuple (`isGateCheck`). E `output-guard.test.ts` afirma que **URL nunca é aviso** — a primeira versão avisava sobre a copiada |
 | **Script `.ts` em `apps/api/scripts/`** | `pnpm --filter @newranews/api typecheck` (pós-merge da Fase 9) — `scripts/**/*.ts` está no `tsconfig.tests.json`; o `gates:rehearse` nasceu sem ninguém o tipar |
@@ -4917,6 +4918,55 @@ promovido sozinho no #272).** Item **91** do
   seguidos com `cron.daily-news.warm` — aí a regeneração falha de forma
   sistemática (a borda do Render? o 13.8), e três rodadas não bastam.
 
+**O que o PR 13a decidiu — 07/10/2026 ✅ (na `dev`; o agendamento só existe
+depois da promoção — o GitHub roda `schedule` da branch padrão).** Item
+**92** do `docs/progress.md`. O 13.1 e o 13.10, juntos como a ordem pedia.
+
+- **`.github/workflows/heartbeat.yml`, às 12:40 UTC, e `apps/api/scripts/heartbeat.ts`.**
+  Cinco perguntas, cada uma com a ação que pede quando falha, no resumo do
+  job: (1) o site — `/pt-BR` 200; (2) a API — e o **porquê** quando não: `503`
+  com `x-render-routing: suspend` é o Render suspendendo (Billing, nada no
+  código resolve), separado de timeout e de 429 da borda; (3) o briefing de
+  hoje, em dia UTC; (4) **as duas Homes mostrando o briefing de hoje** —
+  extensão da §23, porque o 07/10 é exatamente "o briefing existe e a Home
+  `/pt-BR` não o mostra": a linha `cron.daily-news.warm` do 13a′ dura uma hora
+  no log da Vercel, e esta pergunta a transforma em e-mail; (5) o último push
+  do repositório, reprovando aos **45 dias** — o GitHub desliga agendamento de
+  repositório público aos 60 sem atividade, e o batimento não conta.
+- **Uma causa, uma linha:** sem a API o briefing não é perguntado; sem o
+  briefing de hoje a Home não é culpada. A suspensão não é repetida (não passa
+  com o tempo); o resto ganha uma segunda sonda depois de 15 s.
+- **Node sozinho, sem `pnpm install`** — o alerta não pode ter mais motivos
+  para falhar do que aquilo que mede. O Node 22 apaga os tipos de um `.ts`
+  (desde a 22.18); o arquivo não importa nada do projeto, só usa tipos
+  apagáveis e não usa `import.meta`, porque o mesmo arquivo é tipado pelo
+  `tsc` do pacote (o `tsconfig.tests.json` já inclui `scripts/**/*.ts`) e
+  testado pela suíte da API.
+- **A série do 13.3 começou no ensaio:** contra produção, às ~20 h UTC de
+  07/10, a sonda **acordou a API em 52.387 ms** — a terceira medição, e bate
+  com 01/10 (52,6 s) e 05/10 (52,4 s). A linha estável
+  `heartbeat api_ms=… woke=… status=… attempts=…` é o que se lê depois.
+- **13.10:** as dez variáveis de runtime do web (as do `apps/web/.env.example`
+  menos as `NEXT_PUBLIC_*`) em `globalPassThroughEnv` — a lista da §23 citava
+  seis e esquecia as quatro do OAuth. Conferido no `turbo --dry=json`: o modo é
+  `strict`, e com a variável no ambiente ela atravessa sem entrar na chave de
+  cache. Guarda derivada do `.env.example`, nas duas direções.
+- **O que o arquivo não resolve sozinho, e é do dono:** o e-mail de workflow
+  agendado vai para **quem modificou a linha do `cron` por último**, e só se a
+  conta tiver as notificações de Actions ligadas (Settings → Notifications →
+  Actions → falhas, por e-mail). E, se o GitHub **descartar** uma execução
+  agendada (ele avisa que pode), o dia fica sem pergunta e sem e-mail — o
+  batimento de dentro (a faixa da `/admin`, "último briefing há N h") continua
+  sendo a segunda linha. Um serviço de terceiro com "dead man's switch"
+  fecharia isso, e a §23 o recusou de propósito.
+- **Guardas e mutações:** 22 testes do batimento (o veredito, o resumo, a
+  observação com `fetch` de mentira, o código de saída, e o `.yml` — a hora
+  depois da janela do cron derivada do `vercel.json`, Node sem install, só
+  leitura) e 4 do `turbo.json`; mutações **A1.72–A1.76**. **1.420 → 1.446 na
+  API.** E as guardas que já existiam pegaram o arquivo novo: o
+  `workflow-hardening` cobrou a classificação (`FORA`) e a contagem em prosa dos
+  dois READMEs (seis → sete).
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -4934,7 +4984,7 @@ promovido sozinho no #272).** Item **91** do
 | PR | Itens | Depende de |
 |---|---|---|
 | ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Promovido sozinho no #272 (`ce38866`) | a Fase 12 fechada |
-| **13a** | 13.1 (o batimento) | a Fase 12 fechada |
+| ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Na `dev`; agenda só depois da promoção | a Fase 12 fechada |
 | **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
@@ -4948,12 +4998,14 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 **O prompt de abertura:**
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
-> Leia o §19 (o ritual), a §23 (esta fase — o 13a′ fechou em 07/10, leia "O
-> que o PR 13a′ decidiu") e o §17 (armadilhas, até a 47). Antes de tudo,
-> confira a resposta e o log do primeiro cron depois da promoção do 13a′
-> (`pages`, e `cron.daily-news.warm` se houver). Depois siga pelo **PR 13a —
-> o batimento (13.1)**, junto do 13.10. Corte a branch da `dev`. O resto da
-> fase sobe numa segunda promoção. Antes de qualquer escrita em produção, me
+> Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
+> 07/10; leia os dois blocos "O que o PR … decidiu") e o §17 (armadilhas, até
+> a 47). Antes de tudo, confira a resposta e o log do primeiro cron com o
+> 13a′ (`pages`, e `cron.daily-news.warm` se houver). Depois siga pelo **PR
+> 13b — o denominador (13.2)**, que começa pela pergunta de onde vem o número
+> do `NetsheetEngine`; e o 13c e o 13d na ordem da tabela. Corte a branch da
+> `dev`. O 13a (o batimento) está na `dev` e **só agenda depois da promoção**
+> — decida comigo quando promover. Antes de qualquer escrita em produção, me
 > pergunte.
 >
 > *(O prompt de 07/10, que abriu a fase pelo 13a′: "…comece pelo PR 13a′ — o
