@@ -1,0 +1,78 @@
+name: Heartbeat
+
+# **O batimento de fora** — 13.1 do plano de observabilidade (§23).
+#
+# Em setembro de 2026 os três incidentes caros foram descobertos de fora: a
+# suspensão do Render (doze dias sem briefing) por uma sonda manual, a cota de
+# imagem por um advisory, as advisories pelo CI. O painel do admin diz tudo o
+# que aconteceu — para quem o abre —, e mora dentro da API: quando ela cai, ele
+# cai junto. Este job pergunta de fora, uma vez por dia, e **reprovar é o
+# alerta**: o GitHub manda e-mail de workflow agendado que falha. Sem segredo
+# novo, sem serviço de terceiro, sem custo. As perguntas e o motivo de cada uma
+# estão em `apps/api/scripts/heartbeat.ts`.
+#
+# **12:40 UTC, e a hora vem do cron da Vercel.** O Hobby dispara o
+# `0 11 * * *` do `apps/web/vercel.json` em qualquer minuto da hora das 11; o
+# run leva ~1,5 min e o pedido das páginas do dia (13a′) mais ~1 min. Antes das
+# 12:00 o batimento poderia medir um dia ainda acontecendo — há guarda
+# (`apps/api/tests/scripts/heartbeat.test.ts`). O GitHub atrasa execução
+# agendada sob carga; para uma pergunta diária, atraso é inofensivo.
+#
+# **O preço em horas do Render foi feito antes**, como o §17 manda: às 12:40 a
+# API costuma estar dormindo, e esta sonda a acorda — ~15 min de instância por
+# dia, ~7,5 h/mês contra as 750. A duração da sonda sai no resumo: é a série de
+# acordadas de que o 13.3 precisa.
+#
+# **Duas coisas que este arquivo não resolve sozinho, e estão escritas:**
+#
+# - O e-mail de um workflow agendado vai para **quem modificou a linha do
+#   `cron` por último**, e só se essa conta tiver as notificações de Actions
+#   ligadas (Settings → Notifications → Actions → "failed workflows only",
+#   por e-mail). Conferir uma vez, no painel do dono.
+# - O GitHub **desliga** workflow agendado de repositório público depois de 60
+#   dias sem atividade, e o batimento não conta como atividade. Por isso a
+#   quinta pergunta lê o último push e reprova aos 45 dias — o aviso chega
+#   antes do desligamento.
+
+on:
+  schedule:
+    - cron: '40 12 * * *'
+  # Para rodar à mão — depois de uma promoção, ou para conferir o alerta.
+  workflow_dispatch:
+
+# Só lê: o código para rodar o script e o `pushed_at` do repositório. O
+# resumo do job é da própria execução.
+permissions:
+  contents: read
+
+jobs:
+  heartbeat:
+    name: O site, a API e o briefing de hoje
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # O Node 22 apaga os tipos de um `.ts` sem compilar (desde a 22.18). Sem
+      # `pnpm install`: o alerta não pode ter mais motivos para falhar do que
+      # aquilo que ele mede.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # Se a leitura falhar, a quinta pergunta sai como "pulada" — e as outras
+      # quatro, que são o alerta, seguem.
+      - name: When the repository last saw a push
+        id: activity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: echo "pushed_at=$(gh api "repos/$REPO" --jq .pushed_at || true)" >> "$GITHUB_OUTPUT"
+
+      - name: Ask the site, the API and the briefing of the day
+        env:
+          REPO_PUSHED_AT: ${{ steps.activity.outputs.pushed_at }}
+          NODE_NO_WARNINGS: '1'
+        run: node apps/api/scripts/heartbeat.ts

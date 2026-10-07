@@ -1022,6 +1022,62 @@ const MUTATIONS = [
     edits: [{ find: 'String.raw`createdAt', replace: 'String.raw`[a-zA-Z]+At' }],
     expect: 'recognizes a news item collected by the run of the day on /news',
   },
+  // ── O batimento de fora e o turbo.json (13a, 07/10/2026) ─────────────────
+  {
+    id: 'A1.72',
+    what: 'o batimento aceita o briefing de qualquer dia — o 01/09 passaria verde',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [{ find: '  } else if (newest === today) {', replace: '  } else if (newest !== null) {' }],
+    expect: 'fails when the newest briefing is from the day before',
+  },
+  {
+    id: 'A1.73',
+    what: 'a Home de um idioma passa com o link do briefing do outro — o 07/10 tinha uma fresca e outra velha',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [
+      {
+        find: 'home.body.includes(`/${locale}/article/${today}`)',
+        replace: 'home.body.includes(`/article/${today}`)',
+      },
+    ],
+    expect: 'does not take the link of the other language',
+  },
+  {
+    id: 'A1.74',
+    what: 'a suspensão do Render vira um erro qualquer — a ação certa (o Billing) some do e-mail',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [
+      {
+        find: "  if (probe.status === 503 && /suspend/i.test(probe.headers['x-render-routing'] ?? '')) {",
+        replace: '  if (probe.status === 0) {',
+      },
+    ],
+    expect: 'names a Render suspension apart from any other failure',
+  },
+  {
+    id: 'A1.75',
+    what: 'o batimento cai dentro da hora em que o cron da Vercel pode disparar',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: '.github/workflows/heartbeat.yml',
+    edits: [{ find: "    - cron: '40 12 * * *'", replace: "    - cron: '40 11 * * *'" }],
+    expect: 'runs once a day, after the whole hour',
+  },
+  {
+    id: 'A1.76',
+    what: 'os segredos do web vão para a chave de cache do Turbo em vez de atravessar',
+    pkg: 'api',
+    test: 'tests/build/turbo-env.test.ts',
+    file: 'turbo.json',
+    edits: [{ find: '  "globalPassThroughEnv": [', replace: '  "globalEnv": [' }],
+    expect: 'keeps every secret out of the cache key',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
