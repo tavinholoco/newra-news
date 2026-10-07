@@ -8854,8 +8854,9 @@ e 15 `[!]`, nenhuma aberta**; a §22 do plano está ✅.
   não aconteceu — o log que decide é o da hora seguinte ao cron, e o Hobby
   guarda 1 h. **Virou o 13.12 da §23**, com gatilho e a medição.
 
-**O que fica:** o A8.04 (o branch `fase-12-ensaio` do Neon — expira sozinho
-em 23/10 — e o banco local) e a **Fase 13**, que pode abrir.
+**A8.04, em 07/10:** o branch `fase-12-ensaio` do Neon apagado (com a
+autorização do dono) e o banco local recriado do zero (7 migrations e o
+seed). **O M8 está completo, e a Fase 13 pode abrir.**
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

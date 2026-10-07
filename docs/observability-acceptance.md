@@ -2011,6 +2011,15 @@ caíram junto.
 - [x] **A8.03 — O item do `docs/progress.md`** (o **90** — a numeração andou
   desde que esta linha dizia "85"), a §22 do plano marcada ✅, o topo
   do `CLAUDE.md`, a memória. · —
-- [ ] **A8.04 — O branch do Neon apagado** (`npx neonctl@latest branches
+- [x] **A8.04 — O branch do Neon apagado** (`npx neonctl@latest branches
   delete fase-12-ensaio --project-id rapid-art-19064809`), e o SQL de
   preparação do banco local desfeito ou o banco recriado. · —
+  - **07/10/2026, com a autorização do dono:** `branches delete
+    br-divine-poetry-an2fw98r` (o `fase-12-ensaio`); a listagem depois
+    mostra só `br-fancy-tree-anbql74y production`. O
+    `apps/api/.env.neon-branch.local`, com a conexão do branch apagado, foi
+    removido. **O banco local foi recriado:** `newranews` derrubado e criado
+    de novo no `newranews-db`, `migrate deploy` (7 migrations) e o seed — 8
+    notícias, 6 briefings (o dia bloqueado do seed não tem), 27 runs, 324
+    linhas de `SourceHealth`. O `newranews_pre_fase12`, o banco de antes da
+    fase, continua lá, intocado, para o dono descartar quando quiser.

@@ -366,9 +366,9 @@ a suíte de unidade, que roda sem rede.
     (acervo de 05/10, `PRERENDER`) enquanto o resto do conjunto regenerou;
     a tag a alcança. Causa a isolar pelo log da hora seguinte ao cron —
     **13.12** da §23, com o gatilho.
-  - **Próximo: a Fase 13** (§23), pelo prompt de abertura no fim dela. Do
-    M8 sobra o A8.04: apagar o branch `fase-12-ensaio` do Neon (expira
-    sozinho em 23/10) e recriar o banco local.
+  - **Próximo: a Fase 13** (§23), pelo prompt de abertura no fim dela. O
+    M8 está completo: o branch `fase-12-ensaio` do Neon foi apagado e o
+    banco local recriado em 07/10 (A8.04).
 
 - 🟢 **05/10/2026: as cotas lidas depois do corte, e duas correções em
   produção.** Itens **87**, **88** e **89**.
