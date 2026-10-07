@@ -8963,6 +8963,14 @@ GitHub só roda `schedule` da branch padrão.
   do `cron` por último, e só com as notificações de Actions ligadas
   (Settings → Notifications → Actions → falhas, por e-mail). E a promoção que
   liga o agendamento.
+- **O ensaio do alerta** (#274 mergeado; PR seguinte, a pedido do dono): o
+  commit do `heartbeat.yml` está ligado à conta `tavinholoco`, e uma execução
+  verde não manda e-mail — então ela não provava que o alerta chega. O
+  disparo manual ganhou `rehearse_failure` (booleano, desligado): pergunta
+  tudo de verdade e reprova de propósito, com a linha `rehearsal` no resumo.
+  O agendamento não tem entrada e nunca ensaia; só `"true"` exato ensaia.
+  Mutações **A1.77–A1.78**; **1.446 → 1.450 na API**. **Depois da
+  promoção:** Actions → Heartbeat → Run workflow → marcar o ensaio.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

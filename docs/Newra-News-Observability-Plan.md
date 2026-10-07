@@ -4959,6 +4959,17 @@ depois da promoção — o GitHub roda `schedule` da branch padrão).** Item
   batimento de dentro (a faixa da `/admin`, "último briefing há N h") continua
   sendo a segunda linha. Um serviço de terceiro com "dead man's switch"
   fecharia isso, e a §23 o recusou de propósito.
+- **O ensaio do alerta** (PR seguinte, no mesmo dia, a pedido do dono): uma
+  execução verde não manda e-mail — o certo, com "só falhas" ligado —, então
+  provava que o job roda e não que o alerta chega. O disparo manual ganhou a
+  entrada booleana `rehearse_failure`: as cinco perguntas são feitas de
+  verdade e o job reprova de propósito, com a linha `rehearsal` no resumo
+  dizendo que é ensaio. O agendamento não tem entrada e nunca ensaia; só o
+  texto exato `"true"` ensaia (o disparo manual sem marcar manda `"false"`).
+  O e-mail de um disparo manual vai para quem disparou — aqui a mesma conta
+  que editou o `cron`. Mutações **A1.77** e **A1.78**; **1.446 → 1.450 na
+  API**. **Depois da promoção:** Actions → Heartbeat → Run workflow → marcar
+  o ensaio, e conferir o e-mail.
 - **Guardas e mutações:** 22 testes do batimento (o veredito, o resumo, a
   observação com `fetch` de mentira, o código de saída, e o `.yml` — a hora
   depois da janela do cron derivada do `vercel.json`, Node sem install, só

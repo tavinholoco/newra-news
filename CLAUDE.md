@@ -374,7 +374,10 @@ a suíte de unidade, que roda sem rede.
     05/10. **1.446 na API** (eram 1.420), mutações A1.72–A1.76.
   - **Só agenda depois da promoção** (o GitHub roda `schedule` da `main`). **Do
     dono:** conferir que as notificações de Actions por e-mail estão ligadas
-    (Settings → Notifications → Actions → falhas).
+    (Settings → Notifications → Actions → falhas) e, depois da promoção,
+    **provar o e-mail com o ensaio**: Actions → Heartbeat → Run workflow →
+    marcar `rehearse_failure` — pergunta tudo de verdade e reprova de
+    propósito (uma execução verde não manda e-mail). 1.450 na API.
 
 - 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
   invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
@@ -1516,7 +1519,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.407 em 190 suites (**1.446 API em 97** + **961 web em 93** —
+- **Testes:** 2.411 em 190 suites (**1.450 API em 97** + **961 web em 93** —
   todos passando, contados em 07/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura

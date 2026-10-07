@@ -177,6 +177,32 @@ describe('o veredito', () => {
     expect(state(healthy({ repoPushedAt: 'não é data' }), 'activity')).toBe('skipped');
   });
 
+  /**
+   * **O ensaio do alerta** (pedido do dono, 07/10/2026). Uma execução verde não
+   * gera e-mail — o certo, com "só falhas" ligado —, então ela prova que o job
+   * roda e não que o alerta chega. O ensaio pergunta tudo de verdade e reprova
+   * de propósito, dizendo que é ensaio: é o único jeito de ver o e-mail sem
+   * esperar um dia ruim.
+   */
+  it('fails on purpose in a rehearsal, saying so, and still asks everything for real', () => {
+    const verdict = evaluate(healthy(), { rehearsal: true });
+    const rehearsal = verdict.checks.find((c) => c.id === 'rehearsal');
+
+    expect(verdict.ok).toBe(false);
+    expect(rehearsal?.state).toBe('fail');
+    expect(rehearsal?.summary).toMatch(/ensaio/i);
+    // As cinco perguntas continuam respondidas: o resumo do ensaio é o de um
+    // dia de verdade, e a sonda da API entra na série do 13.3.
+    expect(verdict.checks.filter((c) => c.id !== 'rehearsal').every((c) => c.state === 'ok')).toBe(
+      true,
+    );
+  });
+
+  it('never rehearses unless asked', () => {
+    expect(evaluate(healthy()).checks.some((c) => c.id === 'rehearsal')).toBe(false);
+    expect(evaluate(healthy(), { rehearsal: false }).ok).toBe(true);
+  });
+
   it('reads today in UTC — the day of `Article.date`, not of the runner', () => {
     // 01:30 em São Paulo de 09/10 ainda é 08/10 em UTC… e 23:59 de 08/10 em
     // São Paulo já é 09/10 em UTC.
@@ -332,6 +358,34 @@ describe('a saída do processo', () => {
     );
   });
 
+  it('exits 1 in a rehearsal on a good day — only when HEARTBEAT_REHEARSAL is exactly "true"', async () => {
+    const goodDay = (async (input: string | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/health')) return new Response('{"uptime":5000}');
+      if (url.endsWith('/api/articles/latest')) {
+        return new Response(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`);
+      }
+      const locale = url.endsWith('/en') ? 'en' : 'pt-BR';
+      return new Response(`/${locale}/article/${TODAY}`);
+    }) as typeof fetch;
+    const run = (rehearsal: string | undefined) =>
+      main({
+        env: { HEARTBEAT_REHEARSAL: rehearsal },
+        fetch: goodDay,
+        now: () => NOW,
+        pause: async () => undefined,
+        appendSummary: () => undefined,
+        log: () => undefined,
+      });
+
+    expect(await run('true')).toBe(1);
+    // O agendamento manda vazio (a entrada só existe no disparo manual), e o
+    // disparo manual sem marcar manda "false".
+    expect(await run('')).toBe(0);
+    expect(await run('false')).toBe(0);
+    expect(await run(undefined)).toBe(0);
+  });
+
   it('exits 0 on a good day', async () => {
     const code = await main({
       env: {},
@@ -390,6 +444,15 @@ describe('o workflow do batimento', () => {
   it('runs the script with Node alone — no install, so the alert has one less way to fail', () => {
     expect(codigo).toMatch(/node apps\/api\/scripts\/heartbeat\.ts/);
     expect(codigo).not.toMatch(/pnpm install|npm (ci|install)/);
+  });
+
+  it('offers the rehearsal only on the manual trigger, and wires it to the script', () => {
+    // Entrada booleana do `workflow_dispatch`, desligada por padrão; o
+    // agendamento não tem entrada nenhuma, então nunca ensaia.
+    expect(codigo).toMatch(
+      /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+rehearse_failure:[\s\S]*?type:\s*boolean[\s\S]*?default:\s*false/,
+    );
+    expect(codigo).toMatch(/HEARTBEAT_REHEARSAL:\s*\$\{\{\s*inputs\.rehearse_failure\s*\}\}/);
   });
 
   it('only reads — the token writes nothing', () => {
