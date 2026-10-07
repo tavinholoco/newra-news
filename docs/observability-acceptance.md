@@ -69,6 +69,15 @@
 > pergunta aberta sobre o `detail`), o **A7.15** (o login do dono), o
 > **A7.16** (medir de novo, com o terreno que mudou — ver a linha) e o
 > **M8**. A retomada da §22 do plano foi reescrita nesta data.
+>
+> **06/10/2026 — fechada.** O A7.12b rodou em produção com a autorização
+> do dono (24 linhas, −2 h exatas, checkup verde); o A7.14 virou `[!]` com
+> correção (`briefing.one_per_day` nomeia os dias sem briefing — mutação
+> A1.67); o A7.15 leu as três abas com a sessão do dono; o A7.16 provou a
+> regeneração byte a byte idêntica com o botão da `/admin` (e achou a
+> `/news` presa no HTML do build — **13.12** da §23). **81 `[x]` e 15
+> `[!]`, nenhuma linha aberta.** O PR E (`observability/fase-12-acceptance-e`)
+> leva o fechamento à `dev`.
 
 ## Como ler e preencher
 
@@ -1722,7 +1731,7 @@ caíram junto.
     sozinho (A7.11). **Smoke E2E automático: `31 passed (12.6s)`, `6
     skipped`** — os mesmos 31/6 da promoção #215, depois do `sleep 420`
     pelos deploys. A `dev` realinhada por fast-forward no mesmo minuto.
-- [ ] **A7.12b — A segunda janela da correção da ESPN** (decidida pelo dono em
+- [x] **A7.12b — A segunda janela da correção da ESPN** (decidida pelo dono em
   25/09, A4.04). A ESPN escreve a hora de Brasília com o rótulo `EST`, e tudo
   o que o código **antigo** gravou dela está 2 h adiantado. A correção é
   `fase12-kit/espn-fix.cjs`, **por janela de `createdAt`** — duas janelas
@@ -1760,6 +1769,26 @@ caíram junto.
     no 5.5, A7.14). Quem roda em produção continua sendo o dono — **o agente
     leu o banco de produção nesta sessão por `neonctl connection-string`, só
     `SELECT`**; escrever é outra decisão.
+  - **06/10/2026 — a 2.ª janela RODOU em produção, pelo agente, com a
+    autorização explícita do dono nesta sessão** (o classificador recusou a
+    primeira tentativa de buscar a credencial; o dono liberou a permissão e
+    confirmou o `apply` depois do `dry`). Limite superior
+    `2026-10-01T18:08:10Z`, o processo novo do Render medido pelo vigia do
+    A7.12 — nenhum run entre ele e o fim do run de 01/10. **`dry`, as três
+    janelas:** 1.ª (`< 25/09 21:30`) 291 linhas (as outras a retenção levou),
+    **0 no futuro, menor idade +0,231 h** — a correção de 25/09 está lá; 2.ª
+    **24 linhas**, 0 no futuro, menor idade 6,778 h; controle (`≥ 01/10
+    18:08:10`, código novo) 101 linhas, menor idade +0,569 h. **`apply`:**
+    backup de 24 pares em
+    `fase12-kit/espn-fix-backup-ep-quiet-tree-anx52w4o-2026-10-01T18-08-10-000Z.json`,
+    **24 corrigidas**, menor idade **6,778 → 8,778 h** (exatamente as 2 h).
+    **O checkup depois:** cada uma das 24, lida pelo id contra o backup, está
+    deslocada **exatamente −2 h** (24/24); as janelas vizinhas repetem 291 e
+    101 com as mesmas idades (nada fora da janela foi tocado);
+    `/api/health` 200, `GET /api/news/9ac9dfa9-…` 200 com
+    `publishedAt 2026-10-01T02:45:07Z` (antes 04:45), `?source=ESPN Brasil`
+    200, e a matéria no web em 200. O arquivo da credencial foi apagado no
+    mesmo minuto.
 - [!] **A7.13 — O ritual:** Lighthouse (medianas) e baseline visual. · P
   - **Lighthouse, duas rodadas — e a primeira reprovou.** `gh workflow run
     "Lighthouse CI" --ref main` às 18:09:47, **três minutos depois do
@@ -1798,7 +1827,7 @@ caíram junto.
     ela, 0. Recaptura: **51/51, 42 telas mudaram** (a anterior era de
     24/08 — o card de texto, o briefing renderizado, as abas da conta e as
     fotos de volta).
-- [ ] **A7.14 — O primeiro run das 11:00 UTC depois da volta.** Espera-se
+- [!] **A7.14 — O primeiro run das 11:00 UTC depois da volta.** Espera-se
   **`baseline: 'insufficient'`** no evento 5.5 nos primeiros dias — a suspensão
   apagou a série de `DailyMetric` desde 19/09, e o portão de volume não opina
   sem três dias com briefing na janela (armadilha 24, agora em produção); as
@@ -1822,7 +1851,20 @@ caíram junto.
     quatro runs**, e a linha esperava as datas da janela. A sessão seguinte
     decide: a expectativa estava errada (a invariante só conta) ou é
     `[!]` (a tela diria "5 de 7" sem dizer quais dias faltam).
-- [ ] **A7.15 — A leitura com a sessão ADMIN do dono, no site publicado.** O
+  - **06/10 — decidido: `[!]`, corrigido.** As duas leituras eram meio
+    certas: o §10 nunca pediu o `detail` para esta invariante (quem o supôs
+    foi a revisão de 24/09, §22), mas a irmã `metrics.day_recorded` já
+    nomeava os dias que faltam, e "6 de 7" sem dizer qual dia manda o
+    leitor caçar o buraco à mão. `briefing.one_per_day` passou de `count`
+    para um `findMany` de **uma coluna e no máximo sete linhas** (a guarda
+    de forma o aceita) e devolve os dias sem briefing no `detail`, que chega
+    à tela e ao `context` da linha de `ErrorEvent`. Teste novo em
+    `invariants.service.test.ts` (o buraco da suspensão no começo da janela
+    mais um dia solto no meio), **mutação A1.67** vista reprovando, e a
+    A1.16 continua de pé. Em produção, a 9.5 de 06/10 dizia `observed 6`
+    sem o dia — **o próximo run dirá `2026-09-30`** (a 7.ª data da janela,
+    ainda da suspensão).
+- [x] **A7.15 — A leitura com a sessão ADMIN do dono, no site publicado.** O
   dono entra (o agente nunca digita credencial); o agente confere o que o A7.05
   não alcançava: o run do A7.14 nas três abas, a `DailyUptime` voltando a
   crescer, ~~as sondas do smoke novo na tabela de falhas~~. · P
@@ -1849,7 +1891,33 @@ caíram junto.
     todo run fechado sem bloqueio. É transitório — o run sai da janela de 7
     dias em 08/10, e todo run daqui em diante passa pelos dois —, e não
     pede correção.
-- [!] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
+  - **06/10, ~19:20 UTC — a leitura do A7.14 nas três abas, com a sessão do
+    dono no painel do navegador** (ele entrou; o agente leu por texto da
+    página). **`/admin`:** arco **39 h de 750 h**, "no ritmo atual, 211 h no
+    fim do mês (28 %)" — a `DailyUptime` crescendo e a projeção já calada
+    nas primeiras 24 h falando; memória 100 MB/512, event loop p95 0 ms;
+    faixa de 30 dias com **20/09–30/09 "Não rodou"** (a suspensão, derivada
+    pela ausência) e 01–06/10 com desfecho; o run de 03/09 que era
+    `RUNNING` saiu da janela; "Último briefing há 7 h 50 min"; 06/10
+    `SUCCESS`, 574 notícias, 1m 13s. **`/admin/security`:** 2 falhas em
+    24 h — `INVARIANT_VIOLATED · briefing.one_per_day: observed 6, expected 7`
+    com o run, e um `AUTH_TOKEN_INVALID` em `/api/metrics/http` às 20:50 de
+    05/10 com o `requestId`; Portões **100 % sobre 6 runs, 0 bloqueio**;
+    invariantes **1 violada de 12, 119 ms de 2 s**, as sete retenções `OK`
+    (a do `AuditEvent` em "—": tabela vazia em produção até o botão abaixo),
+    `pipeline.no_stale_running` **0** (o cadáver de 03/09 enterrado pelo
+    código novo). **`/admin/metrics`:** KPI 574 hoje (+14,2 % vs. 7 d),
+    Gemini, 0 erro, 307 linhas apagadas pela etapa 8; fontes com 12
+    tentadas por dia desde 01/10, Folha e Veja Saúde com os `fetch failed`
+    alternados já registrados, Drauzio "Não tentada" (saiu no #243); os
+    quatro sinais com **0 % de 5xx e 0 % de 4xx** em 65 requisições, a
+    coluna "4xx" no ar; `scrollWidth` 567 contra viewport 582. **Uma coisa
+    que a tela mostra e não é verdade, já com dono:** "Aberturas 0" e
+    "Leitura completa 0 %" ao lado de **709** `article_scroll_25/50/90`
+    iguais — as ferramentas e robôs contados como leitores, com o clique no
+    card como denominador. É exatamente o **13.4** da §23; esta leitura é o
+    número de 06/10 para ele.
+- [x] **A7.16 — O #231 no ar.** Duas regenerações **seguidas** de uma listagem
   com `revalidate` (`/pt-BR/news` ou `/pt-BR/article`, sem run do pipeline
   entre elas) com payload RSC idêntico; os dois sitemaps com contagem estável;
   e, se a API cair de novo, o documento anterior mantido (5xx na revalidação).
@@ -1889,13 +1957,69 @@ caíram junto.
     `docs/progress.md`): qualquer amostra de antes de 05/10 ~00:33 UTC não
     se compara com uma de depois. O `"now"` continua
     `$D1970-01-01T00:00:00.000Z` — conferido no RSC de produção em 05/10.
+  - **06/10 — o método decidido e a medição: provado.** Duas regenerações
+    com o **mesmo dado** e nenhum run entre elas: a 1.ª é a que a
+    invalidação do cron de hoje deixou para o primeiro pedido (`GET
+    /pt-BR/article` com `RSC: 1` às 16:40:43 UTC → `REVALIDATED`,
+    `cacheReason: delete_tag` no log da Vercel, 148.419 bytes, sha256
+    `0e1ff433cda74f02…`); a 2.ª, forçada pelo **botão da `/admin` com a
+    sessão do dono** às ~19:25 UTC — a API respondeu
+    `already-succeeded-today` (a tela: "O pipeline de hoje já rodou às
+    08:31… nada foi disparado") e o cron invalidou o conjunto do dia sem
+    rodar nada (o "Redeploy" não servia: é build, não regeneração). Resultado:
+    `/pt-BR/article` → **`REVALIDATED` com `Age: 9910`**, 148.419 bytes,
+    **o mesmo sha256 — `cmp` byte a byte idêntico**. O `Age` preservado é a
+    própria Vercel dizendo que a regeneração não mudou o documento (é o que
+    não cobra ISR Write); o mesmo na Home (`REVALIDATED`, `Age: 21027`) e no
+    `/pt-BR/article/2026-10-06` (`REVALIDATED`, `Age: 11114`). Os dois
+    sitemaps `REVALIDATED` com **364** e **700** `<loc>`. O `"now"` segue
+    `$D1970-01-01T00:00:00.000Z` (o `STATIC_NOW`).
+  - **O que a medição achou ao lado, e não fecha aqui: a `/news` passou o
+    dia no HTML do build.** Às 16:40 UTC, cinco horas depois do run de
+    06/10, `/pt-BR/news` e `/en/news` respondiam **`PRERENDER`, `Age: 0`**,
+    com o acervo de **05/10** (mais novo `createdAt 2026-10-05T11:31:38Z`,
+    total 7.169) — a API já devolvia 7.281, mais novo de 06/10 11:31. No log
+    da Vercel, nenhuma invocação de função para a `/news`; para a `/article`,
+    `REVALIDATED delete_tag`. **A tag alcança a `/news`** — o botão das
+    19:25 a regenerou (`REVALIDATED`, acervo de hoje, depois `HIT` em HTML e
+    RSC) —, então a causa não é a tag. A hipótese que os fatos aceitam é **uma
+    regeneração que falhou entre a invalidação e as 16:40** (o `prefetch`
+    relança na Vercel desde o #254, e a falha devolve o documento anterior —
+    aqui, o do build — por até um dia de `revalidate`); a outra é a segunda
+    invalidação (no `SUCCESS`) não ter acontecido. **O log que decide é o da
+    hora seguinte ao cron, e o Hobby guarda 1 h** — virou o **13.12** da
+    §23, com o gatilho.
 
 ## M8 — Fechamento
 
-- [ ] **A8.01 — Toda linha acima com status e evidência.** · —
-- [ ] **A8.02 — Todo `[!]` virou PR mergeado com guarda, ou dívida no §16.** · —
-- [ ] **A8.03 — Item 85 do `docs/progress.md`**, a §22 do plano marcada ✅, o topo
+- [x] **A8.01 — Toda linha acima com status e evidência.** · —
+  - **06/10/2026:** contadas as linhas `A0.xx`–`A7.16` — **81 `[x]`, 15
+    `[!]`, zero `[ ]`, zero `[~]`**; cada uma com evidência observável
+    (linha de log, SQL, resposta HTTP, captura). As quatro do M8 são estas.
+- [x] **A8.02 — Todo `[!]` virou PR mergeado com guarda, ou dívida no §16.** · —
+  - Os 15, um a um: **13 com correção e guarda/mutação** (A3.05, A3.17,
+    A4.04, A4.07, A4.13, A5.12, A5.13, A6.02, A6.03, A7.04, A7.05, A7.13 —
+    a `/news` raspando o Lighthouse foi para o §16 —, e o **A7.14**, neste
+    PR, com a mutação A1.67). **Duas exceções declaradas:** o **A0.05** é
+    defeito do **kit de ensaio** (o `check-keys.mjs` conferia presença, não
+    validade), corrigido no próprio kit, que mora fora do repositório e não
+    tem produto a guardar; o **A5.14** é tradução ("Motives" → "Reasons" no
+    `en.json`), e a guarda que alcança string traduzida é a paridade de
+    chaves — palavra certa não tem teste. **E um achado do A7.16 que não é
+    `[!]` porque a causa não foi isolada:** a `/news` no HTML do build por
+    um dia — virou o **13.12** da §23, com gatilho e a medição que decide.
+- [x] **A8.03 — O item do `docs/progress.md`** (o **90** — a numeração andou
+  desde que esta linha dizia "85"), a §22 do plano marcada ✅, o topo
   do `CLAUDE.md`, a memória. · —
-- [ ] **A8.04 — O branch do Neon apagado** (`npx neonctl@latest branches
+- [x] **A8.04 — O branch do Neon apagado** (`npx neonctl@latest branches
   delete fase-12-ensaio --project-id rapid-art-19064809`), e o SQL de
   preparação do banco local desfeito ou o banco recriado. · —
+  - **07/10/2026, com a autorização do dono:** `branches delete
+    br-divine-poetry-an2fw98r` (o `fase-12-ensaio`); a listagem depois
+    mostra só `br-fancy-tree-anbql74y production`. O
+    `apps/api/.env.neon-branch.local`, com a conexão do branch apagado, foi
+    removido. **O banco local foi recriado:** `newranews` derrubado e criado
+    de novo no `newranews-db`, `migrate deploy` (7 migrations) e o seed — 8
+    notícias, 6 briefings (o dia bloqueado do seed não tem), 27 runs, 324
+    linhas de `SourceHealth`. O `newranews_pre_fase12`, o banco de antes da
+    fase, continua lá, intocado, para o dono descartar quando quiser.

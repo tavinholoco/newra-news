@@ -219,16 +219,31 @@ const INVARIANTS: InvariantDefinition[] = [
      * 01/09/2026**, cujo único sinal foi o briefing ausente: o cron estourou o
      * prazo acordando a API, e nenhuma linha em lugar nenhum disse que o dia
      * ficou sem. `date` é `@unique`, então contar é contar dias distintos.
+     *
+     * **Os dias que faltam vão no `detail`**, como no `metrics.day_recorded`:
+     * "5 de 7" não diz qual dia procurar. Era só um `count` até o ensaio de
+     * aceitação (A7.14, 05/10/2026), e por isso a coluna — no máximo sete
+     * linhas, que a guarda de forma aceita.
      */
     id: 'briefing.one_per_day',
     measure: 'count',
     check: async ({ now }) => {
       const today = startOfDay(now);
       const since = daysBefore(today, RECENT_DAYS - 1);
-      const count = await prisma.article.count({
+      const briefings = await prisma.article.findMany({
         where: { date: { gte: since, lte: today } },
+        select: { date: true },
       });
-      return { observed: count, expected: RECENT_DAYS, ok: count === RECENT_DAYS };
+      const present = new Set(briefings.map((briefing) => dayKey(briefing.date)));
+      const missing = Array.from({ length: RECENT_DAYS }, (_, offset) =>
+        dayKey(daysBefore(today, RECENT_DAYS - 1 - offset)),
+      ).filter((day) => !present.has(day));
+      return {
+        observed: present.size,
+        expected: RECENT_DAYS,
+        ok: present.size === RECENT_DAYS,
+        ...(missing.length > 0 ? { detail: missing.join(', ') } : {}),
+      };
     },
   },
   {

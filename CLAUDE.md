@@ -333,11 +333,10 @@ a suíte de unidade, que roda sem rede.
   Fase 7 inteira**; e **a promoção `dev → main` aconteceu em 19/09 (#215)**,
   com o ritual medido (item 81); e a **9 (os dois portões) fechou em 20/09,
   num PR só — a última do plano**, com o ensaio contra os retidos pendente
-  da API voltar (item 83).** **Aberta desde 24/09: a Fase 12 — o ensaio de
-  aceitação (§22)**, só de teste, sobre a matriz
-  `docs/observability-acceptance.md`: cada coisa que as onze fases
-  entregaram provocada ao vivo, com evidência observável; só a metade de
-  produção publicada (M7b) espera a API voltar e a promoção.
+  da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
+  fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
+  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A próxima é a Fase 13
+  (§23)**, com o 13.12 achado no fechamento.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -355,6 +354,45 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
+  invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
+  Depois do `SUCCESS` (ou do `already-succeeded-today`), o cron agendado
+  invalida o conjunto pela rota irmã `/api/cron/daily-news/revalidate`, pede
+  as dez páginas (Home primeiro), confere a marca do run em cada uma e
+  reinvalida o padrão da que voltou velha — até três rodadas; ao desistir,
+  deixa a invalidação de antes só para o que ficou velho e escreve
+  `cron.daily-news.warm`.
+  - **O achado: as "duas invalidações" do cron eram uma.** O Next 14 só
+    aplica a tag anotada num route handler **quando ele retorna** (lido no
+    `next@14.2.35`, com guarda) — a do aceite e a do `SUCCESS` saíam juntas,
+    no fim; e pedir as páginas na mesma invocação leria o cache antigo. Daí
+    a rota irmã. Armadilha 47 do plano.
+  - **Ensaio local** (`next start` + API, banco com o dia escondido e
+    restaurado): a Home guardada sem o briefing do dia e a
+    `/article/2026-10-07` guardada como "não encontrada" voltaram com o run
+    numa rodada, em 5,4 s, e ficaram em `HIT`. **961 no web** (eram 934),
+    mutações A1.62 (reescrita) e A1.68–A1.71.
+  - **Próximo:** a promoção sozinha (decisão de 07/10), e ler a resposta e o
+    log do primeiro cron depois dela (`pages`, `cron.daily-news.warm`). O
+    resto da Fase 13 vai para a `dev` e sobe numa segunda promoção.
+
+- 🟢 **06/10/2026: a Fase 12 do plano de observabilidade fechou.** Item
+  **90**. A 2.ª janela da ESPN corrigida em produção (24 linhas, −2 h,
+  checkup verde); `briefing.one_per_day` passou a nomear os dias sem
+  briefing (A7.14, mutação A1.67); as três abas lidas com a sessão do dono;
+  e o #231 provado — duas regenerações da `/article` sem run entre elas
+  deram o mesmo sha256, e a Vercel respondeu `REVALIDATED` com o `Age`
+  preservado.
+  - **Achado do fechamento: a `/news` passou 06/10 no HTML do build**
+    (acervo de 05/10, `PRERENDER`) enquanto o resto do conjunto regenerou;
+    a tag a alcança. **Em 07/10 o gatilho disparou:** `/pt-BR`, `/pt-BR/news`
+    e `/en/news` na entrada da véspera (`HIT`, `Age` ~80.600 s) com a `/en`
+    — a mesma tag — fresca. Uma regeneração que falha fixa a página velha
+    por um dia. **13.12, primeiro PR da Fase 13 (13a′).**
+  - **Próximo: a Fase 13** (§23), pelo prompt de abertura no fim dela. O
+    M8 está completo: o branch `fase-12-ensaio` do Neon foi apagado e o
+    banco local recriado em 07/10 (A8.04).
 
 - 🟢 **05/10/2026: as cotas lidas depois do corte, e duas correções em
   produção.** Itens **87**, **88** e **89**.
@@ -380,9 +418,7 @@ a suíte de unidade, que roda sem rede.
     passou a medir (`baseline: 'ok'`) em 04/10. Folha, Veja Saúde e Olhar
     Digital falham por `fetch failed` em dias alternados — é isso que põe o
     `pipelineSuccessRate` do `/metrics/weekly` em 0,2, não falha de run.
-  - **Próximo: fechar a Fase 12** — A7.12b, A7.14, A7.15, A7.16 e o M8. A
-    sessão nova começa por **"A retomada", no fim da §22 do plano**
-    (reescrita em 05/10), com o prompt de lá.
+  - ~~Próximo: fechar a Fase 12~~ — **feito em 06/10** (item 90, acima).
 
 - 🟢 **02/10/2026: a Home presa no build da véspera, e o pipeline tinha
   rodado.** O cron interno da API disparou às 11:00 em ponto, o cron da
@@ -399,7 +435,9 @@ a suíte de unidade, que roda sem rede.
   `revalidate` de toda página é de **um dia** (sete na `/news/[id]`) e virou
   rede de segurança; o frescor vem do cron diário invalidando só o conjunto
   do dia (`lib/daily-revalidation.ts`), no aceite e de novo quando o run fecha
-  em `SUCCESS` — nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
+  em `SUCCESS` (*eram uma só, no fim da invocação — o Next só aplica a tag
+  quando o route handler retorna; corrigido no 13.12, topo deste bloco*) —
+  nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
   segundo derrubou o deploy da Vercel (o Hobby limita crons). A porta dos
   crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`), o
   `fetchApi` do servidor e o cron repetem 429/503 — **a borda do Render
@@ -1450,8 +1488,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.352 em 187 suites (**1.418 API em 95** + **934 web em 92** —
-  todos passando, contados em 05/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.381 em 188 suites (**1.420 API em 95** + **961 web em 93** —
+  todos passando, contados em 07/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

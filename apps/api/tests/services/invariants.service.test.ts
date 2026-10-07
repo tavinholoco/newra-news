@@ -12,7 +12,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
     prisma: {
       news: { aggregate: vi.fn() },
       pipelineLog: { aggregate: vi.fn(), count: vi.fn(), findMany: vi.fn() },
-      article: { aggregate: vi.fn(), count: vi.fn() },
+      article: { aggregate: vi.fn(), count: vi.fn(), findMany: vi.fn() },
       productEvent: { aggregate: vi.fn() },
       errorEvent: { aggregate: vi.fn() },
       auditEvent: { aggregate: vi.fn() },
@@ -70,6 +70,13 @@ const NOW = new Date('2026-09-16T11:01:00.000Z');
 const RUN = 'run-hoje';
 const DAY_MS = 86_400_000;
 
+/** As `date` de briefing dos `days` dias de calendário que terminam hoje. */
+function briefingDays(days: number) {
+  return Array.from({ length: days }, (_, offset) => ({
+    date: new Date(Date.UTC(2026, 8, 16 - offset)),
+  }));
+}
+
 /** Tudo em ordem: nenhuma violação, nenhum erro. */
 function allHealthy() {
   const fresh = { _min: { createdAt: NOW, startedAt: NOW, occurredAt: NOW, windowStart: NOW, day: NOW } };
@@ -80,10 +87,8 @@ function allHealthy() {
   vi.mocked(prisma.errorEvent.aggregate).mockResolvedValue(fresh as never);
   vi.mocked(prisma.auditEvent.aggregate).mockResolvedValue(fresh as never);
   vi.mocked(prisma.sourceHealth.aggregate).mockResolvedValue(fresh as never);
-  vi.mocked(prisma.article.count).mockImplementation(async (args) => {
-    const where = (args as { where: { sources?: unknown } }).where;
-    return where.sources === undefined ? 7 : 0;
-  });
+  vi.mocked(prisma.article.findMany).mockResolvedValue(briefingDays(7) as never);
+  vi.mocked(prisma.article.count).mockResolvedValue(0);
   vi.mocked(prisma.pipelineLog.count).mockResolvedValue(0);
   vi.mocked(prisma.pipelineLog.findMany).mockResolvedValue([
     { startedAt: new Date('2026-09-15T11:00:10.000Z') },
@@ -121,6 +126,7 @@ describe('§10 — a suíte roda inteira, na ordem da tabela', () => {
   });
 
   it('keeps going when one query throws — that result is ERROR, the others still answer', async () => {
+    vi.mocked(prisma.article.findMany).mockRejectedValue(new Error('relation "Article" does not exist'));
     vi.mocked(prisma.article.count).mockRejectedValue(new Error('relation "Article" does not exist'));
 
     const report = await runInvariants({ pipelineLogId: RUN, now: NOW });
@@ -242,20 +248,18 @@ describe('§10 — as retenções: uma por tabela que a etapa 8 expurga', () => 
 
 describe('§10 — as cinco de contagem', () => {
   it('briefing.one_per_day counts the seven calendar days ending today, and wants exactly seven', async () => {
-    vi.mocked(prisma.article.count).mockImplementation(async (args) => {
-      const where = (args as { where: { sources?: unknown } }).where;
-      return where.sources === undefined ? 6 : 0;
-    });
+    vi.mocked(prisma.article.findMany).mockResolvedValue(briefingDays(6) as never);
 
     const report = await runInvariants({ pipelineLogId: RUN, now: NOW });
 
-    expect(prisma.article.count).toHaveBeenCalledWith({
+    expect(prisma.article.findMany).toHaveBeenCalledWith({
       where: {
         date: {
           gte: new Date('2026-09-10T00:00:00.000Z'),
           lte: new Date('2026-09-16T00:00:00.000Z'),
         },
       },
+      select: { date: true },
     });
     expect(resultOf(report, 'briefing.one_per_day')).toMatchObject({
       status: 'VIOLATED',
@@ -265,11 +269,37 @@ describe('§10 — as cinco de contagem', () => {
     });
   });
 
-  it('briefing.has_sources asks for briefings of the week with no BriefingSource at all', async () => {
-    vi.mocked(prisma.article.count).mockImplementation(async (args) => {
-      const where = (args as { where: { sources?: unknown } }).where;
-      return where.sources === undefined ? 7 : 2;
+  it('briefing.one_per_day names the days without a briefing — "5 of 7" does not say which', async () => {
+    // A forma da suspensão do Render (19/09–01/10): um buraco no começo da
+    // janela, e um dia solto no meio.
+    vi.mocked(prisma.article.findMany).mockResolvedValue([
+      { date: new Date('2026-09-16T00:00:00.000Z') },
+      { date: new Date('2026-09-15T00:00:00.000Z') },
+      { date: new Date('2026-09-13T00:00:00.000Z') },
+      { date: new Date('2026-09-12T00:00:00.000Z') },
+    ] as never);
+
+    const report = await runInvariants({ pipelineLogId: RUN, now: NOW });
+
+    expect(resultOf(report, 'briefing.one_per_day')).toMatchObject({
+      status: 'VIOLATED',
+      observed: 4,
+      expected: 7,
+      detail: '2026-09-10, 2026-09-11, 2026-09-14',
     });
+    // E o `detail` chega à linha da tabela de falhas.
+    const line = pendingErrorEvents().find((entry) => entry.route === 'briefing.one_per_day');
+    expect(line?.context).toEqual({ observed: 4, expected: 7, detail: '2026-09-10, 2026-09-11, 2026-09-14' });
+  });
+
+  it('briefing.one_per_day has no detail when the week is complete', async () => {
+    const report = await runInvariants({ pipelineLogId: RUN, now: NOW });
+
+    expect(resultOf(report, 'briefing.one_per_day')).toMatchObject({ status: 'OK', observed: 7, detail: null });
+  });
+
+  it('briefing.has_sources asks for briefings of the week with no BriefingSource at all', async () => {
+    vi.mocked(prisma.article.count).mockResolvedValue(2);
 
     const report = await runInvariants({ pipelineLogId: RUN, now: NOW });
 

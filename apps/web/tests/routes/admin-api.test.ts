@@ -116,6 +116,8 @@ describe('POST /api/admin/run-pipeline', () => {
           warmed: true,
           // e não espera o run quando quem dispara é o painel (01/10/2026)
           settled: null,
+          // nem pede as páginas do dia — isso é do disparo agendado (13.12)
+          pages: null,
         },
         { status: 200 },
       ),
@@ -134,6 +136,7 @@ describe('POST /api/admin/run-pipeline', () => {
       revalidated: true,
       warmed: true,
       settled: null,
+      pages: null,
     });
     const [request] = vi.mocked(cronGet).mock.calls[0] as [Request];
     expect(request.headers.get('authorization')).toBe('Bearer cron-secret');
@@ -160,6 +163,7 @@ describe('POST /api/admin/run-pipeline', () => {
           revalidated: true,
           warmed: true,
           settled: null,
+          pages: null,
         },
         { status: 200 },
       ),

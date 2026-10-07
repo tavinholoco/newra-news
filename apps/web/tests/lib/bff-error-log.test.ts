@@ -73,6 +73,8 @@ const isRouteHandler = (file: string): boolean =>
 const CATCH_ALLOWED: Record<string, string> = {
   'app/api/cron/daily-news/route.ts#warmApi':
     'falhar é o caminho esperado — a API hibernando é o motivo de a função existir, e a própria tentativa é o que a acorda. O desfecho viaja em `warmed`, que o catch do disparo loga',
+  'app/api/cron/daily-news/route.ts#requestPage':
+    'um pedido de página que cai é o caminho de repetir (13.12): a rodada seguinte a invalida e pede de novo. O desfecho de cada página que não se acertou — status e `x-vercel-cache` da última tentativa — vai na linha `cron.daily-news.warm` que o cron escreve quando desiste',
 };
 
 function collectFiles(target: string): string[] {
