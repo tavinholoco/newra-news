@@ -5,6 +5,7 @@ import { useHttpMetrics } from '@/lib/queries';
 import { formatCount, formatRate, formatUptime } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { SaturationPanel } from '@/components/dashboard/golden-signals';
+import { PlanReadingForm } from './plan-reading-form';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
@@ -12,7 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
  * observabilidade), com o **arco das horas do plano** que a §4.3 chama de o
  * mais importante do plano inteiro em custo/benefício: um arco, um número, e
  * o incidente que suspendeu a API por dois dias em 29/08/2026 vira algo que
- * se vê chegando.
+ * se vê chegando. Desde a Fase 13 (13b) o arco é do **workspace** quando há
+ * leitura do Billing — e é aqui, abaixo dele, que a leitura se registra.
  *
  * Lê a mesma consulta que o painel de sinais da `/admin/metrics`
  * (`useHttpMetrics`, uma chave): quem abre as duas abas faz uma requisição. O
@@ -44,6 +46,9 @@ export function ApiHealth() {
       ) : (
         <>
           <SaturationPanel saturation={data.saturation} arcSize='lg' />
+          {/* A leitura do Billing (Fase 13, 13b) só faz sentido com as horas
+              desta API à mão — é a parte que ela é comparada. */}
+          {data.saturation.plan && <PlanReadingForm plan={data.saturation.plan} />}
           <p className='mt-6 text-xs text-muted-foreground'>
             {t('overview.instance', {
               uptime: formatUptime(data.uptimeSeconds, locale),

@@ -128,7 +128,18 @@
       "title": "Saúde da API agora",
       "description": "As horas do plano são o teto que suspendeu a API em 29/08 — o arco é o que faltava para ver isso chegando. Memória e event loop são desta instância.",
       "loadError": "Não foi possível carregar a saúde da API.",
-      "instance": "Esta instância está de pé há {uptime}: {requests} requisições, {errorRate} com erro do servidor. A janela zera a cada acordada."
+      "instance": "Esta instância está de pé há {uptime}: {requests} requisições, {errorRate} com erro do servidor. A janela zera a cada acordada.",
+      "reading": {
+        "label": "Total do Billing (horas do workspace)",
+        "hint": "No painel do Render: Billing → Free instance hours. O número é do workspace inteiro; a parte dos outros serviços é a diferença para esta API.",
+        "placeholder": "124,27",
+        "submit": "Registrar leitura",
+        "saving": "Registrando…",
+        "saved": "Leitura registrada.",
+        "invalid": "Digite as horas como no painel, por exemplo 124,27.",
+        "belowApi": "A leitura é menor que as {hours} que esta API já registrou neste mês — confira o número do painel.",
+        "failed": "Não foi possível registrar a leitura."
+      }
     },
     "security": {
       "title": "Logs e segurança",
@@ -238,7 +249,7 @@
       },
       "audit": {
         "title": "Auditoria de ações de admin",
-        "description": "Quem disparou o pipeline, quem apagou o quê — mais recente primeiro. Só o id de quem agiu, nunca o e-mail.",
+        "description": "Quem disparou o pipeline, quem apagou o quê, quem leu o Billing — mais recente primeiro. Só o id de quem agiu, nunca o e-mail.",
         "windowLabel": "Janela da auditoria",
         "loadError": "Não foi possível carregar a trilha de auditoria.",
         "empty": "Nenhuma ação de admin registrada na janela.",
@@ -247,6 +258,8 @@
         "shown": "{shown} de {total} na janela",
         "actionPipelineTriggered": "Pipeline disparado",
         "actionNewsDeleted": "Notícia apagada",
+        "actionPlanHoursRecorded": "Leitura do Billing registrada",
+        "planReading": "workspace {workspace} · esta API {api}",
         "existingRun": "run existente"
       }
     }
@@ -367,12 +380,19 @@
       "clientErrorRate": "Erros do cliente",
       "ofRequests": "Sobre as requisições da janela",
       "saturationTitle": "Saturação",
-      "planHours": "Horas do plano",
+      "planHoursApi": "Horas desta API",
+      "planHoursWorkspace": "Horas do workspace",
       "planValue": "{used} / {limit}",
+      "planValueEstimated": "~{used} / {limit}",
+      "planShared": "O teto de {limit} é do workspace, dividido com outros serviços — sem a leitura do Billing, o arco mostra só esta API.",
+      "planBreakdown": "Esta API {api} · outros serviços ~{other}",
+      "planReadingAt": "Leitura do Billing: {hours} em {date}",
       "planUnavailable": "Indisponível",
       "planUnavailableHint": "O banco não respondeu — é a única medida que sai dele.",
-      "pace": "No ritmo atual, {hours} no fim do mês ({ratio} do plano).",
+      "paceApi": "No ritmo atual, esta API chega a {hours} no fim do mês ({ratio} do teto), sem contar os outros serviços.",
+      "paceWorkspace": "No ritmo atual, o workspace chega a {hours} no fim do mês ({ratio} do teto).",
       "paceTooEarly": "O ritmo do mês só é projetado com 24 h de amostra.",
+      "paceReadingTooEarly": "A leitura do Billing é das primeiras 24 h do mês — registre outra para projetar o workspace.",
       "memory": "Memória",
       "memoryValue": "{used} / {limit}",
       "eventLoop": "Atraso do event loop (p95)",

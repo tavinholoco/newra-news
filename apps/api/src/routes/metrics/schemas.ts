@@ -2,6 +2,18 @@ import { z } from 'zod';
 import type { ApiResponse, DashboardMetrics, HttpMetrics, ProductMetrics } from '@newranews/types';
 import { assertContract } from '../../utils/contract';
 
+/**
+ * Uma leitura do Billing do Render (§23 do plano de observabilidade, 13b): o
+ * total do workspace e a parte desta API **no mesmo instante**. Mora aqui, ao
+ * lado da saturação que a carrega, e a rota que a grava
+ * (`POST /api/admin/plan-hours`) reusa o mesmo schema na resposta.
+ */
+export const planHoursReadingSchema = z.object({
+  readAt: z.string(),
+  workspaceHours: z.number(),
+  apiHours: z.number(),
+});
+
 const weeklyMetricsSchema = z.object({
   period: z.object({ start: z.string(), end: z.string() }),
   totalDays: z.number().int(),
@@ -175,6 +187,8 @@ const saturationSchema = z.object({
       hoursUsed: z.number(),
       limitHours: z.number(),
       ratio: z.number(),
+      // A leitura do Billing do mês (Fase 13, 13b) — `null` sem nenhuma.
+      workspaceReading: planHoursReadingSchema.nullable(),
     })
     .nullable(),
 });

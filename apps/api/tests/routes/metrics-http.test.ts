@@ -25,6 +25,9 @@ vi.mock('@newranews/database', async (importOriginal) => {
       dailyUptime: {
         aggregate: vi.fn(),
       },
+      auditEvent: {
+        findFirst: vi.fn(),
+      },
     },
   };
 });
@@ -78,6 +81,7 @@ interface HttpMetricsBody {
         hoursUsed: number;
         limitHours: number;
         ratio: number;
+        workspaceReading: { readAt: string; workspaceHours: number; apiHours: number } | null;
       } | null;
     };
   };
@@ -99,6 +103,7 @@ beforeEach(() => {
   vi.mocked(prisma.dailyUptime.aggregate)
     .mockReset()
     .mockResolvedValue({ _sum: { seconds: 1_098_000 } } as never);
+  vi.mocked(prisma.auditEvent.findFirst).mockReset().mockResolvedValue(null);
 });
 
 describe('GET /api/metrics/http — saturação', () => {
@@ -207,5 +212,67 @@ describe('GET /api/metrics/http — saturação', () => {
     expect(data.saturation.plan).toBeNull();
     expect(data.saturation.memory.rssBytes).toBeGreaterThan(0);
     expect(typeof data.since).toBe('string');
+  });
+});
+
+/**
+ * **A leitura do Billing viaja junto das horas desta API** (§23, 13b). As
+ * 750 h são do workspace, e o workspace tem outro serviço que esta API não
+ * mede; a leitura que o dono registra na `/admin` é o que deixa a tela
+ * desenhar o workspace inteiro. Ela sai **crua** — o total e a parte desta
+ * API no instante da leitura —, e a conta (a parte dos outros, o ritmo, a
+ * projeção) é da tela, num lugar só.
+ */
+describe('GET /api/metrics/http — a leitura do Billing (13b)', () => {
+  it('traz a leitura mais recente do mês ao lado das horas desta API', async () => {
+    vi.mocked(prisma.auditEvent.findFirst).mockResolvedValueOnce({
+      createdAt: new Date('2026-10-06T00:10:01.000Z'),
+      context: { workspaceHours: 124.27, apiHours: 34.9 },
+    } as never);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/http',
+      headers: { authorization: `Bearer ${admin}` },
+    });
+
+    const { data } = res.json() as HttpMetricsBody;
+    expect(data.saturation.plan?.workspaceReading).toEqual({
+      readAt: '2026-10-06T00:10:01.000Z',
+      workspaceHours: 124.27,
+      apiHours: 34.9,
+    });
+    // O teto continua o do workspace, e a razão desta API continua a dela.
+    expect(data.saturation.plan?.limitHours).toBe(RENDER_FREE_PLAN_HOURS);
+    expect(data.saturation.plan?.ratio).toBeCloseTo(305 / 750, 3);
+  });
+
+  it('`workspaceReading: null` sem leitura no mês — a tela diz que mostra só esta API', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/http',
+      headers: { authorization: `Bearer ${admin}` },
+    });
+
+    const { data } = res.json() as HttpMetricsBody;
+    expect(data.saturation.plan).not.toBeNull();
+    expect(data.saturation.plan?.workspaceReading).toBeNull();
+  });
+
+  it('a leitura que falha leva as horas do plano junto — mesmo banco, mesmo `null`', async () => {
+    vi.mocked(prisma.auditEvent.findFirst).mockRejectedValueOnce(
+      new Error("Can't reach database server"),
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/http',
+      headers: { authorization: `Bearer ${admin}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { data } = res.json() as HttpMetricsBody;
+    expect(data.saturation.plan).toBeNull();
+    expect(data.saturation.memory.rssBytes).toBeGreaterThan(0);
   });
 });

@@ -31,6 +31,8 @@ import type {
   AuditTrail,
   SourceHealthReport,
   InvariantReport,
+  PlanHoursReading,
+  PlanHoursReadingInput,
 } from '@newranews/types';
 import {
   API_RETRY_ATTEMPTS,
@@ -638,6 +640,21 @@ export async function deleteNewsAdmin(id: string): Promise<DeleteNewsResult> {
  */
 export async function getHttpMetrics(): Promise<HttpMetrics> {
   const res = await fetchWebApi<ApiResponse<HttpMetrics>>('/api/admin/http-metrics');
+  return res.data;
+}
+
+/**
+ * Registra a leitura do Billing do Render (Fase 13 do plano de
+ * observabilidade, 13b) — o total de horas free do **workspace** que o painel
+ * mostra. Número, já convertido do teclado (`parseHoursInput`): a API recusa
+ * texto.
+ */
+export async function recordPlanHoursReading(workspaceHours: number): Promise<PlanHoursReading> {
+  const body: PlanHoursReadingInput = { workspaceHours };
+  const res = await fetchWebApi<ApiResponse<PlanHoursReading>>('/api/admin/plan-hours', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
   return res.data;
 }
 

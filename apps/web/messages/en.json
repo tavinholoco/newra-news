@@ -128,7 +128,18 @@
       "title": "API health right now",
       "description": "Plan hours are the ceiling that suspended the API on 29/08 — the arc is what was missing to see it coming. Memory and event loop are of this instance.",
       "loadError": "Could not load the API health.",
-      "instance": "This instance has been up for {uptime}: {requests} requests, {errorRate} with a server error. The window resets on every wake-up."
+      "instance": "This instance has been up for {uptime}: {requests} requests, {errorRate} with a server error. The window resets on every wake-up.",
+      "reading": {
+        "label": "Billing total (workspace hours)",
+        "hint": "In the Render dashboard: Billing → Free instance hours. The number is the whole workspace’s; the other services’ share is the difference to this API.",
+        "placeholder": "124.27",
+        "submit": "Record reading",
+        "saving": "Recording…",
+        "saved": "Reading recorded.",
+        "invalid": "Type the hours as the dashboard shows them, for example 124.27.",
+        "belowApi": "The reading is below the {hours} this API already recorded this month — check the dashboard number.",
+        "failed": "Could not record the reading."
+      }
     },
     "security": {
       "title": "Logs & security",
@@ -238,7 +249,7 @@
       },
       "audit": {
         "title": "Admin action audit",
-        "description": "Who triggered the pipeline, who deleted what — most recent first. Only the id of who acted, never the e-mail.",
+        "description": "Who triggered the pipeline, who deleted what, who read the Billing — most recent first. Only the id of who acted, never the e-mail.",
         "windowLabel": "Audit window",
         "loadError": "Could not load the audit trail.",
         "empty": "No admin action recorded in the window.",
@@ -247,6 +258,8 @@
         "shown": "{shown} of {total} in the window",
         "actionPipelineTriggered": "Pipeline triggered",
         "actionNewsDeleted": "News deleted",
+        "actionPlanHoursRecorded": "Billing reading recorded",
+        "planReading": "workspace {workspace} · this API {api}",
         "existingRun": "existing run"
       }
     }
@@ -367,12 +380,19 @@
       "clientErrorRate": "Client errors",
       "ofRequests": "Over the window’s requests",
       "saturationTitle": "Saturation",
-      "planHours": "Plan hours",
+      "planHoursApi": "This API’s hours",
+      "planHoursWorkspace": "Workspace hours",
       "planValue": "{used} / {limit}",
+      "planValueEstimated": "~{used} / {limit}",
+      "planShared": "The {limit} ceiling belongs to the workspace, shared with other services — without a Billing reading, the arc shows this API only.",
+      "planBreakdown": "This API {api} · other services ~{other}",
+      "planReadingAt": "Billing reading: {hours} on {date}",
       "planUnavailable": "Unavailable",
       "planUnavailableHint": "The database did not answer — it is the only measure that comes from it.",
-      "pace": "At the current pace, {hours} by the end of the month ({ratio} of the plan).",
+      "paceApi": "At the current pace, this API reaches {hours} by the end of the month ({ratio} of the ceiling), not counting the other services.",
+      "paceWorkspace": "At the current pace, the workspace reaches {hours} by the end of the month ({ratio} of the ceiling).",
       "paceTooEarly": "The month’s pace is only projected with 24 h of sample.",
+      "paceReadingTooEarly": "The Billing reading is from the first 24 h of the month — record another one to project the workspace.",
       "memory": "Memory",
       "memoryValue": "{used} / {limit}",
       "eventLoop": "Event loop lag (p95)",

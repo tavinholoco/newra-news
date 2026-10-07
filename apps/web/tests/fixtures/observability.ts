@@ -46,6 +46,8 @@ export const httpMetrics: HttpMetrics = {
       hoursUsed: 305,
       limitHours: 750,
       ratio: 0.4067,
+      // Sem leitura do Billing: o arco mostra só esta API (Fase 13, 13b).
+      workspaceReading: null,
     },
   },
 };

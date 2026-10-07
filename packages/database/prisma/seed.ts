@@ -399,7 +399,18 @@ async function main() {
   // AuditEvent: três ações do mesmo ator — o id sintético que o
   // `admin:capture` usa na sessão forjada, para a trilha mostrar "você".
   const actorId = '00000000-0000-4000-8000-000000000000';
-  const auditEvents = [
+  // O `context` é declarado largo: a leitura do Billing (abaixo) guarda horas,
+  // não o `pipelineId` das outras duas ações.
+  const auditEvents: Array<{
+    id: string;
+    actorId: string;
+    action: string;
+    targetId: string | null;
+    outcome: string;
+    requestId: string;
+    context: Record<string, string | number> | null;
+    createdAt: Date;
+  }> = [
     {
       id: '00000000-0000-4000-8000-00000000a001',
       actorId,
@@ -431,6 +442,33 @@ async function main() {
       createdAt: new Date(today.getTime() - 2 * 24 * 3_600_000 + 14 * 3_600_000),
     },
   ];
+  // A leitura do Billing (Fase 13, 13b): a linha `plan.hours_recorded` **é** o
+  // dado que o arco do workspace lê. Seis horas atrás, com as horas desta API
+  // somadas como o `DailyUptime` acima as semeou e o outro serviço do
+  // workspace a ~60 % do relógio — a história de outubro de 2026, em que o
+  // `NetsheetEngine` fez ~74 %. Com isso a projeção do workspace passa de 80 %
+  // do teto, e a captura mostra o arco em atenção. Sem 24 h de mês antes da
+  // leitura não há ritmo a semear, e a captura mostra "só esta API".
+  const readAt = new Date(now.getTime() - 6 * 3_600_000);
+  const readDay = new Date(Date.UTC(readAt.getUTCFullYear(), readAt.getUTCMonth(), readAt.getUTCDate()));
+  const elapsedAtRead = (readAt.getTime() - monthStart.getTime()) / 3_600_000;
+  if (elapsedAtRead >= 24) {
+    const fullDays = Math.round((readDay.getTime() - monthStart.getTime()) / 86_400_000);
+    const intoReadDay = Math.min(32_400, Math.floor((readAt.getTime() - readDay.getTime()) / 1000));
+    const apiHours = Number(((fullDays * 32_400 + intoReadDay) / 3600).toFixed(2));
+    const workspaceHours = Number((apiHours + elapsedAtRead * 0.6).toFixed(2));
+    auditEvents.push({
+      id: '00000000-0000-4000-8000-00000000a004',
+      actorId,
+      action: 'plan.hours_recorded',
+      targetId: null,
+      outcome: 'recorded',
+      requestId: 'seed-audit-4',
+      context: { workspaceHours, apiHours },
+      createdAt: readAt,
+    });
+  }
+
   let auditCreated = 0;
   for (const event of auditEvents) {
     const existing = await prisma.auditEvent.findUnique({ where: { id: event.id } });

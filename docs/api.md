@@ -767,7 +767,11 @@ três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
     "saturation": {
       "memory": { "rssBytes": 98304000, "heapUsedBytes": 41000000, "heapTotalBytes": 60000000, "limitBytes": 536870912, "ratio": 0.1831 },
       "eventLoop": { "resolutionMs": 10, "samples": 35912, "lagMs": { "p50": 0, "p95": 2, "p99": 11, "max": 45210 } },
-      "plan": { "month": "2026-09", "monthStart": "2026-09-01T00:00:00.000Z", "secondsUsed": 1098000, "hoursUsed": 305, "limitHours": 750, "ratio": 0.4067 }
+      "plan": {
+        "month": "2026-10", "monthStart": "2026-10-01T00:00:00.000Z",
+        "secondsUsed": 125640, "hoursUsed": 34.9, "limitHours": 750, "ratio": 0.0465,
+        "workspaceReading": { "readAt": "2026-10-06T00:10:01.000Z", "workspaceHours": 124.27, "apiHours": 34.9 }
+      }
     }
   }
 }
@@ -786,6 +790,18 @@ três incidentes (29/08, 03/09 e o gatilho da `/metrics/product`).
 > 512 MB do plano; `eventLoop.lagMs` é o atraso **além** da resolução do timer
 > (10 ms), então em regime o p50 é ~0 e o `max` guarda a pior parada que esta
 > instância viu.
+
+> **`limitHours` é o teto do workspace, e `hoursUsed`/`ratio` são só desta
+> API** (Fase 13, 13b). As 750 h do free do Render são do **workspace**, que
+> as divide com outro serviço (`NetsheetEngine` — ~74 % das horas em
+> 05/10/2026); quando acabam, o Render suspende todos. `ratio` é a parte desta
+> API sobre o teto, e **não** é a saturação do plano enquanto houver outro
+> serviço ligado. **`workspaceReading`** é a leitura do Billing mais recente
+> **deste mês** (`POST /api/admin/plan-hours`), ou `null` sem nenhuma: o total
+> do workspace e a parte desta API no mesmo instante. A tela deriva dela a
+> parte dos outros serviços, o ritmo de cada um, a estimativa de agora e a
+> projeção do mês — num lugar só (`lib/saturation.ts` do web). A leitura vem
+> do mesmo banco que o `DailyUptime`: se ela falha, `plan` inteiro é `null`.
 
 > **`clientErrorRate` por rota existe desde a Fase 7c, e é onde o gatilho das
 > duas portas anônimas se lê.** O contador de 4xx por rota existia desde a
@@ -1519,7 +1535,9 @@ linha por ocorrência, mais recente primeiro.
 sai** — nenhum e-mail, como a tabela: quem precisar do nome junta com `User`
 na tela. As ações existentes são `pipeline.triggered` (`outcome` = o do
 disparo; `targetId` só quando `started`) e `news.deleted` (`outcome` =
-`deleted` | `not-found`); o conjunto fechado mora em
+`deleted` | `not-found`) e `plan.hours_recorded` (a leitura do Billing,
+`outcome: "recorded"`, `{ workspaceHours, apiHours }` no `context` — ver
+`POST /api/admin/plan-hours`); o conjunto fechado mora em
 `services/audit.service.ts`, com guarda.
 
 **Erros:** `400` `days`/`limit` fora do intervalo · `401` sem sessão · `403`
@@ -1667,6 +1685,56 @@ sem métrica). `durationMs` de cada uma e da suíte; `budgetMs` é o teto da §1
 
 **Erros:** `401` sem sessão · `403` sem `role: ADMIN` · `500` quando o
 `context` do evento não parseia (contrato quebrado entre quem grava e quem lê)
+
+### POST /api/admin/plan-hours
+
+Registra uma **leitura do Billing do Render** — o total de horas free do
+workspace que o painel mostra (§23 do plano de observabilidade, Fase 13, 13b).
+As 750 h do plano são **do workspace**, que divide o teto com outro serviço
+free (`NetsheetEngine`); esta API só mede as próprias horas (`DailyUptime`), e
+o Render não expõe cobrança por API. A leitura é o que deixa a `/admin`
+desenhar o workspace inteiro.
+
+**Auth:** `Authorization: Bearer <JWT>` com `role: ADMIN`
+**Rate limit:** o global, 100 req/min
+
+**Corpo:** tipado como `PlanHoursReadingInput`.
+
+```json
+{ "workspaceHours": 124.27 }
+```
+
+`workspaceHours` é **número** (de 0 a 1.000 — o pool para em 750, e o teto
+recusa o dígito a mais); a vírgula do teclado brasileiro é convertida pela
+tela, nunca aqui.
+
+**Resposta 201:** tipada como `ApiResponse<PlanHoursReading>`.
+
+```json
+{
+  "data": {
+    "readAt": "2026-10-06T00:10:01.000Z",
+    "workspaceHours": 124.27,
+    "apiHours": 34.9
+  }
+}
+```
+
+**A leitura guarda as duas pontas do mesmo instante**: o total digitado e as
+horas desta API naquele momento (`apiHours`, a soma do `DailyUptime` do mês).
+A parte dos outros serviços é a diferença, e só é honesta assim —
+reconstruí-la depois a partir das linhas por dia daria o dia, não a hora.
+**É uma linha de `AuditEvent`** (`action: "plan.hours_recorded"`, `outcome:
+"recorded"`, o `sub` da sessão como `actorId`, `{ workspaceHours, apiHours }`
+no `context`) — aparece em `GET /api/admin/audit`, e a mais recente do mês sai
+em `GET /api/metrics/http` como `saturation.plan.workspaceReading`.
+**Ao contrário das outras ações de auditoria, a gravação falha a resposta**:
+aqui a escrita é a ação.
+
+**Erros:** `400` corpo fora do formato, ou **`PLAN_READING_BELOW_API`** — a
+leitura é menor que as horas que esta API já registrou no mês (o Render conta a
+instância de pé, e o processo sobe depois dela; menor é número errado, e a
+frase diz quanto esta API já tem) · `401` sem sessão · `403` sem `role: ADMIN`
 
 ---
 

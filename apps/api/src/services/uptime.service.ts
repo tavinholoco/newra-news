@@ -52,8 +52,22 @@ import { ERROR_EVENT_CLOSE_TIMEOUT_MS } from './error-event.service';
 /** De quanto em quanto tempo o crédito vai ao banco. */
 export const UPTIME_HEARTBEAT_MS = 5 * 60 * 1000;
 
-/** O teto do plano free do Render, em horas de instância por mês de calendário. */
+/**
+ * O teto do plano free do Render, em horas de instância por mês de calendário
+ * — **do workspace**, não desta API. O workspace divide as 750 h com o
+ * `NetsheetEngine` (19/09/2026), e quando elas acabam o Render suspende todos
+ * os serviços free dele. A parte dos outros entra pela leitura do Billing
+ * (`plan-hours.service.ts`, Fase 13). **É o único lugar do `src/` onde o
+ * número aparece como literal**, com guarda pelo parser
+ * (`tests/services/plan-hours.service.test.ts`): um segundo literal é um
+ * segundo denominador.
+ */
 export const RENDER_FREE_PLAN_HOURS = 750;
+
+/** Segundos em horas com duas casas — a régua de `hoursUsed` e das leituras. */
+export function toPlanHours(seconds: number): number {
+  return Number((seconds / 3600).toFixed(2));
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
