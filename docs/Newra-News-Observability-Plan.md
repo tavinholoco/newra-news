@@ -3548,7 +3548,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
 | Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
 | **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo. **Treze medições de zero até 01/10/2026, a última no push da promoção #251 — virou trabalho: Fase 13, item 13.6 (§23)** |
-| ~~**A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou**~~ **Fechada em 01/10/2026 (#255 → #256), antes do gatilho:** outubro abriu com 28 h no primeiro dia e não deu para esperar o `DailyUptime`. `revalidate` de um dia em tudo (sete na `/news/[id]`), invalidação no aceite **e** no fim do run (`settleRun` sondando `GET /api/jobs/:id`), news sitemap a um dia; detalhe na §23 e no item 85 do `docs/progress.md`. Texto original: | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
+| ~~**A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou**~~ **Fechada em 01/10/2026 (#255 → #256), antes do gatilho:** outubro abriu com 28 h no primeiro dia e não deu para esperar o `DailyUptime`. `revalidate` de um dia em tudo (sete na `/news/[id]`), invalidação no aceite **e** no fim do run (`settleRun` sondando `GET /api/jobs/:id`; *as duas eram uma, no fim — armadilha 47, 13.12*), news sitemap a um dia; detalhe na §23 e no item 85 do `docs/progress.md`. Texto original: | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
 | **O `htmlToText` devolve texto que pode conter `<script>` literal** | o `js/incomplete-multi-character-sanitization` do CodeQL em `providers/news/feed-text.ts` (aberto desde 05/09, o único alerta que a Fase 12 deixou aberto — A6.03): decodifica, tira tag, decodifica de novo, então `&amp;lt;script&amp;gt;` do feed volta como `<script>` **em texto**, e o conteúdo de um `<script>` aninhado sobrevive como texto. Nenhum consumidor o trata como HTML — o React escapa, a newsletter escapa antes de enviar —, então não há onde isso execute. **Gatilho: o primeiro consumidor que renderizar `News.content`/`description` como HTML** (um `dangerouslySetInnerHTML`, um e-mail com o corpo da matéria, um RSS nosso); aí o texto passa por um sanitizador de verdade, e não por outra regex. No web o gatilho tem guarda: `tests/security/browser-surface.test.ts` reprova o terceiro `dangerouslySetInnerHTML` além dos dois auditados (JSON-LD e o script do tema) |
 | **Erro de servidor nas duas páginas ISR de detalhe é a 500 estática do Next, e nenhum boundary a alcança** | medido na 7b (17/09/2026): `/news/[id]` e `/article/[date]` são render de geração (`revalidate` + `generateStaticParams` vazio), e erro na geração — do `generateMetadata` ou do corpo — é "a geração falhou", não "renderize o `error.tsx`"; a navegação de cliente cai para navegação dura no 500 do RSC. O `digest` existe no log e não chega a ninguém, e nada é reportado. **Gatilho: a primeira linha `CLIENT_ERROR` com `route` de uma das duas em que alguém precise do digest — ou a primeira medição de `/news/[id]` respondendo 500 em produção fora de uma acordada da API.** A saída é decisão sobre ISR e SEO (metadata resiliente à falha de transporte + o que o CDN cacheia de um render de erro), não sobre boundary |
 | **A `/news` raspa o piso de 90 do Lighthouse, e a primeira medição depois de um deploy reprova** | medido na promoção da Fase 12 (01/10/2026, A7.13): três minutos depois do deploy, mediana **86** `[85, 86, 90]` e o gate vermelho; onze minutos depois, **91** `[92, 91, 88]` e verde. O TBT dela (180–390 ms, contra 80–120 nas outras seis) sai do runtime do App Router (`6160-*.js`) processando o payload RSC da listagem (~147 KB), **com o mesmo hash da promoção #215** — não é regressão, é patamar: `[89, 90, 81]` em 24/08 (§10.6 do plano da V2), 89 no agendado de 14/09, 91 em 19/09. **Gatilho: duas execuções agendadas seguidas (segunda, 09:00 UTC) com a mediana da `/news` abaixo de 90**, fora de deploy recente e com a API respondendo — aí é trabalho na página (o tamanho do payload inicial: quantos itens e facetas vão no HTML; o LCP de imagem de terceiro do §10.6), não no gate. **Até lá, o ritual não mede a `/news` nos primeiros ~10 min depois de um deploy** — o primeiro número sai frio e não diz nada sobre o patamar |
@@ -3817,6 +3817,25 @@ Não-objetivos declarados como número, nunca como item de lista.
     espera pelo fim do run (`settleRun`), dentro do `maxDuration`. Há
     guarda (`tests/lib/daily-revalidation.test.ts`: um cron só).
 
+47. **`revalidatePath` dentro de um route handler não invalida nada na hora
+    — só anota a tag, e o Next a aplica quando o handler retorna.** Lido no
+    `next@14.2.35` em 07/10/2026 (13.12): `revalidate()` faz
+    `store.revalidatedTags.push(tag)` e mais nada; quem chama
+    `incrementalCache.revalidateTag` é o `app-route/module.js`, **depois** do
+    `await handler(...)`, no `waitUntil` da invocação. Duas consequências que
+    ninguém tinha visto: as "duas invalidações" do cron (no aceite e no
+    `SUCCESS`, escritas assim em cinco documentos desde 01/10) **eram uma, no
+    fim** — a tag repetida nem entra de novo na lista; e pedir uma página na
+    mesma invocação depois de anotar **lê o cache antigo**, e a anotação,
+    aplicada no fim, invalida de novo o que o pedido regenerou. A suíte com
+    `revalidatePath` mockado passa nos dois casos — o mock invalida "na
+    hora". **Invalidação que precisa valer antes de um passo seguinte mora
+    noutra invocação** (aqui, `/api/cron/daily-news/revalidate`), e o botão
+    da `/admin` já funcionava por isso: ele reentra no cron de dentro de outra
+    requisição. Guarda da premissa em `tests/lib/daily-revalidation.test.ts`
+    ("a premissa do Next"), lendo o código instalado — o Next 15 move esses
+    arquivos, e a guarda reprova para a decisão ser revista.
+
 ---
 
 ## §18 O que cada fase custa em guarda
@@ -3853,6 +3872,9 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **`WARN` novo numa etapa do pipeline** | `run-outcome-wiring.test.ts` (pós-merge da Fase 8) — o `degradedBy.push` da mesma etapa tem de estar no mesmo bloco, pelo parser |
 | **Tabela nova no expurgo da etapa 8** | `invariants.service.test.ts` (Fase 6) — o número de `retention.*` tem de bater com o `Promise.all` do cleanup, pelo parser; e `retention-drift.test.ts`, para a prosa |
 | **Consulta nova no `invariants.service.ts`** | `invariants.service.test.ts` — `aggregate`, `count`, ou `findMany` com `select` de uma coluna e sem `include`; qualquer outra forma reprova, porque é o 03/09 em outra roupa |
+| **Página nova no conjunto do dia** (`DAILY_REVALIDATION_PATHS`) | `tests/lib/daily-revalidation.test.ts` (13.12) — `dailyPages` tem de pedir uma página por padrão do conjunto, nas duas direções, e as duas línguas de cada `[locale]`; a marca nova precisa de amostra positiva e negativa ali (e o ensaio contra o HTML real, porque a do briefing do dia só se acertou depois de ver a "não encontrada" de verdade) |
+| **Prazo novo no cron** (`maxDuration`, aquecimento, disparo, espera, páginas) | `tests/lib/daily-revalidation.test.ts` ("o prazo do cron") — o literal `maxDuration` da rota é o `CRON_MAX_DURATION_MS`, e cabe uma rodada de páginas depois da margem; o pior caso do envelope (280 s) não deixa nada às páginas, e isso é decisão escrita no 13.12, não descuido |
+| **Subida do Next** (o 15) | `tests/lib/daily-revalidation.test.ts` ("a premissa do Next", armadilha 47) — lê o `app-route/module.js` instalado; o caminho muda no 15 e a guarda reprova até alguém conferir onde a tag passa a ser aplicada |
 
 ---
 
@@ -4584,7 +4606,9 @@ consumo. O detalhe está no item **85** do `docs/progress.md`.
 - o cron invalida só o conjunto do dia (`lib/daily-revalidation.ts`, com
   `'page'` — nunca mais `('/[locale]', 'layout')`, que levava as milhares
   de matérias junto) **no aceite e de novo quando o run fecha em
-  `SUCCESS`** (`settleRun`, sonda de 10 em 10 s por até 90 s;
+  `SUCCESS`** — *eram uma invalidação só, no fim da invocação: o Next só
+  aplica a tag anotada num route handler quando ele retorna (13.12,
+  armadilha 47)* — (`settleRun`, sonda de 10 em 10 s por até 90 s;
   `maxDuration` de 90 para **290 s**, com a repetição do 429). Um cron só: o segundo foi recusado
   pelo Hobby (armadilha 46);
 - `isCronAuthorized` (`lib/cron-auth.ts`): `CRON_SECRET` ausente fecha a
@@ -4814,6 +4838,84 @@ páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
 > quando desistir. **Vira o primeiro PR da fase (13a′), antes do batimento**:
 > é o único item da §23 com dano ao leitor acontecendo.
 
+**O que o PR 13a′ decidiu — 07/10/2026 ✅ (na `dev`).** Item **91** do
+`docs/progress.md`.
+
+- **O achado que mudou o desenho, antes de uma linha de código: as "duas
+  invalidações" eram uma** (armadilha 47). No `next@14.2.35` o
+  `revalidatePath` de um route handler só anota a tag; o Next a aplica
+  quando o handler retorna. O cron anotava no aceite e de novo no
+  `SUCCESS`, e as duas saíam juntas, no fim — depois do `settleRun`. E o
+  desenho óbvio do 13.12 ("invalidar → pedir" na mesma invocação) **não
+  funcionaria**: o pedido leria o cache antigo, e a anotação aplicada no fim
+  invalidaria de novo o que ele regenerou. A suíte com `revalidatePath`
+  mockado aprovaria as duas coisas. Isto também enfraquece a hipótese (b)
+  acima: com uma invalidação só, depois do `SUCCESS` observado, uma página
+  "regenerada no meio do run" só existe se a espera estourar (o 13.3) — e o
+  run de 06/10 levou 73 s contra 90. Sobra (a), a regeneração que falha.
+- **A invalidação do `SUCCESS` mora numa rota irmã**,
+  `POST /api/cron/daily-news/revalidate` — mesma porta (`isCronAuthorized`),
+  só caminhos do conjunto (a `/news/[id]` fica de fora e esta porta não abre
+  caminho até ela; `400` para o resto), sem `path` invalida tudo. Não é cron
+  (armadilha 46). O cron a chama na origem do site publicado (`SITE_URL`):
+  é o cache que o leitor lê, e é o domínio de produção, fora da proteção de
+  deploy da Vercel.
+- **As dez páginas, na ordem do dano** (`dailyPages` em
+  `lib/daily-revalidation.ts`): as duas Homes, as duas `/article/<dia>`, as
+  duas `/news`, os dois históricos e os dois sitemaps. **A marca de cada uma
+  foi medida no HTML de um `next start`**: o link do briefing do dia na Home e
+  no histórico (no idioma da página); o `@id` do JSON-LD
+  (`…/article/<dia>#article`) no briefing — **a data sozinha não serve**, a
+  "não encontrada" que um pedido antes do run deixa guardada responde 200 e
+  carrega a data como parâmetro de rota; um `createdAt` do dia na `/news` (a
+  data do pipeline, não a do veículo), na forma escapada do payload RSC; e a
+  URL do briefing nos dois sitemaps. Contra os documentos de hoje as dez
+  casaram; com a data de amanhã, nenhuma.
+- **Rodadas: invalidar → pausa → pedir → conferir**, até três
+  (`DAILY_PAGES_ROUNDS`). A pausa (5 s) é porque a rota irmã responde antes de
+  o Next aplicar a tag dela. **A rodada seguinte reinvalida só os padrões das
+  páginas que voltaram sem a marca** e pede as duas línguas deles — a
+  regeneração que falha consome a invalidação, e pedir de novo sem
+  reinvalidar leria o mesmo `HIT`. Pedido que estoura (30 s) ou 5xx conta
+  como velho. **O prazo é o que sobra do `maxDuration`** (`CRON_MAX_DURATION_MS`
+  − 10 s de margem, amarrado ao literal da rota por guarda): no caso comum,
+  mais de dois minutos; no pior caso do envelope (280 s), nada — e o cron cai
+  no comportamento de antes, com a linha no log.
+- **A rede de segurança nunca deixa o site pior do que sem esta função**: se
+  a rota irmã recusa (nenhuma página é pedida — sem invalidação, só se leria
+  o velho), se o prazo acaba ou se as rodadas se esgotam, o cron anota a
+  invalidação **só dos padrões que ficaram velhos** na própria invocação
+  (aplicada no fim, como antes do 13a′) e escreve `cron.daily-news.warm` com
+  `runDate`, `rounds`, o status da invalidação e, por página velha, o status
+  e o `x-vercel-cache` da última tentativa — **a evidência que o 13.12
+  procurava no log da hora** (por que a regeneração falha), agora escrita
+  pelo próprio cron. Páginas conferidas não são invalidadas de novo. E um
+  `startedAt` ilegível no disparo cai direto na invalidação de antes — a
+  revisão do próprio diff achou que ele lançaria, cairia no `catch` do
+  disparo e deixaria o dia sem invalidação nenhuma.
+- **Fica como estava, de propósito:** o botão da `/admin` (anota em processo
+  e é aplicado quando a requisição dele termina — é como o A7.16 provou a
+  regeneração) e os desfechos sem `SUCCESS` (`FAILED`, a espera estourada,
+  `UNKNOWN`). A resposta do cron ganha `pages` (`null` nesses casos).
+- **Ensaio local, de ponta a ponta** (`next start` + API + Postgres, com um
+  `CRON_SECRET` de teste gerado na hora): o briefing e as matérias do dia
+  escondidos no banco local, o conjunto regenerado pela rota irmã (a Home
+  sem o briefing do dia, a `/article/2026-10-07` guardada como "não
+  encontrada"), o banco restaurado — e o cron, ouvindo
+  `already-succeeded-today`, devolveu as dez páginas frescas numa rodada, em
+  5,4 s, e elas ficaram em `HIT` com o dia. **Limite do ensaio:** no `next
+  start` os sitemaps (route handlers) não honraram a tag e responderam `HIT`
+  com o documento do build; na Vercel o A7.16 os mediu `REVALIDATED`.
+- **Guardas e mutações:** a ordem invalidar → pedir, a reinvalidação só do
+  padrão velho, a rede de segurança, a marca da `/news` (A1.68–A1.71), e a
+  A1.62 reescrita (ela tirava a "segunda invalidação", que não existia). A
+  premissa do Next tem guarda lendo o código instalado. **934 → 961 no web.**
+- **O que conferir depois da promoção:** a resposta e o log do primeiro cron
+  — `pages.rounds` e `pages.stale`, e se houver `cron.daily-news.warm`, o
+  `x-vercel-cache` de cada página velha. **Gatilho para reabrir:** dois dias
+  seguidos com `cron.daily-news.warm` — aí a regeneração falha de forma
+  sistemática (a borda do Render? o 13.8), e três rodadas não bastam.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -4830,7 +4932,7 @@ páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
 
 | PR | Itens | Depende de |
 |---|---|---|
-| **13a′** | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou | a Fase 12 fechada |
+| ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Na `dev`; promovido sozinho | a Fase 12 fechada |
 | **13a** | 13.1 (o batimento) | a Fase 12 fechada |
 | **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
@@ -4844,14 +4946,19 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 **O prompt de abertura:**
 
-> Vamos implementar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
-> Leia o §19 (o ritual), a §23 (esta fase) e o §17 (armadilhas), e comece pelo
-> **PR 13a′ — o item 13.12**: depois da invalidação do `SUCCESS`, o cron pede
-> as páginas que invalidou e confere que trazem o run do dia. O gatilho
-> disparou em 07/10 (a Home em `/pt-BR` passou a tarde com o briefing da
-> véspera). Corte a branch da `dev` depois de conferir que o #269 está nela.
-> O 13a′ é promovido sozinho, no mesmo dia; o resto da fase vem depois, numa
-> segunda promoção. Antes de qualquer escrita em produção, me pergunte.
+> Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
+> Leia o §19 (o ritual), a §23 (esta fase — o 13a′ fechou em 07/10, leia "O
+> que o PR 13a′ decidiu") e o §17 (armadilhas, até a 47). Antes de tudo,
+> confira a resposta e o log do primeiro cron depois da promoção do 13a′
+> (`pages`, e `cron.daily-news.warm` se houver). Depois siga pelo **PR 13a —
+> o batimento (13.1)**, junto do 13.10. Corte a branch da `dev`. O resto da
+> fase sobe numa segunda promoção. Antes de qualquer escrita em produção, me
+> pergunte.
+>
+> *(O prompt de 07/10, que abriu a fase pelo 13a′: "…comece pelo PR 13a′ — o
+> item 13.12: depois da invalidação do `SUCCESS`, o cron pede as páginas que
+> invalidou e confere que trazem o run do dia… O 13a′ é promovido sozinho, no
+> mesmo dia".)*
 
 **A promoção é dividida, por decisão de 07/10/2026:** o 13a′ sobe sozinho
 assim que mergear na `dev` — é o único item com dano ao leitor acontecendo,

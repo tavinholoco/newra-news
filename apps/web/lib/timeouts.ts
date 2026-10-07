@@ -155,14 +155,16 @@ export const PIPELINE_WARM_ATTEMPTS = 2;
 /**
  * **Esperar o pipeline terminar, no disparo agendado** (01/10/2026). O
  * `revalidate` das páginas passou a ser de um dia — cada regeneração acorda a
- * API do Render —, e a invalidação no aceite deixava a página que um robô
- * regenerasse no meio do run com o briefing da véspera por um dia inteiro.
- * O cron sonda `GET /api/jobs/:id` e invalida de novo no `SUCCESS`; a API já
- * está acordada pelo próprio run, então a sonda não custa hora nenhuma.
+ * API do Render —, e uma página regenerada antes de o run gravar o briefing
+ * fica um dia com o da véspera. O cron sonda `GET /api/jobs/:id` e, no
+ * `SUCCESS`, invalida e pede as páginas do dia (13.12); a API já está acordada
+ * pelo próprio run, então a sonda não custa hora nenhuma.
  *
- * 90 s, o que o run mede (~1,5 min). Era 150 s; encolheu para caber a
- * repetição do 429 (abaixo) sob o `maxDuration` — se o run passar disso, a
- * página regenerada no meio fica até o `revalidate` de um dia.
+ * 90 s, o que o run mede (~1,5 min; 1 min 13 s em 06/10). Era 150 s; encolheu
+ * para caber a repetição do 429 (abaixo) sob o `maxDuration` — se o run passar
+ * disso, o cron invalida com o run ainda correndo (no fim da invocação, sem
+ * pedir as páginas), e a página que alguém regenerar antes de o run terminar
+ * fica até o `revalidate` de um dia. É o 13.3 do plano de observabilidade.
  */
 export const PIPELINE_SETTLE_MAX_MS = 90_000;
 

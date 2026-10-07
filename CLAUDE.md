@@ -355,6 +355,28 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
+  invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
+  Depois do `SUCCESS` (ou do `already-succeeded-today`), o cron agendado
+  invalida o conjunto pela rota irmã `/api/cron/daily-news/revalidate`, pede
+  as dez páginas (Home primeiro), confere a marca do run em cada uma e
+  reinvalida o padrão da que voltou velha — até três rodadas; ao desistir,
+  deixa a invalidação de antes só para o que ficou velho e escreve
+  `cron.daily-news.warm`.
+  - **O achado: as "duas invalidações" do cron eram uma.** O Next 14 só
+    aplica a tag anotada num route handler **quando ele retorna** (lido no
+    `next@14.2.35`, com guarda) — a do aceite e a do `SUCCESS` saíam juntas,
+    no fim; e pedir as páginas na mesma invocação leria o cache antigo. Daí
+    a rota irmã. Armadilha 47 do plano.
+  - **Ensaio local** (`next start` + API, banco com o dia escondido e
+    restaurado): a Home guardada sem o briefing do dia e a
+    `/article/2026-10-07` guardada como "não encontrada" voltaram com o run
+    numa rodada, em 5,4 s, e ficaram em `HIT`. **961 no web** (eram 934),
+    mutações A1.62 (reescrita) e A1.68–A1.71.
+  - **Próximo:** a promoção sozinha (decisão de 07/10), e ler a resposta e o
+    log do primeiro cron depois dela (`pages`, `cron.daily-news.warm`). O
+    resto da Fase 13 vai para a `dev` e sobe numa segunda promoção.
+
 - 🟢 **06/10/2026: a Fase 12 do plano de observabilidade fechou.** Item
   **90**. A 2.ª janela da ESPN corrigida em produção (24 linhas, −2 h,
   checkup verde); `briefing.one_per_day` passou a nomear os dias sem
@@ -413,7 +435,9 @@ a suíte de unidade, que roda sem rede.
   `revalidate` de toda página é de **um dia** (sete na `/news/[id]`) e virou
   rede de segurança; o frescor vem do cron diário invalidando só o conjunto
   do dia (`lib/daily-revalidation.ts`), no aceite e de novo quando o run fecha
-  em `SUCCESS` — nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
+  em `SUCCESS` (*eram uma só, no fim da invocação — o Next só aplica a tag
+  quando o route handler retorna; corrigido no 13.12, topo deste bloco*) —
+  nunca mais `('/[locale]', 'layout')`. **Um cron só**: o
   segundo derrubou o deploy da Vercel (o Hobby limita crons). A porta dos
   crons deixou de aceitar `Bearer undefined` (`lib/cron-auth.ts`), o
   `fetchApi` do servidor e o cron repetem 429/503 — **a borda do Render
@@ -1464,8 +1488,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.354 em 187 suites (**1.420 API em 95** + **934 web em 92** —
-  todos passando, contados em 06/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.381 em 188 suites (**1.420 API em 95** + **961 web em 93** —
+  todos passando, contados em 07/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

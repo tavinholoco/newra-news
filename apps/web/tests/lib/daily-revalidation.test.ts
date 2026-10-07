@@ -19,7 +19,7 @@ import {
  * Toda regeneração de uma página guardada chama a API, e a API dorme com
  * ~15 min sem tráfego no plano free. O conteúdo muda **uma vez por dia**, no
  * pipeline; o que o mantém fresco é o cron diário invalidando o conjunto de
- * `lib/daily-revalidation.ts` (no aceite e no fim do run), e o `revalidate` de
+ * `lib/daily-revalidation.ts` quando o run fecha (e pedindo as páginas — 13.12), e o `revalidate` de
  * cada arquivo é só a rede de segurança. As quatro guardas abaixo são o que impede a próxima página nova
  * de nascer com `revalidate = 3600` copiado da vizinha — que é como as horas
  * de setembro foram gastas sem ninguém escrever um keep-alive.

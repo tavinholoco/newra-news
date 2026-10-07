@@ -54,19 +54,40 @@
   produção — em dev entra o overlay). As cores são os tokens **resolvidos**
   num `THEME`, com guarda na `state-matrix` contra o `tokens.css`
 - **Revalidação on-demand** — o cron do `vercel.json`
-  (`app/api/cron/daily-news`, 11:00 UTC) chama `revalidateDailyContent()`
-  (`lib/daily-revalidation.ts`) **duas vezes**: no aceite do disparo e, no
-  disparo agendado, de novo quando `GET /api/jobs/:id` diz `SUCCESS`
-  (`settleRun`, até 90 s, `maxDuration = 290`, repetindo o 429 da borda do Render) — conserta a página que um
-  robô regenerou no meio do run, e não custa hora do Render porque o run já
-  mantém a API acordada. **E invalida também quando não foi ele quem
-  disparou** (02/10/2026): o cron interno da API (`CRON_SCHEDULE`, 08:00 de
-  São Paulo = 11:00 UTC) dispara sozinho quando a instância está acordada, e
-  o cron da Vercel chega depois com `already-succeeded-today` (invalida uma
-  vez) ou `already-running` (espera o mesmo run e invalida no `SUCCESS`).
-  Antes só o `started` invalidava, e a Home ficou o dia inteiro no HTML do
-  build da véspera com o briefing novo no banco. **Um cron só**: um segundo (`/api/cron/refresh`)
-  derrubou o deploy em 01/10/2026 — o Hobby limita os crons —, e há guarda.
+  (`app/api/cron/daily-news`, 11:00 UTC) espera o run do dia fechar
+  (`settleRun`: `GET /api/jobs/:id` de 10 em 10 s, até 90 s,
+  `maxDuration = 290`, repetindo o 429 da borda do Render) e, no `SUCCESS`,
+  **invalida o conjunto do dia e pede ele mesmo cada página**, conferindo que
+  ela traz o run (13.12 do plano de observabilidade, 07/10/2026 — abaixo).
+  Não custa hora do Render: o run mantém a API acordada. **E faz o mesmo
+  quando não foi ele quem disparou** (02/10/2026): o cron interno da API
+  (`CRON_SCHEDULE`, 08:00 de São Paulo = 11:00 UTC) dispara sozinho quando a
+  instância está acordada, e o cron da Vercel chega depois com
+  `already-succeeded-today` (invalida e pede na hora) ou `already-running`
+  (espera o mesmo run). Antes só o `started` invalidava, e a Home ficou o dia
+  inteiro no HTML do build da véspera com o briefing novo no banco. **Um cron
+  só**: um segundo (`/api/cron/refresh`) derrubou o deploy em 01/10/2026 — o
+  Hobby limita os crons —, e há guarda.
+- **`revalidatePath` num route handler só vale quando o handler retorna** —
+  lido no `next@14.2.35` (13.12, com guarda em
+  `tests/lib/daily-revalidation.test.ts`, "a premissa do Next"): a chamada só
+  anota a tag; o Next a aplica depois, no `waitUntil` da invocação. Até
+  07/10/2026 o cron chamava `revalidateDailyContent()` no aceite e de novo no
+  `SUCCESS`, e isto aqui dizia "duas vezes" — **era uma, no fim** (a tag
+  repetida nem entra de novo). Por isso a invalidação do `SUCCESS` vai pela
+  rota irmã **`/api/cron/daily-news/revalidate`** (mesmo `CRON_SECRET`; só
+  caminhos do conjunto; não é cron): ela retorna, a tag é aplicada, e só então
+  o cron pede as dez páginas de `dailyPages` (Home primeiro). **Página sem a
+  marca do run** (o link do briefing do dia; o `#article` do JSON-LD na
+  `/article/[date]`, porque a data sozinha está no payload até da "não
+  encontrada"; um `createdAt` do dia na `/news`) **é invalidada de novo e
+  pedida de novo** — a regeneração que falha consome a invalidação, e a Vercel
+  mantém o documento velho até o `revalidate` vencer (a Home `/pt-BR` em 07/10).
+  Até três rodadas, no que sobra do `maxDuration`; ao desistir, o cron anota a
+  invalidação em processo **só dos padrões velhos** (o comportamento de antes)
+  e escreve `cron.daily-news.warm` com status e `x-vercel-cache` de cada um.
+  **O botão da `/admin` e os desfechos sem `SUCCESS` continuam anotando em
+  processo**, sem pedir página nenhuma
   O conjunto é Home, `/news`, `/article`, `/article/[date]` e os dois
   sitemaps, cada um com `'page'` — **nunca `('/[locale]', 'layout')`**, que
   levava as milhares de `/news/[id]` junto e fazia cada uma acordar a API no
