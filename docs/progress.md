@@ -8911,8 +8911,20 @@ tarde com o briefing de 06/10.
   amarrado a `CRON_MAX_DURATION_MS`). Mutações **A1.68–A1.71** novas e a
   **A1.62** reescrita (tirava a "segunda invalidação", que não existia) —
   7/7 com o controle. **934 → 961 no web**; 1.420 na API.
-- **Depois da promoção:** ler a resposta e o log do primeiro cron. Gatilho
-  para reabrir: dois dias seguidos com `cron.daily-news.warm`.
+- **A promoção, no mesmo dia:** #272 (`ce38866`), 11 commits — o #271 com o
+  #269 e o #270, que a `dev` já carregava; sem migration (o Migrate não
+  dispara, filtra por schema), env, workflow ou dependência. A Vercel pôs a
+  rota irmã no ar às **19:09:41 UTC** (401 sem segredo e com segredo
+  errado), o Render subiu a API ~30 s depois do merge, e o build da promoção
+  refez as dez páginas com o run de 07/10 — as marcas do `dailyPages`
+  conferidas no HTML de produção, inclusive o `createdAt` escapado da
+  `/news` e o `#article` do briefing. **Smoke: 31 passed, 6 skipped**;
+  CI, CodeQL e Gitleaks verdes — o Gitleaks em `0 commits scanned` de novo,
+  a 14.ª medição do buraco do 13.6. A `dev` foi realinhada por
+  fast-forward.
+- **Depois da promoção:** ler a resposta e o log do cron de 08/10 — o
+  primeiro com o 13a′. Gatilho para reabrir: dois dias seguidos com
+  `cron.daily-news.warm`.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

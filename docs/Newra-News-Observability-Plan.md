@@ -4838,7 +4838,8 @@ páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
 > quando desistir. **Vira o primeiro PR da fase (13a′), antes do batimento**:
 > é o único item da §23 com dano ao leitor acontecendo.
 
-**O que o PR 13a′ decidiu — 07/10/2026 ✅ (na `dev`).** Item **91** do
+**O que o PR 13a′ decidiu — 07/10/2026 ✅ (no ar desde 19:09 UTC de 07/10,
+promovido sozinho no #272).** Item **91** do
 `docs/progress.md`.
 
 - **O achado que mudou o desenho, antes de uma linha de código: as "duas
@@ -4932,7 +4933,7 @@ páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
 
 | PR | Itens | Depende de |
 |---|---|---|
-| ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Na `dev`; promovido sozinho | a Fase 12 fechada |
+| ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Promovido sozinho no #272 (`ce38866`) | a Fase 12 fechada |
 | **13a** | 13.1 (o batimento) | a Fase 12 fechada |
 | **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
