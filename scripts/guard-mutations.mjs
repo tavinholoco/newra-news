@@ -881,11 +881,23 @@ const MUTATIONS = [
   },
   {
     id: 'A1.62',
-    what: 'o cron deixa de invalidar de novo quando o run fecha em `SUCCESS`',
+    // Até o 13.12 esta mutação tirava a "segunda invalidação" em processo — que
+    // nunca foi uma segunda invalidação: o Next aplica a tag anotada num route
+    // handler só quando ele retorna. Hoje a invalidação do `SUCCESS` vai pela
+    // rota irmã, e a forma errada é voltar a anotá-la aqui.
+    what: 'o cron volta a anotar a invalidação do `SUCCESS` na própria invocação, sem pedir as páginas',
     pkg: 'web',
     test: 'tests/routes/daily-news-api.test.ts',
     file: 'apps/web/app/api/cron/daily-news/route.ts',
-    dropLine: "        if (settled === 'SUCCESS') revalidateDailyContent();",
+    edits: [
+      {
+        find: lines(
+          "      if (settled === 'SUCCESS') pages = await refresh();",
+          '      else revalidateDailyContent();',
+        ),
+        replace: '      revalidateDailyContent();',
+      },
+    ],
     expect: 'revalidates again when the run closes in SUCCESS',
   },
   {
@@ -962,6 +974,53 @@ const MUTATIONS = [
       },
     ],
     expect: 'names the days without a briefing',
+  },
+  // ── As páginas do dia, pedidas pelo cron (13.12, 07/10/2026) ─────────────
+  {
+    id: 'A1.68',
+    what: 'o cron pede as páginas do dia sem ter invalidado antes — lê o documento velho em `HIT`',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    edits: [
+      {
+        find: '    invalidation = await revalidateOnSite(patterns, deadline);',
+        replace: '    invalidation = 200;',
+      },
+    ],
+    expect: 'invalidates through the sibling route first, then requests every page of the day',
+  },
+  {
+    id: 'A1.69',
+    what: 'a página que voltou sem o run do dia não é invalidada de novo — a regeneração que falhou consumiu a invalidação',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    edits: [
+      {
+        find: '    patterns = patternsOf(pages.filter((page) => !last.get(page.url)?.fresh));',
+        replace: '    patterns = [];',
+      },
+    ],
+    expect: 'invalidates again only the path of a page that came back without the run of the day',
+  },
+  {
+    id: 'A1.70',
+    what: 'o cron desiste das páginas sem deixar a invalidação de antes para o próximo visitante',
+    pkg: 'web',
+    test: 'tests/routes/daily-news-api.test.ts',
+    file: 'apps/web/app/api/cron/daily-news/route.ts',
+    dropLine: '    revalidateDailyContent(patternsOf(stalePages));',
+    expect: 'gives up after the last round, leaves only the stale path invalidated',
+  },
+  {
+    id: 'A1.71',
+    what: 'a marca da `/news` passa a aceitar a data do veículo — uma matéria publicada hoje e coletada ontem',
+    pkg: 'web',
+    test: 'tests/lib/daily-revalidation.test.ts',
+    file: 'apps/web/lib/daily-revalidation.ts',
+    edits: [{ find: 'String.raw`createdAt', replace: 'String.raw`[a-zA-Z]+At' }],
+    expect: 'recognizes a news item collected by the run of the day on /news',
   },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {

@@ -8858,6 +8858,62 @@ e 15 `[!]`, nenhuma aberta**; a §22 do plano está ✅.
 autorização do dono) e o banco local recriado do zero (7 migrations e o
 seed). **O M8 está completo, e a Fase 13 pode abrir.**
 
+### 91. O cron pede as páginas que invalidou — e as "duas invalidações" eram uma ✅ 2026-10-07
+
+O 13.12 da §23 do plano de observabilidade, primeiro PR da Fase 13 (13a′;
+branch `observability/fase-13a-cron-warm`). **O gatilho disparou em 07/10:**
+às 17:51 UTC a Home `/pt-BR`, a `/pt-BR/news` e a `/en/news` estavam em `HIT`
+com a entrada da véspera (`Age` ~80.600 s) enquanto a `/en` — a mesma tag —
+tinha regenerado com o briefing do dia. A página mais lida do site passou a
+tarde com o briefing de 06/10.
+
+- **O achado, lido no código do `next@14.2.35` antes de escrever o cron:**
+  `revalidatePath` dentro de um route handler só anota a tag
+  (`store.revalidatedTags.push`); quem a aplica é o Next, **depois** que o
+  handler retorna, no `waitUntil` da invocação. As duas chamadas do cron
+  (no aceite e no `SUCCESS`, descritas como duas invalidações em cinco
+  documentos desde 01/10) **eram uma, no fim**; e pedir as páginas na mesma
+  invocação leria o cache antigo — e a anotação, aplicada no fim, desfaria a
+  regeneração. Armadilha **47** do plano, com guarda lendo o código
+  instalado (o Next 15 move os arquivos e a guarda reprova).
+- **A correção:** no `SUCCESS` (e no `already-succeeded-today`) do disparo
+  agendado, o cron invalida pela rota irmã
+  `POST /api/cron/daily-news/revalidate` (o mesmo `CRON_SECRET`; só caminhos
+  do conjunto do dia; não é cron), espera 5 s, pede as dez páginas de
+  `dailyPages` (Home primeiro) e confere em cada uma uma marca do run do
+  dia, medida no HTML real. A que volta sem ela tem o padrão reinvalidado e
+  é pedida de novo — a regeneração que falha consome a invalidação —, até
+  três rodadas no que sobra do `maxDuration`. Ao desistir, anota em processo
+  só os padrões velhos (o comportamento de antes) e escreve
+  `cron.daily-news.warm` com o status e o `x-vercel-cache` de cada página
+  velha — a evidência que o 13.12 queria do log da hora. O botão da `/admin`
+  e os desfechos sem `SUCCESS` ficam como estavam.
+- **A marca do briefing do dia é o `#article` do JSON-LD, e foi o HTML real
+  que decidiu:** a "não encontrada" de um dia sem briefing responde **200**
+  (o soft 404 do Next 14) e carrega a data como parâmetro de rota. Na
+  `/news`, um `createdAt` do dia na forma escapada do payload RSC (a data do
+  pipeline, não a do veículo).
+- **Ensaio local de ponta a ponta** (`next start` + API + Postgres, com um
+  `CRON_SECRET` de teste gerado na hora): escondido o dia no banco local e
+  regeneradas as páginas pela rota irmã, a Home ficou sem o briefing do dia
+  e a `/article/2026-10-07` guardada como "não encontrada"; restaurado o
+  banco, o cron (`already-succeeded-today`) devolveu as dez frescas numa
+  rodada, em 5,4 s, e elas ficaram em `HIT`. O banco local voltou ao que
+  era. Limite: no `next start` os sitemaps não honram a tag (a Vercel honra
+  — A7.16).
+- **Guardas:** 27 testes novos — 12 na guarda da `lib`, 10 no cron, 5 na
+  rota irmã — e cinco reescritos (a ordem invalidar → pedir, a
+  reinvalidação só do padrão velho, a página que estoura ou responde 5xx, a
+  rede de segurança, a rota irmã recusando, o prazo esgotado, o `startedAt`
+  ilegível (achado na revisão do próprio diff: lançaria e deixaria o dia sem
+  invalidação nenhuma), o `FAILED`; a
+  rota irmã com 401/400; as marcas contra amostras reais; o `maxDuration`
+  amarrado a `CRON_MAX_DURATION_MS`). Mutações **A1.68–A1.71** novas e a
+  **A1.62** reescrita (tirava a "segunda invalidação", que não existia) —
+  7/7 com o controle. **934 → 961 no web**; 1.420 na API.
+- **Depois da promoção:** ler a resposta e o log do primeiro cron. Gatilho
+  para reabrir: dois dias seguidos com `cron.daily-news.warm`.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
