@@ -250,7 +250,9 @@ async function refreshDailyPages(runDate: string, deadline: number): Promise<Dai
   const last = new Map<string, PageAttempt>();
   let patterns = patternsOf(pages);
   let rounds = 0;
-  let invalidation: number | null = 200;
+  // `null` até a primeira chamada: sem rodada, a linha não pode dizer que
+  // houve invalidação.
+  let invalidation: number | null = null;
 
   while (
     rounds < DAILY_PAGES_ROUNDS &&
@@ -304,6 +306,17 @@ async function refreshDailyPages(runDate: string, deadline: number): Promise<Dai
     fresh: pages.filter((page) => last.get(page.url)?.fresh).map((page) => page.url),
     stale,
   };
+}
+
+/**
+ * O dia UTC em que o run começou — o mesmo `Article.date` que ele grava. `null`
+ * se o `startedAt` não for legível: o contrato garante o campo, mas lançar aqui
+ * cairia no `catch` do disparo e deixaria o dia **sem invalidação nenhuma**,
+ * que é pior do que a invalidação de antes do 13.12.
+ */
+function runDateOf(trigger: PipelineTrigger): string | null {
+  const startedAt = new Date(trigger.startedAt);
+  return Number.isNaN(startedAt.getTime()) ? null : toDateSlug(trigger.startedAt);
 }
 
 export async function GET(request: Request) {
@@ -391,7 +404,14 @@ export async function GET(request: Request) {
     //   `SUCCESS`) eram, por essa regra, uma só, no fim.
     const scheduled = !actorId;
     const deadline = begunAt + CRON_MAX_DURATION_MS - CRON_RESPONSE_MARGIN_MS;
-    const runDate = toDateSlug(data.startedAt);
+    // As páginas do dia — ou, sem um dia legível no disparo, a invalidação
+    // de antes do 13.12.
+    const refresh = async (): Promise<DailyPagesReport | null> => {
+      const runDate = runDateOf(data);
+      if (runDate) return refreshDailyPages(runDate, deadline);
+      revalidateDailyContent();
+      return null;
+    };
     let revalidated = false;
     let settled: RunStatus | null = null;
     let pages: DailyPagesReport | null = null;
@@ -403,14 +423,14 @@ export async function GET(request: Request) {
       // aceito: o disparo manual invalida quando a requisição dele termina,
       // com o run ainda correndo.
       if (scheduled) settled = await settleRun(jobUrl, data.pipelineId);
-      if (settled === 'SUCCESS') pages = await refreshDailyPages(runDate, deadline);
+      if (settled === 'SUCCESS') pages = await refresh();
       else revalidateDailyContent();
       revalidated = true;
     } else if (data.outcome === 'already-succeeded-today') {
       // O run do dia terminou sem nós: invalidar uma vez. Custa uma
       // regeneração por página do conjunto, com a API acordada. No botão do
       // painel, é o "atualizar o site" depois de um run que outro disparou.
-      if (scheduled) pages = await refreshDailyPages(runDate, deadline);
+      if (scheduled) pages = await refresh();
       else revalidateDailyContent();
       revalidated = true;
     } else if (data.outcome === 'already-running' && scheduled) {
@@ -419,7 +439,7 @@ export async function GET(request: Request) {
       // a partir do banco ainda sendo escrito. O botão não espera (ver acima).
       settled = await settleRun(jobUrl, data.pipelineId);
       if (settled === 'SUCCESS') {
-        pages = await refreshDailyPages(runDate, deadline);
+        pages = await refresh();
         revalidated = true;
       }
     }

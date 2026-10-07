@@ -892,7 +892,7 @@ const MUTATIONS = [
     edits: [
       {
         find: lines(
-          "      if (settled === 'SUCCESS') pages = await refreshDailyPages(runDate, deadline);",
+          "      if (settled === 'SUCCESS') pages = await refresh();",
           '      else revalidateDailyContent();',
         ),
         replace: '      revalidateDailyContent();',

@@ -966,6 +966,22 @@ describe('GET /api/cron/daily-news — as páginas do dia (13.12)', () => {
     expect(logServerErrorMock.mock.calls.at(-1)?.[0]).toBe('cron.daily-news.warm');
   });
 
+  it('falls back to the old invalidation when the trigger carries no readable start — never a 500 after a run that succeeded', async () => {
+    // O contrato garante o `startedAt`; lançar aqui cairia no `catch` do
+    // disparo e deixaria o dia sem invalidação nenhuma.
+    const fetchMock = siteFetch({
+      trigger: { ...trigger, outcome: 'already-succeeded-today', startedAt: 'não é data' },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await GET(authorizedRequest());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ revalidated: true, pages: null });
+    expect(pageRequests(fetchMock)).toEqual([]);
+    expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+  });
+
   it('does not request pages when the run FAILED — there is no run of the day to look for', async () => {
     const fetchMock = siteFetch({ trigger, statuses: ['FAILED'] });
     vi.stubGlobal('fetch', fetchMock);
