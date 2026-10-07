@@ -94,7 +94,18 @@ export interface Observation {
   repoPushedAt: string | null;
 }
 
-export type CheckId = 'site' | 'api' | 'briefing' | 'home' | 'activity';
+export type CheckId = 'site' | 'api' | 'briefing' | 'home' | 'activity' | 'rehearsal';
+
+export interface EvaluateOptions {
+  /**
+   * **O ensaio do alerta** (07/10/2026, a pedido do dono): pergunta tudo de
+   * verdade e reprova de propósito. Uma execução verde não gera e-mail — o
+   * certo, com "só falhas" ligado —, então ela prova que o job roda, não que o
+   * alerta chega. Só o disparo manual o pede (`rehearse_failure` no
+   * `heartbeat.yml`); o agendamento não tem entrada nenhuma.
+   */
+  rehearsal?: boolean;
+}
 
 export interface Check {
   id: CheckId;
@@ -146,7 +157,7 @@ const describeProbe = (probe: Probe) =>
   probe.status === null ? `sem resposta em ${probe.ms} ms` : `${probe.status} em ${probe.ms} ms`;
 
 /** O veredito — puro, sobre o que foi observado. */
-export function evaluate(o: Observation): Verdict {
+export function evaluate(o: Observation, options: EvaluateOptions = {}): Verdict {
   const today = o.now.toISOString().slice(0, 10);
   const checks: Check[] = [];
 
@@ -258,6 +269,17 @@ export function evaluate(o: Observation): Verdict {
     );
   }
 
+  // 6. O ensaio — por último, depois de as cinco serem respondidas de verdade.
+  if (options.rehearsal) {
+    checks.push({
+      id: 'rehearsal',
+      state: 'fail',
+      summary: 'ensaio: esta execução reprova de propósito, para o e-mail do alerta chegar',
+      action:
+        'Nada a consertar. Confira que o e-mail chegou; se não, as notificações de Actions da conta (Settings → Notifications → Actions → falhas, por e-mail).',
+    });
+  }
+
   return {
     ok: checks.every((c) => c.state !== 'fail'),
     today,
@@ -367,7 +389,9 @@ export async function main(deps: MainDeps): Promise<number> {
     pause: deps.pause,
     repoPushedAt: deps.env.REPO_PUSHED_AT || null,
   });
-  const verdict = evaluate(observation);
+  // Exatamente `"true"`: o disparo manual sem marcar manda `"false"`, e o
+  // agendamento, vazio.
+  const verdict = evaluate(observation, { rehearsal: deps.env.HEARTBEAT_REHEARSAL === 'true' });
 
   for (const check of verdict.checks) {
     deps.log(`${check.state.padEnd(7)} ${check.id.padEnd(8)} ${check.summary}`);

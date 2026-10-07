@@ -1078,6 +1078,29 @@ const MUTATIONS = [
     edits: [{ find: '  "globalPassThroughEnv": [', replace: '  "globalEnv": [' }],
     expect: 'keeps every secret out of the cache key',
   },
+  {
+    id: 'A1.77',
+    what: 'a entrada do ensaio existe no disparo manual e não chega ao script — o ensaio fica verde e não prova nada',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: '.github/workflows/heartbeat.yml',
+    dropLine: '          HEARTBEAT_REHEARSAL: ${{ inputs.rehearse_failure }}',
+    expect: 'offers the rehearsal only on the manual trigger, and wires it to the script',
+  },
+  {
+    id: 'A1.78',
+    what: 'o disparo manual sem marcar (que manda "false") vira ensaio e reprova',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [
+      {
+        find: "{ rehearsal: deps.env.HEARTBEAT_REHEARSAL === 'true' }",
+        replace: '{ rehearsal: Boolean(deps.env.HEARTBEAT_REHEARSAL) }',
+      },
+    ],
+    expect: 'exits 1 in a rehearsal on a good day',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

@@ -39,6 +39,18 @@ on:
     - cron: '40 12 * * *'
   # Para rodar à mão — depois de uma promoção, ou para conferir o alerta.
   workflow_dispatch:
+    inputs:
+      # **O ensaio do alerta.** Uma execução verde não manda e-mail (com "só
+      # falhas" ligado, que é o certo), então ela prova que o job roda, não
+      # que o alerta chega. Marcado, o job pergunta tudo de verdade e reprova
+      # de propósito, com a linha "ensaio" no resumo. O e-mail de um disparo
+      # manual vai para quem disparou — a mesma conta que editou o `cron`,
+      # aqui —, então ele prova as notificações da conta. O agendamento não
+      # tem entrada nenhuma, e nunca ensaia.
+      rehearse_failure:
+        description: 'Ensaio: reprovar de propósito para conferir que o e-mail do alerta chega'
+        type: boolean
+        default: false
 
 # Só lê: o código para rodar o script e o `pushed_at` do repositório. O
 # resumo do job é da própria execução.
@@ -74,5 +86,7 @@ jobs:
       - name: Ask the site, the API and the briefing of the day
         env:
           REPO_PUSHED_AT: ${{ steps.activity.outputs.pushed_at }}
+          # Vazio no agendamento; "true"/"false" no disparo manual.
+          HEARTBEAT_REHEARSAL: ${{ inputs.rehearse_failure }}
           NODE_NO_WARNINGS: '1'
         run: node apps/api/scripts/heartbeat.ts
