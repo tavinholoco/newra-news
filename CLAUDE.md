@@ -373,9 +373,16 @@ a suíte de unidade, que roda sem rede.
     `/article/2026-10-07` guardada como "não encontrada" voltaram com o run
     numa rodada, em 5,4 s, e ficaram em `HIT`. **961 no web** (eram 934),
     mutações A1.62 (reescrita) e A1.68–A1.71.
-  - **Próximo:** a promoção sozinha (decisão de 07/10), e ler a resposta e o
-    log do primeiro cron depois dela (`pages`, `cron.daily-news.warm`). O
-    resto da Fase 13 vai para a `dev` e sobe numa segunda promoção.
+  - **Promovido sozinho no mesmo dia** (#272, `ce38866`, com o #269 e o #270
+    que a `dev` já carregava; sem migration, env ou dependência). No ar às
+    19:09:41 UTC — a rota irmã respondendo 401 sem segredo —, e o build da
+    promoção já pôs as dez páginas com o run de 07/10 (as marcas conferidas
+    no HTML da Vercel). Gitleaks `0 commits scanned` outra vez (14.ª
+    medição do 13.6). A `dev` foi realinhada.
+  - **Próximo:** ler a resposta e o log do cron de **08/10** — o primeiro
+    com o 13a′ (`pages`, `cron.daily-news.warm`; o Hobby guarda o log por
+    1 h). Depois, o PR 13a (o batimento). O resto da Fase 13 sobe numa
+    segunda promoção.
 
 - 🟢 **06/10/2026: a Fase 12 do plano de observabilidade fechou.** Item
   **90**. A 2.ª janela da ESPN corrigida em produção (24 linhas, −2 h,
