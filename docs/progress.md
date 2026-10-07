@@ -8926,6 +8926,44 @@ tarde com o briefing de 06/10.
   primeiro com o 13a′. Gatilho para reabrir: dois dias seguidos com
   `cron.daily-news.warm`.
 
+### 92. O batimento de fora: o job que reprova é o e-mail ✅ 2026-10-07
+
+O 13.1 e o 13.10 da §23 do plano de observabilidade (PR 13a; branch
+`observability/fase-13a-heartbeat`). Fecha a linha "Alerta ativo" do §16 — a
+única dívida sem número —, **a partir da promoção que o levar à `main`**: o
+GitHub só roda `schedule` da branch padrão.
+
+- **`.github/workflows/heartbeat.yml`, todo dia às 12:40 UTC** (depois da hora
+  inteira em que o Hobby pode disparar o cron das 11, com guarda derivada do
+  `vercel.json`), roda `apps/api/scripts/heartbeat.ts` **com o Node sozinho**
+  — sem `pnpm install`; o Node 22 apaga os tipos. Cinco perguntas, cada uma
+  com a ação no resumo do job: o site (`/pt-BR` 200); a API, e **se é
+  suspensão do Render** (`503` + `x-render-routing: suspend` → Billing, nada no
+  código resolve) ou outra coisa (uma segunda sonda depois de 15 s); o
+  briefing de hoje em dia UTC; **as duas Homes mostrando o briefing de hoje**
+  (extensão minha da §23: é o 07/10 visto de fora, e faz a linha
+  `cron.daily-news.warm` do 13a′ virar e-mail); e o último push do
+  repositório, reprovando aos 45 dias porque o GitHub desliga agendamento de
+  repositório público aos 60. Uma causa, uma linha: sem a API o briefing não é
+  perguntado, sem o briefing a Home não é culpada.
+- **O ensaio contra produção** (só `GET`, ~20 h UTC de 07/10): cinco ✅, e a
+  sonda **acordou a API em 52.387 ms** — a terceira medição da acordada do
+  Render (52,6 s em 01/10, 52,4 s em 05/10), a primeira da série que o 13.3
+  espera. A linha `heartbeat api_ms=… woke=… status=… attempts=…` é a que se
+  lê depois.
+- **13.10:** as dez variáveis de runtime do web (o `apps/web/.env.example`
+  menos as `NEXT_PUBLIC_*`) em `globalPassThroughEnv` — a §23 listava seis e
+  esquecia as quatro do OAuth. Conferido no `turbo --dry=json`: modo `strict`,
+  e a variável atravessa sem entrar na chave de cache.
+- **Guardas:** 22 testes do batimento e 4 do `turbo.json`; mutações
+  **A1.72–A1.76**. As guardas que já existiam pegaram o arquivo novo sozinhas
+  — o `workflow-hardening` cobrou a classificação e a contagem em prosa dos
+  dois READMEs (seis → sete). **1.420 → 1.446 na API.**
+- **Do dono:** o e-mail de workflow agendado vai para quem modificou a linha
+  do `cron` por último, e só com as notificações de Actions ligadas
+  (Settings → Notifications → Actions → falhas, por e-mail). E a promoção que
+  liga o agendamento.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

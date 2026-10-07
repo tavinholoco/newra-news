@@ -1,6 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [".env"],
+  "globalPassThroughEnv": [
+    "CRON_SECRET",
+    "BACKEND_JOB_URL",
+    "BACKEND_JOB_SECRET",
+    "NEXTAUTH_URL",
+    "NEXTAUTH_SECRET",
+    "AUTH_JWT_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

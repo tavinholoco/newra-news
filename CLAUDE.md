@@ -71,8 +71,13 @@ git fetch origin && git push origin origin/main:refs/heads/dev
 | Gitleaks | ✅ | ✅ |
 | Smoke E2E | ❌ | ✅ (push) |
 | Migrate (Prisma) | ❌ | ✅ (push) |
+| Heartbeat (13.1) | ❌ | ✅ (agendado, 12:40 UTC) |
 
-As duas últimas ficam **só na `main` de propósito**: o smoke mede o site no ar, e
+> **O Heartbeat só existe a partir da `main`**: o GitHub roda `schedule` da
+> branch padrão. Entrou na `dev` em 07/10/2026 e começa a perguntar na
+> promoção que o levar.
+
+As duas de push ficam **só na `main` de propósito**: o smoke mede o site no ar, e
 migration se aplica a produção uma vez. A consequência prática é que **um lote
 de fases com schema aplica todas as migrations juntas na promoção** — o que é
 uma janela controlada, mas é uma janela: promova com isso em mente.
@@ -354,6 +359,22 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **07/10/2026 (noite): o 13a — o batimento de fora — na `dev`.** Item
+  **92**; §23 do plano. `.github/workflows/heartbeat.yml`, às 12:40 UTC,
+  roda `apps/api/scripts/heartbeat.ts` com o Node sozinho (sem install) e
+  pergunta: o site responde, a API responde (e se não, se é **suspensão do
+  Render** — `503` + `x-render-routing: suspend`), o briefing de hoje existe,
+  **as duas Homes o mostram** (o 07/10 visto de fora), e o último push está a
+  menos de 45 dias (o GitHub desliga agendamento aos 60). **O job reprovado é
+  o e-mail.** Junto, o 13.10: as dez variáveis de runtime do web em
+  `globalPassThroughEnv`, com guarda.
+  - **Ensaio contra produção:** cinco ✅, e a sonda **acordou a API em
+    52.387 ms** — a primeira linha da série do 13.3, batendo com 01/10 e
+    05/10. **1.446 na API** (eram 1.420), mutações A1.72–A1.76.
+  - **Só agenda depois da promoção** (o GitHub roda `schedule` da `main`). **Do
+    dono:** conferir que as notificações de Actions por e-mail estão ligadas
+    (Settings → Notifications → Actions → falhas).
 
 - 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
   invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
@@ -1495,7 +1516,7 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.381 em 188 suites (**1.420 API em 95** + **961 web em 93** —
+- **Testes:** 2.407 em 190 suites (**1.446 API em 97** + **961 web em 93** —
   todos passando, contados em 07/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
