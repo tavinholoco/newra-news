@@ -4212,7 +4212,13 @@ Esta é a base. Os pontos abaixo estão **identificados e fora do escopo atual**
 
 ---
 
-## §22 Fase 12 — O ensaio de aceitação: cada coisa que o plano entregou, provada funcionando
+## §22 Fase 12 — O ensaio de aceitação: cada coisa que o plano entregou, provada funcionando ✅ 2026-10-06
+
+> **Fechada em 06/10/2026** (PR E, item **90** do `docs/progress.md`): a
+> matriz tem **81 linhas `[x]` e 15 `[!]`**, nenhuma aberta — cada `[!]`
+> com correção e guarda (duas exceções declaradas no A8.02), o último o
+> `detail` da `briefing.one_per_day` (A7.14). O que o ensaio deixou aberto
+> mora na §23, que pode abrir — com o **13.12**, achado no fechamento.
 
 > **Aberta em 24/09/2026, depois do #233.** Uma fase **só de teste**: nada novo
 > entra no produto. A matriz, linha a linha, mora em
@@ -4472,6 +4478,10 @@ projeto, e o branch expira e é apagado no M8.
 > antes; a API local sempre com o `CRON_SCHEDULE` do A0.07.
 
 ### A retomada: o que falta do M7b, e o M8 (reescrita em 05/10/2026, para uma sessão de contexto zerado)
+
+> **Cumprida em 06/10/2026** — a lista abaixo rodou inteira numa sessão; o
+> registro de cada linha está na matriz. Fica como histórico de como a
+> fase foi retomada.
 
 > A versão de 25/09 desta seção esperava a API voltar. Ela voltou em 01/10, e
 > quase todo o M7b andou na mesma tarde. O histórico está na matriz
@@ -4755,6 +4765,55 @@ assinatura de sessão fora da Vercel. A fase registra a decisão do dono com a
 data — sim, e os seis pulados passam a rodar; não, e a linha sai do "em
 aberto" do `CLAUDE.md` com o motivo.
 
+**13.12 — A `/news` presa no HTML do build (achado do A7.16, 06/10/2026).**
+Cinco horas depois do run de 06/10, `/pt-BR/news` e `/en/news` respondiam
+`PRERENDER`, `Age: 0`, com o acervo de **05/10** (o build das 02:11 UTC) —
+enquanto a Home, a `/article` e o `/article/[date]` tinham regenerado pela
+invalidação do cron (`cacheReason: delete_tag` no log). **A tag alcança a
+`/news`**: o botão da `/admin` (`already-succeeded-today`) a regenerou na
+hora com o acervo do dia. Sobram duas hipóteses, e o log as separa: (a) uma
+regeneração da `/news` **falhou** depois da invalidação — o `prefetch`
+relança na Vercel desde o #254, e a falha devolve o documento anterior, que
+com `revalidate` de um dia fica no ar até o dia seguinte; (b) a segunda
+invalidação, a do `SUCCESS`, **não aconteceu** (`settleRun` devolveu
+`RUNNING`/`UNKNOWN` — o run de 06/10 levou 1m 13s contra 90 s de espera) e
+um robô regenerou a `/news` no meio do run. **A medição:** `npx
+vercel@latest logs -p newra-news-web --environment production --since 1h
+--json` **dentro da hora seguinte ao cron** (o Hobby guarda 1 h; o cron cai
+em qualquer minuto das 11 h UTC) — procurar a primeira linha `/pt-BR/news`
+depois do `cron.daily-news`, com o `cache`, o `cacheReason` e o status da
+função; e o `settled` na resposta do cron. Se for (a), a saída é o próprio
+cron **pedir as páginas do conjunto depois da segunda invalidação**, com a
+API acordada pelo run, em vez de deixar a regeneração para o primeiro robô;
+se for (b), é o `settleRun` esperar o tempo que o run mede. **Gatilho:** o
+segundo dia com a `/news` mais velha que o run do dia às 13:00 UTC
+(`grep -o '2026-…T…Z'` do mais novo no RSC contra `/api/articles/latest`).
+Guarda: a que a correção escolhida pedir — se for o cron pedindo as
+páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
+(invalidar → pedir).
+
+> **07/10/2026, 17:51 UTC — o gatilho disparou, e a hipótese (a) ficou
+> quase só.** Segundo dia seguido: `/pt-BR/news` e `/en/news` em `HIT`
+> com `Age` ~80.600 s e o acervo de 06/10 — a entrada que o botão
+> regenerou às 19:25 de ontem — e **a Home `/pt-BR` também**, com o
+> briefing de 06/10, enquanto a `/en` (a **mesma tag**,
+> `_N_T_/[locale]/page`) regenerou às 15:36 com o de hoje, os dois
+> sitemaps às ~11:35 com o run de hoje e o `/pt-BR/article/2026-10-07` às
+> 12:26. **A invalidação aconteceu e a tag alcança a página** — então o que
+> fixa a página velha é uma **regeneração que falhou depois dela**: a
+> Vercel mantém o documento anterior (o desejado pelo #254) e, pelo que os
+> `Age` mostram, **não tenta de novo** até o `revalidate` vencer — com um
+> dia de `revalidate` (#256) e o cron como único refrescador, **uma falha
+> custa um dia**. A página mais visitada do site passou a tarde com o
+> briefing da véspera. Por que a regeneração falha (a borda do Render
+> recusando a Vercel — armadilha 45 —, ou a API ocupada pelo run), só o log
+> da hora diz. **A correção não depende dessa resposta:** o cron passa a
+> **pedir ele mesmo** cada página do conjunto depois da invalidação do
+> `SUCCESS` (a API acordada pelo run), conferir que a resposta traz o run do
+> dia e repetir com espera quando não traz — e logar `cron.daily-news.warm`
+> quando desistir. **Vira o primeiro PR da fase (13a′), antes do batimento**:
+> é o único item da §23 com dano ao leitor acontecendo.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -4771,6 +4830,7 @@ aberto" do `CLAUDE.md` com o motivo.
 
 | PR | Itens | Depende de |
 |---|---|---|
+| **13a′** | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou | a Fase 12 fechada |
 | **13a** | 13.1 (o batimento) | a Fase 12 fechada |
 | **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
