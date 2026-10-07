@@ -4792,6 +4792,28 @@ Guarda: a que a correção escolhida pedir — se for o cron pedindo as
 páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
 (invalidar → pedir).
 
+> **07/10/2026, 17:51 UTC — o gatilho disparou, e a hipótese (a) ficou
+> quase só.** Segundo dia seguido: `/pt-BR/news` e `/en/news` em `HIT`
+> com `Age` ~80.600 s e o acervo de 06/10 — a entrada que o botão
+> regenerou às 19:25 de ontem — e **a Home `/pt-BR` também**, com o
+> briefing de 06/10, enquanto a `/en` (a **mesma tag**,
+> `_N_T_/[locale]/page`) regenerou às 15:36 com o de hoje, os dois
+> sitemaps às ~11:35 com o run de hoje e o `/pt-BR/article/2026-10-07` às
+> 12:26. **A invalidação aconteceu e a tag alcança a página** — então o que
+> fixa a página velha é uma **regeneração que falhou depois dela**: a
+> Vercel mantém o documento anterior (o desejado pelo #254) e, pelo que os
+> `Age` mostram, **não tenta de novo** até o `revalidate` vencer — com um
+> dia de `revalidate` (#256) e o cron como único refrescador, **uma falha
+> custa um dia**. A página mais visitada do site passou a tarde com o
+> briefing da véspera. Por que a regeneração falha (a borda do Render
+> recusando a Vercel — armadilha 45 —, ou a API ocupada pelo run), só o log
+> da hora diz. **A correção não depende dessa resposta:** o cron passa a
+> **pedir ele mesmo** cada página do conjunto depois da invalidação do
+> `SUCCESS` (a API acordada pelo run), conferir que a resposta traz o run do
+> dia e repetir com espera quando não traz — e logar `cron.daily-news.warm`
+> quando desistir. **Vira o primeiro PR da fase (13a′), antes do batimento**:
+> é o único item da §23 com dano ao leitor acontecendo.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -4808,13 +4830,13 @@ páginas, a suíte do `daily-news-api.test.ts` cobra a ordem
 
 | PR | Itens | Depende de |
 |---|---|---|
+| **13a′** | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou | a Fase 12 fechada |
 | **13a** | 13.1 (o batimento) | a Fase 12 fechada |
 | **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
 | — | 13.8, 13.9, 13.10 | o gatilho da armadilha 45; uma semana de `DailyUptime`; junto do 13a |
-| — | 13.12 (a `/news` presa no build) | o log da hora seguinte a um cron |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
 O 13a vale mais sozinho do que todos os outros juntos — é ele que transforma o

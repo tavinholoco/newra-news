@@ -364,8 +364,10 @@ a suíte de unidade, que roda sem rede.
   preservado.
   - **Achado do fechamento: a `/news` passou 06/10 no HTML do build**
     (acervo de 05/10, `PRERENDER`) enquanto o resto do conjunto regenerou;
-    a tag a alcança. Causa a isolar pelo log da hora seguinte ao cron —
-    **13.12** da §23, com o gatilho.
+    a tag a alcança. **Em 07/10 o gatilho disparou:** `/pt-BR`, `/pt-BR/news`
+    e `/en/news` na entrada da véspera (`HIT`, `Age` ~80.600 s) com a `/en`
+    — a mesma tag — fresca. Uma regeneração que falha fixa a página velha
+    por um dia. **13.12, primeiro PR da Fase 13 (13a′).**
   - **Próximo: a Fase 13** (§23), pelo prompt de abertura no fim dela. O
     M8 está completo: o branch `fase-12-ensaio` do Neon foi apagado e o
     banco local recriado em 07/10 (A8.04).
