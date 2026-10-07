@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server';
-import { revalidateDailyContent } from '@/lib/daily-revalidation';
+import {
+  DAILY_REVALIDATION_PATHS,
+  dailyPages,
+  revalidateDailyContent,
+  type DailyPage,
+} from '@/lib/daily-revalidation';
 import { isCronAuthorized } from '@/lib/cron-auth';
+import { toDateSlug } from '@/lib/format';
 import { logServerError } from '@/lib/log-server-error';
+import { SITE_URL } from '@/lib/seo';
 import {
   API_TIMEOUT_MS,
+  CRON_MAX_DURATION_MS,
+  CRON_RESPONSE_MARGIN_MS,
+  DAILY_PAGES_FLOOR_MS,
+  DAILY_PAGES_PAUSE_MS,
+  DAILY_PAGES_ROUNDS,
+  DAILY_PAGES_TIMEOUT_MS,
   PIPELINE_REFUSED_PAUSE_MS,
   PIPELINE_SETTLE_MAX_MS,
   PIPELINE_SETTLE_POLL_MS,
@@ -22,6 +35,13 @@ export const dynamic = 'force-dynamic';
  * 125 s; esperar o fim do run (`PIPELINE_SETTLE_MAX_MS`) = 90 s — 280 s. O
  * teto do plano Hobby da Vercel é 300 s. Era 90 s até 01/10/2026; 240 com a
  * espera pelo run; 290 com a repetição do 429.
+ *
+ * **O pedido das páginas do dia (13.12) usa o que sobra** até
+ * `CRON_MAX_DURATION_MS − CRON_RESPONSE_MARGIN_MS` — no caso comum (a API
+ * acorda em ~52 s, o run leva ~75 s), mais de dois minutos; no pior caso
+ * acima, nada, e o cron cai na invalidação de antes, com a linha no log.
+ * Literal por exigência do Next; a constante em `lib/timeouts.ts` tem de ser
+ * o mesmo número, e há guarda.
  */
 export const maxDuration = 290;
 
@@ -81,12 +101,12 @@ type RunStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'UNKNOWN';
  * deixar de ser `RUNNING` ou o prazo acabar.
  *
  * Existe porque o `revalidate` das páginas é de um dia desde 01/10/2026 (as
- * horas do Render — `lib/daily-revalidation.ts`): a invalidação no aceite é
- * otimista, e um robô que pegue a Home durante os ~90 s do run a regenera com
- * o briefing da véspera. Sem esta espera, essa página ficaria um dia no ar.
- * Era um segundo cron às 13:00 — e o deploy da Vercel o recusou: o Hobby
- * limita os crons. **A sonda não custa hora do Render**: a API está acordada
- * pelo próprio run.
+ * horas do Render — `lib/daily-revalidation.ts`): uma página regenerada antes
+ * de o run gravar o briefing fica um dia com o da véspera. Esperar o `SUCCESS`
+ * é o que dá ao cron um momento em que invalidar e pedir as páginas traz o run
+ * do dia. Era um segundo cron às 13:00 — e o deploy da Vercel o recusou: o
+ * Hobby limita os crons. **A sonda não custa hora do Render**: a API está
+ * acordada pelo próprio run.
  *
  * Nunca lança. Qualquer resposta que não seja um `RUNNING` legível encerra a
  * espera (`UNKNOWN`): esperar às cegas só gastaria o `maxDuration`.
@@ -119,7 +139,177 @@ async function settleRun(jobUrl: string, pipelineId: string): Promise<RunStatus>
   return 'RUNNING';
 }
 
+/**
+ * **Invalida pela rota irmã** (`/api/cron/daily-news/revalidate`), numa
+ * invocação que termina antes desta — e por isso a invalidação está aplicada
+ * quando as páginas forem pedidas. Anotada aqui, ela só valeria quando o cron
+ * retornasse (`lib/daily-revalidation.ts`). Devolve o status da resposta, ou
+ * `null` se não houve resposta.
+ *
+ * A origem é a do site publicado (`SITE_URL`), a mesma dos pedidos das páginas:
+ * é o cache que o leitor lê, e é o domínio de produção — os endereços de
+ * deploy da Vercel ficam atrás da proteção de deploy.
+ */
+async function revalidateOnSite(
+  patterns: ReadonlyArray<string>,
+  deadline: number,
+): Promise<number | null> {
+  const url = new URL('/api/cron/daily-news/revalidate', SITE_URL);
+  for (const pattern of patterns) url.searchParams.append('path', pattern);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(DAILY_PAGES_TIMEOUT_MS, deadline - Date.now()))),
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+      cache: 'no-store',
+    });
+    return res.status;
+  } catch (error) {
+    logServerError('cron.daily-news.revalidate', error, { patterns: patterns.join(' ') });
+    return null;
+  }
+}
+
+interface PageAttempt {
+  /** O status do documento, ou `null` se o pedido não teve resposta. */
+  status: number | null;
+  /** O `x-vercel-cache` — é ele que diz se a regeneração aconteceu. */
+  cache: string | null;
+  fresh: boolean;
+}
+
+/**
+ * **Pede uma página como o leitor pediria, e confere a marca do run do dia.**
+ * Sem segredo e sem cache do Next no meio (o `fetch` de um route handler é
+ * memorizado se ninguém disser `no-store`). Depois da invalidação, este pedido
+ * espera a regeneração — a Vercel responde `REVALIDATED` (A7.16) — e a
+ * regeneração encontra a API acordada pelo run.
+ */
+async function requestPage(page: DailyPage, timeoutMs: number): Promise<PageAttempt> {
+  try {
+    const res = await fetch(new URL(page.url, SITE_URL), {
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: 'no-store',
+    });
+    const body = await res.text();
+    return {
+      status: res.status,
+      cache: res.headers.get('x-vercel-cache'),
+      fresh: res.ok && page.marker.test(body),
+    };
+  } catch {
+    // Timeout ou transporte: a página conta como ainda velha, e a rodada
+    // seguinte a invalida e pede de novo. **Exceção escrita** em
+    // `CATCH_ALLOWED` (`tests/lib/bff-error-log.test.ts`): logar cada
+    // tentativa encheria o log num dia que deu certo; o desfecho de cada
+    // página que não se acertou vai na linha `cron.daily-news.warm`.
+    return { status: null, cache: null, fresh: false };
+  }
+}
+
+interface DailyPagesReport {
+  runDate: string;
+  rounds: number;
+  fresh: string[];
+  stale: Array<{ url: string; status: number | null; cache: string | null }>;
+}
+
+/** Os padrões das páginas dadas, sem repetição e na ordem do conjunto. */
+const patternsOf = (pages: ReadonlyArray<DailyPage>): string[] =>
+  DAILY_REVALIDATION_PATHS.map(([path]) => path).filter((path) =>
+    pages.some((page) => page.pattern === path),
+  );
+
+/**
+ * **Invalida o conjunto do dia, pede cada página e confere que ela traz o run
+ * do dia** — 13.12 do plano de observabilidade, 07/10/2026.
+ *
+ * Em 07/10 a Home `/pt-BR` passou a tarde com o briefing da véspera, em `HIT`,
+ * enquanto a `/en` — a mesma tag — regenerou com o de hoje: a invalidação
+ * aconteceu, uma regeneração **falhou** depois dela, e a Vercel manteve o
+ * documento anterior sem tentar de novo até o `revalidate` de um dia vencer.
+ * Deixar a regeneração para o primeiro visitante era apostar a página mais lida
+ * do site num pedido de robô, a qualquer hora, com a API talvez dormindo. Aqui
+ * quem regenera é o cron, logo depois do run, com a API acordada por ele.
+ *
+ * **Cada rodada invalida de novo o que ficou velho**, em vez de só pedir de
+ * novo: a regeneração que falha consome a invalidação. E pede as duas línguas
+ * do padrão reinvalidado — a irmã também foi invalidada, e quem a regeneraria
+ * seria um visitante.
+ *
+ * **Quando desiste** (rodadas, prazo, ou a rota irmã recusando), anota a
+ * invalidação **só dos padrões que ficaram velhos** nesta invocação — é o
+ * comportamento de antes do 13.12, aplicado quando o cron retornar, e o
+ * próximo visitante tenta a regeneração —, e escreve `cron.daily-news.warm`
+ * com o estado de cada página. As que foram conferidas não são invalidadas de
+ * novo: o cron nunca deixa o site pior do que o deixaria sem esta função.
+ */
+async function refreshDailyPages(runDate: string, deadline: number): Promise<DailyPagesReport> {
+  const pages = dailyPages(runDate);
+  const last = new Map<string, PageAttempt>();
+  let patterns = patternsOf(pages);
+  let rounds = 0;
+  let invalidation: number | null = 200;
+
+  while (
+    rounds < DAILY_PAGES_ROUNDS &&
+    patterns.length > 0 &&
+    deadline - Date.now() >= DAILY_PAGES_PAUSE_MS + DAILY_PAGES_FLOOR_MS
+  ) {
+    rounds++;
+    invalidation = await revalidateOnSite(patterns, deadline);
+    // Sem invalidação, pedir as páginas só leria os documentos velhos.
+    if (invalidation === null || invalidation < 200 || invalidation >= 300) break;
+
+    // A rota irmã já respondeu, mas o Next aplica a tag dela logo **depois**.
+    await pause(DAILY_PAGES_PAUSE_MS);
+
+    for (const page of pages) {
+      if (!patterns.includes(page.pattern)) continue;
+      const remaining = deadline - Date.now();
+      if (remaining < DAILY_PAGES_FLOOR_MS) break;
+      last.set(page.url, await requestPage(page, Math.min(DAILY_PAGES_TIMEOUT_MS, remaining)));
+    }
+
+    patterns = patternsOf(pages.filter((page) => !last.get(page.url)?.fresh));
+  }
+
+  const stalePages = pages.filter((page) => !last.get(page.url)?.fresh);
+  const stale = stalePages.map((page) => ({
+    url: page.url,
+    status: last.get(page.url)?.status ?? null,
+    cache: last.get(page.url)?.cache ?? null,
+  }));
+
+  if (stale.length > 0) {
+    revalidateDailyContent(patternsOf(stalePages));
+    logServerError(
+      'cron.daily-news.warm',
+      new Error('daily pages still without the run of the day'),
+      {
+        runDate,
+        rounds,
+        invalidation,
+        stale: stale
+          .map(({ url, status, cache }) => `${url} ${status ?? 'no-response'} ${cache ?? '-'}`)
+          .join(', '),
+      },
+    );
+  }
+
+  return {
+    runDate,
+    rounds,
+    fresh: pages.filter((page) => last.get(page.url)?.fresh).map((page) => page.url),
+    stale,
+  };
+}
+
 export async function GET(request: Request) {
+  // O relógio do prazo começa aqui: o pedido das páginas usa o que sobrar.
+  const begunAt = Date.now();
+
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -186,44 +376,55 @@ export async function GET(request: Request) {
     // Home ficou no HTML do build da véspera (`x-vercel-cache: PRERENDER`)
     // com o briefing de 02/10 já no banco. Com o `revalidate` de um dia, nada
     // mais a consertaria. Item 86 do `docs/progress.md`.
+    //
+    // **Onde a invalidação mora, desde o 13.12 (07/10/2026).** O Next só
+    // aplica a tag anotada num route handler quando ele retorna
+    // (`lib/daily-revalidation.ts`). Então:
+    //
+    // - **com o run do dia em `SUCCESS`, no disparo agendado**, o cron invalida
+    //   pela rota irmã e pede cada página (`refreshDailyPages`) — nada fica
+    //   anotado aqui, senão a anotação, aplicada no fim, invalidaria de novo o
+    //   que ele acabou de regenerar;
+    // - **no resto** (o run falhou, a espera estourou, o botão do painel), a
+    //   invalidação é anotada aqui e aplicada quando a invocação terminar,
+    //   como antes. As duas chamadas que o `started` fazia (no aceite e no
+    //   `SUCCESS`) eram, por essa regra, uma só, no fim.
+    const scheduled = !actorId;
+    const deadline = begunAt + CRON_MAX_DURATION_MS - CRON_RESPONSE_MARGIN_MS;
+    const runDate = toDateSlug(data.startedAt);
     let revalidated = false;
     let settled: RunStatus | null = null;
+    let pages: DailyPagesReport | null = null;
 
     if (data.outcome === 'started') {
-      // **Primeiro no aceite, depois na conclusão.** A invalidação no aceite
-      // derruba o HTML velho na hora; a segunda, depois do `SUCCESS`, conserta
-      // a página que alguém tenha regenerado no meio do run — com o
-      // `revalidate` de um dia, ninguém mais a conserta. O conjunto, e por que
-      // a `/news/[id]` não entra, está em `lib/daily-revalidation.ts`.
-      revalidateDailyContent();
+      // **Só no disparo agendado se espera o run.** O botão do painel reentra
+      // por aqui de dentro de outra requisição (`x-actor-id`) e espera esta
+      // resposta; segurá-lo por até 90 s seria a tela travada. O preço é
+      // aceito: o disparo manual invalida quando a requisição dele termina,
+      // com o run ainda correndo.
+      if (scheduled) settled = await settleRun(jobUrl, data.pipelineId);
+      if (settled === 'SUCCESS') pages = await refreshDailyPages(runDate, deadline);
+      else revalidateDailyContent();
       revalidated = true;
-
-      // **Só no disparo agendado.** O botão do painel reentra por aqui de
-      // dentro de outra requisição (`x-actor-id`) e espera esta resposta;
-      // segurá-lo por até 90 s seria a tela travada. O preço é aceito: o
-      // disparo manual fica só com a invalidação no aceite.
-      if (!actorId) {
-        settled = await settleRun(jobUrl, data.pipelineId);
-        if (settled === 'SUCCESS') revalidateDailyContent();
-      }
     } else if (data.outcome === 'already-succeeded-today') {
       // O run do dia terminou sem nós: invalidar uma vez. Custa uma
       // regeneração por página do conjunto, com a API acordada. No botão do
       // painel, é o "atualizar o site" depois de um run que outro disparou.
-      revalidateDailyContent();
+      if (scheduled) pages = await refreshDailyPages(runDate, deadline);
+      else revalidateDailyContent();
       revalidated = true;
-    } else if (data.outcome === 'already-running' && !actorId) {
+    } else if (data.outcome === 'already-running' && scheduled) {
       // O run do dia está correndo sem nós: esperar **o mesmo** run e
       // invalidar quando ele fechar em `SUCCESS`. Invalidar agora regeneraria
       // a partir do banco ainda sendo escrito. O botão não espera (ver acima).
       settled = await settleRun(jobUrl, data.pipelineId);
       if (settled === 'SUCCESS') {
-        revalidateDailyContent();
+        pages = await refreshDailyPages(runDate, deadline);
         revalidated = true;
       }
     }
 
-    return NextResponse.json({ success: true, data, revalidated, warmed, settled });
+    return NextResponse.json({ success: true, data, revalidated, warmed, settled, pages });
   } catch (error) {
     /**
      * **O 01/09/2026 é este `catch`.** A API tinha acabado de voltar de um mês

@@ -200,3 +200,49 @@ export const PIPELINE_REFUSED_PAUSE_MS = 15_000;
 
 /** Quantas vezes o disparo é tentado quando a borda devolve 429/503. */
 export const PIPELINE_TRIGGER_ATTEMPTS = 4;
+
+/**
+ * **O `maxDuration` da rota do cron, em milissegundos.** O `290` de
+ * `app/api/cron/daily-news/route.ts` tem de ser escrito como literal (o Next lê
+ * a configuração de segmento sem executar o arquivo), então o número mora nos
+ * dois lugares — e `tests/lib/daily-revalidation.test.ts` reprova se divergirem.
+ */
+export const CRON_MAX_DURATION_MS = 290_000;
+
+/**
+ * O que o cron reserva no fim para responder — e para o Next aplicar as tags
+ * que a própria invocação anotou, o que só acontece **depois** que o handler
+ * retorna (`lib/daily-revalidation.ts`). O pedido das páginas do dia usa o que
+ * sobra antes disso.
+ */
+export const CRON_RESPONSE_MARGIN_MS = 10_000;
+
+/**
+ * **Pedir uma página do conjunto do dia, depois de invalidá-la** (13.12 do plano
+ * de observabilidade, 07/10/2026). O primeiro pedido depois da invalidação
+ * **espera a regeneração** — a Vercel responde `REVALIDATED`, medido no A7.16 —,
+ * e a regeneração chama a API: acordada pelo run, mas atrás da borda do Render,
+ * que o `fetchApi` do servidor repete até três vezes (2, 4 e 8 s, ou o
+ * `Retry-After`). 30 s cobre isso; um pedido que estoura vira "ainda velha", e a
+ * rodada seguinte tenta de novo.
+ */
+export const DAILY_PAGES_TIMEOUT_MS = 30_000;
+
+/**
+ * A pausa antes de cada rodada. A invalidação vem de outra invocação, e o Next
+ * a aplica **depois** de ela responder (no `waitUntil` dela): sem a pausa, o
+ * primeiro pedido poderia chegar antes e ler o documento velho.
+ */
+export const DAILY_PAGES_PAUSE_MS = 5_000;
+
+/**
+ * Quantas rodadas de invalidar → pedir → conferir. Uma regeneração que falha
+ * **consome a invalidação**: a Vercel mantém o documento anterior e não tenta de
+ * novo até o `revalidate` vencer (medido em 07/10/2026 — a Home `/pt-BR` em
+ * `HIT` com o briefing da véspera a tarde inteira). Por isso cada rodada
+ * invalida de novo o que ficou velho, em vez de só pedir de novo.
+ */
+export const DAILY_PAGES_ROUNDS = 3;
+
+/** Abaixo disto de prazo restante, o cron não começa mais um pedido. */
+export const DAILY_PAGES_FLOOR_MS = 5_000;
