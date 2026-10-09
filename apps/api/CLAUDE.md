@@ -50,7 +50,10 @@
   taxa de 4xx e latência (p50/p95/p99/max) do processo que está no ar, mais a
   lista por rota — **em memória**, ver "Observabilidade da API" abaixo — e,
   desde a Fase 5, **`saturation`**: memória residente / 512 MB, atraso do
-  event loop, e as horas do plano no mês (soma do `DailyUptime`) / 750
+  event loop, e as horas do plano no mês (soma do `DailyUptime`) / 750 — o
+  teto do **workspace**, não desta API. Desde o 13b (Fase 13) traz também a
+  **leitura do Billing** do mês (`workspaceReading`) e as **horas por dia**
+  dos últimos 14 dias (`uptimeByDay`); ver "As horas do workspace", abaixo
 - POST /api/auth/upsert — cria o usuário no primeiro sign-in. Exige JWT com
   `purpose: "auth-upsert"`, e é a **única** rota que o aceita
 - POST /api/events — ingestão de eventos de produto (**pública e anônima**,
@@ -81,6 +84,11 @@
   o evento da **etapa 9.5** do run mais recente, **lido, nunca recalculado**
   (doze consultas em 0.1 vCPU não podem ser disparadas por um F5). `data:
   null` antes do primeiro run com a etapa. Fase 6
+- POST /api/admin/plan-hours — **admin**: a leitura do Billing do Render — o
+  total de horas free do workspace que o dono digita na `/admin`. Grava uma
+  linha `plan.hours_recorded` no `AuditEvent` com as horas desta API no mesmo
+  instante; **201**, e **400** (`PLAN_READING_BELOW_API`) para leitura menor
+  que as horas desta API. A única escrita do grupo. Fase 13 (13b)
 - GET /api/dev/logs — observabilidade dev-only (JOB_SECRET): últimos runs + erros recentes (filtros status/since/limit)
 - GET /api/dev/logs/:pipelineId — detalhe completo do run com eventos por etapa
 - GET /dev/dashboard — página HTML dev-only: runs (com o **desfecho** da Fase 8,
@@ -93,8 +101,8 @@
 ## O prefixo `/api/admin` (Fase 2 do plano de observabilidade)
 
 **A garantia é do grupo, não da rota.** `routes/admin/index.ts` registra o
-`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os cinco subgrupos
-(`pipeline`, `errors`, `audit`, `sources`, `invariants`) herdam o hook — hook de contexto pai vale para
+`authPlugin` e um `preHandler` com `requireAdmin` uma vez, e os seis subgrupos
+(`pipeline`, `errors`, `audit`, `sources`, `invariants`, `plan-hours`) herdam o hook — hook de contexto pai vale para
 todo `register` abaixo dele. Toda rota do grupo nasce protegida sem ninguém
 lembrar de repetir a linha; **na Fase 2 as duas linhas moravam em
 `pipeline.ts`**, e subiram para o pai quando a Fase 5 pôs dois subgrupos ao
@@ -775,7 +783,7 @@ do `ErrorEvent`, e o quarto sinal de ouro.
 | `plugins/uptime-heartbeat.ts` | o intervalo de 5 min e o `onClose` — **registrado no `server.ts`** |
 | `services/error-summary.service.ts` | a soma por fingerprint na janela — o **leitor** do `ErrorEvent`, separado do escritor |
 | `services/saturation.service.ts` | memória, event loop (`plugins/observability.ts`) e horas do plano, com teto e razão |
-| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos (quatro desde a Fase 11, cinco desde a 6) |
+| `routes/admin/index.ts` | o grupo: auth uma vez, três subgrupos (quatro desde a Fase 11, cinco desde a 6, seis desde a 13) |
 
 Regras que não são óbvias no código:
 
@@ -835,6 +843,40 @@ Regras que não são óbvias no código:
   `ARTICLE_RETENTION_DAYS`), e a prosa que as repete tem guarda —
   `tests/docs/retention-drift.test.ts`, sobre os dois diagramas e os dois
   `CLAUDE.md`.
+
+## As horas do workspace (Fase 13 do plano de observabilidade, 13b)
+
+`services/plan-hours.service.ts`, `POST /api/admin/plan-hours` e os dois
+campos novos de `saturation.plan`. Fecha: o arco dividia as horas **desta**
+API pelas 750 h do **workspace**, que o `NetsheetEngine` divide (~74 % das
+horas de outubro de 2026) — setembro estourou em 753,4 h com o arco mostrando
+folga.
+
+- **O número do outro serviço entra digitado, e é decisão do dono (07/10).**
+  O Render não tem API de cobrança; a Metrics API (`instance-count`) não tem
+  confirmação de que marca zero quando um serviço free dorme; e **a chave de
+  API do Render não tem escopo** — abre a conta inteira. O dono lê Billing →
+  Free instance hours e registra na `/admin`.
+- **A leitura é uma linha de `AuditEvent`** (`plan.hours_recorded`,
+  `{ workspaceHours, apiHours }` no `context`), sem migration: uma leitura é
+  uma ação de admin com ator e hora. **As duas pontas são gravadas juntas** —
+  a parte dos outros é a diferença, e a desta API reconstruída depois a
+  partir das linhas por dia daria o dia, não a hora.
+- **A gravação lança**, por `writeAuditEvent` (no `audit.service`, ao lado do
+  `recordAuditEvent`, que nunca lança): aqui a escrita é a ação. A guarda do
+  literal de `action` cobre os dois escritores, e **nenhum arquivo fora do
+  `audit.service` escreve no `AuditEvent`** (pelo parser).
+- **Só a leitura do mês corrente vale** — o Billing zera no dia 1º. A
+  saturação a lê junto do `DailyUptime`, no mesmo `try`: banco fora, `plan`
+  inteiro é `null`.
+- **O `750` é um literal só**, `RENDER_FREE_PLAN_HOURS` — guarda pelo parser
+  em `src/` (e no web, em `lib/`, `components/` e `app/`). Um segundo literal
+  é um segundo denominador.
+- **A conta (ritmo dos outros, estimativa de agora, projeção) é do web**, num
+  lugar só (`lib/saturation.ts`); a API manda os fatos crus.
+- **`uptimeByDay` são os últimos 14 dias UTC de `DailyUptime`** — o 13.9, cujo
+  gatilho ("dois dias inteiros seguidos acima de 10 h") é por dia e só se lia
+  no banco. Uma consulta com `take` e duas colunas (armadilha 4).
 
 ## A saúde por fonte (Fase 11 do plano de observabilidade)
 

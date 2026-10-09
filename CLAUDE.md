@@ -360,6 +360,24 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **09/10/2026: o 13b — o denominador honesto — na `dev`.** Item **93**;
+  §23 do plano. O arco das horas da `/admin` dividia as horas **desta** API
+  pelas 750 h do **workspace**, que o `NetsheetEngine` divide (~74 % de
+  outubro). O Render não tem API de cobrança e a chave dele abre a conta
+  inteira, então **o dono digita o total do Billing na `/admin`**
+  (`POST /api/admin/plan-hours`, uma linha `plan.hours_recorded` no
+  `AuditEvent` com as duas pontas do mesmo instante, sem migration); o arco
+  passa a ser o do workspace — esta API medida, os outros no ritmo da
+  leitura —, e a projeção soma os dois. **Junto, o 13.9:** as horas desta API
+  por dia (14 dias, escala de 24 h, linha dos 10 h e o gatilho "dois dias
+  seguidos acima") — antes só se liam com a credencial de produção.
+  Mutações A1.79–A1.86. **1.478 na API, 1.000 no web.**
+  - **Do dono, depois da promoção:** a primeira leitura (Render → Billing →
+    Free instance hours → `/admin`). Até lá a API de produção responde 404 na
+    rota nova, e o arco diz "só esta API".
+  - **Próximo: o 13c** (a métrica de leitura, 13.4), pelo prompt no fim da
+    §23.
+
 - 🟢 **07/10/2026 (noite): o 13a — o batimento de fora — na `dev`.** Item
   **92**; §23 do plano. `.github/workflows/heartbeat.yml`, às 12:40 UTC,
   roda `apps/api/scripts/heartbeat.ts` com o Node sozinho (sem install) e
@@ -1519,8 +1537,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.411 em 190 suites (**1.450 API em 97** + **961 web em 93** —
-  todos passando, contados em 07/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.478 em 192 suites (**1.478 API em 99** + **1.000 web em 93** —
+  todos passando, contados em 09/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

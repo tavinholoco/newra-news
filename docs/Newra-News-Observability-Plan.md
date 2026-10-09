@@ -4978,6 +4978,70 @@ depois da promoção — o GitHub roda `schedule` da branch padrão).** Item
   `workflow-hardening` cobrou a classificação (`FORA`) e a contagem em prosa dos
   dois READMEs (seis → sete).
 
+**O que o PR 13b decidiu — 09/10/2026 ✅ (na `dev`; o arco do workspace só
+existe em produção depois da promoção e da primeira leitura).** Item **93** do
+`docs/progress.md`. O 13.2 e, dentro dele, o 13.9 — como a lista acima manda.
+
+- **A pergunta que abria o PR — de onde vem o número do `NetsheetEngine` —
+  foi respondida pela pesquisa e decidida pelo dono em 07/10: leitura do
+  Billing digitada na `/admin`.** O Render não expõe cobrança por API; a
+  Metrics API (`GET /v1/metrics/instance-count`) não tem confirmação de que
+  marca zero quando um serviço free dorme; e **a chave de API do Render não
+  tem escopo** — abre a conta inteira, em todos os workspaces. As outras três
+  opções postas ao dono: a chave no batimento (CI), a chave na própria API, ou
+  só um teto dividido fixo (`RENDER_HOURS_BUDGET`, a (b) original desta
+  seção). A (b) com a intenção do dono — "ver o gasto das duas aplicações" —
+  pedia o número do outro serviço, e só o painel o tem.
+- **A leitura é uma linha de `AuditEvent`, sem migration**
+  (`plan.hours_recorded`, `{ workspaceHours, apiHours }` no `context`): uma
+  leitura é, por definição, uma ação de admin com ator e hora. **As duas
+  pontas são do mesmo instante**, gravadas juntas — a parte dos outros é a
+  diferença, e a desta API reconstruída depois a partir das linhas por dia
+  daria o dia, não a hora. A soma do banco fica até um tique do heartbeat
+  atrás do processo (≤ 0,08 h, que cai nos outros). `POST
+  /api/admin/plan-hours` — a primeira escrita do grupo `/api/admin` — recusa
+  com 400 a leitura menor que as horas desta API (`PLAN_READING_BELOW_API`),
+  e **a gravação lança**: `writeAuditEvent` nasceu ao lado do
+  `recordAuditEvent` (que nunca lança, porque lá a ação já aconteceu); aqui a
+  escrita **é** a ação.
+- **O denominador é um só, e é o do workspace.** `RENDER_FREE_PLAN_HOURS`
+  continua 750 e passou a dizer de quem é; `limitHours` é o teto do
+  workspace, `hoursUsed`/`ratio` seguem sendo desta API, e
+  `saturation.plan.workspaceReading` traz a leitura do mês. **A conta é da
+  tela, num lugar só** (`lib/saturation.ts`): os outros na leitura, o ritmo
+  deles, a estimativa de agora (esta API medida + os outros no ritmo da
+  leitura, com "~") e a projeção do mês somando os dois ritmos — calada quando
+  a leitura não tem 24 h de mês antes dela, porque projetar só esta API
+  esconderia os outros. Sem leitura, o arco se chama "Horas desta API" e diz
+  que o teto é dividido. Guarda pelo parser nos dois lados: o único `750`
+  numérico é a declaração da constante.
+- **13.9 — as horas por dia, que a §23 dizia ler "no arco da `/admin`" e o
+  arco não servia.** O arco é a soma do mês; o gatilho é por dia. Até aqui só
+  se lia com a credencial do banco de produção (armadilha 39). A saturação
+  passou a trazer os últimos 14 dias de `DailyUptime` (`uptimeByDay`, uma
+  consulta com teto de 14 linhas), e a `/admin` os desenha **na escala de um
+  dia inteiro, contra a linha dos 10 h**, com o gatilho
+  (`robotStreak` ≥ 2 dias inteiros acima de 10 h, terminando ontem — hoje é
+  parcial) como linha de status. "Sem deploy nem incidente" continua sendo
+  leitura de quem vê: a tela diz o que conferir.
+- **A captura achou o que nenhum teste via:** a `SeriesBars` escalava pelo
+  maior ponto, e nove dias de 9 h saíram como nove barras cheias. Ganhou
+  `scaleMax` e uma linha de referência.
+- **Armadilha 37, nos dois campos novos:** a tela lê `workspaceReading` e
+  `uptimeByDay` por `workspaceReadingOf`/`uptimeByDayOf`, que tratam
+  ausente como `null` — o preview da `dev` lê a API de produção. Até a
+  promoção, o preview mostra "só esta API" e nenhuma série, e o formulário
+  recebe 404.
+- **Guardas e mutações:** A1.79–A1.86 (o segundo `750` na API e na tela, a
+  leitura abaixo desta API, a escrita no `AuditEvent` por baixo da guarda, a
+  projeção que esquece os outros, a resposta antiga sem o campo, o dia
+  parcial no gatilho, a série sem teto). **1.450 → 1.478 na API, 961 → 1.000
+  no web.** E um teste instável herdado do 13a′ (a espera do run com 50 ms de
+  relógio de parede na suíte do cron) foi a 1 s, em commit próprio.
+- **O que fica do dono:** a promoção, e depois dela **a primeira leitura** na
+  `/admin` (Billing → Free instance hours). Entre leituras os outros serviços
+  são estimados no ritmo da última; a tela diz de quando ela é.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -4996,11 +5060,11 @@ depois da promoção — o GitHub roda `schedule` da branch padrão).** Item
 |---|---|---|
 | ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Promovido sozinho no #272 (`ce38866`) | a Fase 12 fechada |
 | ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Na `dev`; agenda só depois da promoção | a Fase 12 fechada |
-| **13b** | 13.2 (o denominador) | a decisão do dono sobre o `NetsheetEngine` |
+| ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Na `dev`; a primeira leitura do Billing é do dono, depois da promoção | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
-| — | 13.8, 13.9, 13.10 | o gatilho da armadilha 45; uma semana de `DailyUptime`; junto do 13a |
+| — | 13.8, ~~13.9~~, ~~13.10~~ | o gatilho da armadilha 45; ~~uma semana de `DailyUptime`~~ (no 13b); ~~junto do 13a~~ (no 13a) |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
 O 13a vale mais sozinho do que todos os outros juntos — é ele que transforma o
@@ -5010,19 +5074,23 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
-> 07/10; leia os dois blocos "O que o PR … decidiu") e o §17 (armadilhas, até
-> a 47). Antes de tudo, confira a resposta e o log do primeiro cron com o
-> 13a′ (`pages`, e `cron.daily-news.warm` se houver). Depois siga pelo **PR
-> 13b — o denominador (13.2)**, que começa pela pergunta de onde vem o número
-> do `NetsheetEngine`; e o 13c e o 13d na ordem da tabela. Corte a branch da
-> `dev`. O 13a (o batimento) está na `dev` e **só agenda depois da promoção**
-> — decida comigo quando promover. Antes de qualquer escrita em produção, me
-> pergunte.
+> 07/10 e o 13b em 09/10; leia os três blocos "O que o PR … decidiu") e o §17
+> (armadilhas, até a 47). Siga pelo **PR 13c — a métrica de leitura (13.4)**,
+> que começa pelo inventário dos eventos de rolagem contra as horas em que as
+> ferramentas rodaram; e depois o 13d. Corte a branch da `dev`. O 13a (o
+> batimento) e o 13b (o arco do workspace) estão na `dev` e só valem depois
+> da promoção — decida comigo quando promover. Antes de qualquer escrita em
+> produção, me pergunte.
 >
-> *(O prompt de 07/10, que abriu a fase pelo 13a′: "…comece pelo PR 13a′ — o
-> item 13.12: depois da invalidação do `SUCCESS`, o cron pede as páginas que
-> invalidou e confere que trazem o run do dia… O 13a′ é promovido sozinho, no
-> mesmo dia".)*
+> *(O de 09/10, que abriu o 13b: "…siga pelo PR 13b — o denominador (13.2),
+> que começa pela pergunta de onde vem o número do `NetsheetEngine`". O de
+> 07/10, que abriu a fase pelo 13a′: "…comece pelo PR 13a′ — o item 13.12…
+> O 13a′ é promovido sozinho, no mesmo dia".)*
+>
+> **O log do cron dura uma hora.** A conferência do 13a′ ("a resposta e o log
+> do primeiro cron") só se faz entre ~11:00 e ~12:30 UTC; fora dela, o que
+> sobra é a sonda de fora — as dez páginas trazem o run do dia? —, que é a
+> pergunta 4 do batimento.
 
 **A promoção é dividida, por decisão de 07/10/2026:** o 13a′ sobe sozinho
 assim que mergear na `dev` — é o único item com dano ao leitor acontecendo,
