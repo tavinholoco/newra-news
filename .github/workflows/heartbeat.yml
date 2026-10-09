@@ -31,7 +31,7 @@ name: Heartbeat
 #   por e-mail). Conferir uma vez, no painel do dono.
 # - O GitHub **desliga** workflow agendado de repositório público depois de 60
 #   dias sem atividade, e o batimento não conta como atividade. Por isso a
-#   quinta pergunta lê o último push e reprova aos 45 dias — o aviso chega
+#   pergunta `activity` lê o último push e reprova aos 45 dias — o aviso chega
 #   antes do desligamento.
 
 on:
@@ -74,8 +74,8 @@ jobs:
         with:
           node-version: 22
 
-      # Se a leitura falhar, a quinta pergunta sai como "pulada" — e as outras
-      # quatro, que são o alerta, seguem.
+      # Se a leitura falhar, a pergunta `activity` sai como "pulada" — e as
+      # outras, que são o alerta, seguem.
       - name: When the repository last saw a push
         id: activity
         env:

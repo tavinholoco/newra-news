@@ -75,7 +75,13 @@ export async function GET() {
       // O prazo da renderização no servidor: cobre a acordada do Render (~52 s)
       // quando a regeneração não vem do cron.
       signal: AbortSignal.timeout(API_RENDER_TIMEOUT_MS),
-      cache: 'no-store',
+      // **Nunca `cache: 'no-store'`**: no Next 14 ele é uso dinâmico, o build
+      // marca a rota `ƒ` e o `revalidate` acima deixa de valer — cada pedido
+      // chamava o Render (medido em produção em 09/10/2026, armadilha 48). O
+      // mesmo período do arquivo; a resposta não é reaproveitada de uma
+      // regeneração para outra porque o token novo (`iat`) muda a chave do
+      // cache de dados, e a invalidação do cron alcança a rota.
+      next: { revalidate: 86400 },
     });
     if (response.status === 200) return result('accepted', 200);
     if (response.status === 401) return result('rejected', 401);

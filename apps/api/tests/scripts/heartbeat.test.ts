@@ -248,7 +248,7 @@ describe('o veredito', () => {
     expect(verdict.ok).toBe(false);
     expect(rehearsal?.state).toBe('fail');
     expect(rehearsal?.summary).toMatch(/ensaio/i);
-    // As cinco perguntas continuam respondidas: o resumo do ensaio é o de um
+    // As outras perguntas continuam respondidas: o resumo do ensaio é o de um
     // dia de verdade, e a sonda da API entra na série do 13.3.
     expect(verdict.checks.filter((c) => c.id !== 'rehearsal').every((c) => c.state === 'ok')).toBe(
       true,

@@ -62,6 +62,10 @@ export function ScrollDepth({
   useEffect(() => {
     if (viewed.current !== contentId) {
       viewed.current = contentId;
+      // Os limiares são **do conteúdo**, como a visualização: se o React
+      // reaproveitar o componente para outra matéria, o que a anterior
+      // alcançou não vale para esta (revisão da Fase 13, 09/10/2026).
+      reached.current = new Set();
       track('article_view', { contentId, contentType });
     }
 

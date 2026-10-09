@@ -49,6 +49,9 @@ describe('GET /api/health/auth do web', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${API}/health/auth`);
     expect(init.signal).toBeInstanceOf(AbortSignal);
+    // Armadilha 48: `no-store` tornaria a rota dinâmica e o `revalidate` inútil.
+    expect(init.cache).toBeUndefined();
+    expect((init as RequestInit & { next?: { revalidate?: number } }).next?.revalidate).toBe(86_400);
     const header = new Headers(init.headers).get('authorization') ?? '';
     const { payload } = await jwtVerify(header.replace(/^Bearer /, ''), new TextEncoder().encode(SECRET));
     expect(payload.purpose).toBe('health-probe');
