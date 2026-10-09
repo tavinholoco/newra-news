@@ -44,6 +44,11 @@ export const rssSources: RssSource[] = [
   { name: 'Trivela', url: 'https://trivela.com.br/feed/', category: Category.SPORTS },
   { name: 'Olhar Digital', url: 'https://olhardigital.com.br/feed/', category: Category.SCIENCE },
   { name: 'Superinteressante', url: 'https://super.abril.com.br/feed/', category: Category.SCIENCE },
+  // **A Veja Saúde fica, e foi medido** (13.5 do plano de observabilidade,
+  // 09/10/2026): em outubro ela passou em 6 de 8 runs, com as falhas (`fetch
+  // failed` em ~1,7 s) em dias soltos — o mesmo padrão de Folha, Olhar Digital
+  // e Trivela. Bloqueio de datacenter falha todo dia, como o Drauzio abaixo;
+  // isto é rede, e a falha rápida ganhou uma nova tentativa no provider.
   { name: 'Veja Saúde', url: 'https://saude.abril.com.br/feed/', category: Category.HEALTH },
   // **O `Drauzio Varella` saiu em 25/09/2026, e não por URL errada: o feed
   // responde 200 em menos de 0,6 s de fora do Render e falha em ~1,8 s
