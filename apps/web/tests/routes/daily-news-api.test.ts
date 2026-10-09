@@ -25,12 +25,18 @@ vi.mock('@/lib/log-server-error', async (importOriginal) => ({
 }));
 
 // A espera pelo fim do run sonda a cada 10 s por até 150 s; aqui ela sonda
-// sem pausa e desiste em 50 ms, para a suíte não esperar relógio de verdade.
+// sem pausa e desiste em 1 s, para a suíte não esperar relógio de verdade.
 // O mesmo para a pausa antes de cada rodada de páginas.
+//
+// **Era 50 ms, e o prazo é relógio de parede** (`Date.now()` no `settleRun`):
+// com a suíte inteira rodando em paralelo, duas sondas — "429 → SUCCESS" —
+// passaram dos 50 ms e o teste leu `UNKNOWN` (09/10/2026, no PR 13b). Os
+// testes que precisam de um desfecho cabem folgados num segundo; só os quatro
+// que esperam o prazo estourar pagam por ele.
 vi.mock('@/lib/timeouts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/timeouts')>()),
   PIPELINE_SETTLE_POLL_MS: 0,
-  PIPELINE_SETTLE_MAX_MS: 50,
+  PIPELINE_SETTLE_MAX_MS: 1_000,
   PIPELINE_REFUSED_PAUSE_MS: 0,
   DAILY_PAGES_PAUSE_MS: 0,
 }));
