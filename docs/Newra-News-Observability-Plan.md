@@ -3539,7 +3539,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | **As horas do `NetsheetEngine` entram por leitura manual do Billing** (13b, decidido pelo dono em 09/10/2026) | o Render não tem API de cobrança e a chave dele não tem escopo; o dono digita o total do workspace na `/admin`, e entre leituras a tela estima o outro serviço no ritmo da última. **A saída automática está desenhada:** o `NetsheetEngine` conta as próprias horas (heartbeat que só escreve no banco dele, como o `DailyUptime`) e expõe uma rota com segredo; o run diário da Newra — a API já acordada pelo pipeline às 11h — pergunta uma vez por dia e grava por serviço. Custa até ~7,5 h/mês do `NetsheetEngine` (a pergunta o acorda quando ele dorme; o inverso, ele avisar a Newra, acordaria esta API a cada acordada dele), uma migration aqui, um segredo nos dois serviços e trabalho no repositório dele. **Gatilho: a projeção do workspace acima de 600 h (80 % do teto) em duas leituras seguidas** — aí a estimativa entre leituras deixa de ser folga e passa a ser o número que decide. **A primeira leitura, em 09/10 (169,72 h), já projetou 603 h na tela** — o ritmo do mês inteiro, que carrega os 24,8 h/dia de antes de 06/10; no ritmo recente (12,2 h/dia desde 06/10) são **~441 h**, e as leituras seguintes puxam a projeção para lá sozinhas. **Releitura sugerida: ~16/10** — se ela ainda passar de 600 h, o gatilho disparou |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
-| ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo desde a promoção #277 (09/10/2026)** — o primeiro agendado é o das 12:40 UTC de 10/10 |
+| ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo desde a promoção #277 (09/10/2026)**, com o e-mail provado pelo ensaio no mesmo dia (17:41 UTC) — o primeiro agendado é o das 12:40 UTC de 10/10 |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
 | Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL no briefing (`unanchored-url` ou `copied-url`), que é evento único e merece olhar no mesmo dia |
 | Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto pedindo o número real — o da deriva foi calibrado contra produção em 24/09 (0,25, Fase 12); o de duplicata segue por cima (0,6) — e o `gates:rehearse` imprime o p95 |
@@ -4918,6 +4918,14 @@ promovido sozinho no #272).** Item **91** do
   `x-vercel-cache` de cada página velha. **Gatilho para reabrir:** dois dias
   seguidos com `cron.daily-news.warm` — aí a regeneração falha de forma
   sistemática (a borda do Render? o 13.8), e três rodadas não bastam.
+- **Conferido de fora em 09/10/2026** (o log de 08/10 e o de 09/10 já tinham
+  passado da hora que o Hobby guarda): `/pt-BR`, `/en`, `/pt-BR/news`,
+  `/en/news`, `/pt-BR/article` e `/pt-BR/article/2026-10-09` com o run de
+  09/10, todas em `HIT`, regeneradas ~11:31 UTC — logo depois do run. **As
+  páginas que ficavam presas (as Homes e as `/news`) vieram frescas.** A
+  sonda é só na Vercel (`curl` + o link `article/<dia>` e um `createdAt` do
+  dia), não acorda a API; desde 10/10 o batimento faz a mesma pergunta (a 4)
+  todo dia, e o que sobra para o log é o `pages.rounds`.
 
 **O que o PR 13a decidiu — 07/10/2026 ✅ (promovido no #277 em 09/10, junto
 do 13b; o GitHub roda `schedule` da branch padrão, então o primeiro agendado
@@ -4972,6 +4980,16 @@ do 13b; o GitHub roda `schedule` da branch padrão, então o primeiro agendado
   que editou o `cron`. Mutações **A1.77** e **A1.78**; **1.446 → 1.450 na
   API**. **Depois da promoção:** Actions → Heartbeat → Run workflow → marcar
   o ensaio, e conferir o e-mail.
+- **O ensaio, feito em 09/10/2026, e o e-mail chegou.** Disparado com o ok do
+  dono às 17:40 UTC, na `main` depois da promoção #277
+  ([run 37967976108](https://github.com/tavinholoco/newra-news/actions/runs/37967976108)),
+  pela conta `tavinholoco`: as cinco perguntas **ok** (o site 200 em 466 ms;
+  a API 200 em 95 ms, já acordada — `woke=false`; o briefing de 09/10; as
+  duas Homes com ele; o push de hoje) e a única linha `fail` é a do ensaio.
+  **O e-mail "Run failed: Heartbeat - main (4047493)" chegou às 17:41 UTC**
+  na caixa de entrada do dono. **O alerta está provado de ponta a ponta**; o
+  primeiro agendado é 10/10, 12:40 UTC, e num dia bom ele termina verde e não
+  manda nada.
 - **Guardas e mutações:** 22 testes do batimento (o veredito, o resumo, a
   observação com `fetch` de mentira, o código de saída, e o `.yml` — a hora
   depois da janela do cron derivada do `vercel.json`, Node sem install, só
@@ -5079,7 +5097,7 @@ promovido no #277 com o 13a; a primeira leitura entrou às 17:32 UTC).** Item **
 | PR | Itens | Depende de |
 |---|---|---|
 | ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Promovido sozinho no #272 (`ce38866`) | a Fase 12 fechada |
-| ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Promovido no #277 (09/10); o primeiro agendado é 10/10 12:40 UTC; o ensaio do alerta espera o ok do dono | a Fase 12 fechada |
+| ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Promovido no #277 (09/10); o ensaio do alerta provou o e-mail no mesmo dia; o primeiro agendado é 10/10 12:40 UTC | a Fase 12 fechada |
 | ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Promovido no #277 (09/10); a primeira leitura (169,72 h) entrou no mesmo dia | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
@@ -5098,9 +5116,24 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 > (armadilhas, até a 47). Siga pelo **PR 13c — a métrica de leitura (13.4)**,
 > que começa pelo inventário dos eventos de rolagem contra as horas em que as
 > ferramentas rodaram; e depois o 13d. Corte a branch da `dev`. O 13a (o
-> batimento) e o 13b (o arco do workspace) estão no ar desde a promoção #277
-> (09/10); o ensaio do alerta do batimento espera o meu ok. Antes de qualquer
-> escrita em produção, me pergunte.
+> batimento, com o e-mail provado pelo ensaio) e o 13b (o arco do workspace,
+> com a primeira leitura do Billing) estão no ar desde a promoção #277
+> (09/10). Antes de tudo, confira a primeira execução **agendada** do
+> Heartbeat (10/10 12:40 UTC em diante): verde, e a linha `heartbeat api_ms=…`
+> no log — é a série do 13.3. Antes de qualquer escrita em produção, me
+> pergunte.
+>
+> **O que a sessão fria precisa saber para o 13c:** o 13c é o 13.4 desta
+> seção ("O que a fase entrega"), e o primeiro passo é **medir, não
+> codificar**: quantos eventos `article_scroll_*` caem nas horas em que o
+> Lighthouse, a baseline, o Smoke e o `admin:capture` rodaram (as execuções
+> têm hora no GitHub), e quais dessas ferramentas expõem
+> `navigator.webdriver`. Ler `ProductEvent` de produção pede a credencial do
+> Neon — **o classificador do modo auto recusa buscá-la sem o dono liberar no
+> chat**; pergunte antes. O Auto-fix do CI fica desligado (o dono liga quando
+> quiser). A `dev` está à frente da `main` só em docs (#278 e este) — não há
+> o que promover antes do 13c. Pendências do dono que não travam o 13c: reler
+> o Billing por volta de 16/10 (o gatilho da contagem automática, §16).
 >
 > *(O de 09/10, que abriu o 13b: "…siga pelo PR 13b — o denominador (13.2),
 > que começa pela pergunta de onde vem o número do `NetsheetEngine`". O de

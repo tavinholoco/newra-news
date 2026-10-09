@@ -8971,6 +8971,12 @@ GitHub só roda `schedule` da branch padrão.
   O agendamento não tem entrada e nunca ensaia; só `"true"` exato ensaia.
   Mutações **A1.77–A1.78**; **1.446 → 1.450 na API**. **Depois da
   promoção:** Actions → Heartbeat → Run workflow → marcar o ensaio.
+- **O ensaio, em 09/10/2026, depois da promoção #277: o e-mail chegou.**
+  Disparado com o ok do dono às 17:40 UTC (run 37967976108, conta
+  `tavinholoco`): as cinco perguntas ok — a API em 95 ms, já acordada — e só
+  a linha `rehearsal` reprovou. O e-mail "Run failed: Heartbeat - main
+  (4047493)" chegou às 17:41 UTC. **O alerta está provado de ponta a ponta**;
+  o primeiro agendado é 10/10, 12:40 UTC.
 
 ### 93. O denominador honesto: o arco das horas passa a ser o do workspace ✅ 2026-10-09
 
@@ -9051,9 +9057,8 @@ outubro (item 87). Setembro estourou em 753,4 h com o arco mostrando folga.
   migration, um segredo nos dois serviços. **Gatilho: a projeção do workspace
   acima de 600 h em duas leituras seguidas.** A primeira já deu 603 h, pelo
   atraso acima; **releitura sugerida em ~16/10**.
-- **Com isso o 13b fecha.** O que segue do 13a é o ensaio do alerta do
-  batimento (o dono dispara ou autoriza; o primeiro agendado é 10/10 12:40
-  UTC).
+- **Com isso o 13b fecha.** E o 13a junto: o ensaio do alerta, disparado no
+  mesmo dia com o ok do dono, entregou o e-mail (item 92). **Próximo: o 13c.**
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

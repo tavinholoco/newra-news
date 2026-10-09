@@ -340,8 +340,9 @@ a suíte de unidade, que roda sem rede.
   num PR só — a última do plano**, com o ensaio contra os retidos pendente
   da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
-  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A próxima é a Fase 13
-  (§23)**, com o 13.12 achado no fechamento.
+  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
+  curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o
+  próximo é o 13c**, pelo prompt de abertura no fim da §23.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -365,8 +366,8 @@ a suíte de unidade, que roda sem rede.
   `NetsheetEngine` ~121 h; projeção 603 h no ritmo do mês, ~441 h no ritmo
   desde 06/10.** A contagem automática virou linha do §16 (gatilho: projeção
   acima de 600 h em duas leituras seguidas — releitura sugerida ~16/10). O
-  batimento agenda a partir de 10/10 12:40 UTC; o ensaio do alerta espera o
-  ok do dono. O detalhe abaixo é do PR. Item **93**;
+  batimento agenda a partir de 10/10 12:40 UTC, e **o ensaio do alerta provou
+  o e-mail** (09/10, 17:41 UTC). O detalhe abaixo é do PR. Item **93**;
   §23 do plano. O arco das horas da `/admin` dividia as horas **desta** API
   pelas 750 h do **workspace**, que o `NetsheetEngine` divide (~74 % de
   outubro). O Render não tem API de cobrança e a chave dele abre a conta
@@ -397,12 +398,12 @@ a suíte de unidade, que roda sem rede.
   - **Ensaio contra produção:** cinco ✅, e a sonda **acordou a API em
     52.387 ms** — a primeira linha da série do 13.3, batendo com 01/10 e
     05/10. **1.446 na API** (eram 1.420), mutações A1.72–A1.76.
-  - **Só agenda depois da promoção** (o GitHub roda `schedule` da `main`). **Do
-    dono:** conferir que as notificações de Actions por e-mail estão ligadas
-    (Settings → Notifications → Actions → falhas) e, depois da promoção,
-    **provar o e-mail com o ensaio**: Actions → Heartbeat → Run workflow →
-    marcar `rehearse_failure` — pergunta tudo de verdade e reprova de
-    propósito (uma execução verde não manda e-mail). 1.450 na API.
+  - **Promovido no #277 (09/10), e o ensaio provou o e-mail no mesmo dia**:
+    Actions → Heartbeat → Run workflow → `rehearse_failure` pergunta tudo de
+    verdade e reprova de propósito (uma execução verde não manda e-mail); o
+    "Run failed: Heartbeat - main" chegou às 17:41 UTC. Se um dia o e-mail
+    parar de chegar: Settings → Notifications → Actions → falhas, por e-mail.
+    1.450 na API.
 
 - 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
   invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
