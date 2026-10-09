@@ -13,7 +13,12 @@ export interface AuthJwtPayload {
   name?: string | null;
   image?: string | null;
   role?: 'USER' | 'ADMIN';
-  purpose?: 'auth-upsert';
+  /**
+   * `'auth-upsert'`: o token de uso único do primeiro sign-in.
+   * `'health-probe'`: o da sonda diária do par de JWT (13.7), sem sessão de
+   * ninguém — a API o aceita só no `GET /api/health/auth`.
+   */
+  purpose?: 'auth-upsert' | 'health-probe';
 }
 
 /**

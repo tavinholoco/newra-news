@@ -1389,6 +1389,62 @@ const MUTATIONS = [
     dropLine: '    await new Promise((resolve) => setTimeout(resolve, FEED_RETRY_DELAY_MS));',
     expect: 'espera antes da segunda tentativa',
   },
+  // ── Fase 13 (13.7): a sonda do par de JWT, sem segredo no CI ────────────
+  {
+    id: 'A1.102',
+    what: 'a rota da sonda na API passa a aceitar o token de sessão, e recusa o dela',
+    pkg: 'api',
+    test: 'tests/security/authorization-matrix.test.ts',
+    file: 'apps/api/src/routes/health/index.ts',
+    edits: [
+      {
+        find: "    await probe.register(authPlugin, { purpose: 'health-probe' });",
+        replace: '    await probe.register(authPlugin);',
+      },
+    ],
+    expect: 'lets the health-probe token through',
+  },
+  {
+    id: 'A1.103',
+    what: 'a sonda do web lê o 401 da API como "inesperado", e o batimento perde a causa',
+    pkg: 'web',
+    test: 'tests/routes/health-auth-api.test.ts',
+    file: 'apps/web/app/api/health/auth/route.ts',
+    dropLine: "    if (response.status === 401) return result('rejected', 401);",
+    expect: 'says rejected',
+  },
+  {
+    id: 'A1.104',
+    what: 'o cron dá por fresca a sonda recusada hoje — o par quebrado não reinsiste',
+    pkg: 'web',
+    test: 'tests/lib/daily-revalidation.test.ts',
+    file: 'apps/web/lib/daily-revalidation.ts',
+    edits: [
+      {
+        find: `        '^(?=[\\\\s\\\\S]*"ok":true)(?=[\\\\s\\\\S]*"checkedAt":"' + literal(runDate).source + ')',`,
+        replace: `        '^(?=[\\\\s\\\\S]*"ok":)(?=[\\\\s\\\\S]*"checkedAt":"' + literal(runDate).source + ')',`,
+      },
+    ],
+    expect: "counts as fresh only when today's probe was accepted",
+  },
+  {
+    id: 'A1.105',
+    what: 'o batimento aceita a sonda de ontem — o cron que não perguntou hoje passa calado',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [{ find: '    } else if (day !== today) {', replace: "    } else if (day === 'nunca') {" }],
+    expect: 'fails when the probe is from the day before',
+  },
+  {
+    id: 'A1.106',
+    what: 'o batimento culpa o login num dia sem briefing — duas linhas para uma causa',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    dropLine: "    checks.push({ id: 'login', state: 'skipped', summary: 'depende do briefing de hoje' });",
+    expect: 'does not ask about the login on a day without the briefing',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

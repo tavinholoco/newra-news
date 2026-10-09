@@ -1,9 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { authPlugin } from '../../plugins/auth';
 import { checkAllProviders } from '../../services/health.service';
 import { assertJobSecret } from '../../utils/job-secret';
 import { errorResponseSchema } from '../../utils/schemas';
-import { healthResponseSchema, providersHealthResponseSchema } from './schemas';
+import {
+  healthAuthResponseSchema,
+  healthResponseSchema,
+  providersHealthResponseSchema,
+} from './schemas';
 
 export async function healthRoutes(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().get(
@@ -43,4 +48,35 @@ export async function healthRoutes(app: FastifyInstance) {
       return checkAllProviders();
     },
   );
+
+  /**
+   * **A sonda do par de JWT entre a Vercel e a API** — 13.7 do plano de
+   * observabilidade, 09/10/2026.
+   *
+   * Os fluxos com login do Smoke ficam desligados por decisão: o
+   * `NEXTAUTH_SECRET` de produção no CI daria a qualquer dependência
+   * comprometida uma sessão de admin (o papel vem do token). O defeito que eles
+   * pegariam é o par `AUTH_JWT_SECRET` divergente entre as duas plataformas —
+   * todo leitor logado em 401 com o site anônimo perfeito, e isso já aconteceu.
+   * Aqui ele é perguntado sem segredo fora delas: a Vercel assina um token de
+   * escopo próprio e chama esta rota, que **só** o aceita (e que nenhum outro
+   * token abre — o `authPlugin` com `purpose` é simétrico).
+   *
+   * Não toca o banco: a pergunta é sobre a assinatura, e só sobre ela.
+   */
+  await app.register(async (probe) => {
+    await probe.register(authPlugin, { purpose: 'health-probe' });
+    probe.withTypeProvider<ZodTypeProvider>().get(
+      '/auth',
+      {
+        schema: {
+          response: {
+            200: healthAuthResponseSchema,
+            401: errorResponseSchema,
+          },
+        },
+      },
+      async () => ({ data: { accepted: true as const } }),
+    );
+  });
 }
