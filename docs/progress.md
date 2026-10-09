@@ -9077,11 +9077,29 @@ denominador era o clique no card, que quem chega pelo buscador não dá.
     user agent não serviria de sinal;
   - **as janelas das ferramentas, pelo GitHub:** 32 execuções do Lighthouse
     desde 17/08 (4–5 min, 21 carregamentos cada) e 37 do Smoke (~8 min);
-  - **o cruzamento hora a hora com o `ProductEvent` de produção não foi
-    feito**: o dono liberou, e o classificador do modo auto recusou trazer a
-    string de conexão do Neon. A correção não dependia dele — as quatro
-    ferramentas carregam o sinal —, e ele fica como a primeira leitura depois
-    da promoção (abaixo).
+  - **o cruzamento com o `ProductEvent` de produção** (pelo MCP do Neon,
+    que o dono conectou depois de o classificador recusar a string de
+    conexão; só leitura) **derrubou a hipótese de partida.** São **1.060
+    sessões** com `article_scroll_90` nos 90 dias, e **só 45 (4 %) caem nas
+    janelas das ferramentas** — 32 do Lighthouse, 13 do Smoke. **As outras
+    1.015 são robôs que executam JavaScript:** de 29/08 a 19/09, a qualquer
+    hora do dia, 942 em `/news/[id]` e 73 em `/article/[date]`, metade em
+    `/en`, cada uma numa sessão própria;
+  - **a assinatura é a mesma nas 1.060:** exatamente três eventos (25, 50 e
+    90 %) e **nenhum outro** — nem `homepage_view`, nem clique —, e em
+    **97,6 %** os três limiares saem em menos de um segundo (530 no mesmo
+    milissegundo; o maior intervalo, 28 s). É renderizar e ir embora, sem
+    rolar. **Quem os tira da métrica é a saída (2), não a (1)**: se esses
+    robôs expõem `navigator.webdriver` não se sabe, e não precisa;
+  - **os eventos de robô param em 19/09 às 12:04** (a API suspensa) **e não
+    voltam depois de 01/10**: de lá para cá só o Lighthouse gera rolagem
+    (três por execução, na `/pt-BR/article/<dia>`), o Smoke quase nunca gera
+    evento (uma `homepage_view` em nove execuções), e **não há linha nenhuma
+    desde 06/10 às 19:20**. Ausência de visitante ou ingestão perdida (a
+    borda do Render recusando a Vercel, armadilha 45, já pegou um
+    `POST /api/events` em 01/10) — os dados não separam as duas, e é a
+    conferência depois da promoção que separa: o `article_view` tem de
+    aparecer.
 - **As três saídas da §23, na ordem dela, as três com guarda:**
   1. `isTrackingAllowed()` recusa `navigator.webdriver` (não é oposição — é
      que não há leitor), e o `track()` pergunta a ele;

@@ -5090,10 +5090,19 @@ saídas que a lista acima previa, na ordem dela.
   Chromium do Playwright (o do Smoke, da baseline e do `admin:capture`) e no
   do Lighthouse CI (`@lhci/cli@0.15.1`, o da action, contra uma página local
   que devolvia o valor). O Lighthouse se apresenta como um celular emulado —
-  o user agent não serviria. **O cruzamento hora a hora com o `ProductEvent`
-  de produção não foi feito**: com o ok do dono, o classificador do modo auto
-  recusou trazer a string de conexão do Neon. Ele não mudaria a correção, e
-  virou a conferência depois da promoção (abaixo).
+  o user agent não serviria.
+- **E o cruzamento com produção mostrou que as ferramentas eram o menor
+  pedaço.** Feito pelo MCP do Neon (só leitura), depois de o classificador
+  recusar a string de conexão: das **1.060 sessões** com 90 % nos 90 dias,
+  **45 (4 %)** caem nas janelas do Lighthouse e do Smoke; **1.015 são robôs
+  que executam JS**, de 29/08 a 19/09, a toda hora, 942 em `/news/[id]`.
+  Todas com a mesma assinatura: **três eventos (25/50/90) e nenhum outro, em
+  97,6 % dentro de um segundo** — renderizar e sair, sem rolar. **A saída
+  (2) é a que os tira**, com ou sem `webdriver`; a (1) cobre as nossas
+  ferramentas. E a série tem um buraco por explicar: **nenhum evento de
+  robô depois de 01/10, e nenhum evento de espécie alguma desde 06/10 às
+  19:20** — ausência de visitante ou ingestão perdida na borda do Render
+  (armadilha 45); a conferência abaixo separa as duas.
 - **(1) `isTrackingAllowed()` recusa automação**, com a fiação no `track()`
   coberta (armadilha 28). É a regra do WebDriver (W3C); o robô que esconde o
   sinal continua contado, e os nossos não escondem.
@@ -5117,10 +5126,12 @@ saídas que a lista acima previa, na ordem dela.
   o `resize` acordando a medição, a visualização dobrada no StrictMode, o
   90% sem o par, a resposta antiga lida como "nenhuma tela"). **1.478 →
   1.483 na API, 1.000 → 1.009 no web.**
-- **O que conferir depois da promoção:** uma execução do Smoke e uma do
-  Lighthouse **sem nenhuma linha de `ProductEvent` na janela delas** (pede a
-  credencial do Neon, liberada pelo dono no chat), e a primeira semana de
-  `viewed`/`completed` na `/admin/metrics`. **Gatilho para reabrir:**
+- **O que conferir depois da promoção:** uma execução do Lighthouse **sem
+  nenhuma linha de `ProductEvent` na janela dela** (hoje ela grava três
+  `article_scroll_90` por execução; a consulta vai pelo MCP do Neon,
+  conectado em 09/10), e **que o `article_view` aparece** na primeira
+  semana — zero linhas com tráfego no log da Vercel é ingestão perdida, não
+  falta de leitor. **Gatilho para reabrir:**
   `completed / viewed` acima de 60 % com `viewed` acima de 50 numa semana —
   leitura completa nesse nível em notícia é sinal de que outro robô está
   sendo contado.

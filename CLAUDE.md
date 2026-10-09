@@ -370,8 +370,12 @@ a suíte de unidade, que roda sem rede.
   `ScrollDepth` só conta depois da primeira rolagem; e o denominador virou
   a tela vista, num evento novo (`article_view`, 13 no catálogo), com a API
   cruzando o par (sessão, conteúdo). Mutações A1.87–A1.92. **1.483 na API,
-  1.009 no web.** O cruzamento com o `ProductEvent` de produção ficou para
-  depois da promoção (o classificador recusou a credencial do Neon).
+  1.009 no web.** **O cruzamento com produção (MCP do Neon) mudou o
+  diagnóstico:** das 1.060 sessões com 90 %, só 45 eram das ferramentas —
+  1.015 eram robôs que executam JS em `/news/[id]`, todos com os três
+  limiares em menos de um segundo e nenhum outro evento; quem os tira é a
+  regra da rolagem. E não há evento nenhum desde 06/10 — a conferir na
+  promoção.
   **Próximo: o 13d** (o Gitleaks, 13.6).
 
 - 🟢 **09/10/2026: o 13b — o denominador honesto — no ar (#277, com o 13a),
