@@ -1275,6 +1275,53 @@ const MUTATIONS = [
     ],
     expect: 'desenha "indisponível" quando a API no ar ainda não mede a tela vista',
   },
+  // ── Fase 13 (13d): o Gitleaks varre o que o push trouxe ─────────────────
+  {
+    id: 'A1.93',
+    what: 'o push volta a varrer com `--first-parent --no-merges` — o merge dá zero',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    edits: [
+      {
+        find: '            log_opts="$BEFORE..$AFTER"',
+        replace: '            log_opts="--no-merges --first-parent $BEFORE..$AFTER"',
+      },
+    ],
+    expect: 'sem `--first-parent` nem `--no-merges`',
+  },
+  {
+    id: 'A1.94',
+    what: 'o binário do Gitleaks roda sem a conferência do sha256',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    dropLine: 'sha256sum -c -',
+    expect: 'conferido por sha256 antes de rodar',
+  },
+  {
+    id: 'A1.95',
+    what: 'a action volta a rodar no push — e varre zero commits no merge',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    dropLine: "    if: github.event_name == 'pull_request'",
+    expect: 'a action roda só no `pull_request`',
+  },
+  {
+    id: 'A1.96',
+    what: 'o `before` do evento interpolado no script (injeção por expressão)',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    edits: [
+      {
+        find: '            range="$BEFORE..$AFTER"',
+        replace: '            range="${{ github.event.before }}..$AFTER"',
+      },
+    ],
+    expect: 'entram por `env:`, nunca interpolados no script',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
