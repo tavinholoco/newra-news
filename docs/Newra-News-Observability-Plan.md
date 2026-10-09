@@ -5046,7 +5046,8 @@ promovido no #277 com o 13a; a primeira leitura entrou às 17:32 UTC).** Item **
 - **Promovido no #277 e medido (09/10/2026).** O merge às 17:27 UTC; às
   17:29:25 a rota nova respondia 401 sem sessão nos dois lados (a Vercel e o
   Render), em vez do 404 da versão anterior. CI, CodeQL e Gitleaks verdes —
-  o Gitleaks varreu `0 commits` outra vez, a 15.ª medição do 13.6. **A
+  o Gitleaks varreu `0 commits` outra vez, a 15.ª medição do 13.6; Smoke
+  **32/6** (o novo é o 401 da escrita de admin sem sessão). **A
   primeira leitura, pelo dono, às 17:32 UTC: 169,72 h** no workspace, com
   esta API em **48 h** e o `NetsheetEngine` em **~121 h** (71 %). O arco
   marcou 23 % (~170 h de 750) e a projeção do mês, **603 h (80 % do

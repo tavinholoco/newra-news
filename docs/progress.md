@@ -9036,8 +9036,9 @@ outubro (item 87). Setembro estourou em 753,4 h com o arco mostrando folga.
 - **Promovido no #277, no mesmo dia, com o 13a** (14 commits; sem migration,
   env ou dependência). Merge às 17:27 UTC; às 17:29:25 a rota nova respondia
   401 sem sessão na Vercel e no Render. CI, CodeQL e Gitleaks verdes — o
-  Gitleaks com `0 commits scanned`, a 15.ª medição do 13.6. A `dev` foi
-  realinhada por fast-forward.
+  Gitleaks com `0 commits scanned`, a 15.ª medição do 13.6. **Smoke E2E: 32
+  passed, 6 skipped** (eram 31: o novo é o 401 de `POST /api/admin/plan-hours`
+  sem sessão). A `dev` foi realinhada por fast-forward.
 - **A primeira leitura, pelo dono, às 17:32 UTC: 169,72 h** no workspace —
   esta API **48 h**, o `NetsheetEngine` **~121 h** (71 %). O arco marcou 23 %
   e a projeção do mês **603 h (80 %)**. A projeção é no ritmo do mês inteiro,
