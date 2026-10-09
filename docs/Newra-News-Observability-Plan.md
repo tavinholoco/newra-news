@@ -3549,7 +3549,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Fonte quebrada | **3 dias seguidos** de `FAILED` para a mesma fonte |
 | Fonte definhando | `kept` médio de 7 dias abaixo de **30%** do de 30 dias |
 | Balde da NewsData virou cego | quando a decisão em pauta for **trocar o agregador** — aí dividir `source: 'newsdata'` por veículo vira pré-requisito |
-| **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo. **Treze medições de zero até 01/10/2026, a última no push da promoção #251 — virou trabalho: Fase 13, item 13.6 (§23)** |
+| **Gitleaks não varre o que entra por merge** | medido em 07/09/2026 no push da `dev`: o scan de `push` roda com `--no-merges --first-parent`, e no merge do PR #160 isso deu **zero commits varridos** enquanto os commits trazidos continham o achado que reprovou o PR duas vezes. **Gatilho: o primeiro merge com o Gitleaks vermelho** — a partir daí a base fica sem varredura sobre aquele conteúdo. **Treze medições de zero até 01/10/2026, a última no push da promoção #251 — virou trabalho: Fase 13, item 13.6 (§23)**. ~~Aberta~~ **Fechada em 09/10/2026 pelo 13d**, depois de quinze medições de zero: o `push` roda o binário sobre `before..after`, merges incluídos (o #279 refeito à mão: 2 commits contra 0; a promoção #277: 15 contra 0) |
 | ~~**A própria ISR acorda a API, e o `revalidate = 3600` das listagens é um keep-alive que ninguém contou**~~ **Fechada em 01/10/2026 (#255 → #256), antes do gatilho:** outubro abriu com 28 h no primeiro dia e não deu para esperar o `DailyUptime`. `revalidate` de um dia em tudo (sete na `/news/[id]`), invalidação no aceite **e** no fim do run (`settleRun` sondando `GET /api/jobs/:id`; *as duas eram uma, no fim — armadilha 47, 13.12*), news sitemap a um dia; detalhe na §23 e no item 85 do `docs/progress.md`. Texto original: | medido em 19/09/2026 (item 82): toda regeneração chama a API — Home, `/news` e `/article` de hora em hora são ≥ 6 h/dia de instância se um bot visita cada uma por hora, e o `news-sitemap.xml` a 900 s pode não deixá-la dormir nunca. A projeção do §9.0 do `setup.md` ("60–150 h/mês") não os contava, e o workspace ainda divide as 750 h com o `NetsheetEngine`. O cron já invalida tudo sob demanda depois do pipeline; o 3600 é só a rede de segurança da invalidação otimista (dívida escrita no próprio cron). **Gatilho: o `DailyUptime` acima de 12 h num dia sem deploy e sem incidente** — aí é `revalidate` de dia inteiro nas listagens com invalidação ao **fim** do run (sondar `GET /api/jobs/:id`, ou a API chamar a revalidação), e o news sitemap a 3600. Antes disso, o número que vale é o de Billing → horas por serviço |
 | **O `htmlToText` devolve texto que pode conter `<script>` literal** | o `js/incomplete-multi-character-sanitization` do CodeQL em `providers/news/feed-text.ts` (aberto desde 05/09, o único alerta que a Fase 12 deixou aberto — A6.03): decodifica, tira tag, decodifica de novo, então `&amp;lt;script&amp;gt;` do feed volta como `<script>` **em texto**, e o conteúdo de um `<script>` aninhado sobrevive como texto. Nenhum consumidor o trata como HTML — o React escapa, a newsletter escapa antes de enviar —, então não há onde isso execute. **Gatilho: o primeiro consumidor que renderizar `News.content`/`description` como HTML** (um `dangerouslySetInnerHTML`, um e-mail com o corpo da matéria, um RSS nosso); aí o texto passa por um sanitizador de verdade, e não por outra regex. No web o gatilho tem guarda: `tests/security/browser-surface.test.ts` reprova o terceiro `dangerouslySetInnerHTML` além dos dois auditados (JSON-LD e o script do tema) |
 | **Erro de servidor nas duas páginas ISR de detalhe é a 500 estática do Next, e nenhum boundary a alcança** | medido na 7b (17/09/2026): `/news/[id]` e `/article/[date]` são render de geração (`revalidate` + `generateStaticParams` vazio), e erro na geração — do `generateMetadata` ou do corpo — é "a geração falhou", não "renderize o `error.tsx`"; a navegação de cliente cai para navegação dura no 500 do RSC. O `digest` existe no log e não chega a ninguém, e nada é reportado. **Gatilho: a primeira linha `CLIENT_ERROR` com `route` de uma das duas em que alguém precise do digest — ou a primeira medição de `/news/[id]` respondendo 500 em produção fora de uma acordada da API.** A saída é decisão sobre ISR e SEO (metadata resiliente à falha de transporte + o que o CDN cacheia de um render de erro), não sobre boundary |
@@ -5136,6 +5136,43 @@ saídas que a lista acima previa, na ordem dela.
   leitura completa nesse nível em notícia é sinal de que outro robô está
   sendo contado.
 
+**O que o PR 13d decidiu — 09/10/2026 ✅ (na `dev`; sobe na segunda
+promoção da fase).** Item **95** do `docs/progress.md`. O 13.6.
+
+- **O zero era da action, e não tinha conserto por entrada.** No SHA fixado
+  (`gitleaks-action` v3.0.0, `src/gitleaks.js`), o `push` monta
+  `--log-opts=--no-merges --first-parent <primeiro>^..<último>` direto no
+  código; o `BASE_REF` só troca a ponta de baixo. Num merge, o
+  `--no-merges` pula o commit de merge e o `--first-parent` não desce nos
+  commits do branch — zero. **Refeito à mão:** o merge do #279 são 2 commits
+  e a action varria 0; a promoção #277 são 15 commits (5 merges) e a action
+  varria 0.
+- **O PR continua com a action** (é ela que comenta o achado no PR), com o
+  `pull-requests: write` descendo para o job dela — o topo do workflow virou
+  só leitura. **O `push` ganhou um job próprio, `gitleaks-push`,** que roda
+  o binário: a mesma versão que a action baixa (8.24.3), do release, com o
+  **sha256 fixado conferido antes de executar**; o intervalo é
+  `$BEFORE..$AFTER` do evento, entrando por `env:` (interpolado no script
+  seria injeção por expressão). O resumo do job imprime o intervalo, quantos
+  commits e quantos merges.
+- **Sem `before` utilizável** (os zeros do primeiro push de um branch, ou um
+  force-push que o apagou) **varre-se a ponta e o resumo avisa.** O
+  histórico inteiro não é o plano B: ele guarda a fixture do #160, que
+  reprovaria por um achado velho e conhecido, e o repositório não tem
+  `.gitleaksignore`. Force-push na `dev` e na `main` é proibido.
+- **A guarda achou um defeito nela mesma antes de servir:** a asserção "nada
+  de `latest`" casou o `runs-on: ubuntu-latest` — caractere, não intenção
+  (armadilha 38). Hoje ela procura `releases/latest` e a versão `latest`.
+- **Guardas e mutações:** 7 guardas novas no `workflow-hardening` (a action
+  só no PR, o intervalo sem `--first-parent`/`--no-merges`, versão e sha256
+  fixados com a conferência antes da execução, `before`/`after` por `env:`,
+  a contagem no resumo, a escrita só no job do PR), vistas reprovando;
+  mutações **A1.93–A1.96**. **1.478 → 1.485 na API** sobre a `dev` (1.490
+  com o 13c).
+- **A prova é o merge deste PR na `dev`**: é um `push` que roda o job novo,
+  e o resumo tem de dizer o número de commits — a 16.ª medição, a primeira
+  que não é zero. Depois, a promoção: a 17.ª, na `main`.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -5156,7 +5193,7 @@ saídas que a lista acima previa, na ordem dela.
 | ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Promovido no #277 (09/10); o ensaio do alerta provou o e-mail no mesmo dia; o primeiro agendado é 10/10 12:40 UTC | a Fase 12 fechada |
 | ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Promovido no #277 (09/10); a primeira leitura (169,72 h) entrou no mesmo dia | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
 | ~~**13c**~~ ✅ 09/10 | 13.4 (a métrica de leitura): `webdriver` recusado, a rolagem como prova de leitor, e `article_view` como denominador. Na `dev`; sobe na segunda promoção | o inventário dos eventos — medido nas ferramentas; o cruzamento com produção fica para depois da promoção |
-| **13d** | 13.6 (o Gitleaks) | — |
+| ~~**13d**~~ ✅ 09/10 | 13.6 (o Gitleaks): o `push` roda o binário sobre `before..after`; a action fica no PR. Na `dev`; sobe na segunda promoção | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
 | — | 13.8, ~~13.9~~, ~~13.10~~ | o gatilho da armadilha 45; ~~uma semana de `DailyUptime`~~ (no 13b); ~~junto do 13a~~ (no 13a) |
 
@@ -5168,27 +5205,32 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
-> 07/10, o 13b e o 13c em 09/10; leia os quatro blocos "O que o PR …
-> decidiu") e o §17 (armadilhas, até a 47). Siga pelo **PR 13d — o Gitleaks
-> varre o intervalo do push (13.6)**. Corte a branch da `dev`. O 13a e o 13b
-> estão no ar desde a promoção #277 (09/10); o 13c está na `dev` e sobe na
-> segunda promoção. Antes de tudo, confira as execuções **agendadas** do
-> Heartbeat (desde 10/10 12:40 UTC): verdes, e a linha `heartbeat api_ms=…`
-> no log — é a série do 13.3, que decide o 13.3 com uma semana dela. Antes
-> de qualquer escrita em produção, me pergunte.
+> 07/10, o 13b, o 13c e o 13d em 09/10; leia os cinco blocos "O que o PR …
+> decidiu") e o §17 (armadilhas, até a 47). O que sobra da fase não é PR de
+> código pronto: é **o 13.5 (a Veja Saúde) medido de um datacenter e levado
+> a mim para decidir**, **o 13.7 (os fluxos autenticados do Smoke) como
+> decisão minha**, e **o 13.3 com uma semana da série do batimento** (~17/10).
+> Comece conferindo as execuções **agendadas** do Heartbeat (desde 10/10
+> 12:40 UTC): verdes, e a linha `heartbeat api_ms=…` no log. Antes de
+> qualquer escrita em produção, me pergunte.
 >
-> **O que a sessão fria precisa saber para o 13d:** é mudança em workflow de
-> segurança — o `workflow-hardening` cobra SHA fixado com o comentário da
-> versão e permissões mínimas, e o PR **prova o número num push real na
-> `dev`**: a 16.ª medição tem de dizer quantos commits o merge trouxe, não
-> zero. Leia o `.github/workflows/gitleaks.yml` e a linha do Gitleaks no §16
-> antes de mexer. O Auto-fix do CI fica desligado (o dono liga quando
-> quiser). Pendências do dono que não travam o 13d: reler o Billing por
-> volta de 16/10 (o gatilho da contagem automática, §16), e liberar a
-> credencial do Neon para a conferência do 13c depois da promoção (o
-> classificador do modo auto recusou trazê-la em 09/10 mesmo com o ok no
-> chat — vale tentar o MCP do Neon, autorizado pelo `/mcp`, que roda SQL sem
-> a string passar pelo agente).
+> **O que a sessão fria precisa saber:** o 13c e o 13d estão na `dev` (#280
+> e o PR do 13d, empilhado nele) e sobem juntos na **segunda promoção** da
+> fase. Depois dela: (a) o resumo do job `gitleaks-push` no push da `main`
+> tem de dizer o número de commits da promoção, não zero — a 17.ª medição;
+> (b) uma execução do Lighthouse sem nenhuma linha de `ProductEvent` na
+> janela dela, e o `article_view` aparecendo — pelo **MCP do Neon**, que o
+> dono conectou em 09/10 (`mcp__Neon__run_sql`, projeto
+> `rapid-art-19064809`; o `neonctl connection-string` é recusado pelo
+> classificador). O 13.5 pede rodar o feed num runner do GitHub: um
+> `workflow_dispatch` só dispara do branch padrão, então a medição
+> descartável vai por `pull_request` num PR de rascunho que não mergeia. O
+> Auto-fix do CI fica desligado. Pendência do dono que não trava nada:
+> reler o Billing por volta de 16/10 (o gatilho da contagem automática,
+> §16).
+>
+> *(O de 09/10 à noite, que abriu o 13d: "…siga pelo PR 13d — o Gitleaks
+> varre o intervalo do push (13.6)".)*
 >
 > *(O de 09/10 à tarde, que abriu o 13c: "…siga pelo PR 13c — a métrica de
 > leitura (13.4), que começa pelo inventário dos eventos de rolagem contra as

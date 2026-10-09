@@ -342,8 +342,9 @@ a suíte de unidade, que roda sem rede.
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
   com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
   curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o 13c
-  fechou na `dev` (09/10); o próximo é o 13d**, pelo prompt de abertura no
-  fim da §23.
+  e o 13d fecharam na `dev` (09/10) e sobem na segunda promoção; sobram o
+  13.5 e o 13.7 (decisões do dono) e o 13.3 (~17/10)**, pelo prompt de
+  abertura no fim da §23.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -361,6 +362,16 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **09/10/2026 (noite): o 13d — o Gitleaks varre o que o push trouxe —
+  na `dev`, empilhado no 13c.** Item **95**; §23 do plano. A action monta o
+  `push` com `--no-merges --first-parent` fixo no código, e quinze pushes de
+  merge saíram com `0 commits scanned`; refeito à mão, a promoção #277 eram
+  15 commits. O PR fica com a action; o `push` roda o binário (8.24.3,
+  sha256 fixado e conferido) sobre `before..after`, e o resumo diz quantos
+  commits entraram. Mutações A1.93–A1.96. **1.490 na API e 1.009 no web**
+  com o 13c. **A prova é o merge na `dev`**: a 16.ª medição tem de ter
+  número. **Fecha a linha do Gitleaks no §16.**
 
 - 🟢 **09/10/2026 (noite): o 13c — a métrica de leitura volta a medir
   leitores — na `dev`.** Item **94**; §23 do plano. A `/admin/metrics`
@@ -1562,8 +1573,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.492 em 192 suites (**1.483 API em 99** + **1.009 web em 93** —
-  todos passando, contados em 09/10/2026, depois do 13c), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.499 em 192 suites (**1.490 API em 99** + **1.009 web em 93** —
+  todos passando, contados em 09/10/2026, depois do 13c e do 13d), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

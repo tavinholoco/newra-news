@@ -1,5 +1,17 @@
 name: Gitleaks
 
+# Dois caminhos, e o motivo é o 13.6 do plano de observabilidade.
+#
+# **No PR, a action** — é ela que comenta o achado no próprio PR, e o PR é
+# varrido por inteiro.
+#
+# **No push, o binário, sobre `before..after`.** A action monta o push com
+# `--no-merges --first-parent` fixo no código (`src/gitleaks.js` do SHA
+# abaixo), sem entrada que o mude: num merge, o commit de merge é pulado e os
+# commits do branch também, e o resumo dizia `0 commits scanned` — quinze
+# medições de 07/09 a 09/10/2026, inclusive nas promoções. A base ficava sem
+# varredura sobre tudo o que entra por PR. Aqui o intervalo é o do evento:
+# todo commit que o push trouxe, merges e os commits do branch incluídos.
 on:
   pull_request:
   push:
@@ -7,12 +19,15 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   gitleaks:
     name: Secret Scanning (Gitleaks)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -20,3 +35,69 @@ jobs:
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  gitleaks-push:
+    name: Secret Scanning (Gitleaks, push range)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      # A versão que a action baixa por padrão — os dois caminhos medem com o
+      # mesmo motor. O sha256 é o do `gitleaks_8.24.3_checksums.txt` do
+      # release; trocar a versão é trocar as duas linhas juntas.
+      GITLEAKS_VERSION: '8.24.3'
+      GITLEAKS_SHA256: '9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Baixado do release e conferido **antes** de executar: binário que não
+      # bate com o checksum fixado não roda.
+      - name: Install Gitleaks (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+
+      # `before`/`after` entram por `env:`: interpolado no script, texto do
+      # evento viraria shell.
+      #
+      # Sem `before` utilizável — o primeiro push de um branch (zeros) ou um
+      # force-push que apagou o `before` do histórico — varre-se a ponta e o
+      # resumo **avisa**. O histórico inteiro não é o plano B: ele guarda a
+      # fixture do PR #160, que reprovaria por um achado velho e conhecido.
+      # Force-push na `dev` e na `main` é proibido pela política do repositório.
+      - name: Scan the commits this push brought in
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          if git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="$BEFORE..$AFTER"
+            count=$(git rev-list --count "$BEFORE..$AFTER")
+            merges=$(git rev-list --count --merges "$BEFORE..$AFTER")
+            note="todo commit que o push trouxe, merges e os commits do branch incluídos"
+            log_opts="$BEFORE..$AFTER"
+          else
+            range="$AFTER (só a ponta)"
+            count=1
+            merges=$(git rev-list --count --merges -1 "$AFTER")
+            note="sem \`before\` utilizável (${BEFORE:0:12}) — varreu só a ponta"
+            log_opts="-1 $AFTER"
+            echo "::warning::Gitleaks: sem before utilizável; só o commit da ponta foi varrido"
+          fi
+
+          {
+            echo "### Gitleaks — push"
+            echo
+            echo "| Intervalo | Commits | Merges | |"
+            echo "|---|---|---|---|"
+            echo "| \`${range}\` | ${count} | ${merges} | ${note} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "gitleaks push range=${range} commits=${count} merges=${merges}"
+
+          "$RUNNER_TEMP/gitleaks" git --log-opts="$log_opts" --redact --verbose --exit-code 1 .
