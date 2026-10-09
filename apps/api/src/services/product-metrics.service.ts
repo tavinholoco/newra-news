@@ -21,6 +21,17 @@ function texto(payload: Payload, campo: string): string | null {
   return typeof valor === 'string' ? valor : null;
 }
 
+/**
+ * A chave de uma leitura: o mesmo conteúdo, na mesma sessão. Voltar à tela
+ * na mesma sessão é a mesma leitura possível — contar duas visualizações
+ * contra um 90% daria 50% para quem leu.
+ */
+function leitura(sessionId: string, payload: Payload): string | null {
+  const contentId = texto(payload, 'contentId');
+  const contentType = texto(payload, 'contentType');
+  return contentId && contentType ? `${sessionId}|${contentType}|${contentId}` : null;
+}
+
 /** Ordena um mapa de contagens do maior para o menor. */
 function ranking<T extends string>(
   contagens: Map<T, number>,
@@ -76,6 +87,16 @@ export async function getProductMetrics(
 
   const profundidade = { opened: 0, scroll25: 0, scroll50: 0, scroll90: 0 };
 
+  // A leitura completa é um **par**: a tela vista e o 90% do mesmo conteúdo,
+  // na mesma sessão (13.4 do plano de observabilidade). Contar os dois lados
+  // em separado e dividir dava 1.034 leituras sobre 0 aberturas em 01/10 —
+  // o 90% vinha das nossas ferramentas e de antes de a visualização existir,
+  // e o denominador era o clique no card, que quem chega pelo buscador não
+  // dá. Pelo par, a taxa nunca passa de 100 %, e um 90% sem visualização na
+  // janela não entra no numerador.
+  const vistas = new Set<string>();
+  const lidasAte90 = new Set<string>();
+
   for (const linha of linhas as Linha[]) {
     const payload = (linha.payload ?? {}) as Payload;
 
@@ -122,9 +143,17 @@ export async function getProductMetrics(
       case 'article_scroll_50':
         profundidade.scroll50 += 1;
         break;
-      case 'article_scroll_90':
-        profundidade.scroll90 += 1;
+      case 'article_view': {
+        const chave = leitura(linha.sessionId, payload);
+        if (chave) vistas.add(chave);
         break;
+      }
+      case 'article_scroll_90': {
+        profundidade.scroll90 += 1;
+        const chave = leitura(linha.sessionId, payload);
+        if (chave) lidasAte90.add(chave);
+        break;
+      }
       default:
         break;
     }
@@ -158,7 +187,14 @@ export async function getProductMetrics(
       porCategoria,
       'category',
     ) as ProductMetrics['categoryViews'],
-    readingDepth: profundidade,
+    readingDepth: {
+      opened: profundidade.opened,
+      viewed: vistas.size,
+      completed: [...vistas].filter((chave) => lidasAte90.has(chave)).length,
+      scroll25: profundidade.scroll25,
+      scroll50: profundidade.scroll50,
+      scroll90: profundidade.scroll90,
+    },
     searchesWithoutResults: (
       ranking(buscasVazias, 'query') as ProductMetrics['searchesWithoutResults']
     ).slice(0, TOP_SEARCHES),

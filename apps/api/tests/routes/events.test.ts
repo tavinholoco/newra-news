@@ -198,6 +198,29 @@ describe('POST /api/events', () => {
     expect(res.statusCode).toBe(201);
   });
 
+  it('accepts the reading-screen view — the denominator of read-through', async () => {
+    // 13.4 do plano de observabilidade: a leitura completa passou a dividir
+    // pela tela vista, não pelo clique no card.
+    const res = await post(app, [
+      {
+        ...base,
+        path: '/pt-BR/news/13a1eaa9-87bf-4a69-95a6-915aa320e1d6',
+        type: 'article_view',
+        contentId: '13a1eaa9-87bf-4a69-95a6-915aa320e1d6',
+        contentType: 'story',
+      },
+    ]);
+
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('rejects a reading-screen view without the content it is about', async () => {
+    const res = await post(app, [{ ...base, type: 'article_view', contentType: 'story' }]);
+
+    expect(res.statusCode).toBe(400);
+    expect(ingestMock).not.toHaveBeenCalled();
+  });
+
   it('rejects an ad event — the catalogue no longer has one', () => {
     // `ad_view`/`ad_click` saíram com a decisão de não exibir anúncio. O schema
     // é o contrato: um cliente antigo que ainda os mandasse recebe 400.

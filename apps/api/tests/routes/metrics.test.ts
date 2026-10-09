@@ -297,7 +297,14 @@ describe('GET /api/metrics/product (admin)', () => {
     byType: [{ type: 'homepage_view', count: 9 }],
     storyOpensBySource: [{ source: 'hero', count: 4 }],
     categoryViews: [{ category: 'HEALTH', count: 2 }],
-    readingDepth: { opened: 6, scroll25: 4, scroll50: 3, scroll90: 1 },
+    readingDepth: {
+      opened: 6,
+      viewed: 5,
+      completed: 1,
+      scroll25: 4,
+      scroll50: 3,
+      scroll90: 1,
+    },
     searchesWithoutResults: [{ query: 'eclipse', count: 2 }],
   };
 
@@ -349,6 +356,8 @@ describe('GET /api/metrics/product (admin)', () => {
     // serialização, sem erro nenhum.
     expect(body.data.searchesWithoutResults[0]?.query).toBe('eclipse');
     expect(body.data.readingDepth.scroll90).toBe(1);
+    expect(body.data.readingDepth.viewed).toBe(5);
+    expect(body.data.readingDepth.completed).toBe(1);
   });
 
   it('should honour the requested window', async () => {

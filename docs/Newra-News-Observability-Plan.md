@@ -3538,6 +3538,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
 | **As horas do `NetsheetEngine` entram por leitura manual do Billing** (13b, decidido pelo dono em 09/10/2026) | o Render não tem API de cobrança e a chave dele não tem escopo; o dono digita o total do workspace na `/admin`, e entre leituras a tela estima o outro serviço no ritmo da última. **A saída automática está desenhada:** o `NetsheetEngine` conta as próprias horas (heartbeat que só escreve no banco dele, como o `DailyUptime`) e expõe uma rota com segredo; o run diário da Newra — a API já acordada pelo pipeline às 11h — pergunta uma vez por dia e grava por serviço. Custa até ~7,5 h/mês do `NetsheetEngine` (a pergunta o acorda quando ele dorme; o inverso, ele avisar a Newra, acordaria esta API a cada acordada dele), uma migration aqui, um segredo nos dois serviços e trabalho no repositório dele. **Gatilho: a projeção do workspace acima de 600 h (80 % do teto) em duas leituras seguidas** — aí a estimativa entre leituras deixa de ser folga e passa a ser o número que decide. **A primeira leitura, em 09/10 (169,72 h), já projetou 603 h na tela** — o ritmo do mês inteiro, que carrega os 24,8 h/dia de antes de 06/10; no ritmo recente (12,2 h/dia desde 06/10) são **~441 h**, e as leituras seguintes puxam a projeção para lá sozinhas. **Releitura sugerida: ~16/10** — se ela ainda passar de 600 h, o gatilho disparou |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
+| **A leitura completa só exclui o robô que se declara** (13c, 09/10/2026) | o `track()` recusa `navigator.webdriver`, que as nossas ferramentas expõem; o rastreador que roda JS e esconde o sinal continua contado, e uma heurística por comportamento (tempo na tela, velocidade de rolagem) mediria o leitor apressado junto. **Gatilho: `completed / viewed` acima de 60 % numa semana com `viewed` acima de 50** na `/admin/metrics` — leitura até o fim nesse nível, em notícia, é outro robô sendo contado; aí o `path`/hora das linhas dirá qual |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
 | ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo desde a promoção #277 (09/10/2026)**, com o e-mail provado pelo ensaio no mesmo dia (17:41 UTC) — o primeiro agendado é o das 12:40 UTC de 10/10 |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
@@ -5080,6 +5081,61 @@ promovido no #277 com o 13a; a primeira leitura entrou às 17:32 UTC).** Item **
   delas; não foi feito, e a linha do §16 depende de duas leituras seguidas
   justamente por isso.
 
+**O que o PR 13c decidiu — 09/10/2026 ✅ (na `dev`; sobe na segunda
+promoção da fase).** Item **94** do `docs/progress.md`. O 13.4, nas três
+saídas que a lista acima previa, na ordem dela.
+
+- **O inventário respondeu a pergunta que decidia a primeira saída: as
+  quatro ferramentas expõem `navigator.webdriver === true`.** Medido no
+  Chromium do Playwright (o do Smoke, da baseline e do `admin:capture`) e no
+  do Lighthouse CI (`@lhci/cli@0.15.1`, o da action, contra uma página local
+  que devolvia o valor). O Lighthouse se apresenta como um celular emulado —
+  o user agent não serviria.
+- **E o cruzamento com produção mostrou que as ferramentas eram o menor
+  pedaço.** Feito pelo MCP do Neon (só leitura), depois de o classificador
+  recusar a string de conexão: das **1.060 sessões** com 90 % nos 90 dias,
+  **45 (4 %)** caem nas janelas do Lighthouse e do Smoke; **1.015 são robôs
+  que executam JS**, de 29/08 a 19/09, a toda hora, 942 em `/news/[id]`.
+  Todas com a mesma assinatura: **três eventos (25/50/90) e nenhum outro, em
+  97,6 % dentro de um segundo** — renderizar e sair, sem rolar. **A saída
+  (2) é a que os tira**, com ou sem `webdriver`; a (1) cobre as nossas
+  ferramentas. E a série tem um buraco por explicar: **nenhum evento de
+  robô depois de 01/10, e nenhum evento de espécie alguma desde 06/10 às
+  19:20** — ausência de visitante ou ingestão perdida na borda do Render
+  (armadilha 45); a conferência abaixo separa as duas.
+- **(1) `isTrackingAllowed()` recusa automação**, com a fiação no `track()`
+  coberta (armadilha 28). É a regra do WebDriver (W3C); o robô que esconde o
+  sinal continua contado, e os nossos não escondem.
+- **(2) O `ScrollDepth` só conta depois da primeira rolagem.** O `resize`
+  mede, mas não acorda a medição — a captura de página inteira (Lighthouse,
+  `fullPage` do Playwright) estica a viewport até o texto "passar" por ela.
+  Depois de rolar, tudo conta, inclusive girar o celular.
+- **(3) O denominador é a tela vista, num evento novo: `article_view`**
+  (13 no catálogo). Sai do próprio `ScrollDepth`, uma vez por montagem e com
+  a mesma chave dos limiares, e **a API cruza o par (sessão, conteúdo)**:
+  `readingDepth.viewed`/`completed`, taxa `completed / viewed`. Pelo par, a
+  taxa nunca passa de 100 %, e o 90% sem visualização na janela fica fora —
+  o que resolve também a transição (90 dias de linhas antigas sem
+  `article_view`) sem data de corte escrita em lugar nenhum. `opened` fica
+  como o CTR do card, e deixa de ser denominador.
+- **A tela** desenha "indisponível" sobre a API sem os campos (armadilha 37
+  — o preview da `dev` lê produção) e "—" sem tela vista, nunca `NaN` nem
+  0 %. A conta mora em `lib/reading-depth.ts`.
+- **Guardas e mutações:** 16 guardas vistas reprovando antes do código;
+  **A1.87–A1.92** (o `webdriver` esquecido, a medição da montagem de volta,
+  o `resize` acordando a medição, a visualização dobrada no StrictMode, o
+  90% sem o par, a resposta antiga lida como "nenhuma tela"). **1.478 →
+  1.483 na API, 1.000 → 1.009 no web.**
+- **O que conferir depois da promoção:** uma execução do Lighthouse **sem
+  nenhuma linha de `ProductEvent` na janela dela** (hoje ela grava três
+  `article_scroll_90` por execução; a consulta vai pelo MCP do Neon,
+  conectado em 09/10), e **que o `article_view` aparece** na primeira
+  semana — zero linhas com tráfego no log da Vercel é ingestão perdida, não
+  falta de leitor. **Gatilho para reabrir:**
+  `completed / viewed` acima de 60 % com `viewed` acima de 50 numa semana —
+  leitura completa nesse nível em notícia é sinal de que outro robô está
+  sendo contado.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -5099,7 +5155,7 @@ promovido no #277 com o 13a; a primeira leitura entrou às 17:32 UTC).** Item **
 | ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Promovido sozinho no #272 (`ce38866`) | a Fase 12 fechada |
 | ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Promovido no #277 (09/10); o ensaio do alerta provou o e-mail no mesmo dia; o primeiro agendado é 10/10 12:40 UTC | a Fase 12 fechada |
 | ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Promovido no #277 (09/10); a primeira leitura (169,72 h) entrou no mesmo dia | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
-| **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
+| ~~**13c**~~ ✅ 09/10 | 13.4 (a métrica de leitura): `webdriver` recusado, a rolagem como prova de leitor, e `article_view` como denominador. Na `dev`; sobe na segunda promoção | o inventário dos eventos — medido nas ferramentas; o cruzamento com produção fica para depois da promoção |
 | **13d** | 13.6 (o Gitleaks) | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
 | — | 13.8, ~~13.9~~, ~~13.10~~ | o gatilho da armadilha 45; ~~uma semana de `DailyUptime`~~ (no 13b); ~~junto do 13a~~ (no 13a) |
@@ -5112,30 +5168,31 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
-> 07/10 e o 13b em 09/10; leia os três blocos "O que o PR … decidiu") e o §17
-> (armadilhas, até a 47). Siga pelo **PR 13c — a métrica de leitura (13.4)**,
-> que começa pelo inventário dos eventos de rolagem contra as horas em que as
-> ferramentas rodaram; e depois o 13d. Corte a branch da `dev`. O 13a (o
-> batimento, com o e-mail provado pelo ensaio) e o 13b (o arco do workspace,
-> com a primeira leitura do Billing) estão no ar desde a promoção #277
-> (09/10). Antes de tudo, confira a primeira execução **agendada** do
-> Heartbeat (10/10 12:40 UTC em diante): verde, e a linha `heartbeat api_ms=…`
-> no log — é a série do 13.3. Antes de qualquer escrita em produção, me
-> pergunte.
+> 07/10, o 13b e o 13c em 09/10; leia os quatro blocos "O que o PR …
+> decidiu") e o §17 (armadilhas, até a 47). Siga pelo **PR 13d — o Gitleaks
+> varre o intervalo do push (13.6)**. Corte a branch da `dev`. O 13a e o 13b
+> estão no ar desde a promoção #277 (09/10); o 13c está na `dev` e sobe na
+> segunda promoção. Antes de tudo, confira as execuções **agendadas** do
+> Heartbeat (desde 10/10 12:40 UTC): verdes, e a linha `heartbeat api_ms=…`
+> no log — é a série do 13.3, que decide o 13.3 com uma semana dela. Antes
+> de qualquer escrita em produção, me pergunte.
 >
-> **O que a sessão fria precisa saber para o 13c:** o 13c é o 13.4 desta
-> seção ("O que a fase entrega"), e o primeiro passo é **medir, não
-> codificar**: quantos eventos `article_scroll_*` caem nas horas em que o
-> Lighthouse, a baseline, o Smoke e o `admin:capture` rodaram (as execuções
-> têm hora no GitHub), e quais dessas ferramentas expõem
-> `navigator.webdriver`. Ler `ProductEvent` de produção pede a credencial do
-> Neon — **o classificador do modo auto recusa buscá-la sem o dono liberar no
-> chat**; pergunte antes. O Auto-fix do CI fica desligado (o dono liga quando
-> quiser). A `dev` está à frente da `main` só em docs (#278 e este) — não há
-> o que promover antes do 13c. Pendências do dono que não travam o 13c: reler
-> o Billing por volta de 16/10 (o gatilho da contagem automática, §16).
+> **O que a sessão fria precisa saber para o 13d:** é mudança em workflow de
+> segurança — o `workflow-hardening` cobra SHA fixado com o comentário da
+> versão e permissões mínimas, e o PR **prova o número num push real na
+> `dev`**: a 16.ª medição tem de dizer quantos commits o merge trouxe, não
+> zero. Leia o `.github/workflows/gitleaks.yml` e a linha do Gitleaks no §16
+> antes de mexer. O Auto-fix do CI fica desligado (o dono liga quando
+> quiser). Pendências do dono que não travam o 13d: reler o Billing por
+> volta de 16/10 (o gatilho da contagem automática, §16), e liberar a
+> credencial do Neon para a conferência do 13c depois da promoção (o
+> classificador do modo auto recusou trazê-la em 09/10 mesmo com o ok no
+> chat — vale tentar o MCP do Neon, autorizado pelo `/mcp`, que roda SQL sem
+> a string passar pelo agente).
 >
-> *(O de 09/10, que abriu o 13b: "…siga pelo PR 13b — o denominador (13.2),
+> *(O de 09/10 à tarde, que abriu o 13c: "…siga pelo PR 13c — a métrica de
+> leitura (13.4), que começa pelo inventário dos eventos de rolagem contra as
+> horas em que as ferramentas rodaram". O de 09/10, que abriu o 13b: "…siga pelo PR 13b — o denominador (13.2),
 > que começa pela pergunta de onde vem o número do `NetsheetEngine`". O de
 > 07/10, que abriu a fase pelo 13a′: "…comece pelo PR 13a′ — o item 13.12…
 > O 13a′ é promovido sozinho, no mesmo dia".)*

@@ -63,9 +63,10 @@ Os 14 da §18.5, com payload fechado. `EventBase` (`sessionId`, `locale`,
 | `briefing_open` | `briefingId`, `date`, `source` | clique no briefing | **CTR do Daily Brief** |
 | `category_view` | `category`, `origin` | `/news?category=`, seção da Home | interesse por editoria |
 | `search` | `query`, `resultCount` | submit da busca | lacunas de conteúdo |
-| `article_scroll_25` | `contentId`, `contentType` | 25% do corpo | **profundidade de scroll** |
+| `article_view` | `contentId`, `contentType` | tela de leitura, no mount | **denominador da leitura completa** |
+| `article_scroll_25` | `contentId`, `contentType` | 25% do corpo, depois da primeira rolagem | **profundidade de scroll** |
 | `article_scroll_50` | idem | 50% | idem |
-| `article_scroll_90` | idem | 90% | leitura completa |
+| `article_scroll_90` | idem | 90% | leitura completa (o par com `article_view`) |
 | `favorite_add` | `storyId`, `category`, `origin` | clique no marcador de salvar | **saves por usuário** |
 | `share` | `contentId`, `contentType`, `channel` | menu de compartilhar | **share rate** |
 | `newsletter_signup` | `origin` | inscrição confirmada | **taxa de inscrição** |
@@ -79,6 +80,16 @@ Os 14 da §18.5, com payload fechado. `EventBase` (`sessionId`, `locale`,
 >
 > Os **doze restantes estão instrumentados** e a ingestão está no ar. Quem os lê
 > é a tela de métricas de produto (§28, Fase 8).
+>
+> **E são treze desde 09/10/2026: entrou `article_view`** (13.4 do plano de
+> observabilidade). A "leitura completa" dividia o `article_scroll_90` pelos
+> cliques em card — e quem chega pelo buscador não clica em card nenhum —, e
+> o numerador contava as nossas ferramentas: 1.034 leituras a 90% contra zero
+> aberturas em 01/10. Hoje: (1) `track()` não mede navegador sob automação
+> (`navigator.webdriver`, exposto pelo Playwright e pelo Lighthouse CI);
+> (2) os limiares só contam depois da primeira rolagem — a medição da
+> montagem fazia texto curto "nascer lido"; (3) a taxa é `completed /
+> viewed` sobre o par (sessão, conteúdo), cruzado pela API.
 
 Valores fechados:
 

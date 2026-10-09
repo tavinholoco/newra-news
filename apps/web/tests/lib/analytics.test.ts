@@ -92,6 +92,28 @@ describe('oposição pelo navegador', () => {
 
     expect(isTrackingAllowed()).toBe(false);
   });
+
+  it('não mede navegador sob automação — as nossas ferramentas não são leitores', () => {
+    // Medido em 09/10/2026 (13.4 do plano de observabilidade): o Chromium do
+    // Playwright (Smoke, baseline, `admin:capture`) e o do Lighthouse CI expõem
+    // `navigator.webdriver === true`. Sem isto, a `/admin/metrics` marcava
+    // 1.034 leituras completas contra zero aberturas.
+    vi.stubGlobal('navigator', {
+      sendBeacon: beacon,
+      webdriver: true,
+    } as unknown as Navigator);
+
+    expect(isTrackingAllowed()).toBe(false);
+  });
+
+  it('mede quando o navegador declara que não está sob automação', () => {
+    vi.stubGlobal('navigator', {
+      sendBeacon: beacon,
+      webdriver: false,
+    } as unknown as Navigator);
+
+    expect(isTrackingAllowed()).toBe(true);
+  });
 });
 
 describe('sanitizeSearchQuery', () => {
@@ -165,6 +187,20 @@ describe('track', () => {
     vi.stubGlobal('navigator', {
       sendBeacon: beacon,
       globalPrivacyControl: true,
+    } as unknown as Navigator);
+
+    track('homepage_view');
+    flushEvents();
+
+    expect(beacon).not.toHaveBeenCalled();
+  });
+
+  it('não mede navegador sob automação', () => {
+    // A segunda asserção da armadilha 28: a peça acima recusa, e esta prova
+    // que o `track` pergunta a ela.
+    vi.stubGlobal('navigator', {
+      sendBeacon: beacon,
+      webdriver: true,
     } as unknown as Navigator);
 
     track('homepage_view');

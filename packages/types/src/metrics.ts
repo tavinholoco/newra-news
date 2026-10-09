@@ -70,9 +70,19 @@ export interface ProductMetrics {
   /** CTR por origem: separa o hero do rodapé. */
   storyOpensBySource: Array<{ source: string; count: number }>;
   categoryViews: Array<{ category: string; count: number }>;
-  /** Aberto × lido. `scroll90 / opened` é a taxa de leitura completa. */
+  /**
+   * Visto × lido. `completed / viewed` é a taxa de leitura completa — e não
+   * `scroll90 / opened`, que dividia leituras de qualquer origem (inclusive as
+   * das nossas ferramentas) pelos cliques em card (13.4 do plano de
+   * observabilidade).
+   */
   readingDepth: {
+    /** Cliques em card (`story_open` + `briefing_open`) — o CTR, não a leitura. */
     opened: number;
+    /** Telas de leitura vistas: pares (sessão, conteúdo) com `article_view`. */
+    viewed: number;
+    /** Dos `viewed`, os que chegaram a 90% do texto na mesma sessão. */
+    completed: number;
     scroll25: number;
     scroll50: number;
     scroll90: number;

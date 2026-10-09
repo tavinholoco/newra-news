@@ -110,6 +110,8 @@ const productMetricsSchema = z.object({
   ),
   readingDepth: z.object({
     opened: z.number().int(),
+    viewed: z.number().int(),
+    completed: z.number().int(),
     scroll25: z.number().int(),
     scroll50: z.number().int(),
     scroll90: z.number().int(),

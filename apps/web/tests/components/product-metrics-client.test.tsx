@@ -25,7 +25,14 @@ const vazio: ProductMetrics = {
   byType: [],
   storyOpensBySource: [],
   categoryViews: [],
-  readingDepth: { opened: 0, scroll25: 0, scroll50: 0, scroll90: 0 },
+  readingDepth: {
+    opened: 0,
+    viewed: 0,
+    completed: 0,
+    scroll25: 0,
+    scroll50: 0,
+    scroll90: 0,
+  },
   searchesWithoutResults: [],
 };
 
@@ -79,22 +86,57 @@ describe('ProductMetricsClient', () => {
     ).toBeInTheDocument();
   });
 
-  it('calcula a taxa de leitura completa sobre as aberturas', () => {
+  it('calcula a leitura completa sobre as telas vistas, não sobre os cliques', () => {
+    // 13.4 do plano de observabilidade: 1.034 leituras a 90% contra 0
+    // aberturas em 01/10/2026. O clique no card não acontece para quem chega
+    // pelo buscador; o denominador é a tela de leitura vista.
     mockQuery(
       comDados({
-        readingDepth: { opened: 10, scroll25: 8, scroll50: 5, scroll90: 3 },
+        readingDepth: {
+          opened: 2,
+          viewed: 10,
+          completed: 3,
+          scroll25: 8,
+          scroll50: 5,
+          scroll90: 40,
+        },
       }),
     );
 
     renderWithIntl(<ProductMetricsClient />);
 
-    expect(screen.getByText('30%')).toBeInTheDocument();
+    const cartao = screen.getByText('Leitura completa').parentElement as HTMLElement;
+    expect(cartao).toHaveTextContent('30%');
+    expect(screen.getByText('Telas de leitura vistas').parentElement).toHaveTextContent(
+      '10',
+    );
   });
 
-  it('não divide por zero quando nada foi aberto', () => {
+  it('não inventa taxa quando nenhuma tela foi vista', () => {
+    // Zero sobre zero não é 0% — é falta de amostra (armadilha 24).
     renderWithIntl(<ProductMetricsClient />);
 
-    expect(screen.getByText('0%')).toBeInTheDocument();
+    const cartao = screen.getByText('Leitura completa').parentElement as HTMLElement;
+    expect(cartao).toHaveTextContent('—');
+    expect(cartao).not.toHaveTextContent('0%');
+  });
+
+  it('desenha "indisponível" quando a API no ar ainda não mede a tela vista', () => {
+    // Armadilha 37: o preview da `dev` lê a API de produção, que não manda
+    // `viewed`/`completed` até a promoção. Dividir pelo campo ausente daria
+    // `NaN%`; dividir pelos cliques voltaria à métrica que mente.
+    const antigo = {
+      ...vazio,
+      readingDepth: { opened: 0, scroll25: 1036, scroll50: 1035, scroll90: 1034 },
+    } as unknown as ProductMetrics;
+    mockQuery(antigo);
+
+    renderWithIntl(<ProductMetricsClient />);
+
+    const cartao = screen.getByText('Leitura completa').parentElement as HTMLElement;
+    expect(cartao).toHaveTextContent('—');
+    expect(cartao).toHaveTextContent('A API no ar ainda não mede a tela vista');
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
   });
 
   it('troca a janela e refaz a consulta com o novo recorte', async () => {
