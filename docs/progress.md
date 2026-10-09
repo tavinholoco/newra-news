@@ -9227,11 +9227,40 @@ de produção no CI.
   e um `checkedAt` novo a cada pedido — cada um chamava o Render). Corrigido
   com `next: { revalidate: 86400 }` (build `○`), guarda no
   `rendering-mode.test.ts` e mutação A1.107, num PR próprio.
-- **Depois da promoção da correção:** dois pedidos seguidos com o mesmo
-  `checkedAt` e `HIT` no segundo; a rota com `"ok":true` e o `checkedAt` do
-  dia depois do cron; e a pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão:**
+- **A correção promovida no #287 (23:19 UTC) e medida:** às 23:15, antes,
+  `MISS`/`MISS` com dois `checkedAt`; às 23:20, `PRERENDER`/`HIT` com o mesmo
+  `checkedAt` (23:19:56, a sonda do build, `"ok":true`). Fica a pergunta
+  `login` do Heartbeat de 10/10. **Gatilho para reabrir a decisão:**
   leitores com conta de verdade, ou um defeito do caminho logado que a sonda
   não pegue — e aí com um ambiente de teste de segredo próprio.
+
+### 98. A revisão do código da Fase 13, e a terceira promoção ✅ 2026-10-09
+
+A pedido do dono, entre a segunda e a terceira promoção: o código de produção
+de #271 a #286 lido de novo, cruzando as peças que conversam entre si (#286,
+promovido no #287).
+
+- **Defeito de produto:** o teto de 1.000 h da leitura do Billing só na API,
+  e o formulário lendo todo 400 como "abaixo das horas desta API" — o
+  `12427` no lugar de `124,27` recebia a mensagem oposta. Hoje o teto é
+  `PLAN_READING_MAX_HOURS` em `packages/types`, conferido pela tela.
+- **Inconsistências:** `UptimeSeries` duplicada (API e `packages/types`); o
+  JSDoc de `getMonthUptimeSeconds` órfão; o `ScrollDepth` com a visualização
+  por conteúdo e os limiares por montagem (latente). E prosa velha: "dez
+  páginas", "a quinta pergunta", "os 14 do catálogo", o diagrama de sessão
+  sem `health-probe`.
+- **No mesmo PR:** a armadilha 48 (a sonda do login dinâmica por um
+  `no-store`) e o pulo do Smoke escrito como decisão.
+- **As 48 mutações da fase rodadas juntas: 50/50.** Novas: A1.107–A1.109.
+  **1.527 na API, 1.023 no web.**
+- **Terceira promoção, #287 (`4cdc121`, 23:19:17 UTC), medida:** a sonda
+  `PRERENDER`/`HIT` com o mesmo `checkedAt`; Gitleaks no push da `main` com
+  `d999643..4cdc121` = **5 commits, 2 merges, 3 varridos**, sem vazamento;
+  **um processo novo da API às 23:20:41**, 84 s depois do merge (o mesmo
+  intervalo da #285) — o código que lê o teto de `packages/types` bootou;
+  `POST /api/admin/plan-hours` e `GET /api/health/auth` em 401 sem
+  credencial; **Smoke 32/6**, com o pulo saindo "por decisão (13.7)". A
+  `dev` foi realinhada.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

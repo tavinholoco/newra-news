@@ -5258,10 +5258,12 @@ promoção da fase).** Item **97** do `docs/progress.md`.
   pedidos seguidos deram `MISS`, `Age: 0` e dois `checkedAt`, cada um
   chamando o Render. Corrigido com `next: { revalidate: 86400 }` (o build
   passou de `ƒ` a `○`), com guarda e mutação A1.107, num PR próprio.
-- **O que conferir depois da promoção da correção:** dois pedidos seguidos à
-  rota do web com o mesmo `checkedAt` e `X-Vercel-Cache: HIT` no segundo; a
-  rota respondendo `"ok":true` com o `checkedAt` do dia depois do cron; e a
-  pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão dos seis testes:** o
+- **A correção promovida no #287 (09/10/2026, 23:19 UTC) e medida:** antes,
+  às 23:15, dois pedidos deram `MISS`/`MISS` com dois `checkedAt`; depois,
+  às 23:20, **`PRERENDER` e `HIT` com o mesmo `checkedAt`** (23:19:56, a
+  sonda gerada no build, já `"ok":true`). A rota não chama mais o Render a
+  cada pedido. **Fica para o dia seguinte:** o `checkedAt` de 10/10 depois do
+  cron e a pergunta `login` do Heartbeat das 12:40 UTC. **Gatilho para reabrir a decisão dos seis testes:** o
   produto ganhar leitores com conta de verdade (assinantes ou contas acima
   de algumas dezenas — o número do §21), ou um defeito no caminho logado que
   a sonda não pegue. Aí o caminho é um ambiente de teste com segredo
@@ -5301,6 +5303,35 @@ promoção da fase).** Item **96** do `docs/progress.md`.
   de dois dias de uma semana **com a nova tentativa no ar** — aí a causa
   gravada diz se é a fonte (DNS, TLS, recusa) ou a rede do Render.
 
+**A revisão do código da Fase 13 — 09/10/2026, a pedido do dono, entre a
+segunda e a terceira promoção (#286, promovido no #287).** O código de
+produção de #271 a #286 lido de novo, cruzando as peças que conversam entre
+si. Item **98** do `docs/progress.md`.
+
+- **Um defeito de produto:** o teto de 1.000 h da leitura do Billing só
+  existia na API, e o formulário lia todo 400 como "abaixo das horas desta
+  API" — o `12427` digitado no lugar de `124,27`, o erro que o teto existe
+  para pegar, recebia a mensagem oposta. O teto virou
+  `PLAN_READING_MAX_HOURS` em `packages/types`, conferido pela tela antes de
+  mandar; um 400 que ainda volte ganha mensagem que cobre as duas causas.
+- **Três inconsistências de código:** `UptimeSeries` declarada duas vezes
+  (`packages/types` e `uptime.service.ts`); o JSDoc de
+  `getMonthUptimeSeconds` órfão, preso a outra constante desde o 13b; e o
+  `ScrollDepth` com a visualização "por conteúdo" e os limiares "por
+  montagem" — um componente reaproveitado entre duas matérias não
+  registraria a rolagem da segunda (hoje o App Router remonta a página, então
+  era latente).
+- **Prosa velha:** "as dez páginas" (onze com a sonda), "a quinta pergunta"
+  no `heartbeat.yml` (a do push virou a sexta — trocado por nome), "os 14 do
+  catálogo" na `docs/api.md` (13) e o diagrama de sessão sem o escopo
+  `health-probe`.
+- **Conferido e em ordem:** o envelope do cron (280 s sob 290 − 10), a marca
+  da sonda no conjunto do dia, `planPace` calado antes de 24 h e "só esta
+  API" na virada do mês, as chaves de consulta que a mutação do formulário
+  invalida, e o `authPlugin` simétrico.
+- **As 48 mutações da fase (A1.62–A1.109), rodadas juntas sobre a árvore
+  mergeada: 50/50**, com os dois controles. Mutações novas: A1.108 e A1.109.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -5334,29 +5365,33 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 **O prompt de abertura:**
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
-> Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
-> 07/10; o 13b, o 13c, o 13d, o 13.5 e o 13.7 em 09/10; leia os blocos "O
-> que … decidiu") e o §17 (armadilhas, até a 47). O que sobra da fase: **o
-> 13.3 com uma semana da série do batimento** (~17/10) e a **segunda
-> promoção** (13c, 13d, 13.5 e 13.7). Comece conferindo as execuções
-> **agendadas** do Heartbeat (desde 10/10 12:40 UTC): verdes, e a linha
+> Leia o §19 (o ritual), a §23 (esta fase — tudo menos o 13.3 fechou e está
+> no ar: o 13a′ e o 13a em 07/10; o 13b, o 13c, o 13d, o 13.5 e o 13.7 em
+> 09/10, nas promoções #285 e #287; leia os blocos "O que … decidiu" e "A
+> revisão do código da Fase 13") e o §17 (armadilhas, até a 48). O que sobra
+> da fase é **o 13.3, com uma semana da série do batimento** (~17/10): se
+> alguma acordada passar de 45 s, o aquecimento do cron ganha uma terceira
+> tentativa e o envelope se reequilibra; se não, a decisão fica escrita com o
+> número. Comece pelas execuções **agendadas** do Heartbeat (desde 10/10
+> 12:40 UTC): verdes, a pergunta `login` entre elas, e a linha
 > `heartbeat api_ms=…` no log. Antes de qualquer escrita em produção, me
 > pergunte.
 >
-> **O que a sessão fria precisa saber:** depois da segunda promoção,
-> conferir (a) o resumo do job `gitleaks-push` no push da `main` com o
-> número de commits da promoção, não zero (na `dev` já disse: o merge do
-> #281 deu 3, 2 varridos); (b) uma execução do Lighthouse sem nenhuma linha
-> de `ProductEvent` na janela dela, e o `article_view` aparecendo; (c) a
-> `SourceHealth` com menos dias de `FAILED` e a causa no `failureReason`;
-> (d) **a sonda do login no ar**: `GET https://newra-news-web.vercel.app/api/health/auth`
-> respondendo `"ok":true` com o `checkedAt` do dia, e a pergunta `login` do
-> Heartbeat verde no agendado seguinte. As leituras do banco vão pelo **MCP
-> do Neon**, que o dono conectou em 09/10 (`mcp__Neon__run_sql`, projeto
-> `rapid-art-19064809`; o `neonctl connection-string` é recusado pelo
-> classificador). O Auto-fix do CI fica desligado. Pendência do dono que
-> não trava nada: reler o Billing por volta de 16/10 (o gatilho da contagem
+> **O que a sessão fria precisa saber:** as conferências que dependiam de um
+> dia de produção — (a) uma execução do Lighthouse sem nenhuma linha de
+> `ProductEvent` na janela dela, e o `article_view` aparecendo (zero linhas
+> com tráfego no log da Vercel é ingestão perdida); (b) a `SourceHealth` com
+> menos dias de `FAILED` e a causa no `failureReason`; (c) a sonda do login
+> com o `checkedAt` do dia depois do cron. As leituras do banco vão pelo
+> **MCP do Neon**, que o dono conectou em 09/10 (`mcp__Neon__run_sql`,
+> projeto `rapid-art-19064809`; o `neonctl connection-string` é recusado pelo
+> classificador). O Auto-fix do CI fica desligado; **o repositório não
+> permite auto-merge** (configuração do GitHub). Pendência do dono que não
+> trava nada: reler o Billing por volta de 16/10 (o gatilho da contagem
 > automática, §16).
+>
+> *(O de 09/10 à noite, antes da segunda promoção: "…o que sobra é o 13.3
+> com uma semana da série, e a segunda promoção (13c, 13d, 13.5 e 13.7)".)*
 >
 > *(O de 09/10 de madrugada, depois do 13.5: "…o que sobra é o 13.7 como
 > decisão minha, o 13.3 com uma semana da série, e a segunda promoção".)*
