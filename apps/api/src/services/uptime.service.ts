@@ -52,8 +52,22 @@ import { ERROR_EVENT_CLOSE_TIMEOUT_MS } from './error-event.service';
 /** De quanto em quanto tempo o crédito vai ao banco. */
 export const UPTIME_HEARTBEAT_MS = 5 * 60 * 1000;
 
-/** O teto do plano free do Render, em horas de instância por mês de calendário. */
+/**
+ * O teto do plano free do Render, em horas de instância por mês de calendário
+ * — **do workspace**, não desta API. O workspace divide as 750 h com o
+ * `NetsheetEngine` (19/09/2026), e quando elas acabam o Render suspende todos
+ * os serviços free dele. A parte dos outros entra pela leitura do Billing
+ * (`plan-hours.service.ts`, Fase 13). **É o único lugar do `src/` onde o
+ * número aparece como literal**, com guarda pelo parser
+ * (`tests/services/plan-hours.service.test.ts`): um segundo literal é um
+ * segundo denominador.
+ */
 export const RENDER_FREE_PLAN_HOURS = 750;
+
+/** Segundos em horas com duas casas — a régua de `hoursUsed` e das leituras. */
+export function toPlanHours(seconds: number): number {
+  return Number((seconds / 3600).toFixed(2));
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -213,6 +227,51 @@ export async function flushUptimeBeforeClose(
  * Mês de calendário porque é como o Render conta: em 29/08/2026 as horas
  * acabaram e a API ficou suspensa **até o dia 1º**.
  */
+/**
+ * Quantos dias a série por dia cobre, hoje incluído. **Duas semanas**: o
+ * gatilho do 13.9 (§23 do plano de observabilidade) são dois dias seguidos
+ * acima de 10 h, e sete dias mostrariam o gatilho e quase nada do que veio
+ * antes dele — "isto começou quando?" é a pergunta seguinte.
+ */
+export const UPTIME_SERIES_DAYS = 14;
+
+/** A série por dia: as linhas que existem, e a janela que a tela preenche. */
+export interface UptimeSeries {
+  /** O primeiro dia da janela, `YYYY-MM-DD` em UTC. */
+  since: string;
+  /** Hoje, `YYYY-MM-DD` em UTC — a linha dele é parcial por definição. */
+  until: string;
+  /** Só os dias com linha, em ordem; o dia sem linha é a API que não acordou. */
+  days: Array<{ date: string; seconds: number }>;
+}
+
+/**
+ * **As horas desta API por dia — o 13.9, que a Fase 13 dobrou no 13b.**
+ *
+ * O arco mostra a soma do mês, e o gatilho do 13.9 ("dois dias seguidos acima
+ * de 10 h — robô em `/news/[id]`") é por dia: até aqui só se lia com a
+ * credencial do banco de produção. Uma consulta de no máximo
+ * {@link UPTIME_SERIES_DAYS} linhas e duas colunas, pela chave única (armadilha
+ * 4 do §17: consulta de painel tem teto).
+ */
+export async function getRecentUptimeDays(now: Date = new Date()): Promise<UptimeSeries> {
+  const today = startOfUtcDay(now);
+  const since = new Date(today.getTime() - (UPTIME_SERIES_DAYS - 1) * DAY_MS);
+
+  const rows = await prisma.dailyUptime.findMany({
+    where: { date: { gte: since } },
+    orderBy: { date: 'asc' },
+    take: UPTIME_SERIES_DAYS,
+    select: { date: true, seconds: true },
+  });
+
+  return {
+    since: since.toISOString().slice(0, 10),
+    until: today.toISOString().slice(0, 10),
+    days: rows.map((row) => ({ date: row.date.toISOString().slice(0, 10), seconds: row.seconds })),
+  };
+}
+
 export async function getMonthUptimeSeconds(now: Date = new Date()): Promise<number> {
   const result = await prisma.dailyUptime.aggregate({
     _sum: { seconds: true },

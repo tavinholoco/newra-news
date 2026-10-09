@@ -6,6 +6,8 @@ import { prisma } from '@newranews/database';
 import {
   RENDER_FREE_PLAN_HOURS,
   UPTIME_HEARTBEAT_MS,
+  UPTIME_SERIES_DAYS,
+  getRecentUptimeDays,
   flushUptimeBeforeClose,
   getMonthUptimeSeconds,
   resetUptimeClock,
@@ -42,6 +44,7 @@ vi.mock('@newranews/database', async () => {
       dailyUptime: {
         upsert: vi.fn().mockResolvedValue({}),
         aggregate: vi.fn().mockResolvedValue({ _sum: { seconds: 0 } }),
+        findMany: vi.fn().mockResolvedValue([]),
       },
     },
   };
@@ -224,6 +227,52 @@ describe('§4.3 — a soma do mês', () => {
  * toda suíte constrói. Um heartbeat que sumisse do `server.ts` deixaria a
  * suíte inteira verde e o arco de saturação em zero para sempre.
  */
+/**
+ * **As horas por dia — o 13.9 da §23, que a Fase 13 dobra no 13b.** O gatilho
+ * "dois dias seguidos acima de 10 h" só se lia com a credencial de produção:
+ * o arco mostra a soma do mês. A série dos últimos dias sai junto da
+ * saturação, e a tela a desenha (armadilha 39: gatilho que aponta para um
+ * campo se confere lendo o campo).
+ */
+describe('13.9 — as horas desta API por dia', () => {
+  it('pede os últimos dias UTC, hoje incluído, com teto de linhas', async () => {
+    vi.mocked(prisma.dailyUptime.findMany).mockResolvedValueOnce([
+      { date: new Date('2026-10-05T00:00:00.000Z'), seconds: 22_680 },
+      { date: new Date('2026-10-06T00:00:00.000Z'), seconds: 29_880 },
+    ] as never);
+
+    const series = await getRecentUptimeDays(new Date('2026-10-09T16:45:00.000Z'));
+
+    expect(series).toEqual({
+      since: '2026-09-26',
+      until: '2026-10-09',
+      days: [
+        { date: '2026-10-05', seconds: 22_680 },
+        { date: '2026-10-06', seconds: 29_880 },
+      ],
+    });
+
+    const [arg] = vi.mocked(prisma.dailyUptime.findMany).mock.calls[0] as [
+      {
+        where: { date: { gte: Date } };
+        orderBy: { date: string };
+        take: number;
+        select: Record<string, boolean>;
+      },
+    ];
+    // Catorze dias contando hoje: o primeiro é 13 dias atrás, à meia-noite UTC.
+    expect(arg.where.date.gte.toISOString()).toBe('2026-09-26T00:00:00.000Z');
+    expect(arg.orderBy).toEqual({ date: 'asc' });
+    // Armadilha 4: consulta de painel com teto de linhas, uma coluna por dia.
+    expect(arg.take).toBe(UPTIME_SERIES_DAYS);
+    expect(arg.select).toEqual({ date: true, seconds: true });
+  });
+
+  it('a janela tem duas semanas — sete dias davam o gatilho e nada de antes dele', () => {
+    expect(UPTIME_SERIES_DAYS).toBe(14);
+  });
+});
+
 describe('§3.1 — o heartbeat está ligado onde o processo sobe', () => {
   it('`server.ts` registra o `uptimeHeartbeatPlugin`', () => {
     const source = ts.createSourceFile(

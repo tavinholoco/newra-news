@@ -11,11 +11,22 @@ import {
 } from '@/lib/format';
 import { kpiDelta } from '@/lib/kpi';
 import { fillCalendarDays } from '@/lib/series';
+import ts from 'typescript';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import {
   ATTENTION_RATIO,
   PACE_MIN_ELAPSED_HOURS,
+  ROBOT_HOURS_PER_DAY,
+  ROBOT_STREAK_TRIGGER,
+  parseHoursInput,
   planPace,
+  robotStreak,
   saturationTone,
+  uptimeByDayOf,
+  uptimeDays,
+  workspaceHours,
+  workspaceReadingOf,
 } from '@/lib/saturation';
 
 /**
@@ -23,6 +34,9 @@ import {
  * de desenhar. Cada uma existe por um defeito nomeado no cabeçalho dela, e o
  * teste é sobre esse defeito.
  */
+
+/** A série por dia (13.9) onde o teste não é sobre ela. */
+const NO_SERIES = { since: '2026-10-01', until: '2026-10-01', days: [] };
 
 describe('formatDeltaPercent', () => {
   it('carries the sign, in the locale', () => {
@@ -85,6 +99,8 @@ describe('planPace', () => {
     hoursUsed: 240,
     limitHours: 750,
     ratio: 0.32,
+    uptimeByDay: NO_SERIES,
+    workspaceReading: null,
   };
 
   it('projects the month from the hours elapsed — the number that would have warned before 29/08', () => {
@@ -92,7 +108,12 @@ describe('planPace', () => {
     // setembro são 720 h — 96% do plano, com o arco de hoje dizendo só 32%.
     const pace = planPace(plan, new Date('2026-09-11T00:00:00.000Z'));
 
-    expect(pace).toEqual({ projectedHours: 720, projectedRatio: 0.96, hoursInMonth: 720 });
+    expect(pace).toEqual({
+      projectedHours: 720,
+      projectedRatio: 0.96,
+      hoursInMonth: 720,
+      scope: 'api',
+    });
   });
 
   it('says nothing before a day of sample — the gate without a baseline', () => {
@@ -108,6 +129,283 @@ describe('planPace', () => {
   it('uses the calendar length of the month', () => {
     const october = { ...plan, month: '2026-10', monthStart: '2026-10-01T00:00:00.000Z' };
     expect(planPace(october, new Date('2026-10-11T00:00:00.000Z'))?.hoursInMonth).toBe(744);
+  });
+});
+
+/**
+ * **O workspace inteiro — Fase 13 do plano de observabilidade, 13b (§23).**
+ *
+ * As 750 h são do workspace, que o `NetsheetEngine` divide com esta API; a
+ * leitura do Billing que o dono digita traz o total e a parte desta API no
+ * mesmo instante. Esta é a conta, num lugar só: a parte dos outros, o ritmo
+ * deles, a estimativa de agora e a projeção do mês.
+ */
+describe('workspaceHours — a leitura do Billing vira o workspace inteiro', () => {
+  const october = {
+    month: '2026-10',
+    monthStart: '2026-10-01T00:00:00.000Z',
+    secondsUsed: 0,
+    hoursUsed: 40.1,
+    limitHours: 750,
+    ratio: 40.1 / 750,
+    uptimeByDay: NO_SERIES,
+    workspaceReading: {
+      readAt: '2026-10-06T00:00:00.000Z',
+      workspaceHours: 124.9,
+      apiHours: 34.9,
+    },
+  };
+
+  it('a parte dos outros serviços é o total menos esta API, no instante da leitura', () => {
+    const workspace = workspaceHours(
+      { ...october, hoursUsed: 34.9 },
+      new Date('2026-10-06T00:00:00.000Z'),
+    )!;
+
+    // 120 h decorridas na leitura, 90 h dos outros: 75 % do relógio.
+    expect(workspace.otherHoursAtRead).toBeCloseTo(90, 6);
+    expect(workspace.otherRate).toBeCloseTo(0.75, 6);
+    expect(workspace.otherHoursNow).toBeCloseTo(90, 6);
+    expect(workspace.totalHoursNow).toBeCloseTo(124.9, 6);
+    expect(workspace.ratio).toBeCloseTo(124.9 / 750, 6);
+  });
+
+  it('entre uma leitura e outra, os outros andam no ritmo da leitura; esta API é medida', () => {
+    // Um dia depois: 18 h a mais dos outros (0,75 × 24), e esta API no que o
+    // `DailyUptime` diz agora.
+    const workspace = workspaceHours(october, new Date('2026-10-07T00:00:00.000Z'))!;
+
+    expect(workspace.otherHoursNow).toBeCloseTo(108, 6);
+    expect(workspace.totalHoursNow).toBeCloseTo(148.1, 6);
+    expect(workspace.ratio).toBeCloseTo(148.1 / 750, 6);
+  });
+
+  it('o teto é o que a API manda — nunca um 750 escrito aqui', () => {
+    const workspace = workspaceHours(
+      { ...october, limitHours: 500 },
+      new Date('2026-10-07T00:00:00.000Z'),
+    )!;
+
+    expect(workspace.ratio).toBeCloseTo(148.1 / 500, 6);
+  });
+
+  it('leitura das primeiras 24 h do mês não tem ritmo — os outros ficam no número dela', () => {
+    const early = {
+      ...october,
+      workspaceReading: { readAt: '2026-10-01T06:00:00.000Z', workspaceHours: 9, apiHours: 1.5 },
+    };
+    const workspace = workspaceHours(early, new Date('2026-10-03T00:00:00.000Z'))!;
+
+    expect(workspace.otherRate).toBeNull();
+    expect(workspace.otherHoursNow).toBeCloseTo(7.5, 6);
+  });
+
+  it('`null` sem leitura, e com uma leitura de outro mês — o Billing zera no dia 1º', () => {
+    const now = new Date('2026-10-07T00:00:00.000Z');
+    expect(workspaceHours({ ...october, workspaceReading: null }, now)).toBeNull();
+    expect(
+      workspaceHours(
+        {
+          ...october,
+          workspaceReading: { readAt: '2026-09-29T00:00:00.000Z', workspaceHours: 700, apiHours: 200 },
+        },
+        now,
+      ),
+    ).toBeNull();
+  });
+
+  it('a resposta sem o campo (a API anterior à Fase 13 — armadilha 37) é o mesmo que sem leitura', () => {
+    const { workspaceReading: _dropped, ...legacy } = october;
+    const plan = legacy as typeof october;
+    const now = new Date('2026-10-07T00:00:00.000Z');
+
+    expect(workspaceReadingOf(plan)).toBeNull();
+    expect(workspaceHours(plan, now)).toBeNull();
+    expect(planPace(plan, now)?.scope).toBe('api');
+  });
+});
+
+describe('planPace — com a leitura, projeta o workspace', () => {
+  const october = {
+    month: '2026-10',
+    monthStart: '2026-10-01T00:00:00.000Z',
+    secondsUsed: 0,
+    hoursUsed: 48,
+    limitHours: 750,
+    ratio: 48 / 750,
+    uptimeByDay: NO_SERIES,
+    workspaceReading: {
+      readAt: '2026-10-06T00:00:00.000Z',
+      workspaceHours: 130,
+      apiHours: 40,
+    },
+  };
+
+  it('soma os dois ritmos — esta API medida até agora, os outros na leitura', () => {
+    // 07/10 00:00: 144 h decorridas; esta API 48/144 = 1/3; os outros
+    // 90/120 = 0,75. Juntos, 1,0833 × 744 h = 806 h — acima do teto, que é a
+    // conta de outubro de 2026 que o arco desta API sozinha escondia.
+    const pace = planPace(october, new Date('2026-10-07T00:00:00.000Z'))!;
+
+    expect(pace.scope).toBe('workspace');
+    expect(pace.hoursInMonth).toBe(744);
+    expect(pace.projectedHours).toBeCloseTo((1 / 3 + 0.75) * 744, 6);
+    expect(pace.projectedRatio).toBeCloseTo(((1 / 3 + 0.75) * 744) / 750, 6);
+  });
+
+  it('cala quando a leitura não tem ritmo — projetar só esta API esconderia os outros', () => {
+    const early = {
+      ...october,
+      workspaceReading: { readAt: '2026-10-01T06:00:00.000Z', workspaceHours: 9, apiHours: 1.5 },
+    };
+
+    expect(planPace(early, new Date('2026-10-07T00:00:00.000Z'))).toBeNull();
+  });
+});
+
+/**
+ * **As horas desta API por dia — o 13.9 da §23, dobrado no 13b.** O gatilho
+ * é "dois dias seguidos acima de 10 h sem deploy nem incidente — robô em
+ * `/news/[id]`", e até aqui só se lia no banco de produção. Os números são
+ * os da primeira semana medida depois do corte (05/10/2026).
+ */
+describe('uptimeDays e robotStreak — o gatilho do 13.9', () => {
+  const series = {
+    since: '2026-10-01',
+    until: '2026-10-07',
+    days: [
+      { date: '2026-10-01', seconds: 34_920 }, // 9,7 h — a noite dos testes
+      { date: '2026-10-02', seconds: 17_640 }, // 4,9 h
+      { date: '2026-10-03', seconds: 19_800 }, // 5,5 h
+      { date: '2026-10-05', seconds: 39_600 }, // 11 h
+      { date: '2026-10-06', seconds: 43_200 }, // 12 h
+      { date: '2026-10-07', seconds: 50_400 }, // 14 h, mas hoje é parcial
+    ],
+  };
+
+  it('preenche a janela: o dia sem linha é zero — a API que não acordou', () => {
+    const days = uptimeDays(series);
+
+    expect(days.map((day) => day.date)).toEqual([
+      '2026-10-01',
+      '2026-10-02',
+      '2026-10-03',
+      '2026-10-04',
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+    ]);
+    expect(days[3]).toEqual({ date: '2026-10-04', hours: 0 });
+    expect(days[0]!.hours).toBeCloseTo(9.7, 6);
+  });
+
+  it('conta os dias seguidos acima de 10 h que terminam ontem — hoje é parcial e não entra', () => {
+    expect(ROBOT_HOURS_PER_DAY).toBe(10);
+    expect(ROBOT_STREAK_TRIGGER).toBe(2);
+    // 05 e 06 acima; 07 é hoje. Um dia de 14 h que ainda não terminou não é
+    // o gatilho — mas os dois inteiros antes dele são.
+    expect(robotStreak(uptimeDays(series))).toBe(2);
+  });
+
+  it('um dia abaixo quebra a sequência — e um dia sem linha também (a API dormiu)', () => {
+    const broken = {
+      ...series,
+      days: series.days.map((day) =>
+        day.date === '2026-10-05' ? { ...day, seconds: 3_600 } : day,
+      ),
+    };
+    expect(robotStreak(uptimeDays(broken))).toBe(1);
+
+    const slept = { ...series, days: series.days.filter((day) => day.date !== '2026-10-06') };
+    expect(robotStreak(uptimeDays(slept))).toBe(0);
+  });
+
+  it('exatamente 10 h não dispara — o gatilho é "acima de"', () => {
+    const atTheLine = {
+      since: '2026-10-05',
+      until: '2026-10-07',
+      days: [
+        { date: '2026-10-05', seconds: 36_000 },
+        { date: '2026-10-06', seconds: 36_000 },
+      ],
+    };
+    expect(robotStreak(uptimeDays(atTheLine))).toBe(0);
+  });
+
+  it('a resposta sem o campo (armadilha 37) não tem série — nunca uma série vazia que pareça "dormiu"', () => {
+    const plan = {
+      month: '2026-10',
+      monthStart: '2026-10-01T00:00:00.000Z',
+      secondsUsed: 0,
+      hoursUsed: 40,
+      limitHours: 750,
+      ratio: 0.05,
+      workspaceReading: null,
+      uptimeByDay: series,
+    };
+    const { uptimeByDay: _dropped, ...legacy } = plan;
+
+    expect(uptimeByDayOf(plan)).toBe(series);
+    expect(uptimeByDayOf(legacy as typeof plan)).toBeNull();
+  });
+});
+
+describe('parseHoursInput — o número do Billing, como o teclado o escreve', () => {
+  it.each([
+    ['124,27', 124.27],
+    ['124.27', 124.27],
+    [' 124 ', 124],
+    ['0', 0],
+  ])('lê %j como %d', (text, hours) => {
+    expect(parseHoursInput(text)).toBe(hours);
+  });
+
+  it.each(['', 'abc', '-3', '1.234,5', '12,4,2', '1e3', '124 h'])('recusa %j', (text) => {
+    expect(parseHoursInput(text)).toBeNull();
+  });
+});
+
+/**
+ * **O teto do workspace mora num lugar só** — do lado da tela. O `750` vem da
+ * API em `limitHours`; um literal aqui seria um segundo denominador, e é como
+ * o arco passou setembro dividindo a parte desta API pelo teto inteiro. Pelo
+ * parser: o número aparece em comentário, e deve continuar aparecendo.
+ */
+describe('o denominador do arco vem da API, nunca de um literal', () => {
+  const WEB_ROOT = join(__dirname, '../..');
+
+  function sources(dir: string): string[] {
+    return readdirSync(dir).flatMap((entry) => {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) return sources(full);
+      return /\.tsx?$/.test(entry) ? [full] : [];
+    });
+  }
+
+  it('nenhum `750` numérico em `lib/`, `components/` ou `app/`', () => {
+    const files = ['lib', 'components', 'app'].flatMap((dir) => sources(join(WEB_ROOT, dir)));
+    const found: string[] = [];
+
+    for (const file of files) {
+      const tree = ts.createSourceFile(
+        file,
+        readFileSync(file, 'utf8'),
+        ts.ScriptTarget.ES2022,
+        true,
+        file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      );
+      const visit = (node: ts.Node): void => {
+        if (ts.isNumericLiteral(node) && Number(node.text.replace(/_/g, '')) === 750) {
+          const { line } = tree.getLineAndCharacterOfPosition(node.getStart(tree));
+          found.push(`${relative(WEB_ROOT, file).split(sep).join('/')}:${line + 1}`);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(tree);
+    }
+
+    expect(files.length).toBeGreaterThan(50);
+    expect(found).toEqual([]);
   });
 });
 

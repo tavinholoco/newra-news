@@ -42,6 +42,13 @@ export const AUDIT_ACTIONS = [
   'pipeline.triggered',
   /** `DELETE /api/news/:id`. */
   'news.deleted',
+  /**
+   * `POST /api/admin/plan-hours` — a leitura do Billing do Render que o dono
+   * digita na `/admin` (Fase 13, 13b). **A linha é o próprio dado**: o
+   * `context` guarda `{ workspaceHours, apiHours }`, e a saturação lê a mais
+   * recente do mês. Gravada por `writeAuditEvent`, que lança.
+   */
+  'plan.hours_recorded',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -77,20 +84,35 @@ export const AUDIT_LIST_MAX = 200;
 export const AUDIT_LIST_DEFAULT = 50;
 
 /**
+ * Grava uma ação e devolve o instante gravado. **Lança** quando o banco
+ * recusa.
+ *
+ * É o escritor para quando **a escrita é a ação** — a leitura do Billing do
+ * 13b, em que responder 201 sobre uma linha que não existe seria a tela
+ * dizendo "fiz" sem ter feito. Para a ação que já aconteceu antes do registro
+ * (a exclusão, o disparo), o escritor é `recordAuditEvent`, que nunca lança.
+ * A guarda de `action` literal cobre os dois.
+ */
+export async function writeAuditEvent(input: RecordAuditEventInput): Promise<{ createdAt: Date }> {
+  const row = await prisma.auditEvent.create({
+    data: {
+      actorId: input.actorId,
+      action: input.action,
+      targetId: input.targetId ?? null,
+      outcome: input.outcome ?? null,
+      requestId: input.requestId ?? null,
+      context: scrubErrorContext(input.context) as Prisma.InputJsonValue | undefined,
+    },
+  });
+  return { createdAt: row.createdAt };
+}
+
+/**
  * Grava uma ação. **Nunca lança** — ver o cabeçalho.
  */
 export async function recordAuditEvent(input: RecordAuditEventInput): Promise<void> {
   try {
-    await prisma.auditEvent.create({
-      data: {
-        actorId: input.actorId,
-        action: input.action,
-        targetId: input.targetId ?? null,
-        outcome: input.outcome ?? null,
-        requestId: input.requestId ?? null,
-        context: scrubErrorContext(input.context) as Prisma.InputJsonValue | undefined,
-      },
-    });
+    await writeAuditEvent(input);
   } catch (error) {
     baseLogger.warn(
       { err: error, action: input.action, actorId: input.actorId },

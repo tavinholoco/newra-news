@@ -229,6 +229,8 @@ describe('os portões de PR aceitam as mesmas bases', () => {
     'smoke.yml': 'mede o site no ar — só faz sentido no push da `main`',
     'migrate.yml': 'aplica migration em produção — só no push da `main`',
     'lighthouse.yml': 'agendado e manual, contra produção; não reage a PR',
+    'heartbeat.yml':
+      'o alerta diário (13.1): agendado e manual, contra produção — reprovar é o e-mail, e um PR não muda o que ele mede',
   };
 
   /**

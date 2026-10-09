@@ -71,8 +71,13 @@ git fetch origin && git push origin origin/main:refs/heads/dev
 | Gitleaks | ✅ | ✅ |
 | Smoke E2E | ❌ | ✅ (push) |
 | Migrate (Prisma) | ❌ | ✅ (push) |
+| Heartbeat (13.1) | ❌ | ✅ (agendado, 12:40 UTC) |
 
-As duas últimas ficam **só na `main` de propósito**: o smoke mede o site no ar, e
+> **O Heartbeat só existe a partir da `main`**: o GitHub roda `schedule` da
+> branch padrão. Entrou na `dev` em 07/10/2026 e começa a perguntar na
+> promoção que o levar.
+
+As duas de push ficam **só na `main` de propósito**: o smoke mede o site no ar, e
 migration se aplica a produção uma vez. A consequência prática é que **um lote
 de fases com schema aplica todas as migrations juntas na promoção** — o que é
 uma janela controlada, mas é uma janela: promova com isso em mente.
@@ -355,6 +360,43 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **09/10/2026: o 13b — o denominador honesto — na `dev`.** Item **93**;
+  §23 do plano. O arco das horas da `/admin` dividia as horas **desta** API
+  pelas 750 h do **workspace**, que o `NetsheetEngine` divide (~74 % de
+  outubro). O Render não tem API de cobrança e a chave dele abre a conta
+  inteira, então **o dono digita o total do Billing na `/admin`**
+  (`POST /api/admin/plan-hours`, uma linha `plan.hours_recorded` no
+  `AuditEvent` com as duas pontas do mesmo instante, sem migration); o arco
+  passa a ser o do workspace — esta API medida, os outros no ritmo da
+  leitura —, e a projeção soma os dois. **Junto, o 13.9:** as horas desta API
+  por dia (14 dias, escala de 24 h, linha dos 10 h e o gatilho "dois dias
+  seguidos acima") — antes só se liam com a credencial de produção.
+  Mutações A1.79–A1.86. **1.478 na API, 1.000 no web.**
+  - **Do dono, depois da promoção:** a primeira leitura (Render → Billing →
+    Free instance hours → `/admin`). Até lá a API de produção responde 404 na
+    rota nova, e o arco diz "só esta API".
+  - **Próximo: o 13c** (a métrica de leitura, 13.4), pelo prompt no fim da
+    §23.
+
+- 🟢 **07/10/2026 (noite): o 13a — o batimento de fora — na `dev`.** Item
+  **92**; §23 do plano. `.github/workflows/heartbeat.yml`, às 12:40 UTC,
+  roda `apps/api/scripts/heartbeat.ts` com o Node sozinho (sem install) e
+  pergunta: o site responde, a API responde (e se não, se é **suspensão do
+  Render** — `503` + `x-render-routing: suspend`), o briefing de hoje existe,
+  **as duas Homes o mostram** (o 07/10 visto de fora), e o último push está a
+  menos de 45 dias (o GitHub desliga agendamento aos 60). **O job reprovado é
+  o e-mail.** Junto, o 13.10: as dez variáveis de runtime do web em
+  `globalPassThroughEnv`, com guarda.
+  - **Ensaio contra produção:** cinco ✅, e a sonda **acordou a API em
+    52.387 ms** — a primeira linha da série do 13.3, batendo com 01/10 e
+    05/10. **1.446 na API** (eram 1.420), mutações A1.72–A1.76.
+  - **Só agenda depois da promoção** (o GitHub roda `schedule` da `main`). **Do
+    dono:** conferir que as notificações de Actions por e-mail estão ligadas
+    (Settings → Notifications → Actions → falhas) e, depois da promoção,
+    **provar o e-mail com o ensaio**: Actions → Heartbeat → Run workflow →
+    marcar `rehearse_failure` — pergunta tudo de verdade e reprova de
+    propósito (uma execução verde não manda e-mail). 1.450 na API.
+
 - 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
   invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
   Depois do `SUCCESS` (ou do `already-succeeded-today`), o cron agendado
@@ -373,9 +415,16 @@ a suíte de unidade, que roda sem rede.
     `/article/2026-10-07` guardada como "não encontrada" voltaram com o run
     numa rodada, em 5,4 s, e ficaram em `HIT`. **961 no web** (eram 934),
     mutações A1.62 (reescrita) e A1.68–A1.71.
-  - **Próximo:** a promoção sozinha (decisão de 07/10), e ler a resposta e o
-    log do primeiro cron depois dela (`pages`, `cron.daily-news.warm`). O
-    resto da Fase 13 vai para a `dev` e sobe numa segunda promoção.
+  - **Promovido sozinho no mesmo dia** (#272, `ce38866`, com o #269 e o #270
+    que a `dev` já carregava; sem migration, env ou dependência). No ar às
+    19:09:41 UTC — a rota irmã respondendo 401 sem segredo —, e o build da
+    promoção já pôs as dez páginas com o run de 07/10 (as marcas conferidas
+    no HTML da Vercel). Gitleaks `0 commits scanned` outra vez (14.ª
+    medição do 13.6). A `dev` foi realinhada.
+  - **Próximo:** ler a resposta e o log do cron de **08/10** — o primeiro
+    com o 13a′ (`pages`, `cron.daily-news.warm`; o Hobby guarda o log por
+    1 h). Depois, o PR 13a (o batimento). O resto da Fase 13 sobe numa
+    segunda promoção.
 
 - 🟢 **06/10/2026: a Fase 12 do plano de observabilidade fechou.** Item
   **90**. A 2.ª janela da ESPN corrigida em produção (24 linhas, −2 h,
@@ -1488,8 +1537,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.381 em 188 suites (**1.420 API em 95** + **961 web em 93** —
-  todos passando, contados em 07/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.478 em 192 suites (**1.478 API em 99** + **1.000 web em 93** —
+  todos passando, contados em 09/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do

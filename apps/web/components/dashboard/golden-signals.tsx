@@ -7,13 +7,14 @@ import {
   formatCount,
   formatDateTime,
   formatHours,
+  formatHoursExact,
   formatMegabytes,
   formatMilliseconds,
   formatRate,
   formatRatio,
 } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
-import { planPace } from '@/lib/saturation';
+import { planPace, workspaceHours } from '@/lib/saturation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MetricCard } from './metric-card';
 import { SaturationArc } from './saturation-arc';
@@ -34,27 +35,105 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
  * lido **aqui, no cliente, depois de o dado chegar** — este componente só
  * renderiza com dado depois da hidratação, então não há HTML de servidor com
  * que divergir (a armadilha do relógio no render é das páginas estáticas).
+ *
+ * **Diz de quem é a projeção** (Fase 13, 13b): com a leitura do Billing, o
+ * workspace; sem ela, esta API — "sem contar os outros serviços", porque o
+ * teto é dividido e calar isso foi o defeito.
  */
 export function PlanPaceLine({ plan }: { plan: NonNullable<Saturation['plan']> }) {
   const t = useTranslations('dashboard');
   const locale = toDateFormatLocale(useLocale());
-  const pace = planPace(plan, new Date());
+  const now = new Date();
+  const pace = planPace(plan, now);
 
   if (!pace) {
+    // Com leitura e sem ritmo, o que falta é outra leitura — não amostra desta API.
+    const readingTooEarly = workspaceHours(plan, now)?.otherRate === null;
     return (
       <p className='max-w-56 text-center text-xs text-muted-foreground'>
-        {t('signals.paceTooEarly')}
+        {readingTooEarly ? t('signals.paceReadingTooEarly') : t('signals.paceTooEarly')}
       </p>
     );
   }
 
+  const values = {
+    hours: formatHours(pace.projectedHours, locale),
+    ratio: formatRatio(pace.projectedRatio, locale),
+  };
+
   return (
     <p className='max-w-56 text-center text-xs text-ink-secondary'>
-      {t('signals.pace', {
-        hours: formatHours(pace.projectedHours, locale),
-        ratio: formatRatio(pace.projectedRatio, locale),
-      })}
+      {pace.scope === 'workspace' ? t('signals.paceWorkspace', values) : t('signals.paceApi', values)}
     </p>
+  );
+}
+
+/**
+ * O arco das horas do plano — **do workspace quando há leitura do Billing, e
+ * desta API quando não há**, com o nome dizendo qual (Fase 13, 13b).
+ *
+ * As 750 h são do workspace, que o `NetsheetEngine` divide com esta API.
+ * Setembro estourou em 753,4 h com este arco mostrando folga, porque ele
+ * dividia a parte desta API pelo teto inteiro. Com a leitura, o arco é a
+ * soma — esta API medida, os outros estimados no ritmo da leitura, com o "~"
+ * — e a linha de baixo separa as duas partes e diz de quando é a leitura.
+ */
+function PlanArc({
+  plan,
+  arcSize,
+}: {
+  plan: NonNullable<Saturation['plan']>;
+  arcSize: 'lg' | 'sm';
+}) {
+  const t = useTranslations('dashboard');
+  const locale = toDateFormatLocale(useLocale());
+  const workspace = workspaceHours(plan, new Date());
+  const limit = formatHours(plan.limitHours, locale);
+
+  if (!workspace) {
+    return (
+      <>
+        <SaturationArc
+          ratio={plan.ratio}
+          label={t('signals.planHoursApi')}
+          value={t('signals.planValue', { used: formatHours(plan.hoursUsed, locale), limit })}
+          unavailableText={t('signals.planUnavailable')}
+          size={arcSize}
+        />
+        <p className='max-w-56 text-center text-xs text-muted-foreground'>
+          {t('signals.planShared', { limit })}
+        </p>
+        <PlanPaceLine plan={plan} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SaturationArc
+        ratio={workspace.ratio}
+        label={t('signals.planHoursWorkspace')}
+        value={t('signals.planValueEstimated', {
+          used: formatHours(workspace.totalHoursNow, locale),
+          limit,
+        })}
+        unavailableText={t('signals.planUnavailable')}
+        size={arcSize}
+      />
+      <p className='max-w-56 text-center text-xs text-ink-secondary'>
+        {t('signals.planBreakdown', {
+          api: formatHours(plan.hoursUsed, locale),
+          other: formatHours(workspace.otherHoursNow, locale),
+        })}
+      </p>
+      <p className='max-w-56 text-center text-xs text-muted-foreground'>
+        {t('signals.planReadingAt', {
+          hours: formatHoursExact(workspace.readHours, locale),
+          date: formatDateTime(workspace.readAt.toISOString(), locale),
+        })}
+      </p>
+      <PlanPaceLine plan={plan} />
+    </>
   );
 }
 
@@ -93,26 +172,21 @@ export function SaturationPanel({
   return (
     <div className='flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-10'>
       <div className='flex flex-col items-center gap-2'>
-        <SaturationArc
-          ratio={plan ? plan.ratio : null}
-          label={t('signals.planHours')}
-          value={
-            plan
-              ? t('signals.planValue', {
-                  used: formatHours(plan.hoursUsed, locale),
-                  limit: formatHours(plan.limitHours, locale),
-                })
-              : null
-          }
-          unavailableText={t('signals.planUnavailable')}
-          size={arcSize}
-        />
         {plan ? (
-          <PlanPaceLine plan={plan} />
+          <PlanArc plan={plan} arcSize={arcSize} />
         ) : (
-          <p className='max-w-48 text-center text-xs text-muted-foreground'>
-            {t('signals.planUnavailableHint')}
-          </p>
+          <>
+            <SaturationArc
+              ratio={null}
+              label={t('signals.planHoursApi')}
+              value={null}
+              unavailableText={t('signals.planUnavailable')}
+              size={arcSize}
+            />
+            <p className='max-w-48 text-center text-xs text-muted-foreground'>
+              {t('signals.planUnavailableHint')}
+            </p>
+          </>
         )}
       </div>
 

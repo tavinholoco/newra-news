@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuditTrail } from '@/lib/queries';
-import { formatCount, formatDateTime } from '@/lib/format';
+import { formatCount, formatDateTime, formatHoursExact } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { WindowSelector } from '@/components/dashboard/window-selector';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,6 +20,7 @@ const WINDOWS = [7, 30, 90, 365] as const;
 const ACTION_KEY: Record<string, string> = {
   'pipeline.triggered': 'security.audit.actionPipelineTriggered',
   'news.deleted': 'security.audit.actionNewsDeleted',
+  'plan.hours_recorded': 'security.audit.actionPlanHoursRecorded',
 };
 
 /**
@@ -112,6 +113,23 @@ export function AuditTrail() {
                         <code className='select-all font-mono text-ink-secondary'>{event.context.pipelineId}</code>
                       </>
                     )}
+                    {/**
+                      * A leitura do Billing (Fase 13, 13b) é a única ação
+                      * cuja linha **é** o dado: as duas pontas do mesmo
+                      * instante, que é o que permite conferir depois se o
+                      * arco daquele dia estava certo.
+                      */}
+                    {event.action === 'plan.hours_recorded' &&
+                      typeof event.context?.workspaceHours === 'number' &&
+                      typeof event.context?.apiHours === 'number' && (
+                        <>
+                          {' · '}
+                          {t('security.audit.planReading', {
+                            workspace: formatHoursExact(event.context.workspaceHours, locale),
+                            api: formatHoursExact(event.context.apiHours, locale),
+                          })}
+                        </>
+                      )}
                     {event.requestId && (
                       <>
                         {' · '}

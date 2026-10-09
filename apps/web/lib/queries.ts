@@ -15,6 +15,7 @@ import type {
   NewsletterStatus,
   UserPreferences,
   ErrorSummaryWindow,
+  PlanHoursReading,
 } from '@newranews/types';
 import {
   getNews,
@@ -40,6 +41,7 @@ import {
   getAuditTrail,
   getSourceHealth,
   getInvariantReport,
+  recordPlanHoursReading,
 } from '@/lib/api';
 import { OUTCOME_WINDOW_DAYS } from '@/lib/outcome-days';
 
@@ -418,6 +420,28 @@ export function useHttpMetrics() {
   return useQuery({
     queryKey: observabilityKeys.http(),
     queryFn: () => getHttpMetrics(),
+  });
+}
+
+/**
+ * Registra a leitura do Billing (Fase 13 do plano de observabilidade, 13b) e
+ * **recarrega o arco e a trilha**.
+ *
+ * As duas invalidações não são enfeite: o arco desenha o workspace a partir
+ * da leitura mais recente, e sem recarregar os sinais a tela confirmaria
+ * "registrada" com o arco ainda mostrando a leitura anterior — a primeira
+ * seção dizendo uma coisa e a segunda outra, a família do 25/08. A trilha
+ * (`audit`, qualquer janela) ganha a linha nova.
+ */
+export function useRecordPlanHoursReading() {
+  const queryClient = useQueryClient();
+
+  return useMutation<PlanHoursReading, Error, number>({
+    mutationFn: (workspaceHours: number) => recordPlanHoursReading(workspaceHours),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: observabilityKeys.http() });
+      queryClient.invalidateQueries({ queryKey: [...adminKeys.all, 'audit'] });
+    },
   });
 }
 

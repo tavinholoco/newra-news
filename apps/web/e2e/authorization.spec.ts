@@ -77,6 +77,20 @@ test.describe('BFF sem sessão', () => {
     });
   }
 
+  test('a única escrita de admin pelo proxy recusa sem sessão', async ({ request }) => {
+    // Fase 13 do plano de observabilidade (13b): a leitura do Billing. A lista
+    // acima faz `GET`, e esta rota só tem `POST` — o `GET` daria 405 e não
+    // mediria a porta. O corpo é válido para o 401 ser da sessão, não do
+    // formato.
+    const response = await request.post('/api/admin/plan-hours', {
+      data: { workspaceHours: 124.27 },
+      failOnStatusCode: false,
+    });
+
+    expect(response.status()).toBe(401);
+    expect(await response.json()).toEqual({ error: 'Unauthorized' });
+  });
+
   test('a rota de eventos continua anônima — ela não pode exigir sessão', async ({
     request,
   }) => {

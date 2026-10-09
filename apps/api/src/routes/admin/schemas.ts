@@ -4,11 +4,15 @@ import type {
   AuditTrail,
   ErrorSummary,
   InvariantReport,
+  PlanHoursReading,
+  PlanHoursReadingInput,
   SourceHealthReport,
 } from '@newranews/types';
 import { assertContract } from '../../utils/contract';
 import { AUDIT_LIST_DEFAULT, AUDIT_LIST_MAX } from '../../services/audit.service';
 import { invariantRunSchema } from '../../services/invariants.service';
+import { MAX_WORKSPACE_HOURS } from '../../services/plan-hours.service';
+import { planHoursReadingSchema } from '../metrics/schemas';
 import {
   SOURCE_HEALTH_WINDOW_DEFAULT_DAYS,
   SOURCE_HEALTH_WINDOW_MAX_DAYS,
@@ -150,9 +154,25 @@ export const invariantReportSchema = invariantRunSchema.extend({
 
 export const invariantReportResponseSchema = z.object({ data: invariantReportSchema.nullable() });
 
+/**
+ * A leitura do Billing (§23 do plano de observabilidade, 13b).
+ *
+ * **Número, nunca texto**: quem converte o "124,27" do teclado brasileiro é a
+ * tela, que sabe o idioma; aqui uma vírgula é 400. `finite` recusa o
+ * `Infinity` que um `JSON.parse` nunca produz mas um cliente escrito à mão
+ * pode mandar, e o teto recusa o dígito a mais.
+ */
+export const planHoursReadingBodySchema = z.object({
+  workspaceHours: z.number().finite().min(0).max(MAX_WORKSPACE_HOURS),
+});
+
+export const planHoursReadingResponseSchema = z.object({ data: planHoursReadingSchema });
+
 assertContract<typeof errorSummaryResponseSchema, ApiResponse<ErrorSummary>>(true);
 assertContract<typeof auditTrailResponseSchema, ApiResponse<AuditTrail>>(true);
 assertContract<typeof sourceHealthResponseSchema, ApiResponse<SourceHealthReport>>(true);
 assertContract<typeof invariantReportResponseSchema, ApiResponse<InvariantReport | null>>(true);
+assertContract<typeof planHoursReadingBodySchema, PlanHoursReadingInput>(true);
+assertContract<typeof planHoursReadingResponseSchema, ApiResponse<PlanHoursReading>>(true);
 
 export { errorResponseSchema } from '../../utils/schemas';

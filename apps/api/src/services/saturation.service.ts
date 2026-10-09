@@ -1,10 +1,13 @@
 import type { Saturation } from '@newranews/types';
 import { getEventLoopLag } from '../plugins/observability';
 import { baseLogger } from '../utils/logger';
+import { getLatestPlanHoursReading } from './plan-hours.service';
 import {
   RENDER_FREE_PLAN_HOURS,
   getMonthUptimeSeconds,
+  getRecentUptimeDays,
   startOfUtcMonth,
+  toPlanHours,
 } from './uptime.service';
 
 /**
@@ -43,8 +46,14 @@ const ratio = (part: number, whole: number): number =>
 async function planSaturation(now: Date): Promise<Saturation['plan']> {
   const monthStart = startOfUtcMonth(now);
   try {
-    const secondsUsed = await getMonthUptimeSeconds(now);
-    const hoursUsed = Number((secondsUsed / 3600).toFixed(2));
+    // As três leituras vão ao mesmo banco: se uma falha, as outras não têm com
+    // quem ser comparadas, e o arco sai "indisponível" inteiro (Fase 13, 13b).
+    const [secondsUsed, workspaceReading, uptimeByDay] = await Promise.all([
+      getMonthUptimeSeconds(now),
+      getLatestPlanHoursReading(now),
+      getRecentUptimeDays(now),
+    ]);
+    const hoursUsed = toPlanHours(secondsUsed);
     return {
       month: monthStart.toISOString().slice(0, 7),
       monthStart: monthStart.toISOString(),
@@ -52,6 +61,8 @@ async function planSaturation(now: Date): Promise<Saturation['plan']> {
       hoursUsed,
       limitHours: RENDER_FREE_PLAN_HOURS,
       ratio: ratio(hoursUsed, RENDER_FREE_PLAN_HOURS),
+      workspaceReading,
+      uptimeByDay,
     };
   } catch (error) {
     // Só `warn`: quando este `aggregate` falha, o banco está fora, e isso já
