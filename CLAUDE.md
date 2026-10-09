@@ -342,9 +342,8 @@ a suíte de unidade, que roda sem rede.
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
   com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
   curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o 13c,
-  o 13d e o 13.5 fecharam na `dev` (09/10) e sobem na segunda promoção;
-  sobram o 13.7 (decisão do dono) e o 13.3 (~17/10)**, pelo prompt de
-  abertura no fim da §23.
+  o 13d, o 13.5 e o 13.7 fecharam na `dev` (09/10) e sobem na segunda
+  promoção; sobra o 13.3 (~17/10)**, pelo prompt de abertura no fim da §23.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -362,6 +361,17 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **09/10/2026: o 13.7 decidido — os fluxos com login do Smoke ficam
+  desligados, e o login é perguntado todo dia sem segredo no CI.** Item
+  **97**; §23 do plano. O `NEXTAUTH_SECRET` de produção no CI daria sessão de
+  admin a qualquer dependência comprometida (o papel vem do token; o worm
+  Shai-Hulud de 2025 roubou segredos de CI assim). O defeito que os seis
+  testes pegariam — o par `AUTH_JWT_SECRET` divergente — virou a **sonda do
+  login**: `GET /api/health/auth` na API aceita só um JWT
+  `purpose: 'health-probe'`; a rota irmã do web o assina e pergunta (ISR de
+  um dia, regenerada pelo cron); o Heartbeat ganhou a pergunta `login`.
+  Mutações A1.102–A1.106. **1.527 na API, 1.018 no web.**
 
 - 🟢 **09/10/2026 (madrugada): o 13.5 — a Veja Saúde fica — na `dev`.**
   Item **96**; §23 do plano. A `SourceHealth` de produção mostrou que não era
@@ -1586,8 +1596,9 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.507 em 192 suites (**1.498 API em 99** + **1.009 web em 93** —
-  todos passando, contados em 09/10/2026, depois do 13c, do 13d e do 13.5), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.545 em 194 suites (**1.527 API em 100** + **1.018 web em 94** —
+  todos passando, contados em 09/10/2026, depois do 13c, do 13d, do 13.5 e do
+  13.7), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
@@ -2131,11 +2142,17 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser
   gravada ali.
-- **Os fluxos autenticados do smoke E2E** (conta e admin) ficam pulados até
-  `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL` e `E2E_ADMIN_USER_ID`
-  existirem como segredos do repositório — e o pulo é impresso pelo workflow.
-  Ligá-los põe o `NEXTAUTH_SECRET` de produção no runner do CI, e a decisão é de
-  quem é dono do segredo. `apps/web/e2e/support/session.ts` documenta.
+- **Os fluxos autenticados do smoke E2E** (conta e admin) **ficam pulados por
+  decisão do dono (09/10/2026, 13.7 do plano de observabilidade)**: ligá-los põe
+  o `NEXTAUTH_SECRET` de produção no CI, e com ele se forja sessão de admin (o
+  papel vem do token) — o risco é qualquer dependência comprometida do job, o
+  caminho do worm Shai-Hulud de 2025. O defeito que eles pegariam, o par
+  `AUTH_JWT_SECRET` divergente entre Vercel e Render, é perguntado todo dia pela
+  **sonda do login** (`GET /api/health/auth` nas duas pontas, regenerada pelo
+  cron e lida pelo Heartbeat), sem segredo fora das plataformas. **Gatilho para
+  reabrir:** leitores com conta de verdade, ou um defeito do caminho logado que
+  a sonda não pegue — com um ambiente de teste de segredo próprio, nunca o de
+  produção. `apps/web/e2e/support/session.ts` documenta.
 - **Trilha nas listagens** (`/news`, `/article`). Marcação de trilha pede
   trilha visível, e ali o segundo degrau seria a própria página — o
   `editorial-nav` já diz onde se está. Se um dia entrar, a lista de

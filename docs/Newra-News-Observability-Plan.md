@@ -4785,7 +4785,9 @@ de dizer o número de commits do merge, não zero. É mudança em workflow de
 segurança: a guarda dos workflows (SHA fixado, permissões) vale, e o PR prova o
 número num push real na `dev`. **Fecha a linha do Gitleaks no §16.**
 
-**13.7 — Os fluxos autenticados do Smoke: decisão, não trabalho.** Ligá-los
+**13.7 — Os fluxos autenticados do Smoke: decisão, não trabalho.** *(Decidido
+em 09/10/2026: desligados, e o defeito que pegariam virou a sonda do par de
+JWT — "O que o 13.7 decidiu", abaixo.)* Ligá-los
 põe o `NEXTAUTH_SECRET` de produção no runner do CI (quatro segredos:
 `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL`, `E2E_ADMIN_USER_ID`).
 O ganho é a conta e o admin medidos a cada promoção; o custo é o segredo de
@@ -5186,6 +5188,57 @@ promoção da fase).** Item **95** do `docs/progress.md`. O 13.6.
   sincronização `main → dev` por `git merge` local, com conflito.
   Depois, a promoção: a medição na `main`.
 
+**O que o 13.7 decidiu — 09/10/2026 ✅ (na `dev`; sobe na segunda
+promoção da fase).** Item **97** do `docs/progress.md`.
+
+- **Decidido pelo dono, depois da análise: os seis testes com login do Smoke
+  continuam desligados.** Ligá-los põe o `NEXTAUTH_SECRET` de produção no CI,
+  e **quem tem esse segredo forja sessão de admin de qualquer conta** — o
+  papel vem do token, nunca do banco (`lib/auth.ts` grava `role` no JWT; o
+  `requireAdmin` da API lê o claim). O vetor realista não é o GitHub — os
+  segredos não chegam a PR de fork nem do Dependabot —, é a cadeia de
+  dependências: o passo do Playwright executa `node_modules` com o segredo no
+  ambiente, e o worm **Shai-Hulud** (npm, set. e nov. de 2025) roubou
+  segredos de CI exatamente assim, inclusive o da PostHog. Um Environment
+  restrito à `main` não ajuda: a dependência maliciosa roda nesse job. É o
+  CICD-SEC-6 do OWASP CI/CD Top 10.
+- **O que os seis testes comprariam é um defeito só**, e já aconteceu uma
+  vez: o par `AUTH_JWT_SECRET` divergente entre a Vercel e o Render — todo
+  leitor logado em 401 com o site anônimo perfeito. O resto já tinha quem
+  medisse (os 401 anônimos no Smoke, a costura BFF → API no
+  `bff-route-seam`, a tela de admin no `admin:capture`).
+- **A sonda, sem segredo fora das duas plataformas.** A API ganhou
+  `GET /api/health/auth`, que aceita **só** um JWT com
+  `purpose: 'health-probe'` — sem papel, sem sessão — e que nenhuma outra
+  porta aceita (o `authPlugin` com `purpose` é simétrico; a matriz de
+  autorização cobra as duas direções). O web ganhou a rota irmã
+  `/api/health/auth`, que assina o token com o segredo que já mora na
+  Vercel e pergunta; guardada pela ISR por um dia (um robô não acorda a API
+  com ela) e respondendo **200 mesmo quando a sonda falha** — a armadilha 43
+  ao contrário: o "ok" de ontem tem de sair do ar quando a de hoje recusa. O
+  cron a invalida e a pede com o conjunto do dia (a marca é a sonda de hoje,
+  **aceita**), e o Heartbeat ganhou a pergunta `login`, lida do cache da
+  Vercel: recusada, velha ou ausente reprova o job — o e-mail. Num dia sem
+  briefing ela é pulada (uma causa, uma linha).
+- **Duas guardas existentes pegaram o que faltava no caminho:** o
+  `bff-error-log` (os dois `catch` da rota nova não escreviam no log — hoje
+  `bff.health.auth`) e o `bff-route-seam` (a rota é a terceira chamada
+  `fetch` crua do BFF, e a guarda a achou sozinha e cobrou o nome).
+- **Guardas e mutações:** a matriz (o token da sonda recusado em toda rota
+  de sessão e admin; a sonda recusando sessão, admin e upsert), a rota da
+  API (aceita, recusa outro segredo, não toca o banco), a rota do web (o
+  token sem papel, os cinco motivos, 200 sempre, `revalidate` de um dia), a
+  marca no conjunto do dia, e o Heartbeat (recusada, velha, ausente, pulada
+  sem briefing). Mutações **A1.102–A1.106**. **1.498 → 1.527 na API, 1.009
+  → 1.018 no web.**
+- **O que conferir depois da promoção:** a rota do web respondendo
+  `"ok":true` com o `checkedAt` do dia depois do cron, e a pergunta `login`
+  do Heartbeat verde. **Gatilho para reabrir a decisão dos seis testes:** o
+  produto ganhar leitores com conta de verdade (assinantes ou contas acima
+  de algumas dezenas — o número do §21), ou um defeito no caminho logado que
+  a sonda não pegue. Aí o caminho é um ambiente de teste com segredo
+  próprio, nunca o de produção.
+
 **O que o 13.5 decidiu — 09/10/2026 ✅ (na `dev`; sobe na segunda
 promoção da fase).** Item **96** do `docs/progress.md`.
 
@@ -5242,7 +5295,8 @@ promoção da fase).** Item **96** do `docs/progress.md`.
 | ~~**13c**~~ ✅ 09/10 | 13.4 (a métrica de leitura): `webdriver` recusado, a rolagem como prova de leitor, e `article_view` como denominador. Na `dev`; sobe na segunda promoção | o inventário dos eventos — medido nas ferramentas; o cruzamento com produção fica para depois da promoção |
 | ~~**13d**~~ ✅ 09/10 | 13.6 (o Gitleaks): o `push` roda o binário sobre `before..after`; a action fica no PR. Na `dev`; sobe na segunda promoção | — |
 | ~~13.5~~ ✅ 09/10 | a Veja Saúde fica; a falha rápida de rede do feed ganha uma nova tentativa, e a causa do undici vai para o `failureReason`. Na `dev`; sobe na segunda promoção | a decisão do dono — tomada em 09/10, sobre a `SourceHealth` de produção |
-| — | 13.3, 13.7 | uma semana da série do 13a (~17/10); a decisão do dono |
+| ~~13.7~~ ✅ 09/10 | os fluxos com login do Smoke **ficam desligados**, e o defeito que eles pegariam vira a sonda diária do par de JWT, sem segredo no CI. Na `dev`; sobe na segunda promoção | a decisão do dono — tomada em 09/10, depois da análise e da pesquisa |
+| — | 13.3 | uma semana da série do 13a (~17/10) |
 | — | 13.8, ~~13.9~~, ~~13.10~~ | o gatilho da armadilha 45; ~~uma semana de `DailyUptime`~~ (no 13b); ~~junto do 13a~~ (no 13a) |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
@@ -5253,28 +5307,31 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
-> 07/10, o 13b, o 13c, o 13d e o 13.5 em 09/10; leia os blocos "O que o
-> PR … decidiu" e "O que o 13.5 decidiu") e o §17 (armadilhas, até a 47). O
-> que sobra da fase: **o 13.7 (os fluxos autenticados do Smoke) como decisão
-> minha**, **o 13.3 com uma semana da série do batimento** (~17/10), e a
-> **segunda promoção** (13c, 13d e 13.5).
-> Comece conferindo as execuções **agendadas** do Heartbeat (desde 10/10
-> 12:40 UTC): verdes, e a linha `heartbeat api_ms=…` no log. Antes de
-> qualquer escrita em produção, me pergunte.
+> 07/10; o 13b, o 13c, o 13d, o 13.5 e o 13.7 em 09/10; leia os blocos "O
+> que … decidiu") e o §17 (armadilhas, até a 47). O que sobra da fase: **o
+> 13.3 com uma semana da série do batimento** (~17/10) e a **segunda
+> promoção** (13c, 13d, 13.5 e 13.7). Comece conferindo as execuções
+> **agendadas** do Heartbeat (desde 10/10 12:40 UTC): verdes, e a linha
+> `heartbeat api_ms=…` no log. Antes de qualquer escrita em produção, me
+> pergunte.
 >
-> **O que a sessão fria precisa saber:** o 13c, o 13d e o 13.5 estão na
-> `dev` e sobem juntos na **segunda promoção** da fase. Depois dela, além do
-> que segue: a `SourceHealth` com menos dias de `FAILED` e a causa no
-> `failureReason`. Depois dela: (a) o resumo do job `gitleaks-push` no push da `main`
-> tem de dizer o número de commits da promoção, não zero (na `dev` já disse:
-> o merge do #281 deu 3 commits, 2 varridos);
-> (b) uma execução do Lighthouse sem nenhuma linha de `ProductEvent` na
-> janela dela, e o `article_view` aparecendo — pelo **MCP do Neon**, que o
-> dono conectou em 09/10 (`mcp__Neon__run_sql`, projeto
+> **O que a sessão fria precisa saber:** depois da segunda promoção,
+> conferir (a) o resumo do job `gitleaks-push` no push da `main` com o
+> número de commits da promoção, não zero (na `dev` já disse: o merge do
+> #281 deu 3, 2 varridos); (b) uma execução do Lighthouse sem nenhuma linha
+> de `ProductEvent` na janela dela, e o `article_view` aparecendo; (c) a
+> `SourceHealth` com menos dias de `FAILED` e a causa no `failureReason`;
+> (d) **a sonda do login no ar**: `GET https://newra-news-web.vercel.app/api/health/auth`
+> respondendo `"ok":true` com o `checkedAt` do dia, e a pergunta `login` do
+> Heartbeat verde no agendado seguinte. As leituras do banco vão pelo **MCP
+> do Neon**, que o dono conectou em 09/10 (`mcp__Neon__run_sql`, projeto
 > `rapid-art-19064809`; o `neonctl connection-string` é recusado pelo
-> classificador). O Auto-fix do CI fica desligado. Pendência do dono que não trava nada:
-> reler o Billing por volta de 16/10 (o gatilho da contagem automática,
-> §16).
+> classificador). O Auto-fix do CI fica desligado. Pendência do dono que
+> não trava nada: reler o Billing por volta de 16/10 (o gatilho da contagem
+> automática, §16).
+>
+> *(O de 09/10 de madrugada, depois do 13.5: "…o que sobra é o 13.7 como
+> decisão minha, o 13.3 com uma semana da série, e a segunda promoção".)*
 >
 > *(O de 09/10 à noite, que abriu o 13d: "…siga pelo PR 13d — o Gitleaks
 > varre o intervalo do push (13.6)".)*
