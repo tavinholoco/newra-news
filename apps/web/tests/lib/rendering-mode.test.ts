@@ -90,3 +90,51 @@ describe('modo de renderização × o que a página declara', () => {
     expect(contradictory).toEqual([]);
   });
 });
+
+/**
+ * **O mesmo engano num route handler, medido em produção em 09/10/2026** (13.7
+ * do plano de observabilidade, armadilha 48). A sonda do login
+ * (`app/api/health/auth/route.ts`) declarava `revalidate = 86400` para um robô
+ * não acordar a API com ela — e o `fetch` dela levava `cache: 'no-store'`.
+ * No Next 14 um `fetch` `no-store` é **uso dinâmico**: o build marcou a rota
+ * `ƒ` e o `revalidate` deixou de valer. Duas sondas seguidas em produção
+ * deram `X-Vercel-Cache: MISS`, `Age: 0` e dois `checkedAt` diferentes — cada
+ * pedido chamava o Render. A suíte da rota passava: ela mocka o `fetch`, e o
+ * modo de renderização só existe no build.
+ *
+ * A guarda pergunta pela causa, que se lê no fonte: **arquivo sob `app/` que
+ * declara `revalidate` não faz `fetch` com `cache: 'no-store'` nem
+ * `revalidate: 0`** — quem precisar da resposta fresca a cada regeneração
+ * usa `next: { revalidate }` com o mesmo período, que a invalidação do cron
+ * também alcança.
+ */
+describe('modo de renderização × o fetch de quem declara revalidate', () => {
+  function collectSources(dir: string): string[] {
+    return readdirSync(dir).flatMap((entry) => {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) return collectSources(full);
+      return /\.(tsx?|jsx?)$/.test(full) ? [full] : [];
+    });
+  }
+
+  const revalidating = collectSources(APP_DIR).filter((file) =>
+    /export const revalidate\s*=/.test(readFileSync(file, 'utf8')),
+  );
+
+  it('finds the revalidating files, route handlers included', () => {
+    expect(revalidating.map(relativePath)).toContain('app/api/health/auth/route.ts');
+  });
+
+  it('never opts a revalidating file into dynamic rendering through its fetch', () => {
+    const dynamic = revalidating
+      .filter((file) => {
+        const source = readFileSync(file, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+        return /cache:\s*'no-store'|revalidate:\s*0\b/.test(source);
+      })
+      .map(relativePath);
+
+    expect(dynamic).toEqual([]);
+  });
+});

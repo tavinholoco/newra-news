@@ -9221,8 +9221,15 @@ de produção no CI.
   (dois `catch` mudos na rota nova) e `bff-route-seam` (a terceira chamada
   `fetch` crua do BFF, achada sozinha pelo parser).
 - **Mutações A1.102–A1.106. 1.498 → 1.527 na API, 1.009 → 1.018 no web.**
-- **Depois da promoção:** a rota do web com `"ok":true` e o `checkedAt` do dia,
-  e a pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão:**
+- **Promovido no #285 (09/10, 22:18 UTC) e medido:** a sonda **aceita** em
+  produção (`"ok":true`). E a medição achou a **armadilha 48**: o `fetch` com
+  `cache: 'no-store'` tornava a rota dinâmica (build `ƒ`; em produção, `MISS`
+  e um `checkedAt` novo a cada pedido — cada um chamava o Render). Corrigido
+  com `next: { revalidate: 86400 }` (build `○`), guarda no
+  `rendering-mode.test.ts` e mutação A1.107, num PR próprio.
+- **Depois da promoção da correção:** dois pedidos seguidos com o mesmo
+  `checkedAt` e `HIT` no segundo; a rota com `"ok":true` e o `checkedAt` do
+  dia depois do cron; e a pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão:**
   leitores com conta de verdade, ou um defeito do caminho logado que a sonda
   não pegue — e aí com um ambiente de teste de segredo próprio.
 

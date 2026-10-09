@@ -1445,6 +1445,15 @@ const MUTATIONS = [
     dropLine: "    checks.push({ id: 'login', state: 'skipped', summary: 'depende do briefing de hoje' });",
     expect: 'does not ask about the login on a day without the briefing',
   },
+  {
+    id: 'A1.107',
+    what: 'o fetch da sonda volta a `no-store` — a rota vira `ƒ` e cada pedido acorda o Render',
+    pkg: 'web',
+    test: 'tests/lib/rendering-mode.test.ts',
+    file: 'apps/web/app/api/health/auth/route.ts',
+    edits: [{ find: '      next: { revalidate: 86400 },', replace: "      cache: 'no-store'," }],
+    expect: 'never opts a revalidating file into dynamic rendering through its fetch',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
@@ -1481,7 +1490,6 @@ const EXCLUDED = {
   'web:tests/lib/i18n-messages.test.ts': 'V2 (16/08) — paridade dos JSONs de idioma; anterior ao plano',
   'web:tests/lib/images.test.ts': 'V2 (22/08) — hosts de imagem; anterior ao plano',
   'web:tests/lib/markdown-text.test.ts': 'V2, pós-Fase 12 (01/09) — limpeza de Markdown em metadata; anterior ao plano',
-  'web:tests/lib/rendering-mode.test.ts': 'V2, Fase 11 (24/08) — revalidate ⇒ rota guardada; anterior ao plano',
   'web:tests/lib/seo.test.ts': 'V2 (22/08) — metadata; anterior ao plano',
   'web:tests/routes/events-anonymity.test.ts': 'V2, Fase 11 (24/08) — anonimato do BFF de eventos; anterior ao plano',
   'web:tests/security/browser-surface.test.ts': 'V2, Fase 10 (24/08) — o plano (5c) só trocou prosa ("15 páginas")',
