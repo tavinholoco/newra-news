@@ -129,6 +129,11 @@
       "description": "Plan hours are the ceiling that suspended the API on 29/08 — the arc is what was missing to see it coming. Memory and event loop are of this instance.",
       "loadError": "Could not load the API health.",
       "instance": "This instance has been up for {uptime}: {requests} requests, {errorRate} with a server error. The window resets on every wake-up.",
+      "uptimeDays": {
+        "title": "This API’s hours per day",
+        "description": "Two weeks, today partial. Since the 01/10 cut: up to ~4 h a day is expected (cron, regenerations, visits); 4 to 10 h is robots; close to 24 h, it never sleeps.",
+        "robotAlert": "This API went over 10 h a day for {days, plural, one {# day in a row} other {# days in a row}}. With no deploy or incident, the suspect is robots on /news/[id] — robots.txt for AI crawlers and Vercel’s Bot Protection."
+      },
       "reading": {
         "label": "Billing total (workspace hours)",
         "hint": "In the Render dashboard: Billing → Free instance hours. The number is the whole workspace’s; the other services’ share is the difference to this API.",

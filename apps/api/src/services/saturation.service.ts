@@ -5,6 +5,7 @@ import { getLatestPlanHoursReading } from './plan-hours.service';
 import {
   RENDER_FREE_PLAN_HOURS,
   getMonthUptimeSeconds,
+  getRecentUptimeDays,
   startOfUtcMonth,
   toPlanHours,
 } from './uptime.service';
@@ -45,11 +46,12 @@ const ratio = (part: number, whole: number): number =>
 async function planSaturation(now: Date): Promise<Saturation['plan']> {
   const monthStart = startOfUtcMonth(now);
   try {
-    // As duas leituras vão ao mesmo banco: se uma falha, a outra não tem com
-    // quem ser comparada, e o arco sai "indisponível" inteiro (Fase 13, 13b).
-    const [secondsUsed, workspaceReading] = await Promise.all([
+    // As três leituras vão ao mesmo banco: se uma falha, as outras não têm com
+    // quem ser comparadas, e o arco sai "indisponível" inteiro (Fase 13, 13b).
+    const [secondsUsed, workspaceReading, uptimeByDay] = await Promise.all([
       getMonthUptimeSeconds(now),
       getLatestPlanHoursReading(now),
+      getRecentUptimeDays(now),
     ]);
     const hoursUsed = toPlanHours(secondsUsed);
     return {
@@ -60,6 +62,7 @@ async function planSaturation(now: Date): Promise<Saturation['plan']> {
       limitHours: RENDER_FREE_PLAN_HOURS,
       ratio: ratio(hoursUsed, RENDER_FREE_PLAN_HOURS),
       workspaceReading,
+      uptimeByDay,
     };
   } catch (error) {
     // Só `warn`: quando este `aggregate` falha, o banco está fora, e isso já

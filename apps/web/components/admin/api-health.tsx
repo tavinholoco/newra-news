@@ -6,6 +6,8 @@ import { formatCount, formatRate, formatUptime } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { SaturationPanel } from '@/components/dashboard/golden-signals';
 import { PlanReadingForm } from './plan-reading-form';
+import { UptimeDays } from './uptime-days';
+import { uptimeByDayOf } from '@/lib/saturation';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
@@ -25,6 +27,8 @@ export function ApiHealth() {
   const t = useTranslations('admin');
   const locale = toDateFormatLocale(useLocale());
   const { data, isError } = useHttpMetrics();
+  // As horas por dia (13.9) — ausentes na API de antes da Fase 13 (armadilha 37).
+  const uptimeSeries = data?.saturation.plan ? uptimeByDayOf(data.saturation.plan) : null;
 
   return (
     <section className='rounded-lg border border-border bg-card p-6'>
@@ -46,9 +50,14 @@ export function ApiHealth() {
       ) : (
         <>
           <SaturationPanel saturation={data.saturation} arcSize='lg' />
-          {/* A leitura do Billing (Fase 13, 13b) só faz sentido com as horas
-              desta API à mão — é a parte que ela é comparada. */}
-          {data.saturation.plan && <PlanReadingForm plan={data.saturation.plan} />}
+          {/* A série por dia e a leitura do Billing (Fase 13, 13b) só existem
+              com as horas do plano à mão — a leitura é comparada com elas. */}
+          {data.saturation.plan && (
+            <>
+              {uptimeSeries && <UptimeDays series={uptimeSeries} />}
+              <PlanReadingForm plan={data.saturation.plan} />
+            </>
+          )}
           <p className='mt-6 text-xs text-muted-foreground'>
             {t('overview.instance', {
               uptime: formatUptime(data.uptimeSeconds, locale),

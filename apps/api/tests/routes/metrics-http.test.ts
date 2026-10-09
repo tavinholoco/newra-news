@@ -24,6 +24,7 @@ vi.mock('@newranews/database', async (importOriginal) => {
     prisma: {
       dailyUptime: {
         aggregate: vi.fn(),
+        findMany: vi.fn(),
       },
       auditEvent: {
         findFirst: vi.fn(),
@@ -82,6 +83,7 @@ interface HttpMetricsBody {
         limitHours: number;
         ratio: number;
         workspaceReading: { readAt: string; workspaceHours: number; apiHours: number } | null;
+        uptimeByDay: { since: string; until: string; days: Array<{ date: string; seconds: number }> };
       } | null;
     };
   };
@@ -104,6 +106,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ _sum: { seconds: 1_098_000 } } as never);
   vi.mocked(prisma.auditEvent.findFirst).mockReset().mockResolvedValue(null);
+  vi.mocked(prisma.dailyUptime.findMany).mockReset().mockResolvedValue([]);
 });
 
 describe('GET /api/metrics/http — saturação', () => {
@@ -257,6 +260,24 @@ describe('GET /api/metrics/http — a leitura do Billing (13b)', () => {
     const { data } = res.json() as HttpMetricsBody;
     expect(data.saturation.plan).not.toBeNull();
     expect(data.saturation.plan?.workspaceReading).toBeNull();
+  });
+
+  it('traz as horas desta API por dia — o 13.9, que antes só se lia no banco', async () => {
+    vi.mocked(prisma.dailyUptime.findMany).mockResolvedValueOnce([
+      { date: new Date('2026-10-05T00:00:00.000Z'), seconds: 22_680 },
+    ] as never);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/metrics/http',
+      headers: { authorization: `Bearer ${admin}` },
+    });
+
+    const { data } = res.json() as HttpMetricsBody;
+    const series = data.saturation.plan?.uptimeByDay;
+    expect(series?.days).toEqual([{ date: '2026-10-05', seconds: 22_680 }]);
+    expect(series?.since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(series?.until).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('a leitura que falha leva as horas do plano junto — mesmo banco, mesmo `null`', async () => {

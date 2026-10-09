@@ -48,6 +48,16 @@ export const httpMetrics: HttpMetrics = {
       ratio: 0.4067,
       // Sem leitura do Billing: o arco mostra só esta API (Fase 13, 13b).
       workspaceReading: null,
+      // As horas por dia (13.9): três dias na faixa esperada, nenhum gatilho.
+      uptimeByDay: {
+        since: '2026-09-01',
+        until: '2026-09-14',
+        days: [
+          { date: '2026-09-12', seconds: 10_800 },
+          { date: '2026-09-13', seconds: 14_400 },
+          { date: '2026-09-14', seconds: 7_200 },
+        ],
+      },
     },
   },
 };

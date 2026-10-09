@@ -1,4 +1,5 @@
-import type { PlanHoursReading, Saturation } from '@newranews/types';
+import type { PlanHoursReading, Saturation, UptimeSeries } from '@newranews/types';
+import { fillCalendarDays } from '@/lib/series';
 
 /**
  * O quarto sinal de ouro, do lado de quem desenha (§3.1 e §4.3 do plano de
@@ -200,6 +201,56 @@ export function planPace(plan: Plan, now: Date): PacePlan | null {
     hoursInMonth: month.hoursInMonth,
     scope: workspace ? 'workspace' : 'api',
   };
+}
+
+/**
+ * Acima disto, o dia desta API é "robô" na faixa medida depois do corte de
+ * 01/10/2026 (§23): até ~4 h é o esperado (cron, regenerações, visitas), de 4
+ * a 10 h é robô abrindo matéria pela primeira vez, perto de 24 h ela não dorme.
+ */
+export const ROBOT_HOURS_PER_DAY = 10;
+
+/** O gatilho do 13.9: tantos dias inteiros seguidos acima de {@link ROBOT_HOURS_PER_DAY}. */
+export const ROBOT_STREAK_TRIGGER = 2;
+
+/**
+ * A série por dia, ou `null` — ausente é a API anterior à Fase 13 (armadilha
+ * 37), e não "nenhum dia": uma série vazia desenharia catorze dias de API
+ * dormindo.
+ */
+export function uptimeByDayOf(plan: Plan): UptimeSeries | null {
+  const legacy = plan as Partial<Pick<Plan, 'uptimeByDay'>>;
+  return legacy.uptimeByDay ?? null;
+}
+
+/**
+ * **As horas desta API por dia, com a janela inteira** (13.9). A API manda só
+ * os dias com linha; o dia sem linha é a API que não acordou, e é zero — o
+ * mesmo `fillCalendarDays` da série de produto, pelo mesmo motivo.
+ */
+export function uptimeDays(series: UptimeSeries): Array<{ date: string; hours: number }> {
+  const filled = fillCalendarDays(
+    series.days,
+    { start: `${series.since}T00:00:00.000Z`, end: `${series.until}T00:00:00.000Z` },
+    (date) => ({ date, seconds: 0 }),
+  );
+  return filled.map((day) => ({ date: day.date, hours: day.seconds / 3600 }));
+}
+
+/**
+ * Quantos dias **inteiros** seguidos, terminando ontem, passaram de
+ * {@link ROBOT_HOURS_PER_DAY} — o gatilho do 13.9 é isto a partir de
+ * {@link ROBOT_STREAK_TRIGGER}. O último dia da série é hoje e é parcial: um
+ * dia que ainda não terminou não entra, nem para disparar nem para quebrar.
+ * "Acima de", não "a partir de": 10 h cravadas é a borda da faixa, não robô.
+ */
+export function robotStreak(days: Array<{ date: string; hours: number }>): number {
+  let streak = 0;
+  for (let i = days.length - 2; i >= 0; i -= 1) {
+    if (days[i]!.hours <= ROBOT_HOURS_PER_DAY) break;
+    streak += 1;
+  }
+  return streak;
 }
 
 /**

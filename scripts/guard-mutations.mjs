@@ -1171,6 +1171,29 @@ const MUTATIONS = [
     ],
     expect: 'a resposta sem o campo',
   },
+  {
+    id: 'A1.85',
+    what: 'o gatilho do 13.9 conta o dia de hoje, parcial — uma manhã cheia vira "robô"',
+    pkg: 'web',
+    test: 'tests/lib/observability-helpers.test.ts',
+    file: 'apps/web/lib/saturation.ts',
+    edits: [
+      {
+        find: '  for (let i = days.length - 2; i >= 0; i -= 1) {',
+        replace: '  for (let i = days.length - 1; i >= 0; i -= 1) {',
+      },
+    ],
+    expect: 'hoje é parcial e não entra',
+  },
+  {
+    id: 'A1.86',
+    what: 'a série por dia do painel perde o teto de linhas (armadilha 4)',
+    pkg: 'api',
+    test: 'tests/services/uptime.service.test.ts',
+    file: 'apps/api/src/services/uptime.service.ts',
+    dropLine: '    take: UPTIME_SERIES_DAYS,',
+    expect: 'pede os últimos dias UTC, hoje incluído, com teto de linhas',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

@@ -113,6 +113,13 @@ export interface PlanHoursReading {
   apiHours: number;
 }
 
+/** As horas desta API por dia (13.9) — a janela e os dias que têm linha. */
+export interface UptimeSeries {
+  since: string;
+  until: string;
+  days: Array<{ date: string; seconds: number }>;
+}
+
 /** O corpo de `POST /api/admin/plan-hours`. */
 export interface PlanHoursReadingInput {
   workspaceHours: number;
@@ -159,6 +166,14 @@ export interface Saturation {
      * ausente como `null` na fronteira (`workspaceReadingOf`, no web).
      */
     workspaceReading: PlanHoursReading | null;
+    /**
+     * As horas desta API por dia nas duas últimas semanas — o 13.9 da §23,
+     * cujo gatilho ("dois dias seguidos acima de 10 h") é por dia e só se lia
+     * no banco. `since`/`until` são dias UTC (`YYYY-MM-DD`), `until` é hoje
+     * (parcial), e `days` traz **só os dias com linha**: a tela preenche a
+     * janela. Ausente na API anterior à Fase 13 (armadilha 37).
+     */
+    uptimeByDay: UptimeSeries;
   } | null;
 }
 

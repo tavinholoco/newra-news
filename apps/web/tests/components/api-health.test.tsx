@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithIntl } from '@/tests/utils';
 import { httpMetrics } from '@/tests/fixtures/observability';
@@ -159,6 +159,68 @@ describe('ApiHealth — com a leitura do Billing, o arco é o workspace', () => 
 
     expect(screen.getByRole('img', { name: /^Horas desta API: 6%/ })).toBeInTheDocument();
     expect(screen.queryByText(/NaN/)).toBeNull();
+  });
+});
+
+/**
+ * **As horas por dia (13.9, dobrado no 13b).** O gatilho "dois dias seguidos
+ * acima de 10 h" passa a ser lido na tela em vez de no banco de produção.
+ */
+describe('ApiHealth — as horas desta API por dia', () => {
+  function withSeries(days: Array<{ date: string; seconds: number }>, until = '2026-10-07') {
+    return {
+      ...httpMetrics,
+      saturation: {
+        ...httpMetrics.saturation,
+        plan: {
+          ...httpMetrics.saturation.plan!,
+          uptimeByDay: { since: '2026-09-24', until, days },
+        },
+      },
+    };
+  }
+
+  it('draws one bar per day of the window, the day without a row included', () => {
+    useHttpMetrics.mockReturnValue({ data: httpMetrics, isError: false });
+
+    renderWithIntl(<ApiHealth />);
+
+    const list = screen.getByRole('list', { name: 'Horas desta API por dia' });
+    // A janela inteira (01 a 14/09), e não só os três dias com linha.
+    expect(within(list).getAllByRole('listitem')).toHaveLength(14);
+    expect(list).toHaveTextContent('13 de set.: 4');
+    expect(screen.queryByText(/dias seguidos/)).toBeNull();
+  });
+
+  it('says it when two whole days in a row passed 10 h — today, partial, does not count', () => {
+    useHttpMetrics.mockReturnValue({
+      data: withSeries([
+        { date: '2026-10-05', seconds: 39_600 },
+        { date: '2026-10-06', seconds: 43_200 },
+        { date: '2026-10-07', seconds: 3_600 },
+      ]),
+      isError: false,
+    });
+
+    renderWithIntl(<ApiHealth />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Esta API passou de 10 h por dia em 2 dias seguidos',
+    );
+  });
+
+  it('is not drawn when the API on air does not send the series yet (armadilha 37)', () => {
+    const { uptimeByDay: _dropped, ...legacyPlan } = httpMetrics.saturation.plan!;
+    useHttpMetrics.mockReturnValue({
+      data: { ...httpMetrics, saturation: { ...httpMetrics.saturation, plan: legacyPlan } },
+      isError: false,
+    });
+
+    renderWithIntl(<ApiHealth />);
+
+    expect(screen.queryByRole('list', { name: 'Horas desta API por dia' })).toBeNull();
+    // O resto da aba continua de pé.
+    expect(screen.getByRole('img', { name: /^Horas desta API: 41%/ })).toBeInTheDocument();
   });
 });
 

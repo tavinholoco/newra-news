@@ -129,6 +129,11 @@
       "description": "As horas do plano são o teto que suspendeu a API em 29/08 — o arco é o que faltava para ver isso chegando. Memória e event loop são desta instância.",
       "loadError": "Não foi possível carregar a saúde da API.",
       "instance": "Esta instância está de pé há {uptime}: {requests} requisições, {errorRate} com erro do servidor. A janela zera a cada acordada.",
+      "uptimeDays": {
+        "title": "Horas desta API por dia",
+        "description": "Duas semanas, hoje parcial. Depois do corte de 01/10: até ~4 h por dia é o esperado (cron, regenerações, visitas); de 4 a 10 h é robô; perto de 24 h, ela não dorme.",
+        "robotAlert": "Esta API passou de 10 h por dia em {days, plural, one {# dia seguido} other {# dias seguidos}}. Sem deploy nem incidente, o suspeito é robô em /news/[id] — robots.txt para rastreadores de IA e o Bot Protection da Vercel."
+      },
       "reading": {
         "label": "Total do Billing (horas do workspace)",
         "hint": "No painel do Render: Billing → Free instance hours. O número é do workspace inteiro; a parte dos outros serviços é a diferença para esta API.",

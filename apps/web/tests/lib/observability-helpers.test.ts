@@ -17,9 +17,14 @@ import { join, relative, sep } from 'node:path';
 import {
   ATTENTION_RATIO,
   PACE_MIN_ELAPSED_HOURS,
+  ROBOT_HOURS_PER_DAY,
+  ROBOT_STREAK_TRIGGER,
   parseHoursInput,
   planPace,
+  robotStreak,
   saturationTone,
+  uptimeByDayOf,
+  uptimeDays,
   workspaceHours,
   workspaceReadingOf,
 } from '@/lib/saturation';
@@ -29,6 +34,9 @@ import {
  * de desenhar. Cada uma existe por um defeito nomeado no cabeçalho dela, e o
  * teste é sobre esse defeito.
  */
+
+/** A série por dia (13.9) onde o teste não é sobre ela. */
+const NO_SERIES = { since: '2026-10-01', until: '2026-10-01', days: [] };
 
 describe('formatDeltaPercent', () => {
   it('carries the sign, in the locale', () => {
@@ -91,6 +99,7 @@ describe('planPace', () => {
     hoursUsed: 240,
     limitHours: 750,
     ratio: 0.32,
+    uptimeByDay: NO_SERIES,
     workspaceReading: null,
   };
 
@@ -139,6 +148,7 @@ describe('workspaceHours — a leitura do Billing vira o workspace inteiro', () 
     hoursUsed: 40.1,
     limitHours: 750,
     ratio: 40.1 / 750,
+    uptimeByDay: NO_SERIES,
     workspaceReading: {
       readAt: '2026-10-06T00:00:00.000Z',
       workspaceHours: 124.9,
@@ -223,6 +233,7 @@ describe('planPace — com a leitura, projeta o workspace', () => {
     hoursUsed: 48,
     limitHours: 750,
     ratio: 48 / 750,
+    uptimeByDay: NO_SERIES,
     workspaceReading: {
       readAt: '2026-10-06T00:00:00.000Z',
       workspaceHours: 130,
@@ -249,6 +260,93 @@ describe('planPace — com a leitura, projeta o workspace', () => {
     };
 
     expect(planPace(early, new Date('2026-10-07T00:00:00.000Z'))).toBeNull();
+  });
+});
+
+/**
+ * **As horas desta API por dia — o 13.9 da §23, dobrado no 13b.** O gatilho
+ * é "dois dias seguidos acima de 10 h sem deploy nem incidente — robô em
+ * `/news/[id]`", e até aqui só se lia no banco de produção. Os números são
+ * os da primeira semana medida depois do corte (05/10/2026).
+ */
+describe('uptimeDays e robotStreak — o gatilho do 13.9', () => {
+  const series = {
+    since: '2026-10-01',
+    until: '2026-10-07',
+    days: [
+      { date: '2026-10-01', seconds: 34_920 }, // 9,7 h — a noite dos testes
+      { date: '2026-10-02', seconds: 17_640 }, // 4,9 h
+      { date: '2026-10-03', seconds: 19_800 }, // 5,5 h
+      { date: '2026-10-05', seconds: 39_600 }, // 11 h
+      { date: '2026-10-06', seconds: 43_200 }, // 12 h
+      { date: '2026-10-07', seconds: 50_400 }, // 14 h, mas hoje é parcial
+    ],
+  };
+
+  it('preenche a janela: o dia sem linha é zero — a API que não acordou', () => {
+    const days = uptimeDays(series);
+
+    expect(days.map((day) => day.date)).toEqual([
+      '2026-10-01',
+      '2026-10-02',
+      '2026-10-03',
+      '2026-10-04',
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+    ]);
+    expect(days[3]).toEqual({ date: '2026-10-04', hours: 0 });
+    expect(days[0]!.hours).toBeCloseTo(9.7, 6);
+  });
+
+  it('conta os dias seguidos acima de 10 h que terminam ontem — hoje é parcial e não entra', () => {
+    expect(ROBOT_HOURS_PER_DAY).toBe(10);
+    expect(ROBOT_STREAK_TRIGGER).toBe(2);
+    // 05 e 06 acima; 07 é hoje. Um dia de 14 h que ainda não terminou não é
+    // o gatilho — mas os dois inteiros antes dele são.
+    expect(robotStreak(uptimeDays(series))).toBe(2);
+  });
+
+  it('um dia abaixo quebra a sequência — e um dia sem linha também (a API dormiu)', () => {
+    const broken = {
+      ...series,
+      days: series.days.map((day) =>
+        day.date === '2026-10-05' ? { ...day, seconds: 3_600 } : day,
+      ),
+    };
+    expect(robotStreak(uptimeDays(broken))).toBe(1);
+
+    const slept = { ...series, days: series.days.filter((day) => day.date !== '2026-10-06') };
+    expect(robotStreak(uptimeDays(slept))).toBe(0);
+  });
+
+  it('exatamente 10 h não dispara — o gatilho é "acima de"', () => {
+    const atTheLine = {
+      since: '2026-10-05',
+      until: '2026-10-07',
+      days: [
+        { date: '2026-10-05', seconds: 36_000 },
+        { date: '2026-10-06', seconds: 36_000 },
+      ],
+    };
+    expect(robotStreak(uptimeDays(atTheLine))).toBe(0);
+  });
+
+  it('a resposta sem o campo (armadilha 37) não tem série — nunca uma série vazia que pareça "dormiu"', () => {
+    const plan = {
+      month: '2026-10',
+      monthStart: '2026-10-01T00:00:00.000Z',
+      secondsUsed: 0,
+      hoursUsed: 40,
+      limitHours: 750,
+      ratio: 0.05,
+      workspaceReading: null,
+      uptimeByDay: series,
+    };
+    const { uptimeByDay: _dropped, ...legacy } = plan;
+
+    expect(uptimeByDayOf(plan)).toBe(series);
+    expect(uptimeByDayOf(legacy as typeof plan)).toBeNull();
   });
 });
 

@@ -189,6 +189,12 @@ const saturationSchema = z.object({
       ratio: z.number(),
       // A leitura do Billing do mês (Fase 13, 13b) — `null` sem nenhuma.
       workspaceReading: planHoursReadingSchema.nullable(),
+      // As horas desta API por dia, nas duas últimas semanas (13.9).
+      uptimeByDay: z.object({
+        since: z.string(),
+        until: z.string(),
+        days: z.array(z.object({ date: z.string(), seconds: z.number().int() })),
+      }),
     })
     .nullable(),
 });
