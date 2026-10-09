@@ -1322,6 +1322,73 @@ const MUTATIONS = [
     ],
     expect: 'entram por `env:`, nunca interpolados no script',
   },
+  // ── Fase 13 (13.5): a falha rápida de rede do feed ──────────────────────
+  {
+    id: 'A1.97',
+    what: 'a falha rápida de rede volta a perder a fonte pelo dia — sem nova tentativa',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '    if (!isFastNetworkFailure(error, Date.now() - startedAt)) throw error;',
+        replace: '    throw error;',
+      },
+    ],
+    expect: 'tenta de novo, uma vez, a falha de rede que veio rápido',
+  },
+  {
+    id: 'A1.98',
+    what: 'a nova tentativa vale para tudo — o prazo estourado custa mais 30 s',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '  return error instanceof TypeError && elapsedMs < FEED_FAST_FAIL_MS;',
+        replace: '  return elapsedMs >= 0;',
+      },
+    ],
+    expect: 'não tenta de novo o prazo estourado',
+  },
+  {
+    id: 'A1.99',
+    what: 'a nova tentativa vale também para a falha de rede lenta',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '  return error instanceof TypeError && elapsedMs < FEED_FAST_FAIL_MS;',
+        replace: '  return error instanceof TypeError && elapsedMs >= 0;',
+      },
+    ],
+    expect: 'não tenta de novo a falha de rede lenta',
+  },
+  {
+    id: 'A1.100',
+    what: 'o `failureReason` volta a gravar só "fetch failed" — a causa do undici some',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '        failure: describeFeedFailure(result.reason),',
+        replace:
+          '        failure: result.reason instanceof Error ? result.reason.message : String(result.reason),',
+      },
+    ],
+    expect: 'grava a causa do undici, não só "fetch failed"',
+  },
+  {
+    id: 'A1.101',
+    what: 'a segunda tentativa bate de novo na mesma hora, sem a pausa',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    dropLine: '    await new Promise((resolve) => setTimeout(resolve, FEED_RETRY_DELAY_MS));',
+    expect: 'espera antes da segunda tentativa',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

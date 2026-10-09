@@ -20,6 +20,24 @@ interface CustomItem {
 /** Teto por feed. Ver a nota no `fetchFeedXml`. */
 const FEED_TIMEOUT_MS = 30_000;
 
+/**
+ * **A falha rápida de rede ganha uma segunda chance** (13.5 do plano de
+ * observabilidade, 09/10/2026). Em outubro, cinco feeds falharam com
+ * `fetch failed` em 0,8–2,2 s — Folha três dias, Veja Saúde dois, Olhar
+ * Digital e Trivela um —, nunca dois dias seguidos, e a coleta saiu degradada
+ * em 5 de 9 dias. A Veja Saúde passou em 6 de 8: não é bloqueio de datacenter
+ * (o que tirou o Drauzio no #243), é rede. Uma tentativa a mais, depois de
+ * uma pausa, é o que separa o espirro do dia perdido.
+ *
+ * **A regra é estreita de propósito:** só o `TypeError` que o próprio
+ * `fetch()` lança (a falha de conexão do undici) e só abaixo de
+ * `FEED_FAST_FAIL_MS`. O prazo estourado não repete (seriam mais 30 s no
+ * cron), o XML que não parseia não repete (a resposta chegou), e a falha
+ * lenta não repete (não é o espirro que a medição mostrou).
+ */
+const FEED_FAST_FAIL_MS = 5_000;
+const FEED_RETRY_DELAY_MS = 2_000;
+
 const parser = new Parser<Record<string, never>, CustomItem>({
   customFields: {
     item: [
@@ -97,7 +115,7 @@ export async function fetchFromRssWithOutcomes(
         source: name,
         fetched: 0,
         latencyMs,
-        failure: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        failure: describeFeedFailure(result.reason),
       };
     }
     if (result.value.length === 0) {
@@ -136,13 +154,51 @@ export async function fetchFromRss(sources: RssSource[] = rssSources): Promise<R
   return (await fetchFromRssWithOutcomes(sources)).items;
 }
 
-async function fetchFeedXml(url: string): Promise<string> {
+/**
+ * A falha de um feed, como ela vai para o `failureReason` da `SourceHealth`.
+ *
+ * O undici lança `TypeError: fetch failed` para **toda** falha de conexão e
+ * põe o motivo no `cause` — reset, DNS, TLS, conexão recusada pedem ações
+ * diferentes e saíam todas como a mesma frase. A Fase 7a já tinha aprendido
+ * isso no BFF (o `ECONNREFUSED` só existe ali dentro); a coluna não.
+ */
+export function describeFeedFailure(reason: unknown): string {
+  if (!(reason instanceof Error)) return String(reason);
+  const cause = reason.cause as { code?: unknown; message?: unknown } | undefined;
+  if (cause && typeof cause.code === 'string') return `${reason.message} (${cause.code})`;
+  if (cause && typeof cause.message === 'string' && cause.message) {
+    return `${reason.message}: ${cause.message}`;
+  }
+  return reason.message;
+}
+
+/** A falha que a regra cobre: conexão do undici, e rápida. */
+function isFastNetworkFailure(error: unknown, elapsedMs: number): boolean {
+  return error instanceof TypeError && elapsedMs < FEED_FAST_FAIL_MS;
+}
+
+async function fetchWithRetry(url: string, feed: string): Promise<Response> {
+  const startedAt = Date.now();
+  try {
+    return await fetch(url, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+  } catch (error) {
+    if (!isFastNetworkFailure(error, Date.now() - startedAt)) throw error;
+    baseLogger.warn(
+      { feed, reason: describeFeedFailure(error), retryInMs: FEED_RETRY_DELAY_MS },
+      '[rss] falha rápida de rede; nova tentativa',
+    );
+    await new Promise((resolve) => setTimeout(resolve, FEED_RETRY_DELAY_MS));
+    return fetch(url, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+  }
+}
+
+async function fetchFeedXml(url: string, feed: string): Promise<string> {
   // **Prazo, pela mesma razão que o resto da fase.** Um feed que aceita a
   // conexão e não responde prenderia a etapa 1 do pipeline sem teto — e com
   // todas as fontes em paralelo basta uma. O provider de e-mail já tinha
   // o seu (15 s); este não tinha nenhum. Trinta segundos é folga sobre o pior
   // caso observado num feed lento e cabe no orçamento do cron diário.
-  const response = await fetch(url, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+  const response = await fetchWithRetry(url, feed);
   const buffer = await response.arrayBuffer();
 
   const contentType = response.headers.get('content-type') || '';
@@ -209,7 +265,7 @@ export function parsePubDate(raw: string | undefined, zone: string | undefined, 
 }
 
 async function fetchSource(source: RssSource): Promise<RawNewsItem[]> {
-  const xml = await fetchFeedXml(source.url);
+  const xml = await fetchFeedXml(source.url, source.name);
   const feed = await parser.parseString(xml);
 
   return feed.items
