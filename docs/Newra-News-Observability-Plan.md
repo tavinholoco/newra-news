@@ -3538,6 +3538,7 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
 | **As horas do `NetsheetEngine` entram por leitura manual do Billing** (13b, decidido pelo dono em 09/10/2026) | o Render não tem API de cobrança e a chave dele não tem escopo; o dono digita o total do workspace na `/admin`, e entre leituras a tela estima o outro serviço no ritmo da última. **A saída automática está desenhada:** o `NetsheetEngine` conta as próprias horas (heartbeat que só escreve no banco dele, como o `DailyUptime`) e expõe uma rota com segredo; o run diário da Newra — a API já acordada pelo pipeline às 11h — pergunta uma vez por dia e grava por serviço. Custa até ~7,5 h/mês do `NetsheetEngine` (a pergunta o acorda quando ele dorme; o inverso, ele avisar a Newra, acordaria esta API a cada acordada dele), uma migration aqui, um segredo nos dois serviços e trabalho no repositório dele. **Gatilho: a projeção do workspace acima de 600 h (80 % do teto) em duas leituras seguidas** — aí a estimativa entre leituras deixa de ser folga e passa a ser o número que decide. **A primeira leitura, em 09/10 (169,72 h), já projetou 603 h na tela** — o ritmo do mês inteiro, que carrega os 24,8 h/dia de antes de 06/10; no ritmo recente (12,2 h/dia desde 06/10) são **~441 h**, e as leituras seguintes puxam a projeção para lá sozinhas. **Releitura sugerida: ~16/10** — se ela ainda passar de 600 h, o gatilho disparou |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
+| **O conteúdo próprio de um merge não é varrido pelo Gitleaks** (13d, 09/10/2026) | o job `gitleaks-push` varre `before..after` com patch, e merge não tem patch próprio; o PR usa `--no-merges`. Merge limpo não tem conteúdo próprio, e o botão do GitHub só faz merge limpo — sobra a resolução de conflito feita à mão. **Gatilho: a próxima sincronização `main → dev` (ou qualquer merge local) com conflito resolvido** — aí, antes do push, `gitleaks git --log-opts="-m -1 <merge>"` no merge, ou o `-m` no job, medido antes (o parser do Gitleaks com a saída de `-m` não foi testado) |
 | **A leitura completa só exclui o robô que se declara** (13c, 09/10/2026) | o `track()` recusa `navigator.webdriver`, que as nossas ferramentas expõem; o rastreador que roda JS e esconde o sinal continua contado, e uma heurística por comportamento (tempo na tela, velocidade de rolagem) mediria o leitor apressado junto. **Gatilho: `completed / viewed` acima de 60 % numa semana com `viewed` acima de 50** na `/admin/metrics` — leitura até o fim nesse nível, em notícia, é outro robô sendo contado; aí o `path`/hora das linhas dirá qual |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
 | ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo desde a promoção #277 (09/10/2026)**, com o e-mail provado pelo ensaio no mesmo dia (17:41 UTC) — o primeiro agendado é o das 12:40 UTC de 10/10 |
@@ -5169,9 +5170,21 @@ promoção da fase).** Item **95** do `docs/progress.md`. O 13.6.
   a contagem no resumo, a escrita só no job do PR), vistas reprovando;
   mutações **A1.93–A1.96**. **1.478 → 1.485 na API** sobre a `dev` (1.490
   com o 13c).
-- **A prova é o merge deste PR na `dev`**: é um `push` que roda o job novo,
-  e o resumo tem de dizer o número de commits — a 16.ª medição, a primeira
-  que não é zero. Depois, a promoção: a 17.ª, na `main`.
+- **Provado no merge do #281 na `dev` (09/10/2026, 19:19 UTC, [run
+  37979423830](https://github.com/tavinholoco/newra-news/actions/runs/37979423830)):**
+  o resumo do `gitleaks-push` disse `74d45f1..cf3a193`, **3 commits, 1
+  merge**; o sha256 conferiu (`OK`); o Gitleaks varreu **2 commits**, sem
+  vazamento. Seis minutos antes, o merge do #280 — que ainda rodou a action
+  — tinha dito **`0 commits scanned`** sobre 4. **É a primeira medição com
+  número.** Os 2 de 3 são o esperado: merge limpo não tem diff próprio
+  (`git log -p` não gera patch para ele), e o conteúdo dele são os commits
+  do branch, que foram varridos.
+- **O que sobra, como dívida com gatilho (§16):** o conteúdo **próprio** de
+  um merge — a resolução de conflito feita à mão — não é varrido em lugar
+  nenhum: nem aqui (sem patch), nem no PR (a action usa `--no-merges`). O
+  botão de merge do GitHub nunca produz esse conteúdo; quem produz é a
+  sincronização `main → dev` por `git merge` local, com conflito.
+  Depois, a promoção: a medição na `main`.
 
 ### O que fica de fora, e por quê
 
@@ -5217,7 +5230,8 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 > **O que a sessão fria precisa saber:** o 13c e o 13d estão na `dev` (#280
 > e o PR do 13d, empilhado nele) e sobem juntos na **segunda promoção** da
 > fase. Depois dela: (a) o resumo do job `gitleaks-push` no push da `main`
-> tem de dizer o número de commits da promoção, não zero — a 17.ª medição;
+> tem de dizer o número de commits da promoção, não zero (na `dev` já disse:
+> o merge do #281 deu 3 commits, 2 varridos);
 > (b) uma execução do Lighthouse sem nenhuma linha de `ProductEvent` na
 > janela dela, e o `article_view` aparecendo — pelo **MCP do Neon**, que o
 > dono conectou em 09/10 (`mcp__Neon__run_sql`, projeto
