@@ -209,6 +209,28 @@ describe('ApiHealth — as horas desta API por dia', () => {
     );
   });
 
+  it('draws on the scale of a whole day, with the 10 h line — never relative to the busiest day', () => {
+    // Achado da captura: com a escala da série, nove dias de 9 h eram nove
+    // barras cheias, e a tela não dizia se 9 h é muito ou pouco — que é a
+    // pergunta do 13.9.
+    useHttpMetrics.mockReturnValue({
+      data: withSeries([
+        { date: '2026-10-05', seconds: 43_200 }, // 12 h
+        { date: '2026-10-06', seconds: 21_600 }, // 6 h
+      ]),
+      isError: false,
+    });
+
+    renderWithIntl(<ApiHealth />);
+
+    const list = screen.getByRole('list', { name: 'Horas desta API por dia' });
+    const bar = (date: string) =>
+      within(list).getByText(new RegExp(`^${date}:`)).nextElementSibling as HTMLElement;
+    expect(bar('05 de out.').style.height).toBe('50%');
+    expect(bar('06 de out.').style.height).toBe('25%');
+    expect(screen.getByText('10 h')).toBeInTheDocument();
+  });
+
   it('is not drawn when the API on air does not send the series yet (armadilha 37)', () => {
     const { uptimeByDay: _dropped, ...legacyPlan } = httpMetrics.saturation.plan!;
     useHttpMetrics.mockReturnValue({

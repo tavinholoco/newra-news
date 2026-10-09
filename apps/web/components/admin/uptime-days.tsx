@@ -2,10 +2,18 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import type { UptimeSeries } from '@newranews/types';
-import { formatCalendarDay } from '@/lib/format';
+import { formatCalendarDay, formatHours } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
-import { ROBOT_STREAK_TRIGGER, robotStreak, uptimeDays } from '@/lib/saturation';
+import {
+  ROBOT_HOURS_PER_DAY,
+  ROBOT_STREAK_TRIGGER,
+  robotStreak,
+  uptimeDays,
+} from '@/lib/saturation';
 import { SeriesBars } from '@/components/dashboard/series-bars';
+
+/** A escala é o dia inteiro: 24 h no topo é "ela não dorme", e a barra diz quanto falta. */
+const HOURS_IN_DAY = 24;
 
 /**
  * **As horas desta API por dia — o 13.9 da §23, dobrado no 13b.**
@@ -36,6 +44,8 @@ export function UptimeDays({ series }: { series: UptimeSeries }) {
       </p>
       <SeriesBars
         label={t('overview.uptimeDays.title')}
+        scaleMax={HOURS_IN_DAY}
+        reference={{ value: ROBOT_HOURS_PER_DAY, label: formatHours(ROBOT_HOURS_PER_DAY, locale) }}
         points={days.map((day) => ({
           key: day.date,
           label: formatCalendarDay(day.date, locale),
