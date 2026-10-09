@@ -370,8 +370,12 @@ a suíte de unidade, que roda sem rede.
   15 commits. O PR fica com a action; o `push` roda o binário (8.24.3,
   sha256 fixado e conferido) sobre `before..after`, e o resumo diz quantos
   commits entraram. Mutações A1.93–A1.96. **1.490 na API e 1.009 no web**
-  com o 13c. **A prova é o merge na `dev`**: a 16.ª medição tem de ter
-  número. **Fecha a linha do Gitleaks no §16.**
+  com o 13c. **Provado no merge do #281 na `dev`**: 3 commits no intervalo,
+  2 varridos (o merge limpo não tem patch), sem vazamento — seis minutos
+  depois de o merge do #280, ainda pela action, dar `0 commits scanned`.
+  **Fecha a linha do Gitleaks no §16**, e abre uma menor: a resolução de
+  conflito de um merge local não é varrida (gatilho: a próxima
+  sincronização `main → dev` com conflito).
 
 - 🟢 **09/10/2026 (noite): o 13c — a métrica de leitura volta a medir
   leitores — na `dev`.** Item **94**; §23 do plano. A `/admin/metrics`

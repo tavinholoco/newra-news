@@ -9155,9 +9155,16 @@ promoções #215, #251, #272 e #277.
   o conflito aqui (e a suíte achou o `},` que a resolução tinha comido — o
   `guard-mutations.test.ts` importa o script). Depois do merge do #280, o PR
   do 13d mostra só o que é dele.
-- **Fica por medir:** o resumo do `gitleaks-push` no merge deste PR na `dev`
-  (a 16.ª medição — a primeira com número) e no push da segunda promoção (a
-  17.ª, na `main`).
+- **Provado no merge do #281 na `dev`** (09/10, 19:19 UTC, run
+  37979423830): o resumo disse `74d45f1..cf3a193`, **3 commits, 1 merge**, o
+  sha256 `OK`, e o Gitleaks **varreu 2 commits, sem vazamento** — o merge
+  limpo não tem patch próprio. Seis minutos antes, o merge do #280 (ainda a
+  action) deu **`0 commits scanned`** sobre 4. **A primeira medição com
+  número.** Fica a da `main`, na segunda promoção.
+- **Sobra uma dívida com gatilho (§16):** o conteúdo próprio de um merge — a
+  resolução de conflito feita à mão — não é varrido nem aqui nem no PR. O
+  botão do GitHub só faz merge limpo; o gatilho é a próxima sincronização
+  `main → dev` com conflito.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
