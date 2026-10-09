@@ -360,7 +360,13 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- 🟢 **09/10/2026: o 13b — o denominador honesto — na `dev`.** Item **93**;
+- 🟢 **09/10/2026: o 13b — o denominador honesto — no ar (#277, com o 13a),
+  e a primeira leitura feita: 169,72 h no workspace, esta API 48 h, o
+  `NetsheetEngine` ~121 h; projeção 603 h no ritmo do mês, ~441 h no ritmo
+  desde 06/10.** A contagem automática virou linha do §16 (gatilho: projeção
+  acima de 600 h em duas leituras seguidas — releitura sugerida ~16/10). O
+  batimento agenda a partir de 10/10 12:40 UTC; o ensaio do alerta espera o
+  ok do dono. O detalhe abaixo é do PR. Item **93**;
   §23 do plano. O arco das horas da `/admin` dividia as horas **desta** API
   pelas 750 h do **workspace**, que o `NetsheetEngine` divide (~74 % de
   outubro). O Render não tem API de cobrança e a chave dele abre a conta
@@ -372,9 +378,10 @@ a suíte de unidade, que roda sem rede.
   por dia (14 dias, escala de 24 h, linha dos 10 h e o gatilho "dois dias
   seguidos acima") — antes só se liam com a credencial de produção.
   Mutações A1.79–A1.86. **1.478 na API, 1.000 no web.**
-  - **Do dono, depois da promoção:** a primeira leitura (Render → Billing →
-    Free instance hours → `/admin`). Até lá a API de produção responde 404 na
-    rota nova, e o arco diz "só esta API".
+  - **Do dono, de vez em quando:** reler o Billing e registrar na `/admin`
+    (Render → Billing → Free instance hours → "Total do Billing"). Entre
+    leituras o `NetsheetEngine` é estimado no ritmo da última; no dia 1º o
+    arco volta a "só esta API" até a leitura seguinte.
   - **Próximo: o 13c** (a métrica de leitura, 13.4), pelo prompt no fim da
     §23.
 
