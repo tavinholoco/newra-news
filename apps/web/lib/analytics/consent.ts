@@ -6,6 +6,9 @@
  * se apoia em legítimo interesse (LGPD art. 7º, IX), não em consentimento. Um
  * banner seria interromper a leitura de toda página sem portar decisão nenhuma.
  *
+ * (A automação — `navigator.webdriver` — também cala a medição, mas por outro
+ * motivo: não é alguém se opondo, é ninguém lendo. Ver `browserAutomated`.)
+ *
  * Isso deixa o **direito de oposição** com um mecanismo só: o sinal do
  * navegador, que é o padrão para medição anônima de primeira parte. Um controle
  * explícito de opt-out na interface é item em aberto — e só vale a pena se
@@ -42,7 +45,28 @@ function browserOptedOut(): boolean {
   return dnt === '1' || dnt === 'yes';
 }
 
-/** Pode medir? Só não quando o navegador pediu para não medir. */
+/**
+ * O navegador declara que está sob automação.
+ *
+ * **Não é oposição — é que não há leitor.** Medido em 09/10/2026 (13.4 do
+ * plano de observabilidade): o Chromium do Playwright (Smoke E2E, baseline
+ * visual, `admin:capture`) e o do Lighthouse CI expõem
+ * `navigator.webdriver === true`, e eram eles que enchiam a profundidade de
+ * leitura — a `/admin/metrics` marcava 1.034 leituras completas contra zero
+ * aberturas em 01/10. A regra é do WebDriver (W3C), não uma heurística sobre
+ * o user agent, que o Lighthouse troca por um celular emulado.
+ *
+ * O robô que esconde o sinal continua contado; os nossos não escondem.
+ */
+function browserAutomated(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return navigator.webdriver === true;
+}
+
+/**
+ * Pode medir? Não quando o navegador pediu para não medir, e não quando quem
+ * está do outro lado é uma ferramenta.
+ */
 export function isTrackingAllowed(): boolean {
-  return !browserOptedOut();
+  return !browserOptedOut() && !browserAutomated();
 }

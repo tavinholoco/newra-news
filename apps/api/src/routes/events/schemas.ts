@@ -43,11 +43,12 @@ const baseSchema = z.object({
 });
 
 /**
- * A união discriminada dos 14 eventos (§3 dos slots).
+ * A união discriminada dos 13 eventos do catálogo (§3 dos slots, e o
+ * `article_view` do 13.4 do plano de observabilidade).
  *
  * `discriminatedUnion` e não `union`: com ela o Zod escolhe o ramo pelo `type`
  * e devolve o erro do campo que faltou. Um `union` simples devolveria os
- * catorze erros de uma vez, e ninguém descobriria qual era o evento.
+ * treze erros de uma vez, e ninguém descobriria qual era o evento.
  */
 const payloadSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('homepage_view') }),
@@ -76,10 +77,14 @@ const payloadSchema = z.discriminatedUnion('type', [
     query: z.string().max(SEARCH_QUERY_MAX_LENGTH),
     resultCount: z.number().int().min(0),
   }),
-  ...(['article_scroll_25', 'article_scroll_50', 'article_scroll_90'] as const).map(
-    (threshold) =>
+  // A tela de leitura vista e os três limiares têm o mesmo corpo de propósito:
+  // a "leitura completa" é o par (sessão, conteúdo) que aparece nos dois.
+  ...(
+    ['article_view', 'article_scroll_25', 'article_scroll_50', 'article_scroll_90'] as const
+  ).map(
+    (type) =>
       z.object({
-        type: z.literal(threshold),
+        type: z.literal(type),
         contentId: z.string().min(1).max(64),
         contentType: contentTypeSchema,
       }),

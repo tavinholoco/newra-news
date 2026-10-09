@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useProductMetrics } from '@/lib/queries';
 import { formatCalendarDay, formatCount, formatPercent } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
+import { readThroughOf } from '@/lib/reading-depth';
 import { fillCalendarDays } from '@/lib/series';
 import { MetricCard } from './metric-card';
 import { CategoryBars } from './category-bars';
@@ -55,8 +56,11 @@ export function ProductMetricsClient() {
   if (!data) return <DashboardSkeleton />;
 
   const { audience, readingDepth } = data;
-  const taxaDeLeitura =
-    readingDepth.opened > 0 ? readingDepth.scroll90 / readingDepth.opened : 0;
+  // A "leitura completa" divide pela tela vista, e é a API quem cruza o par
+  // (sessão, conteúdo) — 13.4 do plano de observabilidade. Até 09/10/2026 a
+  // tela fazia `scroll90 / opened` aqui: o 90% de qualquer origem, inclusive
+  // as nossas ferramentas, sobre os cliques em card.
+  const leitura = readThroughOf(readingDepth);
 
   return (
     <section aria-busy={isFetching} className='flex flex-col gap-8'>
@@ -118,14 +122,29 @@ export function ProductMetricsClient() {
 
       <div>
         <SectionTitle>{t('readingTitle')}</SectionTitle>
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-          <MetricCard label={t('opened')} value={formatCount(readingDepth.opened)} />
+        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5'>
+          <MetricCard
+            label={t('readRate')}
+            value={leitura.state === 'measured' ? formatPercent(leitura.rate) : '—'}
+            hint={
+              leitura.state === 'unavailable'
+                ? t('readRateUnavailable')
+                : leitura.state === 'no-sample'
+                  ? t('readRateNoSample')
+                  : t('readRateHint')
+            }
+          />
+          <MetricCard
+            label={t('viewed')}
+            value={leitura.state === 'unavailable' ? '—' : formatCount(leitura.viewed)}
+            hint={t('viewedHint')}
+          />
           <MetricCard label={t('scroll25')} value={formatCount(readingDepth.scroll25)} />
           <MetricCard label={t('scroll50')} value={formatCount(readingDepth.scroll50)} />
           <MetricCard
-            label={t('readRate')}
-            value={formatPercent(taxaDeLeitura)}
-            hint={t('readRateHint')}
+            label={t('opened')}
+            value={formatCount(readingDepth.opened)}
+            hint={t('openedHint')}
           />
         </div>
       </div>

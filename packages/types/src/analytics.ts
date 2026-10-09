@@ -7,10 +7,11 @@ import type { Category } from './news';
  * `source` novo escrito só de um lado passaria pelo build dos dois e seria
  * rejeitado em runtime, na produção, sem ninguém ver.
  *
- * **São doze, e eram catorze.** `ad_view` e `ad_click` saíram em 22/08/2026,
+ * **São treze.** Eram catorze; `ad_view` e `ad_click` saíram em 22/08/2026,
  * junto com a decisão de não exibir anúncio no site — evento sem emissor é a
- * mesma armadilha da tabela sem leitor. Histórico no item 29 do
- * `docs/progress.md`.
+ * mesma armadilha da tabela sem leitor (item 29 do `docs/progress.md`). O
+ * décimo terceiro, `article_view`, entrou em 09/10/2026 (13.4 do plano de
+ * observabilidade): é o denominador da leitura completa.
  */
 export const PRODUCT_EVENT_TYPES = [
   'homepage_view',
@@ -18,6 +19,7 @@ export const PRODUCT_EVENT_TYPES = [
   'briefing_open',
   'category_view',
   'search',
+  'article_view',
   'article_scroll_25',
   'article_scroll_50',
   'article_scroll_90',
@@ -100,6 +102,12 @@ export type ProductEventPayload =
       query: string;
       resultCount: number;
     }
+  // A tela de leitura vista — o denominador da "leitura completa". O clique no
+  // card (`story_open`/`briefing_open`) não serve: quem chega pelo buscador ou
+  // por link direto não clica em card nenhum (13.4 do plano de
+  // observabilidade). Sai uma vez por montagem, do mesmo `ScrollDepth` que
+  // mede os limiares, e com a mesma chave — é o par que a métrica cruza.
+  | { type: 'article_view'; contentId: string; contentType: EventContentType }
   // Os três limiares são membros separados, e não um `type` em união: o
   // `track(type, payload)` resolve o payload por `Extract<..., { type: T }>`, e
   // um membro cujo `type` já é união não casa com literal nenhum — o helper

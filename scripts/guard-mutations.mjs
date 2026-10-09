@@ -1194,6 +1194,87 @@ const MUTATIONS = [
     dropLine: '    take: UPTIME_SERIES_DAYS,',
     expect: 'pede os últimos dias UTC, hoje incluído, com teto de linhas',
   },
+  // ── Fase 13 (13c): a métrica de leitura volta a medir leitores ──────────
+  {
+    id: 'A1.87',
+    what: 'a medição volta a contar as ferramentas — `navigator.webdriver` ignorado',
+    pkg: 'web',
+    test: 'tests/lib/analytics.test.ts',
+    file: 'apps/web/lib/analytics/consent.ts',
+    edits: [
+      {
+        find: '  return !browserOptedOut() && !browserAutomated();',
+        replace: '  return !browserOptedOut();',
+      },
+    ],
+    expect: 'não mede navegador sob automação — as nossas ferramentas não são leitores',
+  },
+  {
+    id: 'A1.88',
+    what: 'o texto que cabe na tela volta a "nascer lido" — a medição da montagem conta',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    edits: [
+      {
+        find: "    window.addEventListener('scroll', onScroll, { passive: true });",
+        replace:
+          "    engaged = true;\n    schedule();\n    window.addEventListener('scroll', onScroll, { passive: true });",
+      },
+    ],
+    expect: 'não conta como lido o texto que cabe na tela sem o leitor rolar',
+  },
+  {
+    id: 'A1.89',
+    what: 'o redimensionamento da captura de página inteira conta como leitura',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    edits: [
+      {
+        find: "    window.addEventListener('resize', schedule, { passive: true });",
+        replace: "    window.addEventListener('resize', onScroll, { passive: true });",
+      },
+    ],
+    expect: 'não conta o redimensionamento como leitura',
+  },
+  {
+    id: 'A1.90',
+    what: 'a visualização sai dobrada na montagem dupla do StrictMode',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    dropLine: '      viewed.current = contentId;',
+    expect: 'não registra duas visualizações na montagem dupla do StrictMode',
+  },
+  {
+    id: 'A1.91',
+    what: 'a leitura completa volta a contar o 90% sem a visualização do par',
+    pkg: 'api',
+    test: 'tests/services/product-metrics.service.test.ts',
+    file: 'apps/api/src/services/product-metrics.service.ts',
+    edits: [
+      {
+        find: '      completed: [...vistas].filter((chave) => lidasAte90.has(chave)).length,',
+        replace: '      completed: profundidade.scroll90,',
+      },
+    ],
+    expect: 'só conta como completa a leitura cuja visualização está na janela',
+  },
+  {
+    id: 'A1.92',
+    what: 'a tela lê a API antiga, sem `viewed`, como "nenhuma tela vista" (armadilha 37)',
+    pkg: 'web',
+    test: 'tests/components/product-metrics-client.test.tsx',
+    file: 'apps/web/lib/reading-depth.ts',
+    edits: [
+      {
+        find: "    return { state: 'unavailable' };",
+        replace: "    return { state: 'no-sample', viewed: 0 };",
+      },
+    ],
+    expect: 'desenha "indisponível" quando a API no ar ainda não mede a tela vista',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
