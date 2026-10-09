@@ -9127,6 +9127,38 @@ denominador era o clique no card, que quem chega pelo buscador não dá.
   carregando as linhas das ferramentas até saírem da retenção de 90 dias
   (~30/12) — a taxa já não as usa.
 
+### 95. O Gitleaks varre o que o push trouxe — merges incluídos ✅ 2026-10-09
+
+O 13.6 da §23 do plano de observabilidade (PR 13d; branch
+`observability/fase-13d-gitleaks-range`, empilhada no 13c). Quinze medições de
+`0 commits scanned` num push de merge, de 07/09 a 09/10/2026, inclusive nas
+promoções #215, #251, #272 e #277.
+
+- **A causa estava no código da action, sem entrada que a mude.** No SHA
+  fixado (`gitleaks-action` v3.0.0), o `push` usa
+  `--no-merges --first-parent <primeiro>^..<último>`: o commit de merge é
+  pulado e os commits do branch não são descidos. O `BASE_REF` só troca a
+  ponta de baixo. **Refeito à mão:** o merge do #279 = 2 commits (a action:
+  0); a promoção #277 = 15 commits com 5 merges (a action: 0).
+- **O PR fica com a action** (o comentário no PR), com `pull-requests: write`
+  só no job dela; **o `push` roda o binário** (8.24.3, a versão padrão da
+  action), baixado do release e **conferido por sha256 fixado antes de
+  executar**, sobre `$BEFORE..$AFTER` do evento (por `env:`). O resumo diz o
+  intervalo, os commits e os merges. Sem `before` utilizável, varre a ponta e
+  avisa — o histórico inteiro reprovaria pela fixture do #160.
+- **Guardas:** 7 no `workflow-hardening.test.ts`, vistas reprovando — e uma
+  delas reprovou por engano (o "nada de `latest`" casava o `ubuntu-latest`),
+  corrigida antes de servir. Mutações **A1.93–A1.96**. **1.478 → 1.485 na
+  API** sobre a `dev`; **1.490 com o 13c**.
+- **A empilhada no 13c é de propósito:** os dois PRs escrevem no mesmo ponto
+  do `guard-mutations.mjs`, deste arquivo e do `CLAUDE.md`; o rebase resolveu
+  o conflito aqui (e a suíte achou o `},` que a resolução tinha comido — o
+  `guard-mutations.test.ts` importa o script). Depois do merge do #280, o PR
+  do 13d mostra só o que é dele.
+- **Fica por medir:** o resumo do `gitleaks-push` no merge deste PR na `dev`
+  (a 16.ª medição — a primeira com número) e no push da segunda promoção (a
+  17.ª, na `main`).
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
