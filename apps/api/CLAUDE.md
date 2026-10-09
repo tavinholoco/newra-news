@@ -377,7 +377,7 @@ instrumentação vêm depois.
 
 | Peça | Papel |
 |---|---|
-| `packages/types/src/analytics.ts` | o catálogo dos 14 eventos e os vocabulários fechados |
+| `packages/types/src/analytics.ts` | o catálogo dos 13 eventos e os vocabulários fechados |
 | `routes/events/schemas.ts` | a união discriminada em Zod + a guarda contra deriva |
 | `services/product-event.service.ts` | gravação em lote e o expurgo por idade |
 | `model ProductEvent` | uma tabela, `payload` em `Json` |
@@ -396,13 +396,20 @@ Regras que não são óbvias no código:
   `editorial.mapper`.
 - **`discriminatedUnion` e não `union`.** Com ela o Zod escolhe o ramo pelo
   `type` e devolve o erro do campo que faltou; um `union` simples devolveria os
-  catorze erros de uma vez.
+  treze erros de uma vez.
 - **`path` recusa query string.** A query carrega o termo de busca, que tem
   regra de higiene própria — deixá-lo entrar por ali seria a mesma informação
   por uma porta sem porteiro.
 - **`type` é coluna e o resto é `Json`.** Toda métrica filtra por tipo numa
-  janela de tempo (`@@index([type, occurredAt])`); catorze formatos em colunas
-  seriam vinte campos nulos ou catorze tabelas.
+  janela de tempo (`@@index([type, occurredAt])`); treze formatos em colunas
+  seriam vinte campos nulos ou treze tabelas.
+- **A leitura completa é um par, cruzado aqui** (13.4 do plano de
+  observabilidade, 09/10/2026): `readingDepth.viewed` são os pares (sessão,
+  conteúdo) com `article_view`, e `completed` os desses que têm
+  `article_scroll_90` na mesma sessão. Dividir as duas contagens soltas dava
+  1.034 leituras sobre 0 aberturas — o 90% das nossas ferramentas e de antes
+  de a visualização existir sobre os cliques em card. `opened` continua sendo
+  o clique (o CTR), e não é mais denominador de nada.
 - **Sem `skipDuplicates`.** Não há chave única para colidir, e dois `story_open`
   idênticos em segundos são dois cliques — descartar o segundo apagaria a
   diferença entre "clicou uma vez" e "voltou e clicou de novo".

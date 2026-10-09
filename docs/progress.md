@@ -9060,6 +9060,55 @@ outubro (item 87). Setembro estourou em 753,4 h com o arco mostrando folga.
 - **Com isso o 13b fecha.** E o 13a junto: o ensaio do alerta, disparado no
   mesmo dia com o ok do dono, entregou o e-mail (item 92). **Próximo: o 13c.**
 
+### 94. A métrica de leitura volta a medir leitores ✅ 2026-10-09
+
+O 13.4 da §23 do plano de observabilidade (PR 13c; branch
+`observability/fase-13c-reading-metric`). Em 01/10 a `/admin/metrics` marcava
+`article_scroll_25/50/90` em **1.036 · 1.035 · 1.034 contra 0 aberturas**, e
+"leitura completa 0 %" — o numerador contava as nossas ferramentas, e o
+denominador era o clique no card, que quem chega pelo buscador não dá.
+
+- **O inventário, medido antes do código, como a §23 manda:**
+  - **as quatro ferramentas expõem `navigator.webdriver === true`** — o
+    Chromium do Playwright (`chromium_headless_shell-1234`, o do Smoke, da
+    baseline e do `admin:capture`) e o do Lighthouse CI (`@lhci/cli@0.15.1`,
+    o da action `v12.6.2`, contra uma página local que devolvia o valor). O
+    Lighthouse ainda se apresenta como "moto g power (2022)", Chrome/136 — o
+    user agent não serviria de sinal;
+  - **as janelas das ferramentas, pelo GitHub:** 32 execuções do Lighthouse
+    desde 17/08 (4–5 min, 21 carregamentos cada) e 37 do Smoke (~8 min);
+  - **o cruzamento hora a hora com o `ProductEvent` de produção não foi
+    feito**: o dono liberou, e o classificador do modo auto recusou trazer a
+    string de conexão do Neon. A correção não dependia dele — as quatro
+    ferramentas carregam o sinal —, e ele fica como a primeira leitura depois
+    da promoção (abaixo).
+- **As três saídas da §23, na ordem dela, as três com guarda:**
+  1. `isTrackingAllowed()` recusa `navigator.webdriver` (não é oposição — é
+     que não há leitor), e o `track()` pergunta a ele;
+  2. o `ScrollDepth` **só conta depois da primeira rolagem**: a medição da
+     montagem fazia texto curto "nascer lido", e o `resize` da captura de
+     página inteira esticava a viewport até o texto inteiro "passar" — ele
+     mede, mas não acorda a medição;
+  3. **evento novo, `article_view`** (o catálogo vai a 13), emitido pelo
+     próprio `ScrollDepth` uma vez por montagem, com a mesma chave dos
+     limiares. A API cruza o par (sessão, conteúdo): `readingDepth.viewed` e
+     `completed`, e a taxa é `completed / viewed` — nunca passa de 100 %, e o
+     90% sem visualização na janela (o de antes, ou o de uma ferramenta) fica
+     fora do numerador. `opened` continua sendo o clique (CTR).
+- **A tela** (`lib/reading-depth.ts`, `readThroughOf`): a leitura completa
+  primeiro, as telas vistas ao lado, os cliques em card por último e com a
+  ressalva. Campo ausente — a API de produção até a promoção — desenha
+  "indisponível" (armadilha 37); nenhuma tela vista é "—", nunca 0 %.
+- **Guardas primeiro, vistas reprovando (16), e mutações A1.87–A1.92**, as
+  seis reprovando pelo teste certo, com os dois controles verdes. **1.478 →
+  1.483 na API, 1.000 → 1.009 no web.**
+- **Fica por medir, depois da promoção:** (a) uma execução do Smoke e uma do
+  Lighthouse sem nenhuma linha de `ProductEvent` na janela delas — a prova
+  de que o filtro funciona no fio, que só a credencial do Neon lê; (b) a
+  primeira semana de `viewed`/`completed`. Os `scroll25/50/90` crus seguem
+  carregando as linhas das ferramentas até saírem da retenção de 90 dias
+  (~30/12) — a taxa já não as usa.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

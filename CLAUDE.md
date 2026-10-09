@@ -341,8 +341,9 @@ a suíte de unidade, que roda sem rede.
   da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
   com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
-  curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o
-  próximo é o 13c**, pelo prompt de abertura no fim da §23.
+  curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o 13c
+  fechou na `dev` (09/10); o próximo é o 13d**, pelo prompt de abertura no
+  fim da §23.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -360,6 +361,18 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **09/10/2026 (noite): o 13c — a métrica de leitura volta a medir
+  leitores — na `dev`.** Item **94**; §23 do plano. A `/admin/metrics`
+  marcava 1.034 leituras a 90% contra zero aberturas: **as quatro
+  ferramentas (Lighthouse, Smoke, baseline, `admin:capture`) expõem
+  `navigator.webdriver`** — medido —, e o `track()` passou a recusá-lo; o
+  `ScrollDepth` só conta depois da primeira rolagem; e o denominador virou
+  a tela vista, num evento novo (`article_view`, 13 no catálogo), com a API
+  cruzando o par (sessão, conteúdo). Mutações A1.87–A1.92. **1.483 na API,
+  1.009 no web.** O cruzamento com o `ProductEvent` de produção ficou para
+  depois da promoção (o classificador recusou a credencial do Neon).
+  **Próximo: o 13d** (o Gitleaks, 13.6).
 
 - 🟢 **09/10/2026: o 13b — o denominador honesto — no ar (#277, com o 13a),
   e a primeira leitura feita: 169,72 h no workspace, esta API 48 h, o
@@ -1545,8 +1558,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.478 em 192 suites (**1.478 API em 99** + **1.000 web em 93** —
-  todos passando, contados em 09/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.492 em 192 suites (**1.483 API em 99** + **1.009 web em 93** —
+  todos passando, contados em 09/10/2026, depois do 13c), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
