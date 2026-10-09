@@ -857,6 +857,29 @@ Healthcheck do servidor (usado pelo UptimeRobot).
 { "status": "ok", "timestamp": "ISO string", "uptime": 3600.5 }
 ```
 
+### GET /api/health/auth
+
+**A sonda do par de JWT entre a Vercel e a API** (13.7 do plano de
+observabilidade, 09/10/2026). Responde se a API aceita o que a Vercel assina
+com o `AUTH_JWT_SECRET` — o par que, divergente, põe todo leitor logado em 401
+com o site anônimo perfeito. Quem chama é a rota `GET /api/health/auth` do
+web, uma vez por dia, depois do run (o cron a invalida e a pede); o batimento
+lê o resultado de lá.
+
+**Auth:** `Authorization: Bearer <JWT>` com `purpose: 'health-probe'`, **e só
+ele** — o token de sessão e o de `auth-upsert` recebem 401, e o token da sonda
+recebe 401 em qualquer outra rota. Não toca o banco.
+
+**Resposta 200:**
+```json
+{ "data": { "accepted": true } }
+```
+
+**Resposta 401:** sem token, token de outro escopo, ou assinado com outro
+segredo — que é o defeito que a sonda existe para ver.
+
+---
+
 ### GET /api/health/providers
 
 Diagnóstico de chaves dos providers (NewsData.io, Gemini e Groq). Faz uma requisição leve ao vivo contra cada API e reporta apenas o status — as chaves nunca são expostas na resposta.

@@ -29,6 +29,19 @@ import type { BrowserContext } from '@playwright/test';
  * barulhento** (o passo do workflow imprime quais fluxos correram). Guarda que
  * passa vazia sem ninguém notar é a armadilha que esta fase inteira foi caçar.
  *
+ * ## Decidido em 09/10/2026: ficam desligados
+ *
+ * O dono decidiu não ligar (13.7 do plano de observabilidade). Com o
+ * `NEXTAUTH_SECRET` se forja sessão de **admin** — o papel vem do token —, e o
+ * risco realista é a dependência comprometida que roda neste mesmo job (o worm
+ * Shai-Hulud, npm, 2025, roubou segredos de CI assim). O defeito que estes
+ * fluxos pegariam, o par `AUTH_JWT_SECRET` divergente entre a Vercel e o
+ * Render, é perguntado todo dia pela sonda do login (`/api/health/auth` nas
+ * duas pontas, lida pelo batimento), sem segredo fora das plataformas.
+ * **Gatilho para reabrir:** leitores com conta de verdade, ou um defeito do
+ * caminho logado que a sonda não pegue — e aí com um ambiente de teste de
+ * segredo próprio, nunca o de produção.
+ *
  * ## Como ligar
  *
  * Três segredos no repositório, e um quarto para o fluxo de admin:

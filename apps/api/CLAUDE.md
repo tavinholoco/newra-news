@@ -17,6 +17,14 @@
 
 ## Rotas
 - GET /api/health — healthcheck (keep-alive)
+- GET /api/health/auth — **a sonda do par de JWT** (13.7 do plano de
+  observabilidade): aceita **só** um JWT com `purpose: 'health-probe'` — sem
+  papel, sem sessão — e responde `{ data: { accepted: true } }`; nenhuma outra
+  rota aceita esse token, e o de sessão não abre esta. Quem a chama é a rota
+  irmã do web, que o cron regenera todo dia; o Heartbeat lê o resultado. Existe
+  no lugar dos fluxos com login do Smoke, que ficam desligados por decisão
+  (o `NEXTAUTH_SECRET` de produção no CI daria sessão de admin a qualquer
+  dependência comprometida)
 - GET /api/news — listar notícias (paginado; filtros: categoria, busca, dia
   exato, período `from`/`to`, fonte; `sort` = `recent` | `oldest`)
 - GET /api/news/facets — contagem por categoria e por fonte do recorte atual,

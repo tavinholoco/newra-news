@@ -20,9 +20,11 @@ declare module 'fastify' {
  *
  * `'session'` é o token que o BFF do Next assina a cada requisição de leitor
  * logado, e ele **não carrega `purpose` nenhum**. `'auth-upsert'` é o token de
- * uso único que cria o usuário no primeiro sign-in.
+ * uso único que cria o usuário no primeiro sign-in. `'health-probe'` é o da
+ * sonda diária do par de JWT (13.7 do plano de observabilidade): a Vercel o
+ * assina sem sessão de ninguém, e ele abre **só** o `GET /api/health/auth`.
  */
-export type AuthPurpose = 'session' | 'auth-upsert';
+export type AuthPurpose = 'session' | 'auth-upsert' | 'health-probe';
 
 export interface AuthPluginOptions {
   /** Padrão: `'session'` — recusa qualquer token que traga `purpose`. */

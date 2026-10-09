@@ -31,7 +31,14 @@ const WEB_ROOT = join(__dirname, '../..');
 const API_CLIENT = join(WEB_ROOT, 'lib', 'api.ts');
 
 /** Os únicos módulos autorizados a **assinar** com o segredo compartilhado. */
-const SECRET_SIGNERS = ['lib/api-proxy.ts', 'lib/auth.ts', 'lib/jwt.ts'];
+const SECRET_SIGNERS = [
+  'lib/api-proxy.ts',
+  'lib/auth.ts',
+  'lib/jwt.ts',
+  // 13.7: a sonda do par de JWT assina um token `health-probe` — sem papel,
+  // sem sessão — que a API aceita só no `GET /api/health/auth`.
+  'app/api/health/auth/route.ts',
+];
 
 /**
  * Módulo que **nomeia** o segredo sem assinar com ele.

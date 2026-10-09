@@ -9193,6 +9193,39 @@ datacenter e decidir se a Veja Saúde saía, como o Drauzio saiu no #243.
   gravada. **Gatilho para reabrir:** uma fonte com `FAILED` em mais de dois
   dias de uma semana com a nova tentativa no ar.
 
+### 97. Os fluxos com login do Smoke ficam desligados — e o login é perguntado todo dia, sem segredo no CI ✅ 2026-10-09
+
+O 13.7 da §23 do plano de observabilidade (branch
+`observability/fase-13-7-login-probe`). A §23 o chamava de "decisão, não trabalho": ligar os
+seis testes pulados (cinco de leitor, um de admin) pede o `NEXTAUTH_SECRET`
+de produção no CI.
+
+- **A análise, feita com o dono, e a pesquisa:** conferido no código, o
+  papel vem do token (`lib/auth.ts` → `token.role`; a API confia no claim),
+  então quem tem o segredo forja sessão de **admin**. Os segredos de Actions
+  não chegam a PR de fork nem do Dependabot (docs do GitHub), mas o passo do
+  Playwright executa `node_modules` com o segredo no ambiente — e o worm
+  **Shai-Hulud** (npm, set. e nov. de 2025) roubou segredos de CI por esse
+  caminho, inclusive o da PostHog. Environment restrito à `main` não ajuda.
+  É o CICD-SEC-6 do OWASP CI/CD Top 10. O ganho dos seis testes é **um**
+  defeito — o par `AUTH_JWT_SECRET` divergente, todo leitor logado em 401 —,
+  que já aconteceu uma vez.
+- **Decidido pelo dono em 09/10: não ligar, e medir o defeito sem segredo.**
+  `GET /api/health/auth` na API aceita só um JWT `purpose: 'health-probe'`
+  (sem papel, sem sessão; nenhuma outra porta o aceita); a rota irmã do web
+  o assina com o segredo da Vercel e pergunta, guardada pela ISR por um dia e
+  respondendo 200 até na falha (o resultado de hoje tem de substituir o de
+  ontem); o cron a invalida e a pede com o conjunto do dia; e o Heartbeat
+  ganhou a pergunta `login`, lida do cache da Vercel.
+- **Duas guardas que já existiam pegaram o que faltava:** `bff-error-log`
+  (dois `catch` mudos na rota nova) e `bff-route-seam` (a terceira chamada
+  `fetch` crua do BFF, achada sozinha pelo parser).
+- **Mutações A1.102–A1.106. 1.498 → 1.527 na API, 1.009 → 1.018 no web.**
+- **Depois da promoção:** a rota do web com `"ok":true` e o `checkedAt` do dia,
+  e a pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão:**
+  leitores com conta de verdade, ou um defeito do caminho logado que a sonda
+  não pegue — e aí com um ambiente de teste de segredo próprio.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

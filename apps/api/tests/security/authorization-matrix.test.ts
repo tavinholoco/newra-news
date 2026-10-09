@@ -59,7 +59,8 @@ type Access =
   | 'session' // JWT de sessão (sem `purpose`)
   | 'admin' // JWT de sessão com `role: ADMIN`
   | 'job' // `Authorization: Bearer <JOB_SECRET>`
-  | 'auth-upsert'; // JWT com `purpose: 'auth-upsert'`, e só ele
+  | 'auth-upsert' // JWT com `purpose: 'auth-upsert'`, e só ele
+  | 'health-probe'; // JWT com `purpose: 'health-probe'`, e só ele (13.7)
 
 interface Row {
   route: string;
@@ -76,6 +77,7 @@ interface Row {
 const MATRIX: Row[] = [
   { route: 'GET /api/health', access: 'public' },
   { route: 'GET /api/health/providers', access: 'public' },
+  { route: 'GET /api/health/auth', access: 'health-probe' },
 
   { route: 'GET /api/news', access: 'public' },
   { route: 'GET /api/news/facets', access: 'public' },
@@ -271,6 +273,52 @@ describe('9.T — a matriz de autorização', () => {
     const res = await call(row, { authorization: `Bearer ${jwt}` });
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it.each(
+    MATRIX.filter((row) => row.access === 'session' || row.access === 'admin').map(
+      (row) => [row.route, row] as const,
+    ),
+  )('%s rejects the health-probe token — it opens one door only', async (_name, row) => {
+    // 13.7: o token da sonda é assinado pela Vercel todo dia, sem sessão de
+    // ninguém. Se ele abrisse qualquer outra porta, a sonda seria uma
+    // credencial — e o ponto dela é não ser.
+    const jwt = await token({
+      sub: 'health-probe',
+      email: 'health-probe@newranews.invalid',
+      role: 'ADMIN',
+      purpose: 'health-probe',
+    });
+    const res = await call(row, { authorization: `Bearer ${jwt}` });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it.each(
+    MATRIX.filter((row) => row.access === 'health-probe').map((row) => [row.route, row] as const),
+  )('%s rejects a session, an admin session and the upsert token', async (_name, row) => {
+    for (const claims of [
+      { sub: 'u1', email: 'reader@test.com' },
+      { sub: 'u1', email: 'admin@test.com', role: 'ADMIN' },
+      { sub: 'u1', email: 'reader@test.com', purpose: 'auth-upsert' },
+    ]) {
+      const jwt = await token(claims);
+      const res = await call(row, { authorization: `Bearer ${jwt}` });
+      expect(res.statusCode).toBe(401);
+    }
+  });
+
+  it.each(
+    MATRIX.filter((row) => row.access === 'health-probe').map((row) => [row.route, row] as const),
+  )('%s lets the health-probe token through', async (_name, row) => {
+    const jwt = await token({
+      sub: 'health-probe',
+      email: 'health-probe@newranews.invalid',
+      purpose: 'health-probe',
+    });
+    const res = await call(row, { authorization: `Bearer ${jwt}` });
+
+    expect(PASSED_AUTHORIZATION(res.statusCode)).toBe(true);
   });
 
   it.each(
