@@ -316,7 +316,9 @@ Regras que não são óbvias no código:
     todo o segmento; `/favorites` é a exceção fora dele, com o guard próprio
 - /[locale]/admin → Painel admin (force-dynamic, noindex, role ADMIN) — a
   **saúde da API agora** (`admin/api-health`: o arco das horas do plano, memória
-  e event loop), o disparo do pipeline, **a faixa de desfechos de 30 dias com o
+  e event loop; desde o 13b, **as horas desta API por dia** em
+  `admin/uptime-days` e **o formulário da leitura do Billing** em
+  `admin/plan-reading-form`), o disparo do pipeline, **a faixa de desfechos de 30 dias com o
   batimento "último briefing há N h"** (`admin/outcome-strip`, Fase 8 do plano
   de observabilidade), **os três painéis de execução** (`admin/pipeline-runs`)
   e a lista de notícias
@@ -424,6 +426,27 @@ Regras que não são óbvias no código:
     e a linha do **ritmo do mês** (`planPace`) é o número que teria avisado
     antes de 29/08: `hoursUsed / horas decorridas × horas do mês`, calada
     antes de 24 h de amostra (armadilha 24)
+  - **o arco é do workspace quando há leitura do Billing, e desta API quando
+    não há — e o nome diz qual** (Fase 13 do plano, 13b). As 750 h são do
+    workspace, que o `NetsheetEngine` divide; o Render não tem API de
+    cobrança, então o dono digita o total do Billing na `/admin`
+    (`POST /api/admin/plan-hours`) e a API guarda as horas dela no mesmo
+    instante. **A conta mora toda em `lib/saturation.ts`**: a parte dos
+    outros na leitura, o ritmo deles (calado se a leitura tem menos de 24 h
+    de mês antes dela), a estimativa de agora com "~" (esta API medida, os
+    outros no ritmo da leitura) e a projeção somando os dois ritmos. O teto
+    é sempre `plan.limitHours` — **nenhum `750` numérico em `lib/`,
+    `components/` ou `app/`**, com guarda pelo parser. `parseHoursInput`
+    aceita `124,27`: a API recebe número e recusa texto
+  - **as horas desta API por dia (13.9) usam a `SeriesBars` com `scaleMax` de
+    24 h e a linha dos 10 h** — com a escala da série, nove dias de 9 h eram
+    nove barras cheias e a tela não dizia se 9 h é muito (a captura do 13b
+    achou). O gatilho é `robotStreak` ≥ 2: dias **inteiros** seguidos acima
+    de 10 h terminando ontem — hoje é parcial e não entra
+  - **`workspaceReading` e `uptimeByDay` passam por `workspaceReadingOf` e
+    `uptimeByDayOf`** (armadilha 37): a API de produção não os manda até a
+    promoção, e ausente é "sem leitura" e "sem série" — nunca uma série vazia
+    que leria como "dormiu duas semanas"
   - **a variação do KPI é de `lib/kpi.ts`, e `null` é cartão sem chip.**
     `kpiDelta` só responde com linha de base honesta; a taxa de sucesso de 7 d
     não tem par no contrato de 30 d (`lastMonth` não diz quantos dias têm

@@ -201,7 +201,16 @@ describe('§9 — `action` é literal do tuple, e todo literal tem call site', (
     literal: string | undefined;
   }
 
-  /** Todo `action:` passado a `recordAuditEvent`, em `src/`. */
+  /**
+   * Os dois escritores da trilha: `recordAuditEvent` (nunca lança — a ação já
+   * aconteceu) e `writeAuditEvent` (lança — a escrita **é** a ação, como a
+   * leitura do Billing do 13b). A varredura cobre os dois; quem escrevesse
+   * pelo Prisma direto escaparia dela, e a asserção do fim deste bloco o
+   * recusa.
+   */
+  const AUDIT_WRITERS = new Set(['recordAuditEvent', 'writeAuditEvent']);
+
+  /** Todo `action:` passado a um escritor da trilha, em `src/`. */
   function actionArguments(): ActionArgument[] {
     const found: ActionArgument[] = [];
 
@@ -218,7 +227,7 @@ describe('§9 — `action` é literal do tuple, e todo literal tem call site', (
         if (
           ts.isCallExpression(node) &&
           ts.isIdentifier(node.expression) &&
-          node.expression.text === 'recordAuditEvent'
+          AUDIT_WRITERS.has(node.expression.text)
         ) {
           for (const arg of node.arguments) {
             if (!ts.isObjectLiteralExpression(arg)) continue;
@@ -249,6 +258,9 @@ describe('§9 — `action` é literal do tuple, e todo literal tem call site', (
     expect(found.length).toBeGreaterThanOrEqual(2);
     expect(found.map((a) => a.file)).toContain('routes/news/admin.ts');
     expect(found.map((a) => a.file)).toContain('routes/jobs/index.ts');
+    // O escritor que lança (13b) — sem ele na varredura, `plan.hours_recorded`
+    // seria um membro do tuple que "ninguém grava".
+    expect(found.map((a) => a.file)).toContain('services/plan-hours.service.ts');
   });
 
   it('toda `action` é literal do tuple', () => {
@@ -264,5 +276,42 @@ describe('§9 — `action` é literal do tuple, e todo literal tem call site', (
     const orphans = AUDIT_ACTIONS.filter((action) => !used.has(action));
 
     expect(orphans).toEqual([]);
+  });
+
+  /**
+   * **Só o `audit.service` escreve na tabela.** As duas asserções acima leem
+   * os escritores; um `prisma.auditEvent.create` em outro arquivo gravaria uma
+   * `action` que nenhuma delas vê — e o 13b é o primeiro chamador com motivo
+   * para querer escrever "por baixo" (a gravação que lança). Pelo parser:
+   * qualquer acesso `auditEvent.create`/`createMany`/`upsert`/`update*`.
+   */
+  it('nenhum arquivo fora do `audit.service` escreve no `AuditEvent` pelo Prisma', () => {
+    const WRITES = new Set(['create', 'createMany', 'upsert', 'update', 'updateMany']);
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles()) {
+      if (file === 'services/audit.service.ts') continue;
+      const tree = ts.createSourceFile(
+        file,
+        readFileSync(join(API_SRC, file), 'utf8'),
+        ts.ScriptTarget.ES2022,
+        false,
+        ts.ScriptKind.TS,
+      );
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isPropertyAccessExpression(node) &&
+          WRITES.has(node.name.text) &&
+          ts.isPropertyAccessExpression(node.expression) &&
+          node.expression.name.text === 'auditEvent'
+        ) {
+          offenders.push(`${file}: ${node.getText(tree)}`);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(tree);
+    }
+
+    expect(offenders).toEqual([]);
   });
 });

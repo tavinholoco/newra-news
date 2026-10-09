@@ -120,6 +120,17 @@ export const ERROR_CODES = [
    * auditoria sumir em silêncio.
    */
   'ACTOR_ID_INVALID',
+  /**
+   * Leitura do Billing **menor** que as horas que esta API já registrou no
+   * mês, no `POST /api/admin/plan-hours` (Fase 13, 13b).
+   *
+   * O Render conta a instância de pé, e o processo sobe depois dela e morre
+   * antes — o total do workspace nunca é menor que a parte que o
+   * `DailyUptime` mede. Menor é o número errado do painel (um dígito trocado,
+   * a linha de um serviço só), e gravá-lo poria horas negativas nos outros
+   * serviços. `validation`: é o que veio na requisição que não serve.
+   */
+  'PLAN_READING_BELOW_API',
   /** O default do `AppError` cru: falha nossa que não ganhou nome próprio. */
   'INTERNAL',
 ] as const;

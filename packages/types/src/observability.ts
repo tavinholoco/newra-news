@@ -92,6 +92,39 @@ export interface EventLoopLag {
   lagMs: { p50: number; p95: number; p99: number; max: number };
 }
 
+/**
+ * Uma leitura do Billing do Render, digitada na `/admin` (§23 do plano de
+ * observabilidade, 13b).
+ *
+ * As 750 h do free são do **workspace**, e o workspace tem um segundo serviço
+ * (`NetsheetEngine`) que esta API não mede: o Render não expõe cobrança por
+ * API, e a chave da API dele abre a conta inteira. O dono lê o total no
+ * painel e o registra; a API guarda as **duas pontas do mesmo instante** — o
+ * total e a parte desta API naquele momento —, e a parte dos outros serviços
+ * é a diferença. A conta (ritmo, estimativa, projeção) é da tela, num lugar
+ * só (`lib/saturation.ts` do web).
+ */
+export interface PlanHoursReading {
+  /** Quando a leitura foi registrada — o `createdAt` da linha de auditoria. */
+  readAt: string;
+  /** O total de horas free do workspace que o Billing mostrava. */
+  workspaceHours: number;
+  /** As horas desta API (`DailyUptime`) no mesmo instante. */
+  apiHours: number;
+}
+
+/** As horas desta API por dia (13.9) — a janela e os dias que têm linha. */
+export interface UptimeSeries {
+  since: string;
+  until: string;
+  days: Array<{ date: string; seconds: number }>;
+}
+
+/** O corpo de `POST /api/admin/plan-hours`. */
+export interface PlanHoursReadingInput {
+  workspaceHours: number;
+}
+
 /** O quarto sinal de ouro (§3.1): teto e razão já calculados para cada medida. */
 export interface Saturation {
   memory: {
@@ -112,11 +145,35 @@ export interface Saturation {
     /** `YYYY-MM`, em UTC — o mês de calendário que o Render cobra. */
     month: string;
     monthStart: string;
+    /** Os segundos **desta API** no mês (soma do `DailyUptime`). */
     secondsUsed: number;
     hoursUsed: number;
+    /**
+     * O teto do **workspace** — as 750 h que suspendem todos os serviços free
+     * dele quando acabam (29/08 e 19/09/2026). Não é a parte desta API.
+     */
     limitHours: number;
-    /** `hoursUsed / limitHours`. Passar de 1 é o que suspendeu a API em 29/08/2026. */
+    /**
+     * `hoursUsed / limitHours` — **a parte desta API** sobre o teto do
+     * workspace. Só é a saturação do plano quando nada mais divide o
+     * workspace; com outro serviço ligado, é a leitura que diz quanto falta.
+     */
     ratio: number;
+    /**
+     * A leitura do Billing mais recente **deste mês** (o Billing zera no dia
+     * 1º), ou `null` sem nenhuma. A API anterior à Fase 13 não a manda, e o
+     * preview da `dev` lê a API de produção (armadilha 37): a tela trata
+     * ausente como `null` na fronteira (`workspaceReadingOf`, no web).
+     */
+    workspaceReading: PlanHoursReading | null;
+    /**
+     * As horas desta API por dia nas duas últimas semanas — o 13.9 da §23,
+     * cujo gatilho ("dois dias seguidos acima de 10 h") é por dia e só se lia
+     * no banco. `since`/`until` são dias UTC (`YYYY-MM-DD`), `until` é hoje
+     * (parcial), e `days` traz **só os dias com linha**: a tela preenche a
+     * janela. Ausente na API anterior à Fase 13 (armadilha 37).
+     */
+    uptimeByDay: UptimeSeries;
   } | null;
 }
 

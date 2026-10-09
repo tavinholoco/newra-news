@@ -6,6 +6,7 @@ import { GET as pipelineRunGet } from '@/app/api/admin/pipeline/runs/[pipelineId
 import { GET as errorsGet } from '@/app/api/admin/errors/route';
 import { GET as auditGet } from '@/app/api/admin/audit/route';
 import { GET as httpMetricsGet } from '@/app/api/admin/http-metrics/route';
+import { POST as planHoursPost } from '@/app/api/admin/plan-hours/route';
 import { GET as cronGet } from '@/app/api/cron/daily-news/route';
 import { NextResponse } from 'next/server';
 
@@ -394,6 +395,57 @@ describe.each([
     const [calledUrl, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(calledUrl.endsWith(upstream)).toBe(true);
     expect(init.method).toBe('GET');
+    expect(signAuthJwtMock).toHaveBeenCalledWith({
+      sub: 'admin-1',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
+  });
+});
+
+/**
+ * **A única escrita de admin pelo `proxyToApi` — a leitura do Billing** (§23
+ * do plano de observabilidade, 13b). O que se guarda: a porta recusa antes de
+ * chamar a API, o corpo atravessa intocado (a API é o único validador — a
+ * vírgula do teclado já foi convertida pela tela), o método é `POST` e o
+ * papel vai assinado.
+ */
+describe('POST /api/admin/plan-hours', () => {
+  const url = 'http://localhost:3000/api/admin/plan-hours';
+  const body = JSON.stringify({ workspaceHours: 124.27 });
+
+  function request() {
+    return new Request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+  }
+
+  it('answers 401 without a session and 403 for a non-admin, without calling the API', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+
+    getServerSessionMock.mockResolvedValue(null);
+    expect((await planHoursPost(request())).status).toBe(401);
+    getServerSessionMock.mockResolvedValue(userSession);
+    expect((await planHoursPost(request())).status).toBe(403);
+
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('forwards the body as a POST to the admin path, with the role signed — and the 201 back', async () => {
+    getServerSessionMock.mockResolvedValue(adminSession);
+    const payload = { data: { readAt: '2026-10-06T00:10:01.000Z', workspaceHours: 124.27, apiHours: 34.9 } };
+    mockFetchOk(payload, 201);
+
+    const res = await planHoursPost(request());
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual(payload);
+    const [calledUrl, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(calledUrl.endsWith('/admin/plan-hours')).toBe(true);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe(body);
     expect(signAuthJwtMock).toHaveBeenCalledWith({
       sub: 'admin-1',
       email: 'admin@test.com',

@@ -8972,6 +8972,68 @@ GitHub só roda `schedule` da branch padrão.
   Mutações **A1.77–A1.78**; **1.446 → 1.450 na API**. **Depois da
   promoção:** Actions → Heartbeat → Run workflow → marcar o ensaio.
 
+### 93. O denominador honesto: o arco das horas passa a ser o do workspace ✅ 2026-10-09
+
+O 13.2 da §23 do plano de observabilidade (PR 13b; branch
+`observability/fase-13b-plan-hours`), com o **13.9 dentro dele**, como a §23
+manda. O arco da `/admin` dividia as horas **desta** API (`DailyUptime`) pelas
+750 h do **workspace**, que o `NetsheetEngine` divide — ~74 % das horas de
+outubro (item 87). Setembro estourou em 753,4 h com o arco mostrando folga.
+
+- **De onde vem o número do outro serviço — decidido pelo dono em 07/10:
+  leitura do Billing digitada na `/admin`.** Pesquisado antes: o Render **não
+  tem API de cobrança** (as horas free só aparecem no painel, e só o total do
+  workspace), a Metrics API (`instance-count`) não tem confirmação de que marca
+  zero quando um serviço free dorme, e **a chave de API do Render não tem
+  escopo** — abre a conta inteira, em todos os workspaces (variáveis de
+  ambiente com o `DATABASE_URL`, deploy, exclusão). Pô-la no processo que a
+  internet alcança, ou no CI, custava mais que o número compra.
+- **A linha de auditoria é o dado — sem migration.** `POST
+  /api/admin/plan-hours` grava `plan.hours_recorded` no `AuditEvent` com
+  `{ workspaceHours, apiHours }`: **as duas pontas do mesmo instante**, porque
+  a parte dos outros é a diferença e reconstruir a desta API depois, de linhas
+  por dia, daria o dia e não a hora. Leitura menor que as horas desta API é
+  **400** (`PLAN_READING_BELOW_API`): o Render conta a instância de pé, e o
+  processo sobe depois e morre antes — menor é o número errado do painel. A
+  gravação **lança** (`writeAuditEvent`, novo, ao lado do `recordAuditEvent`
+  que nunca lança): aqui a escrita é a ação, e 201 sobre nada seria a tela de
+  25/08.
+- **A tela deriva tudo num lugar só** (`lib/saturation.ts`): a parte dos
+  outros na leitura, o ritmo deles (calado com menos de 24 h de mês antes da
+  leitura), a estimativa de agora (esta API medida + os outros no ritmo da
+  leitura, com "~") e a projeção do mês com **os dois ritmos**. Sem leitura,
+  o arco se chama "Horas desta API" e diz que o teto é do workspace e
+  dividido. O formulário fica na `/admin` (só lá), aceita `124,27`, e confere
+  antes de mandar o que a API confere depois.
+- **13.9 — as horas por dia, que só se liam com a credencial de produção.**
+  O gatilho ("dois dias inteiros seguidos acima de 10 h — robô em
+  `/news/[id]`") é por dia e o arco é a soma do mês: a armadilha 39 outra vez.
+  O `/api/metrics/http` passou a mandar os últimos 14 dias de `DailyUptime`
+  (uma consulta com teto, duas colunas) e a `/admin` os desenha **na escala de
+  um dia inteiro, contra a linha dos 10 h**, com o gatilho como linha de
+  status; o dia de hoje, parcial, nunca conta.
+- **A captura achou um defeito sem sintoma de código, outra vez:** a
+  `SeriesBars` escala pelo maior ponto, e nove dias de 9 h saíram como nove
+  barras cheias — a tela não dizia se 9 h é muito, que é a pergunta do 13.9.
+  Ganhou `scaleMax` e linha de referência (fora do `<ol>`: não é ponto da
+  série).
+- **Um teste instável herdado do 13a′:** a suíte do cron dava 50 ms de relógio
+  de parede para a espera do run, e com a suíte inteira em paralelo duas
+  sondas passaram disso (`UNKNOWN` no lugar de `SUCCESS`). Subiu para 1 s, em
+  commit próprio.
+- **Guardas:** o `750` como literal só em `RENDER_FREE_PLAN_HOURS`, pelo
+  parser, **nos dois lados** (a tela lê `limitHours`); `writeAuditEvent` na
+  guarda do literal de `action`, e nenhum arquivo fora do `audit.service`
+  escrevendo no `AuditEvent`; a resposta antiga sem os dois campos (armadilha
+  37) desenhando "só esta API" e sem a série; a escala fixa. Mutações
+  **A1.79–A1.86**, as oito vistas reprovando pelo teste certo. **1.450 →
+  1.478 na API, 961 → 1.000 no web.**
+- **Do dono, depois da promoção:** registrar a primeira leitura do Billing na
+  `/admin` (Billing → Free instance hours) — até lá a API de produção responde
+  404 na rota nova e o arco segue "só esta API". E reler o Billing de vez em
+  quando: entre duas leituras os outros serviços são estimados no ritmo da
+  última.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

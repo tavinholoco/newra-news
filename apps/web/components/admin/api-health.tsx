@@ -5,6 +5,9 @@ import { useHttpMetrics } from '@/lib/queries';
 import { formatCount, formatRate, formatUptime } from '@/lib/format';
 import { toDateFormatLocale } from '@/lib/i18n';
 import { SaturationPanel } from '@/components/dashboard/golden-signals';
+import { PlanReadingForm } from './plan-reading-form';
+import { UptimeDays } from './uptime-days';
+import { uptimeByDayOf } from '@/lib/saturation';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
@@ -12,7 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton';
  * observabilidade), com o **arco das horas do plano** que a §4.3 chama de o
  * mais importante do plano inteiro em custo/benefício: um arco, um número, e
  * o incidente que suspendeu a API por dois dias em 29/08/2026 vira algo que
- * se vê chegando.
+ * se vê chegando. Desde a Fase 13 (13b) o arco é do **workspace** quando há
+ * leitura do Billing — e é aqui, abaixo dele, que a leitura se registra.
  *
  * Lê a mesma consulta que o painel de sinais da `/admin/metrics`
  * (`useHttpMetrics`, uma chave): quem abre as duas abas faz uma requisição. O
@@ -23,6 +27,8 @@ export function ApiHealth() {
   const t = useTranslations('admin');
   const locale = toDateFormatLocale(useLocale());
   const { data, isError } = useHttpMetrics();
+  // As horas por dia (13.9) — ausentes na API de antes da Fase 13 (armadilha 37).
+  const uptimeSeries = data?.saturation.plan ? uptimeByDayOf(data.saturation.plan) : null;
 
   return (
     <section className='rounded-lg border border-border bg-card p-6'>
@@ -44,6 +50,14 @@ export function ApiHealth() {
       ) : (
         <>
           <SaturationPanel saturation={data.saturation} arcSize='lg' />
+          {/* A série por dia e a leitura do Billing (Fase 13, 13b) só existem
+              com as horas do plano à mão — a leitura é comparada com elas. */}
+          {data.saturation.plan && (
+            <>
+              {uptimeSeries && <UptimeDays series={uptimeSeries} />}
+              <PlanReadingForm plan={data.saturation.plan} />
+            </>
+          )}
           <p className='mt-6 text-xs text-muted-foreground'>
             {t('overview.instance', {
               uptime: formatUptime(data.uptimeSeconds, locale),

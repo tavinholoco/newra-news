@@ -294,6 +294,36 @@ describe('SecurityClient — a trilha de auditoria', () => {
     expect(screen.queryByText(/alvo/)).toBeNull();
   });
 
+  it('names the Billing reading and shows the two ends of it (Fase 13, 13b)', () => {
+    mockQueries({
+      audit: {
+        data: {
+          ...auditTrail,
+          events: [
+            {
+              id: 'audit-4',
+              actorId: 'user-admin-1',
+              action: 'plan.hours_recorded',
+              targetId: null,
+              outcome: 'recorded',
+              requestId: 'req-4',
+              context: { workspaceHours: 124.27, apiHours: 34.9 },
+              createdAt: '2026-10-06T00:10:01.000Z',
+            },
+          ],
+        },
+        isFetching: false,
+        isError: false,
+      },
+    });
+    renderWithIntl(<SecurityClient />);
+
+    expect(screen.getByText('Leitura do Billing registrada')).toBeInTheDocument();
+    // As duas pontas do mesmo instante: é o que torna a linha auditável depois
+    // ("o arco estava certo naquele dia?").
+    expect(screen.getByText(/workspace 124,27 h · esta API 34,9 h/)).toBeInTheDocument();
+  });
+
   it('never shows an e-mail — only ids come through', () => {
     renderWithIntl(<SecurityClient />);
     expect(screen.queryByText(/@/)).toBeNull();

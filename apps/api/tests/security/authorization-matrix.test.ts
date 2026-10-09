@@ -152,6 +152,10 @@ const MATRIX: Row[] = [
   { route: 'GET /api/admin/sources', access: 'admin' },
   // Fase 6: o último relatório de invariantes — lê o evento da etapa 9.5.
   { route: 'GET /api/admin/invariants', access: 'admin' },
+  // Fase 13 (§23, 13b): a leitura do Billing que o dono digita — a única
+  // escrita do grupo. O corpo é válido para medir a porta, não a validação
+  // (o schema responde antes do `preHandler`; ver armadilha do 400 × 401).
+  { route: 'POST /api/admin/plan-hours', access: 'admin', payload: { workspaceHours: 124.27 } },
 
   { route: 'GET /api/dev/logs', access: 'job' },
   { route: 'GET /api/dev/logs/:pipelineId', access: 'job' },

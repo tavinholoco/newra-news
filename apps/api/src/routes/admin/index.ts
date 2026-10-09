@@ -4,6 +4,7 @@ import { adminAuditRoutes } from './audit';
 import { adminErrorsRoutes } from './errors';
 import { adminInvariantsRoutes } from './invariants';
 import { adminPipelineRoutes } from './pipeline';
+import { adminPlanHoursRoutes } from './plan-hours';
 import { adminSourcesRoutes } from './sources';
 
 /**
@@ -11,16 +12,17 @@ import { adminSourcesRoutes } from './sources';
  *
  * A Fase 2 abriu o prefixo com uma rota só, e o `authPlugin` + `requireAdmin`
  * moravam em `pipeline.ts`. Com a Fase 5 são três grupos de rota (quatro com a
- * Fase 11, cinco com a 6), e repetir as duas linhas em cada um seria voltar ao hábito por
- * rota que o prefixo existe para acabar. Elas registram **uma vez, aqui**, e
- * os filhos herdam o `preHandler` — hook de contexto pai vale para todo
- * `register` abaixo dele.
+ * Fase 11, cinco com a 6, seis com a 13 — a primeira escrita), e repetir as
+ * duas linhas em cada um seria voltar ao hábito por rota que o prefixo existe
+ * para acabar. Elas registram **uma vez, aqui**, e os filhos herdam o
+ * `preHandler` — hook de contexto pai vale para todo `register` abaixo dele.
  *
  * `authPlugin` não encapsula (o `fp()` do export default marca a função com
  * `skip-override`), então o `preHandler` dele entra **neste** contexto — o de
- * `adminRoutes` — e alcança `pipeline`, `errors`, `audit`, `sources` e
- * `invariants`, e só eles. A guarda continua a mesma: `authorization-matrix.test.ts` enumera o
- * `printRoutes()`, filtra o prefixo e cobra `access: 'admin'` de cada linha.
+ * `adminRoutes` — e alcança `pipeline`, `errors`, `audit`, `sources`,
+ * `invariants` e `plan-hours`, e só eles. A guarda continua a mesma:
+ * `authorization-matrix.test.ts` enumera o `printRoutes()`, filtra o prefixo
+ * e cobra `access: 'admin'` de cada linha.
  *
  * Rate limit: o global de 100/min, para todas — cada uma já custa um JWT de
  * admin válido.
@@ -36,4 +38,5 @@ export async function adminRoutes(app: FastifyInstance) {
   await app.register(adminAuditRoutes, { prefix: '/audit' });
   await app.register(adminSourcesRoutes, { prefix: '/sources' });
   await app.register(adminInvariantsRoutes, { prefix: '/invariants' });
+  await app.register(adminPlanHoursRoutes, { prefix: '/plan-hours' });
 }

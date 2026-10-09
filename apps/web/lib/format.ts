@@ -235,6 +235,16 @@ export function formatHours(hours: number, locale = 'pt-BR'): string {
 }
 
 /**
+ * Horas com até duas casas — `124,27 h`. Para o número que alguém **leu e
+ * digitou** (a leitura do Billing, Fase 13): arredondado a `124 h`, a tela
+ * mostraria um número que não está em painel nenhum, e conferir a leitura
+ * depois ficaria impossível.
+ */
+export function formatHoursExact(hours: number, locale = 'pt-BR'): string {
+  return `${hours.toLocaleString(locale, { maximumFractionDigits: 2 })} h`;
+}
+
+/**
  * Uma razão 0–1 → percentual inteiro, **com teto visual em 999%**.
  *
  * `formatPercent` serve para taxa (0–1 por construção). Uma razão de

@@ -1101,6 +1101,99 @@ const MUTATIONS = [
     ],
     expect: 'exits 1 in a rehearsal on a good day',
   },
+  // ── Fase 13, 13b: o denominador honesto (§23) ────────────────────────────
+  {
+    id: 'A1.79',
+    what: 'um segundo 750 em src/ — o arco volta a ter dois denominadores',
+    pkg: 'api',
+    test: 'tests/services/plan-hours.service.test.ts',
+    file: 'apps/api/src/services/saturation.service.ts',
+    edits: [{ find: '      limitHours: RENDER_FREE_PLAN_HOURS,', replace: '      limitHours: 750,' }],
+    expect: 'o único `750` numérico de `src/`',
+  },
+  {
+    id: 'A1.80',
+    what: 'a leitura do Billing abaixo das horas desta API é gravada — os outros serviços ficam negativos',
+    pkg: 'api',
+    test: 'tests/services/plan-hours.service.test.ts',
+    file: 'apps/api/src/services/plan-hours.service.ts',
+    edits: [{ find: '  if (input.workspaceHours < apiHours) {', replace: '  if (input.workspaceHours < 0) {' }],
+    expect: 'recusa uma leitura menor que o que esta API já registrou',
+  },
+  {
+    id: 'A1.81',
+    what: 'um arquivo fora do audit.service escreve no AuditEvent por baixo — uma action que a guarda do literal não vê',
+    pkg: 'api',
+    test: 'tests/services/audit.service.test.ts',
+    file: 'apps/api/src/services/plan-hours.service.ts',
+    append: '\nexport const writeUnderneath = () => prisma.auditEvent.create;\n',
+    expect: 'nenhum arquivo fora do `audit.service` escreve no `AuditEvent`',
+  },
+  {
+    id: 'A1.82',
+    what: 'a tela divide pelo 750 escrito à mão — um segundo denominador do lado do web',
+    pkg: 'web',
+    test: 'tests/lib/observability-helpers.test.ts',
+    file: 'apps/web/lib/saturation.ts',
+    edits: [
+      {
+        find: '    ratio: plan.limitHours > 0 ? totalHoursNow / plan.limitHours : 0,',
+        replace: '    ratio: totalHoursNow / 750,',
+      },
+    ],
+    expect: 'nenhum `750` numérico em `lib/`',
+  },
+  {
+    id: 'A1.83',
+    what: 'com a leitura, a projeção esquece o ritmo dos outros serviços — o arco de setembro outra vez',
+    pkg: 'web',
+    test: 'tests/lib/observability-helpers.test.ts',
+    file: 'apps/web/lib/saturation.ts',
+    edits: [
+      {
+        find: '  const rate = workspace ? apiRate + (workspace.otherRate ?? 0) : apiRate;',
+        replace: '  const rate = apiRate;',
+      },
+    ],
+    expect: 'soma os dois ritmos',
+  },
+  {
+    id: 'A1.84',
+    what: 'a resposta da API de produção sem o campo (armadilha 37) chega à tela como undefined',
+    pkg: 'web',
+    test: 'tests/lib/observability-helpers.test.ts',
+    file: 'apps/web/lib/saturation.ts',
+    edits: [
+      {
+        find: '  return legacy.workspaceReading ?? null;',
+        replace: '  return legacy.workspaceReading as PlanHoursReading | null;',
+      },
+    ],
+    expect: 'a resposta sem o campo',
+  },
+  {
+    id: 'A1.85',
+    what: 'o gatilho do 13.9 conta o dia de hoje, parcial — uma manhã cheia vira "robô"',
+    pkg: 'web',
+    test: 'tests/lib/observability-helpers.test.ts',
+    file: 'apps/web/lib/saturation.ts',
+    edits: [
+      {
+        find: '  for (let i = days.length - 2; i >= 0; i -= 1) {',
+        replace: '  for (let i = days.length - 1; i >= 0; i -= 1) {',
+      },
+    ],
+    expect: 'hoje é parcial e não entra',
+  },
+  {
+    id: 'A1.86',
+    what: 'a série por dia do painel perde o teto de linhas (armadilha 4)',
+    pkg: 'api',
+    test: 'tests/services/uptime.service.test.ts',
+    file: 'apps/api/src/services/uptime.service.ts',
+    dropLine: '    take: UPTIME_SERIES_DAYS,',
+    expect: 'pede os últimos dias UTC, hoje incluído, com teto de linhas',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
