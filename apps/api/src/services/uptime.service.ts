@@ -1,4 +1,5 @@
 import { prisma } from '@newranews/database';
+import type { UptimeSeries } from '@newranews/types';
 import { baseLogger } from '../utils/logger';
 import { ERROR_EVENT_CLOSE_TIMEOUT_MS } from './error-event.service';
 
@@ -221,29 +222,12 @@ export async function flushUptimeBeforeClose(
 }
 
 /**
- * Segundos de instância no mês de calendário UTC de `now`, somando os dias —
- * a linha de hoje incluída e incompleta por definição.
- *
- * Mês de calendário porque é como o Render conta: em 29/08/2026 as horas
- * acabaram e a API ficou suspensa **até o dia 1º**.
- */
-/**
  * Quantos dias a série por dia cobre, hoje incluído. **Duas semanas**: o
  * gatilho do 13.9 (§23 do plano de observabilidade) são dois dias seguidos
  * acima de 10 h, e sete dias mostrariam o gatilho e quase nada do que veio
  * antes dele — "isto começou quando?" é a pergunta seguinte.
  */
 export const UPTIME_SERIES_DAYS = 14;
-
-/** A série por dia: as linhas que existem, e a janela que a tela preenche. */
-export interface UptimeSeries {
-  /** O primeiro dia da janela, `YYYY-MM-DD` em UTC. */
-  since: string;
-  /** Hoje, `YYYY-MM-DD` em UTC — a linha dele é parcial por definição. */
-  until: string;
-  /** Só os dias com linha, em ordem; o dia sem linha é a API que não acordou. */
-  days: Array<{ date: string; seconds: number }>;
-}
 
 /**
  * **As horas desta API por dia — o 13.9, que a Fase 13 dobrou no 13b.**
@@ -272,6 +256,13 @@ export async function getRecentUptimeDays(now: Date = new Date()): Promise<Uptim
   };
 }
 
+/**
+ * Segundos de instância no mês de calendário UTC de `now`, somando os dias —
+ * a linha de hoje incluída e incompleta por definição.
+ *
+ * Mês de calendário porque é como o Render conta: em 29/08/2026 as horas
+ * acabaram e a API ficou suspensa **até o dia 1º**.
+ */
 export async function getMonthUptimeSeconds(now: Date = new Date()): Promise<number> {
   const result = await prisma.dailyUptime.aggregate({
     _sum: { seconds: true },

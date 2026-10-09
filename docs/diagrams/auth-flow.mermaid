@@ -42,3 +42,8 @@ sequenceDiagram
     BFF-->>L: JSON
 
     Note over BFF,API: A dupla checagem não é redundância: o BFF evita a<br/>chamada sem sessão, e a API recusa por conta própria<br/>porque este proxy não é a única porta.
+
+    BFF->>API: GET /api/health/auth (Bearer JWT purpose "health-probe", sem papel)
+    API->>API: authPlugin com purpose "health-probe" — e só ele
+    API-->>BFF: 200 { accepted: true }
+    Note over BFF,API: A sonda do login (13.7, 09/10/2026), regenerada pelo cron<br/>e lida pelo Heartbeat. Mede o par AUTH_JWT_SECRET sem<br/>segredo no CI. O token abre esta porta e mais nenhuma.

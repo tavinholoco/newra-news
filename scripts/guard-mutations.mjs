@@ -1454,6 +1454,25 @@ const MUTATIONS = [
     edits: [{ find: '      next: { revalidate: 86400 },', replace: "      cache: 'no-store'," }],
     expect: 'never opts a revalidating file into dynamic rendering through its fetch',
   },
+  // ── Fase 13: a revisão de 09/10/2026 ────────────────────────────────────
+  {
+    id: 'A1.108',
+    what: 'os limiares da matéria anterior valem para a seguinte quando o componente é reaproveitado',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    dropLine: '      reached.current = new Set();',
+    expect: 'mede de novo quando o mesmo componente passa a mostrar outro conteúdo',
+  },
+  {
+    id: 'A1.109',
+    what: 'a tela deixa passar o "12427" — o teto só na API, e a mensagem do 400 errada',
+    pkg: 'web',
+    test: 'tests/components/api-health.test.tsx',
+    file: 'apps/web/components/admin/plan-reading-form.tsx',
+    edits: [{ find: '    if (hours > PLAN_READING_MAX_HOURS) {', replace: '    if (hours < 0) {' }],
+    expect: 'refuses, before sending, the digit too many',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
