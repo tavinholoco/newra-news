@@ -19,21 +19,35 @@ const THRESHOLDS = [
 ] as const;
 
 /**
- * Profundidade de leitura — a métrica que separa "abriu" de "leu".
+ * Profundidade de leitura — a métrica que separa "viu" de "leu".
+ *
+ * **Registra as duas pontas.** `article_view` sai uma vez por montagem: é o
+ * denominador da "leitura completa", que até 09/10/2026 dividia pelo clique
+ * no card — e quem chega pelo buscador ou por link direto não clica em card
+ * nenhum. Os três limiares são o numerador. Os dois carregam a mesma chave
+ * (`contentId`, `contentType`), e a API cruza o par por sessão (13.4 do plano
+ * de observabilidade).
  *
  * **Mede o corpo do texto, não a página.** A tela de leitura termina em
  * relacionadas e num CTA de newsletter; incluí-los faria "90% da página" ser
  * alcançável sem ler o último terço da matéria, e a métrica passaria a medir
  * rolagem em vez de leitura.
  *
+ * **Só conta depois de o leitor rolar.** A medição da montagem e a do
+ * redimensionamento não disparam limiar nenhum até o primeiro `scroll`: um
+ * texto que cabia na tela "nascia 100% lido", e a captura de página inteira do
+ * Lighthouse e do Playwright estica a viewport até o texto inteiro "passar"
+ * por ela. Medido em 01/10/2026: 1.034 leituras a 90% contra zero aberturas.
+ * Depois da primeira rolagem tudo conta, inclusive o que já estava à vista —
+ * e girar o celular no meio da leitura também.
+ *
  * **Cada limiar dispara uma vez por montagem**, no cruzamento — não a cada
  * evento de rolagem. Voltar para cima e descer de novo não é uma segunda
  * leitura.
  *
- * O cálculo roda dentro de `requestAnimationFrame` e o listener é `passive`:
- * medir não pode disputar a fluidez da rolagem, que é o que o leitor sente.
- * Um artigo mais curto que a viewport já nasce 100% lido — e é verdade, ele
- * cabe inteiro na tela.
+ * O cálculo roda dentro de `requestAnimationFrame` e os listeners são
+ * `passive`: medir não pode disputar a fluidez da rolagem, que é o que o
+ * leitor sente.
  */
 export function ScrollDepth({
   contentId,
@@ -41,15 +55,26 @@ export function ScrollDepth({
   targetId,
 }: ScrollDepthProps) {
   const reached = useRef(new Set<string>());
+  // O `useRef` guarda a montagem dupla do StrictMode, como no `PageView`: sem
+  // ele, toda visualização sairia dobrada do ambiente de desenvolvimento.
+  const viewed = useRef<string | null>(null);
 
   useEffect(() => {
+    if (viewed.current !== contentId) {
+      viewed.current = contentId;
+      track('article_view', { contentId, contentType });
+    }
+
     const target = document.getElementById(targetId);
     if (!target) return;
 
     let frame: number | null = null;
     let scheduled = false;
+    let engaged = false;
 
     const measure = () => {
+      if (!engaged) return;
+
       const rect = target.getBoundingClientRect();
       const height = rect.height;
       if (height <= 0) return;
@@ -66,7 +91,7 @@ export function ScrollDepth({
       }
 
       if (reached.current.size === THRESHOLDS.length) {
-        window.removeEventListener('scroll', schedule);
+        window.removeEventListener('scroll', onScroll);
         window.removeEventListener('resize', schedule);
       }
     };
@@ -86,15 +111,19 @@ export function ScrollDepth({
       });
     };
 
-    // Uma medição imediata: um texto curto pode já estar inteiro na tela, e
-    // esperar por um `scroll` que nunca vem perderia os três limiares.
-    schedule();
-    window.addEventListener('scroll', schedule, { passive: true });
+    // Só a rolagem prova que há alguém do outro lado; o `resize` mede, mas
+    // não acorda a medição.
+    const onScroll = () => {
+      engaged = true;
+      schedule();
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', schedule, { passive: true });
 
     return () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
-      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', schedule);
     };
   }, [contentId, contentType, targetId]);

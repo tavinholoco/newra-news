@@ -330,6 +330,117 @@ describe('os portões de PR aceitam as mesmas bases', () => {
   });
 });
 
+describe('Gitleaks: o push varre o que entrou, merges incluídos (13.6)', () => {
+  /**
+   * **Quinze medições de `0 commits scanned` num push de merge, de 07/09 a
+   * 09/10/2026.** A `gitleaks-action` monta o `push` com
+   * `--log-opts=--no-merges --first-parent <primeiro>^..<último>` fixo no
+   * código (`src/gitleaks.js`, no SHA fixado) — sem entrada que o mude, e o
+   * `BASE_REF` só troca a ponta de baixo. Num merge, o commit de merge é
+   * pulado pelo `--no-merges` e os commits do branch, pelo `--first-parent`: a
+   * base fica sem varredura sobre tudo o que entra por PR.
+   *
+   * O PR continua com a action (é ela que comenta o achado). O `push` roda o
+   * binário, com versão e sha256 fixados, sobre `before..after`.
+   */
+  const ARQUIVO = 'gitleaks.yml';
+
+  /** Os jobs do arquivo, cada um com as suas linhas de código. */
+  function jobs(): Map<string, string[]> {
+    const linhas = linhasDeCodigo(ler(path.join(WORKFLOWS, ARQUIVO))).map((l) => l.texto);
+    const porJob = new Map<string, string[]>();
+    const inicio = linhas.findIndex((texto) => /^jobs:\s*$/.test(texto));
+    let atual: string | null = null;
+
+    for (const texto of linhas.slice(inicio + 1)) {
+      const chave = texto.match(/^ {2}([A-Za-z0-9_-]+):\s*$/);
+      if (chave?.[1]) {
+        atual = chave[1];
+        porJob.set(atual, []);
+      } else if (atual) {
+        porJob.get(atual)?.push(texto);
+      }
+    }
+    return porJob;
+  }
+
+  function jobQueUsa(padrao: RegExp): string[] {
+    const achado = [...jobs().values()].find((linhas) => linhas.some((t) => padrao.test(t)));
+    expect(achado, `nenhum job do ${ARQUIVO} casa ${padrao}`).toBeDefined();
+    return achado ?? [];
+  }
+
+  it('lê os jobs — um parser vazio passaria em tudo', () => {
+    expect(jobs().size).toBeGreaterThanOrEqual(2);
+  });
+
+  it('a action roda só no `pull_request`', () => {
+    const job = jobQueUsa(/uses:\s*gitleaks\/gitleaks-action@/);
+    expect(job.some((t) => /^\s+if:\s*github\.event_name == 'pull_request'\s*$/.test(t))).toBe(true);
+  });
+
+  it('o `push` varre `before..after`, sem `--first-parent` nem `--no-merges`', () => {
+    const job = jobQueUsa(/gitleaks"?\s+git\b/);
+    const texto = job.join('\n');
+
+    expect(job.some((t) => /^\s+if:\s*github\.event_name == 'push'\s*$/.test(t))).toBe(true);
+    expect(texto).toMatch(/--log-opts=/);
+    expect(texto).toMatch(/\$BEFORE\.\.\$AFTER/);
+
+    const todoOArquivo = linhasDeCodigo(ler(path.join(WORKFLOWS, ARQUIVO)))
+      .map((l) => l.texto)
+      .join('\n');
+    expect(todoOArquivo).not.toMatch(/--first-parent|--no-merges/);
+  });
+
+  it('o binário tem versão fixada e é conferido por sha256 antes de rodar', () => {
+    const job = jobQueUsa(/gitleaks"?\s+git\b/);
+    const texto = job.join('\n');
+
+    expect(texto).toMatch(/GITLEAKS_VERSION:\s*['"]?\d+\.\d+\.\d+['"]?\s*$/m);
+    expect(texto).toMatch(/GITLEAKS_SHA256:\s*['"]?[0-9a-f]{64}['"]?\s*$/m);
+    // O `latest` que importa é o do binário — a URL do release ou a versão —,
+    // não o `runs-on: ubuntu-latest`, que a primeira versão desta linha casou.
+    expect(texto).not.toMatch(/releases\/latest|VERSION:\s*['"]?latest/);
+
+    const conferencia = job.findIndex((t) => /sha256sum\s+(?:--check|-c)\b/.test(t));
+    const execucao = job.findIndex((t) => /gitleaks"?\s+git\b/.test(t));
+    expect(conferencia, 'sem `sha256sum -c`').toBeGreaterThanOrEqual(0);
+    expect(conferencia).toBeLessThan(execucao);
+  });
+
+  it('o `before`/`after` do evento entram por `env:`, nunca interpolados no script', () => {
+    // Injeção por expressão: `${{ ... }}` dentro de `run:` é texto do evento
+    // virando shell. Por `env:`, é valor de variável.
+    const job = jobQueUsa(/gitleaks"?\s+git\b/);
+    const interpolados = job.filter(
+      (t) => /\$\{\{\s*github\.event\./.test(t) && !/^\s+[A-Z_]+:\s*\$\{\{/.test(t),
+    );
+    expect(interpolados).toEqual([]);
+  });
+
+  it('o resumo do job diz quantos commits o push trouxe', () => {
+    // A 16.ª medição tem de dizer o número, não zero — e é o resumo quem diz.
+    const texto = jobQueUsa(/gitleaks"?\s+git\b/).join('\n');
+    expect(texto).toMatch(/git rev-list --count/);
+    expect(texto).toMatch(/GITHUB_STEP_SUMMARY/);
+  });
+
+  it('a escrita no PR fica no job do PR, e o topo é só leitura', () => {
+    const linhas = linhasDeCodigo(ler(path.join(WORKFLOWS, ARQUIVO))).map((l) => l.texto);
+    const topo = linhas.findIndex((t) => /^permissions:\s*$/.test(t));
+    const doTopo: string[] = [];
+    for (const texto of linhas.slice(topo + 1)) {
+      if (/^\S/.test(texto)) break;
+      doTopo.push(texto.trim());
+    }
+    expect(doTopo).toEqual(['contents: read']);
+
+    const job = jobQueUsa(/uses:\s*gitleaks\/gitleaks-action@/);
+    expect(job.some((t) => /^\s+pull-requests:\s*write\s*$/.test(t))).toBe(true);
+  });
+});
+
 describe('CI: a auditoria de dependência e a lista de exceções', () => {
   const CI = path.join(WORKFLOWS, 'ci.yml');
   const PACKAGE_JSON = path.join(RAIZ, 'package.json');

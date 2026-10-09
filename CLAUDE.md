@@ -340,8 +340,10 @@ a suíte de unidade, que roda sem rede.
   num PR só — a última do plano**, com o ensaio contra os retidos pendente
   da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
-  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A próxima é a Fase 13
-  (§23)**, com o 13.12 achado no fechamento.
+  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
+  curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o 13c,
+  o 13d, o 13.5 e o 13.7 fecharam na `dev` (09/10) e sobem na segunda
+  promoção; sobra o 13.3 (~17/10)**, pelo prompt de abertura no fim da §23.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -360,7 +362,63 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- 🟢 **09/10/2026: o 13b — o denominador honesto — na `dev`.** Item **93**;
+- 🟢 **09/10/2026: o 13.7 decidido — os fluxos com login do Smoke ficam
+  desligados, e o login é perguntado todo dia sem segredo no CI.** Item
+  **97**; §23 do plano. O `NEXTAUTH_SECRET` de produção no CI daria sessão de
+  admin a qualquer dependência comprometida (o papel vem do token; o worm
+  Shai-Hulud de 2025 roubou segredos de CI assim). O defeito que os seis
+  testes pegariam — o par `AUTH_JWT_SECRET` divergente — virou a **sonda do
+  login**: `GET /api/health/auth` na API aceita só um JWT
+  `purpose: 'health-probe'`; a rota irmã do web o assina e pergunta (ISR de
+  um dia, regenerada pelo cron); o Heartbeat ganhou a pergunta `login`.
+  Mutações A1.102–A1.106. **1.527 na API, 1.018 no web.**
+
+- 🟢 **09/10/2026 (madrugada): o 13.5 — a Veja Saúde fica — na `dev`.**
+  Item **96**; §23 do plano. A `SourceHealth` de produção mostrou que não era
+  bloqueio: ela passou em 6 de 8 runs, e falhas rápidas e soltas (`fetch
+  failed` em 0,8–2,2 s) atingiam cinco feeds, com a etapa 1 degradada em 5
+  de 9 dias. Decidido pelo dono: a falha rápida de rede ganha uma nova
+  tentativa (só o `TypeError` do `fetch()`, abaixo de 5 s, depois de 2 s), e
+  o `failureReason` passa a gravar a causa do undici. Mutações
+  A1.97–A1.101. **1.498 na API.**
+
+- 🟢 **09/10/2026 (noite): o 13d — o Gitleaks varre o que o push trouxe —
+  na `dev`, empilhado no 13c.** Item **95**; §23 do plano. A action monta o
+  `push` com `--no-merges --first-parent` fixo no código, e quinze pushes de
+  merge saíram com `0 commits scanned`; refeito à mão, a promoção #277 eram
+  15 commits. O PR fica com a action; o `push` roda o binário (8.24.3,
+  sha256 fixado e conferido) sobre `before..after`, e o resumo diz quantos
+  commits entraram. Mutações A1.93–A1.96. **1.490 na API e 1.009 no web**
+  com o 13c. **Provado no merge do #281 na `dev`**: 3 commits no intervalo,
+  2 varridos (o merge limpo não tem patch), sem vazamento — seis minutos
+  depois de o merge do #280, ainda pela action, dar `0 commits scanned`.
+  **Fecha a linha do Gitleaks no §16**, e abre uma menor: a resolução de
+  conflito de um merge local não é varrida (gatilho: a próxima
+  sincronização `main → dev` com conflito).
+
+- 🟢 **09/10/2026 (noite): o 13c — a métrica de leitura volta a medir
+  leitores — na `dev`.** Item **94**; §23 do plano. A `/admin/metrics`
+  marcava 1.034 leituras a 90% contra zero aberturas: **as quatro
+  ferramentas (Lighthouse, Smoke, baseline, `admin:capture`) expõem
+  `navigator.webdriver`** — medido —, e o `track()` passou a recusá-lo; o
+  `ScrollDepth` só conta depois da primeira rolagem; e o denominador virou
+  a tela vista, num evento novo (`article_view`, 13 no catálogo), com a API
+  cruzando o par (sessão, conteúdo). Mutações A1.87–A1.92. **1.483 na API,
+  1.009 no web.** **O cruzamento com produção (MCP do Neon) mudou o
+  diagnóstico:** das 1.060 sessões com 90 %, só 45 eram das ferramentas —
+  1.015 eram robôs que executam JS em `/news/[id]`, todos com os três
+  limiares em menos de um segundo e nenhum outro evento; quem os tira é a
+  regra da rolagem. E não há evento nenhum desde 06/10 — a conferir na
+  promoção.
+  **Próximo: o 13d** (o Gitleaks, 13.6).
+
+- 🟢 **09/10/2026: o 13b — o denominador honesto — no ar (#277, com o 13a),
+  e a primeira leitura feita: 169,72 h no workspace, esta API 48 h, o
+  `NetsheetEngine` ~121 h; projeção 603 h no ritmo do mês, ~441 h no ritmo
+  desde 06/10.** A contagem automática virou linha do §16 (gatilho: projeção
+  acima de 600 h em duas leituras seguidas — releitura sugerida ~16/10). O
+  batimento agenda a partir de 10/10 12:40 UTC, e **o ensaio do alerta provou
+  o e-mail** (09/10, 17:41 UTC). O detalhe abaixo é do PR. Item **93**;
   §23 do plano. O arco das horas da `/admin` dividia as horas **desta** API
   pelas 750 h do **workspace**, que o `NetsheetEngine` divide (~74 % de
   outubro). O Render não tem API de cobrança e a chave dele abre a conta
@@ -372,9 +430,10 @@ a suíte de unidade, que roda sem rede.
   por dia (14 dias, escala de 24 h, linha dos 10 h e o gatilho "dois dias
   seguidos acima") — antes só se liam com a credencial de produção.
   Mutações A1.79–A1.86. **1.478 na API, 1.000 no web.**
-  - **Do dono, depois da promoção:** a primeira leitura (Render → Billing →
-    Free instance hours → `/admin`). Até lá a API de produção responde 404 na
-    rota nova, e o arco diz "só esta API".
+  - **Do dono, de vez em quando:** reler o Billing e registrar na `/admin`
+    (Render → Billing → Free instance hours → "Total do Billing"). Entre
+    leituras o `NetsheetEngine` é estimado no ritmo da última; no dia 1º o
+    arco volta a "só esta API" até a leitura seguinte.
   - **Próximo: o 13c** (a métrica de leitura, 13.4), pelo prompt no fim da
     §23.
 
@@ -390,12 +449,12 @@ a suíte de unidade, que roda sem rede.
   - **Ensaio contra produção:** cinco ✅, e a sonda **acordou a API em
     52.387 ms** — a primeira linha da série do 13.3, batendo com 01/10 e
     05/10. **1.446 na API** (eram 1.420), mutações A1.72–A1.76.
-  - **Só agenda depois da promoção** (o GitHub roda `schedule` da `main`). **Do
-    dono:** conferir que as notificações de Actions por e-mail estão ligadas
-    (Settings → Notifications → Actions → falhas) e, depois da promoção,
-    **provar o e-mail com o ensaio**: Actions → Heartbeat → Run workflow →
-    marcar `rehearse_failure` — pergunta tudo de verdade e reprova de
-    propósito (uma execução verde não manda e-mail). 1.450 na API.
+  - **Promovido no #277 (09/10), e o ensaio provou o e-mail no mesmo dia**:
+    Actions → Heartbeat → Run workflow → `rehearse_failure` pergunta tudo de
+    verdade e reprova de propósito (uma execução verde não manda e-mail); o
+    "Run failed: Heartbeat - main" chegou às 17:41 UTC. Se um dia o e-mail
+    parar de chegar: Settings → Notifications → Actions → falhas, por e-mail.
+    1.450 na API.
 
 - 🟢 **07/10/2026: a Fase 13 abriu pelo 13a′ — o cron pede as páginas que
   invalidou e confere que trazem o run do dia.** Item **91**; §23 do plano.
@@ -1537,8 +1596,9 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.478 em 192 suites (**1.478 API em 99** + **1.000 web em 93** —
-  todos passando, contados em 09/10/2026), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.545 em 194 suites (**1.527 API em 100** + **1.018 web em 94** —
+  todos passando, contados em 09/10/2026, depois do 13c, do 13d, do 13.5 e do
+  13.7), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
@@ -2082,11 +2142,17 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   dia, e sem dado pessoal depois da Fase 11 (o corpo de erro do Resend passou a
   ser redigido). **Gatilho:** a primeira coluna de texto livre que voltar a ser
   gravada ali.
-- **Os fluxos autenticados do smoke E2E** (conta e admin) ficam pulados até
-  `E2E_NEXTAUTH_SECRET`, `E2E_USER_ID`, `E2E_USER_EMAIL` e `E2E_ADMIN_USER_ID`
-  existirem como segredos do repositório — e o pulo é impresso pelo workflow.
-  Ligá-los põe o `NEXTAUTH_SECRET` de produção no runner do CI, e a decisão é de
-  quem é dono do segredo. `apps/web/e2e/support/session.ts` documenta.
+- **Os fluxos autenticados do smoke E2E** (conta e admin) **ficam pulados por
+  decisão do dono (09/10/2026, 13.7 do plano de observabilidade)**: ligá-los põe
+  o `NEXTAUTH_SECRET` de produção no CI, e com ele se forja sessão de admin (o
+  papel vem do token) — o risco é qualquer dependência comprometida do job, o
+  caminho do worm Shai-Hulud de 2025. O defeito que eles pegariam, o par
+  `AUTH_JWT_SECRET` divergente entre Vercel e Render, é perguntado todo dia pela
+  **sonda do login** (`GET /api/health/auth` nas duas pontas, regenerada pelo
+  cron e lida pelo Heartbeat), sem segredo fora das plataformas. **Gatilho para
+  reabrir:** leitores com conta de verdade, ou um defeito do caminho logado que
+  a sonda não pegue — com um ambiente de teste de segredo próprio, nunca o de
+  produção. `apps/web/e2e/support/session.ts` documenta.
 - **Trilha nas listagens** (`/news`, `/article`). Marcação de trilha pede
   trilha visível, e ali o segundo degrau seria a própria página — o
   `editorial-nav` já diz onde se está. Se um dia entrar, a lista de

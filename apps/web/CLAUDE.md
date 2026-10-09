@@ -689,6 +689,13 @@ Regras que não são óbvias no código:
   (`granted`/`denied`) existiu para o banner que foi removido com os anúncios, e
   sem quem escrevesse a decisão ela lia uma chave que ninguém gravava. Controle
   explícito de opt-out na interface é item em aberto.
+- **Navegador sob automação não é medido** (`navigator.webdriver === true`,
+  13.4 do plano de observabilidade, 09/10/2026). Não é oposição — é que não há
+  leitor: medido, o Chromium do Playwright (Smoke, baseline, `admin:capture`)
+  e o do Lighthouse CI expõem o sinal, e eram eles que enchiam a
+  profundidade de leitura (1.034 leituras a 90% contra zero aberturas em
+  01/10). O sinal é a regra do WebDriver, não o user agent — o Lighthouse se
+  apresenta como um celular emulado.
 - **`source` e `position` são props obrigatórias nos cards.** Opcionais, um uso
   novo nasceria sem atribuição e a falta só apareceria na hora de ler a métrica.
   O compilador é quem cobra.
@@ -719,6 +726,18 @@ Regras que não são óbvias no código:
 - **Profundidade de leitura mede o corpo do texto, não a página.** A tela
   termina em relacionadas e num CTA; incluí-los faria "90% da página" ser
   alcançável sem ler o último terço da matéria. Daí o `id` no `ArticleBody`.
+- **E só conta depois da primeira rolagem** (13.4). A medição da montagem
+  fazia texto curto "nascer 100% lido", e a captura de página inteira estica a
+  viewport até o texto inteiro "passar" por ela — o `resize` mede, mas não
+  acorda a medição. Depois da primeira rolagem tudo conta.
+- **O `ScrollDepth` registra também o denominador**: `article_view`, uma vez
+  por montagem (com o `useRef` do StrictMode), com a mesma chave dos
+  limiares. A "leitura completa" é `completed / viewed`, cruzada pela API
+  sobre o par (sessão, conteúdo) — não mais `scroll90 / opened`, que dividia
+  pelo clique no card, que quem chega pelo buscador não dá. A tela lê por
+  `readThroughOf` (`lib/reading-depth.ts`): campo ausente (a API de produção
+  antes da promoção, armadilha 37) é "indisponível"; nenhuma tela vista é
+  "—", nunca 0 %.
 - **O guard do `requestAnimationFrame` é um booleano, não o id do frame.**
   Zerar o id dentro do callback só funciona porque o rAF do navegador é
   assíncrono: a atribuição acontece **depois** dele, e uma implementação

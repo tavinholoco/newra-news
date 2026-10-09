@@ -8971,6 +8971,12 @@ GitHub só roda `schedule` da branch padrão.
   O agendamento não tem entrada e nunca ensaia; só `"true"` exato ensaia.
   Mutações **A1.77–A1.78**; **1.446 → 1.450 na API**. **Depois da
   promoção:** Actions → Heartbeat → Run workflow → marcar o ensaio.
+- **O ensaio, em 09/10/2026, depois da promoção #277: o e-mail chegou.**
+  Disparado com o ok do dono às 17:40 UTC (run 37967976108, conta
+  `tavinholoco`): as cinco perguntas ok — a API em 95 ms, já acordada — e só
+  a linha `rehearsal` reprovou. O e-mail "Run failed: Heartbeat - main
+  (4047493)" chegou às 17:41 UTC. **O alerta está provado de ponta a ponta**;
+  o primeiro agendado é 10/10, 12:40 UTC.
 
 ### 93. O denominador honesto: o arco das horas passa a ser o do workspace ✅ 2026-10-09
 
@@ -9033,6 +9039,192 @@ outubro (item 87). Setembro estourou em 753,4 h com o arco mostrando folga.
   404 na rota nova e o arco segue "só esta API". E reler o Billing de vez em
   quando: entre duas leituras os outros serviços são estimados no ritmo da
   última.
+- **Promovido no #277, no mesmo dia, com o 13a** (14 commits; sem migration,
+  env ou dependência). Merge às 17:27 UTC; às 17:29:25 a rota nova respondia
+  401 sem sessão na Vercel e no Render. CI, CodeQL e Gitleaks verdes — o
+  Gitleaks com `0 commits scanned`, a 15.ª medição do 13.6. **Smoke E2E: 32
+  passed, 6 skipped** (eram 31: o novo é o 401 de `POST /api/admin/plan-hours`
+  sem sessão). A `dev` foi realinhada por fast-forward.
+- **A primeira leitura, pelo dono, às 17:32 UTC: 169,72 h** no workspace —
+  esta API **48 h**, o `NetsheetEngine` **~121 h** (71 %). O arco marcou 23 %
+  e a projeção do mês **603 h (80 %)**. A projeção é no ritmo do mês inteiro,
+  que carrega os 24,8 h/dia de antes de 06/10; entre a leitura manual de 06/10
+  (124,27 h) e esta, o workspace andou **12,2 h/dia** — ~441 h no mês. As
+  leituras seguintes puxam a projeção para lá sozinhas.
+- **A contagem automática virou dívida com gatilho** (decidido pelo dono em
+  09/10, linha nova no §16): o `NetsheetEngine` contaria as próprias horas e o
+  run diário da Newra perguntaria uma vez por dia — até ~7,5 h/mês dele, uma
+  migration, um segredo nos dois serviços. **Gatilho: a projeção do workspace
+  acima de 600 h em duas leituras seguidas.** A primeira já deu 603 h, pelo
+  atraso acima; **releitura sugerida em ~16/10**.
+- **Com isso o 13b fecha.** E o 13a junto: o ensaio do alerta, disparado no
+  mesmo dia com o ok do dono, entregou o e-mail (item 92). **Próximo: o 13c.**
+
+### 94. A métrica de leitura volta a medir leitores ✅ 2026-10-09
+
+O 13.4 da §23 do plano de observabilidade (PR 13c; branch
+`observability/fase-13c-reading-metric`). Em 01/10 a `/admin/metrics` marcava
+`article_scroll_25/50/90` em **1.036 · 1.035 · 1.034 contra 0 aberturas**, e
+"leitura completa 0 %" — o numerador contava as nossas ferramentas, e o
+denominador era o clique no card, que quem chega pelo buscador não dá.
+
+- **O inventário, medido antes do código, como a §23 manda:**
+  - **as quatro ferramentas expõem `navigator.webdriver === true`** — o
+    Chromium do Playwright (`chromium_headless_shell-1234`, o do Smoke, da
+    baseline e do `admin:capture`) e o do Lighthouse CI (`@lhci/cli@0.15.1`,
+    o da action `v12.6.2`, contra uma página local que devolvia o valor). O
+    Lighthouse ainda se apresenta como "moto g power (2022)", Chrome/136 — o
+    user agent não serviria de sinal;
+  - **as janelas das ferramentas, pelo GitHub:** 32 execuções do Lighthouse
+    desde 17/08 (4–5 min, 21 carregamentos cada) e 37 do Smoke (~8 min);
+  - **o cruzamento com o `ProductEvent` de produção** (pelo MCP do Neon,
+    que o dono conectou depois de o classificador recusar a string de
+    conexão; só leitura) **derrubou a hipótese de partida.** São **1.060
+    sessões** com `article_scroll_90` nos 90 dias, e **só 45 (4 %) caem nas
+    janelas das ferramentas** — 32 do Lighthouse, 13 do Smoke. **As outras
+    1.015 são robôs que executam JavaScript:** de 29/08 a 19/09, a qualquer
+    hora do dia, 942 em `/news/[id]` e 73 em `/article/[date]`, metade em
+    `/en`, cada uma numa sessão própria;
+  - **a assinatura é a mesma nas 1.060:** exatamente três eventos (25, 50 e
+    90 %) e **nenhum outro** — nem `homepage_view`, nem clique —, e em
+    **97,6 %** os três limiares saem em menos de um segundo (530 no mesmo
+    milissegundo; o maior intervalo, 28 s). É renderizar e ir embora, sem
+    rolar. **Quem os tira da métrica é a saída (2), não a (1)**: se esses
+    robôs expõem `navigator.webdriver` não se sabe, e não precisa;
+  - **os eventos de robô param em 19/09 às 12:04** (a API suspensa) **e não
+    voltam depois de 01/10**: de lá para cá só o Lighthouse gera rolagem
+    (três por execução, na `/pt-BR/article/<dia>`), o Smoke quase nunca gera
+    evento (uma `homepage_view` em nove execuções), e **não há linha nenhuma
+    desde 06/10 às 19:20**. Ausência de visitante ou ingestão perdida (a
+    borda do Render recusando a Vercel, armadilha 45, já pegou um
+    `POST /api/events` em 01/10) — os dados não separam as duas, e é a
+    conferência depois da promoção que separa: o `article_view` tem de
+    aparecer.
+- **As três saídas da §23, na ordem dela, as três com guarda:**
+  1. `isTrackingAllowed()` recusa `navigator.webdriver` (não é oposição — é
+     que não há leitor), e o `track()` pergunta a ele;
+  2. o `ScrollDepth` **só conta depois da primeira rolagem**: a medição da
+     montagem fazia texto curto "nascer lido", e o `resize` da captura de
+     página inteira esticava a viewport até o texto inteiro "passar" — ele
+     mede, mas não acorda a medição;
+  3. **evento novo, `article_view`** (o catálogo vai a 13), emitido pelo
+     próprio `ScrollDepth` uma vez por montagem, com a mesma chave dos
+     limiares. A API cruza o par (sessão, conteúdo): `readingDepth.viewed` e
+     `completed`, e a taxa é `completed / viewed` — nunca passa de 100 %, e o
+     90% sem visualização na janela (o de antes, ou o de uma ferramenta) fica
+     fora do numerador. `opened` continua sendo o clique (CTR).
+- **A tela** (`lib/reading-depth.ts`, `readThroughOf`): a leitura completa
+  primeiro, as telas vistas ao lado, os cliques em card por último e com a
+  ressalva. Campo ausente — a API de produção até a promoção — desenha
+  "indisponível" (armadilha 37); nenhuma tela vista é "—", nunca 0 %.
+- **Guardas primeiro, vistas reprovando (16), e mutações A1.87–A1.92**, as
+  seis reprovando pelo teste certo, com os dois controles verdes. **1.478 →
+  1.483 na API, 1.000 → 1.009 no web.**
+- **Fica por medir, depois da promoção:** (a) uma execução do Smoke e uma do
+  Lighthouse sem nenhuma linha de `ProductEvent` na janela delas — a prova
+  de que o filtro funciona no fio, que só a credencial do Neon lê; (b) a
+  primeira semana de `viewed`/`completed`. Os `scroll25/50/90` crus seguem
+  carregando as linhas das ferramentas até saírem da retenção de 90 dias
+  (~30/12) — a taxa já não as usa.
+
+### 95. O Gitleaks varre o que o push trouxe — merges incluídos ✅ 2026-10-09
+
+O 13.6 da §23 do plano de observabilidade (PR 13d; branch
+`observability/fase-13d-gitleaks-range`, empilhada no 13c). Quinze medições de
+`0 commits scanned` num push de merge, de 07/09 a 09/10/2026, inclusive nas
+promoções #215, #251, #272 e #277.
+
+- **A causa estava no código da action, sem entrada que a mude.** No SHA
+  fixado (`gitleaks-action` v3.0.0), o `push` usa
+  `--no-merges --first-parent <primeiro>^..<último>`: o commit de merge é
+  pulado e os commits do branch não são descidos. O `BASE_REF` só troca a
+  ponta de baixo. **Refeito à mão:** o merge do #279 = 2 commits (a action:
+  0); a promoção #277 = 15 commits com 5 merges (a action: 0).
+- **O PR fica com a action** (o comentário no PR), com `pull-requests: write`
+  só no job dela; **o `push` roda o binário** (8.24.3, a versão padrão da
+  action), baixado do release e **conferido por sha256 fixado antes de
+  executar**, sobre `$BEFORE..$AFTER` do evento (por `env:`). O resumo diz o
+  intervalo, os commits e os merges. Sem `before` utilizável, varre a ponta e
+  avisa — o histórico inteiro reprovaria pela fixture do #160.
+- **Guardas:** 7 no `workflow-hardening.test.ts`, vistas reprovando — e uma
+  delas reprovou por engano (o "nada de `latest`" casava o `ubuntu-latest`),
+  corrigida antes de servir. Mutações **A1.93–A1.96**. **1.478 → 1.485 na
+  API** sobre a `dev`; **1.490 com o 13c**.
+- **A empilhada no 13c é de propósito:** os dois PRs escrevem no mesmo ponto
+  do `guard-mutations.mjs`, deste arquivo e do `CLAUDE.md`; o rebase resolveu
+  o conflito aqui (e a suíte achou o `},` que a resolução tinha comido — o
+  `guard-mutations.test.ts` importa o script). Depois do merge do #280, o PR
+  do 13d mostra só o que é dele.
+- **Provado no merge do #281 na `dev`** (09/10, 19:19 UTC, run
+  37979423830): o resumo disse `74d45f1..cf3a193`, **3 commits, 1 merge**, o
+  sha256 `OK`, e o Gitleaks **varreu 2 commits, sem vazamento** — o merge
+  limpo não tem patch próprio. Seis minutos antes, o merge do #280 (ainda a
+  action) deu **`0 commits scanned`** sobre 4. **A primeira medição com
+  número.** Fica a da `main`, na segunda promoção.
+- **Sobra uma dívida com gatilho (§16):** o conteúdo próprio de um merge — a
+  resolução de conflito feita à mão — não é varrido nem aqui nem no PR. O
+  botão do GitHub só faz merge limpo; o gatilho é a próxima sincronização
+  `main → dev` com conflito.
+
+### 96. A Veja Saúde fica, e a falha rápida de rede do feed ganha uma nova tentativa ✅ 2026-10-09
+
+O 13.5 da §23 do plano de observabilidade (branch
+`observability/fase-13e-feed-failures`). A §23 pedia medir o feed de um
+datacenter e decidir se a Veja Saúde saía, como o Drauzio saiu no #243.
+
+- **A `SourceHealth` de produção respondeu antes da medição** (MCP do Neon,
+  só leitura): a Veja Saúde **passou em 6 de 8 runs** de outubro, com as
+  falhas em 01/10 e 05/10 (`fetch failed`, ~1,7 s). **Cinco feeds** falharam
+  do mesmo jeito em 9 dias — Folha 3, Veja Saúde 2, Olhar Digital 1,
+  Trivela 1, Drauzio no último run com ele —, entre 0,8 e 2,2 s, **nunca dois
+  dias seguidos**, e **a etapa 1 saiu degradada em 5 de 9 dias**. Bloqueio de
+  datacenter falha todo dia; isto é rede. A medição no runner perdeu o objeto.
+- **E o dado não dizia mais por dois motivos:** o `failureReason` gravava só
+  `fetch failed` (o undici põe o motivo no `cause`, que só ia ao log do
+  Render), e não havia nova tentativa nenhuma.
+- **Decidido pelo dono em 09/10:** a fonte fica; o `TypeError` do próprio
+  `fetch()`, abaixo de 5 s, repete uma vez depois de 2 s — prazo estourado,
+  XML inválido e falha lenta não; o `failureReason` passa a dizer
+  `fetch failed (ECONNRESET)`.
+- **Guardas:** 8 testes no `rss.provider.test.ts` (5 vistos reprovando; os 3
+  de "não repete" são segurados por mutação). Mutações **A1.97–A1.101**.
+  **1.490 → 1.498 na API.**
+- **Depois da promoção:** menos dias de `FAILED` na `SourceHealth`, e a causa
+  gravada. **Gatilho para reabrir:** uma fonte com `FAILED` em mais de dois
+  dias de uma semana com a nova tentativa no ar.
+
+### 97. Os fluxos com login do Smoke ficam desligados — e o login é perguntado todo dia, sem segredo no CI ✅ 2026-10-09
+
+O 13.7 da §23 do plano de observabilidade (branch
+`observability/fase-13-7-login-probe`). A §23 o chamava de "decisão, não trabalho": ligar os
+seis testes pulados (cinco de leitor, um de admin) pede o `NEXTAUTH_SECRET`
+de produção no CI.
+
+- **A análise, feita com o dono, e a pesquisa:** conferido no código, o
+  papel vem do token (`lib/auth.ts` → `token.role`; a API confia no claim),
+  então quem tem o segredo forja sessão de **admin**. Os segredos de Actions
+  não chegam a PR de fork nem do Dependabot (docs do GitHub), mas o passo do
+  Playwright executa `node_modules` com o segredo no ambiente — e o worm
+  **Shai-Hulud** (npm, set. e nov. de 2025) roubou segredos de CI por esse
+  caminho, inclusive o da PostHog. Environment restrito à `main` não ajuda.
+  É o CICD-SEC-6 do OWASP CI/CD Top 10. O ganho dos seis testes é **um**
+  defeito — o par `AUTH_JWT_SECRET` divergente, todo leitor logado em 401 —,
+  que já aconteceu uma vez.
+- **Decidido pelo dono em 09/10: não ligar, e medir o defeito sem segredo.**
+  `GET /api/health/auth` na API aceita só um JWT `purpose: 'health-probe'`
+  (sem papel, sem sessão; nenhuma outra porta o aceita); a rota irmã do web
+  o assina com o segredo da Vercel e pergunta, guardada pela ISR por um dia e
+  respondendo 200 até na falha (o resultado de hoje tem de substituir o de
+  ontem); o cron a invalida e a pede com o conjunto do dia; e o Heartbeat
+  ganhou a pergunta `login`, lida do cache da Vercel.
+- **Duas guardas que já existiam pegaram o que faltava:** `bff-error-log`
+  (dois `catch` mudos na rota nova) e `bff-route-seam` (a terceira chamada
+  `fetch` crua do BFF, achada sozinha pelo parser).
+- **Mutações A1.102–A1.106. 1.498 → 1.527 na API, 1.009 → 1.018 no web.**
+- **Depois da promoção:** a rota do web com `"ok":true` e o `checkedAt` do dia,
+  e a pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão:**
+  leitores com conta de verdade, ou um defeito do caminho logado que a sonda
+  não pegue — e aí com um ambiente de teste de segredo próprio.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

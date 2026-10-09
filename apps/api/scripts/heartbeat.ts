@@ -27,12 +27,20 @@ import { appendFileSync } from 'node:fs';
  *    o da véspera. O 13a′ conserta pelo cron; quando ele desiste, a única marca
  *    é a linha `cron.daily-news.warm`, que a Vercel guarda por uma hora. Esta
  *    pergunta a transforma em e-mail;
- * 5. **o próprio batimento continua agendado** — o GitHub desliga workflow
+ * 5. **o login fecha hoje** (13.7, 09/10/2026) — a sonda do par de JWT que o
+ *    cron pergunta depois do run (`/api/health/auth` do web, guardada pela
+ *    ISR). Os fluxos com login do Smoke ficam desligados por decisão do dono:
+ *    o `NEXTAUTH_SECRET` de produção no CI daria a qualquer dependência
+ *    comprometida uma sessão de admin. O defeito que eles pegariam — a API
+ *    recusar a assinatura da Vercel, todo leitor logado em 401 — chega aqui
+ *    sem segredo nenhum: é lido do cache da Vercel, e não acorda a API;
+ * 6. **o próprio batimento continua agendado** — o GitHub desliga workflow
  *    agendado de repositório público depois de 60 dias sem atividade, e o
  *    batimento não conta como atividade. O aviso sai aos 45.
  *
  * **Uma causa, uma linha.** Sem a API, o briefing não é perguntado; sem o
- * briefing de hoje, a Home não é culpada por não mostrá-lo.
+ * briefing de hoje, nem a Home nem o login são culpados — o cron só pergunta
+ * depois de um run em `SUCCESS`.
  *
  * **A sonda da API é a série que o 13.3 precisa, de graça**: a duração e se foi
  * ela que acordou a API (o `uptime` do `/api/health` menor que a própria espera)
@@ -90,11 +98,13 @@ export interface Observation {
   api: Probe[];
   /** `null` quando a API não respondeu — o briefing não é perguntado. */
   latest: Probe | null;
+  /** A rota `/api/health/auth` do **site** — o resultado da sonda do cron. */
+  authProbe: Probe | null;
   /** O `pushed_at` do repositório, ou `null` fora do GitHub Actions. */
   repoPushedAt: string | null;
 }
 
-export type CheckId = 'site' | 'api' | 'briefing' | 'home' | 'activity' | 'rehearsal';
+export type CheckId = 'site' | 'api' | 'briefing' | 'home' | 'login' | 'activity' | 'rehearsal';
 
 export interface EvaluateOptions {
   /**
@@ -145,6 +155,26 @@ function parseJson(body: string): unknown {
 function uptimeSeconds(probe: Probe): number | null {
   const parsed = parseJson(probe.body) as { uptime?: unknown } | null;
   return typeof parsed?.uptime === 'number' ? parsed.uptime : null;
+}
+
+interface AuthProbeBody {
+  ok: boolean;
+  reason: string;
+  status: number | null;
+  checkedAt: string;
+}
+
+/** O corpo da sonda do login, ou `null` se a página não é uma sonda. */
+function authProbeBody(probe: Probe | null): AuthProbeBody | null {
+  if (probe?.status !== 200) return null;
+  const parsed = parseJson(probe.body) as Partial<AuthProbeBody> | null;
+  if (typeof parsed?.ok !== 'boolean' || typeof parsed.checkedAt !== 'string') return null;
+  return {
+    ok: parsed.ok,
+    reason: typeof parsed.reason === 'string' ? parsed.reason : 'desconhecido',
+    status: typeof parsed.status === 'number' ? parsed.status : null,
+    checkedAt: parsed.checkedAt,
+  };
 }
 
 function latestDate(probe: Probe): string | null {
@@ -249,7 +279,42 @@ export function evaluate(o: Observation, options: EvaluateOptions = {}): Verdict
     );
   }
 
-  // 5. O próprio agendamento.
+  // 5. O login — a sonda do par de JWT que o cron pergunta depois do run.
+  if (!briefingOk) {
+    checks.push({ id: 'login', state: 'skipped', summary: 'depende do briefing de hoje' });
+  } else {
+    const body = authProbeBody(o.authProbe);
+    const day = body?.checkedAt.slice(0, 10);
+    if (body === null) {
+      checks.push({
+        id: 'login',
+        state: 'fail',
+        summary: `/api/health/auth ${o.authProbe ? describeProbe(o.authProbe) : 'não pedida'} — não é a sonda`,
+        action:
+          'A rota da sonda no web não respondeu com o resultado. O log da Vercel da hora do cron diz se ela falhou ao regenerar.',
+      });
+    } else if (!body.ok) {
+      checks.push({
+        id: 'login',
+        state: 'fail',
+        summary: `a API recusou a sonda do login (${body.reason}${body.status === null ? '' : `, ${body.status}`}) em ${day}`,
+        action:
+          '401 é o par `AUTH_JWT_SECRET` divergente entre a Vercel e o Render: todo leitor logado está recebendo 401. Confira que os dois valores são iguais nos dois painéis. `not-configured` é a variável ausente na Vercel; `unreachable`, a API sem responder ao cron.',
+      });
+    } else if (day !== today) {
+      checks.push({
+        id: 'login',
+        state: 'fail',
+        summary: `a sonda do login mais nova é de ${day}, não de ${today}`,
+        action:
+          'O cron não regenerou a sonda hoje. Procure `cron.daily-news.warm` no log da Vercel da hora do cron; o botão da /admin, com o run do dia fechado, refaz o conjunto.',
+      });
+    } else {
+      checks.push({ id: 'login', state: 'ok', summary: `a API aceitou a sonda do login em ${today}` });
+    }
+  }
+
+  // 6. O próprio agendamento.
   const pushedAt = o.repoPushedAt === null ? Number.NaN : new Date(o.repoPushedAt).getTime();
   if (!Number.isFinite(pushedAt)) {
     // Fora do GitHub Actions, ou a leitura do `pushed_at` falhou: um alarme
@@ -269,7 +334,7 @@ export function evaluate(o: Observation, options: EvaluateOptions = {}): Verdict
     );
   }
 
-  // 6. O ensaio — por último, depois de as cinco serem respondidas de verdade.
+  // 7. O ensaio — por último, depois de as seis serem respondidas de verdade.
   if (options.rehearsal) {
     checks.push({
       id: 'rehearsal',
@@ -367,7 +432,10 @@ export async function observe(opts: ObserveOptions): Promise<Observation> {
     ? await get(opts.fetch, `${opts.apiUrl}/api/articles/latest`, PAGE_TIMEOUT_MS)
     : null;
 
-  return { now: opts.now(), homes, api, latest, repoPushedAt: opts.repoPushedAt };
+  // Do **site**, guardada pela ISR: lê o que o cron perguntou, não pergunta.
+  const authProbe = await get(opts.fetch, `${opts.siteUrl}/api/health/auth`, PAGE_TIMEOUT_MS);
+
+  return { now: opts.now(), homes, api, latest, authProbe, repoPushedAt: opts.repoPushedAt };
 }
 
 export interface MainDeps {

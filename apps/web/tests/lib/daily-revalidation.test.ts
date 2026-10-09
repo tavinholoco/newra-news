@@ -249,3 +249,31 @@ describe('o prazo do cron', () => {
     );
   });
 });
+
+/**
+ * **A sonda do par de JWT entra no conjunto do dia** (13.7 do plano de
+ * observabilidade, 09/10/2026). A rota `/api/health/auth` é guardada pela ISR
+ * por um dia — um robô não acorda a API com ela —, e quem a regenera é o cron,
+ * com a API acordada pelo run. A marca é o resultado de hoje, aceito.
+ */
+describe('a sonda do par de JWT no conjunto do dia', () => {
+  const RUN_DATE = '2026-10-07';
+  const probe = dailyPages(RUN_DATE).find((page) => page.url === '/api/health/auth');
+
+  it('is requested by the cron, under its own revalidation path', () => {
+    expect(probe?.pattern).toBe('/api/health/auth');
+    expect(DAILY_REVALIDATION_PATHS.map(([path]) => path)).toContain('/api/health/auth');
+  });
+
+  it('counts as fresh only when today\'s probe was accepted', () => {
+    const body = (ok: boolean, day: string) =>
+      JSON.stringify({ ok, reason: ok ? 'accepted' : 'rejected', status: ok ? 200 : 401, checkedAt: `${day}T11:03:00.000Z` });
+
+    expect(probe?.marker.test(body(true, RUN_DATE))).toBe(true);
+    // Recusada hoje: a página está fresca e o par está quebrado — o cron
+    // insiste, desiste e escreve `cron.daily-news.warm`; o batimento reprova.
+    expect(probe?.marker.test(body(false, RUN_DATE))).toBe(false);
+    // Aceita ontem: o documento é o da véspera.
+    expect(probe?.marker.test(body(true, '2026-10-06'))).toBe(false);
+  });
+});

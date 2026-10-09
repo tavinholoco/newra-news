@@ -1194,6 +1194,257 @@ const MUTATIONS = [
     dropLine: '    take: UPTIME_SERIES_DAYS,',
     expect: 'pede os últimos dias UTC, hoje incluído, com teto de linhas',
   },
+  // ── Fase 13 (13c): a métrica de leitura volta a medir leitores ──────────
+  {
+    id: 'A1.87',
+    what: 'a medição volta a contar as ferramentas — `navigator.webdriver` ignorado',
+    pkg: 'web',
+    test: 'tests/lib/analytics.test.ts',
+    file: 'apps/web/lib/analytics/consent.ts',
+    edits: [
+      {
+        find: '  return !browserOptedOut() && !browserAutomated();',
+        replace: '  return !browserOptedOut();',
+      },
+    ],
+    expect: 'não mede navegador sob automação — as nossas ferramentas não são leitores',
+  },
+  {
+    id: 'A1.88',
+    what: 'o texto que cabe na tela volta a "nascer lido" — a medição da montagem conta',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    edits: [
+      {
+        find: "    window.addEventListener('scroll', onScroll, { passive: true });",
+        replace:
+          "    engaged = true;\n    schedule();\n    window.addEventListener('scroll', onScroll, { passive: true });",
+      },
+    ],
+    expect: 'não conta como lido o texto que cabe na tela sem o leitor rolar',
+  },
+  {
+    id: 'A1.89',
+    what: 'o redimensionamento da captura de página inteira conta como leitura',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    edits: [
+      {
+        find: "    window.addEventListener('resize', schedule, { passive: true });",
+        replace: "    window.addEventListener('resize', onScroll, { passive: true });",
+      },
+    ],
+    expect: 'não conta o redimensionamento como leitura',
+  },
+  {
+    id: 'A1.90',
+    what: 'a visualização sai dobrada na montagem dupla do StrictMode',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    dropLine: '      viewed.current = contentId;',
+    expect: 'não registra duas visualizações na montagem dupla do StrictMode',
+  },
+  {
+    id: 'A1.91',
+    what: 'a leitura completa volta a contar o 90% sem a visualização do par',
+    pkg: 'api',
+    test: 'tests/services/product-metrics.service.test.ts',
+    file: 'apps/api/src/services/product-metrics.service.ts',
+    edits: [
+      {
+        find: '      completed: [...vistas].filter((chave) => lidasAte90.has(chave)).length,',
+        replace: '      completed: profundidade.scroll90,',
+      },
+    ],
+    expect: 'só conta como completa a leitura cuja visualização está na janela',
+  },
+  {
+    id: 'A1.92',
+    what: 'a tela lê a API antiga, sem `viewed`, como "nenhuma tela vista" (armadilha 37)',
+    pkg: 'web',
+    test: 'tests/components/product-metrics-client.test.tsx',
+    file: 'apps/web/lib/reading-depth.ts',
+    edits: [
+      {
+        find: "    return { state: 'unavailable' };",
+        replace: "    return { state: 'no-sample', viewed: 0 };",
+      },
+    ],
+    expect: 'desenha "indisponível" quando a API no ar ainda não mede a tela vista',
+  },
+  // ── Fase 13 (13d): o Gitleaks varre o que o push trouxe ─────────────────
+  {
+    id: 'A1.93',
+    what: 'o push volta a varrer com `--first-parent --no-merges` — o merge dá zero',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    edits: [
+      {
+        find: '            log_opts="$BEFORE..$AFTER"',
+        replace: '            log_opts="--no-merges --first-parent $BEFORE..$AFTER"',
+      },
+    ],
+    expect: 'sem `--first-parent` nem `--no-merges`',
+  },
+  {
+    id: 'A1.94',
+    what: 'o binário do Gitleaks roda sem a conferência do sha256',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    dropLine: 'sha256sum -c -',
+    expect: 'conferido por sha256 antes de rodar',
+  },
+  {
+    id: 'A1.95',
+    what: 'a action volta a rodar no push — e varre zero commits no merge',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    dropLine: "    if: github.event_name == 'pull_request'",
+    expect: 'a action roda só no `pull_request`',
+  },
+  {
+    id: 'A1.96',
+    what: 'o `before` do evento interpolado no script (injeção por expressão)',
+    pkg: 'api',
+    test: 'tests/build/workflow-hardening.test.ts',
+    file: '.github/workflows/gitleaks.yml',
+    edits: [
+      {
+        find: '            range="$BEFORE..$AFTER"',
+        replace: '            range="${{ github.event.before }}..$AFTER"',
+      },
+    ],
+    expect: 'entram por `env:`, nunca interpolados no script',
+  },
+  // ── Fase 13 (13.5): a falha rápida de rede do feed ──────────────────────
+  {
+    id: 'A1.97',
+    what: 'a falha rápida de rede volta a perder a fonte pelo dia — sem nova tentativa',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '    if (!isFastNetworkFailure(error, Date.now() - startedAt)) throw error;',
+        replace: '    throw error;',
+      },
+    ],
+    expect: 'tenta de novo, uma vez, a falha de rede que veio rápido',
+  },
+  {
+    id: 'A1.98',
+    what: 'a nova tentativa vale para tudo — o prazo estourado custa mais 30 s',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '  return error instanceof TypeError && elapsedMs < FEED_FAST_FAIL_MS;',
+        replace: '  return elapsedMs >= 0;',
+      },
+    ],
+    expect: 'não tenta de novo o prazo estourado',
+  },
+  {
+    id: 'A1.99',
+    what: 'a nova tentativa vale também para a falha de rede lenta',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '  return error instanceof TypeError && elapsedMs < FEED_FAST_FAIL_MS;',
+        replace: '  return error instanceof TypeError && elapsedMs >= 0;',
+      },
+    ],
+    expect: 'não tenta de novo a falha de rede lenta',
+  },
+  {
+    id: 'A1.100',
+    what: 'o `failureReason` volta a gravar só "fetch failed" — a causa do undici some',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    edits: [
+      {
+        find: '        failure: describeFeedFailure(result.reason),',
+        replace:
+          '        failure: result.reason instanceof Error ? result.reason.message : String(result.reason),',
+      },
+    ],
+    expect: 'grava a causa do undici, não só "fetch failed"',
+  },
+  {
+    id: 'A1.101',
+    what: 'a segunda tentativa bate de novo na mesma hora, sem a pausa',
+    pkg: 'api',
+    test: 'tests/providers/rss.provider.test.ts',
+    file: 'apps/api/src/providers/news/rss.provider.ts',
+    dropLine: '    await new Promise((resolve) => setTimeout(resolve, FEED_RETRY_DELAY_MS));',
+    expect: 'espera antes da segunda tentativa',
+  },
+  // ── Fase 13 (13.7): a sonda do par de JWT, sem segredo no CI ────────────
+  {
+    id: 'A1.102',
+    what: 'a rota da sonda na API passa a aceitar o token de sessão, e recusa o dela',
+    pkg: 'api',
+    test: 'tests/security/authorization-matrix.test.ts',
+    file: 'apps/api/src/routes/health/index.ts',
+    edits: [
+      {
+        find: "    await probe.register(authPlugin, { purpose: 'health-probe' });",
+        replace: '    await probe.register(authPlugin);',
+      },
+    ],
+    expect: 'lets the health-probe token through',
+  },
+  {
+    id: 'A1.103',
+    what: 'a sonda do web lê o 401 da API como "inesperado", e o batimento perde a causa',
+    pkg: 'web',
+    test: 'tests/routes/health-auth-api.test.ts',
+    file: 'apps/web/app/api/health/auth/route.ts',
+    dropLine: "    if (response.status === 401) return result('rejected', 401);",
+    expect: 'says rejected',
+  },
+  {
+    id: 'A1.104',
+    what: 'o cron dá por fresca a sonda recusada hoje — o par quebrado não reinsiste',
+    pkg: 'web',
+    test: 'tests/lib/daily-revalidation.test.ts',
+    file: 'apps/web/lib/daily-revalidation.ts',
+    edits: [
+      {
+        find: `        '^(?=[\\\\s\\\\S]*"ok":true)(?=[\\\\s\\\\S]*"checkedAt":"' + literal(runDate).source + ')',`,
+        replace: `        '^(?=[\\\\s\\\\S]*"ok":)(?=[\\\\s\\\\S]*"checkedAt":"' + literal(runDate).source + ')',`,
+      },
+    ],
+    expect: "counts as fresh only when today's probe was accepted",
+  },
+  {
+    id: 'A1.105',
+    what: 'o batimento aceita a sonda de ontem — o cron que não perguntou hoje passa calado',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [{ find: '    } else if (day !== today) {', replace: "    } else if (day === 'nunca') {" }],
+    expect: 'fails when the probe is from the day before',
+  },
+  {
+    id: 'A1.106',
+    what: 'o batimento culpa o login num dia sem briefing — duas linhas para uma causa',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    dropLine: "    checks.push({ id: 'login', state: 'skipped', summary: 'depende do briefing de hoje' });",
+    expect: 'does not ask about the login on a day without the briefing',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

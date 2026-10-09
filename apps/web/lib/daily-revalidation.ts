@@ -54,6 +54,9 @@ export const DAILY_REVALIDATION_PATHS: ReadonlyArray<
   ['/[locale]/article/[date]', 'page'],
   ['/sitemap.xml'],
   ['/news-sitemap.xml'],
+  // A sonda do par de JWT (13.7): não é página do leitor, é a resposta "o login
+  // fecha hoje?", guardada por um dia e regenerada aqui, com a API acordada.
+  ['/api/health/auth'],
 ];
 
 /**
@@ -103,6 +106,9 @@ const literal = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g,
  *   ontem). O payload RSC vai no HTML como string JavaScript, com as aspas
  *   escapadas — a marca casa nas duas formas.
  * - **Os sitemaps:** a URL do briefing do dia, que os dois listam.
+ * - **A sonda do par de JWT** (13.7): o resultado de hoje, **aceito**. Uma sonda
+ *   recusada hoje deixa a página "velha" para o cron — ele insiste, desiste e
+ *   escreve `cron.daily-news.warm` —, e o batimento reprova.
  */
 export function dailyPages(runDate: string): DailyPage[] {
   const briefing = (locale: string) => `/${locale}/article/${runDate}`;
@@ -120,5 +126,13 @@ export function dailyPages(runDate: string): DailyPage[] {
     ...perLocale('/[locale]/article', (locale) => `/${locale}/article`, (locale) => literal(briefing(locale))),
     { url: '/sitemap.xml', pattern: '/sitemap.xml', marker: literal(briefing(DEFAULT_LOCALE)) },
     { url: '/news-sitemap.xml', pattern: '/news-sitemap.xml', marker: literal(briefing(DEFAULT_LOCALE)) },
+    {
+      url: '/api/health/auth',
+      pattern: '/api/health/auth',
+      // String comum, e não template: dentro de uma template, `\s` vira `s`.
+      marker: new RegExp(
+        '^(?=[\\s\\S]*"ok":true)(?=[\\s\\S]*"checkedAt":"' + literal(runDate).source + ')',
+      ),
+    },
   ];
 }

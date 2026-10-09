@@ -81,6 +81,8 @@ function bodyOf(date: string): string {
     `"@id":"${SITE_URL}/pt-BR/article/${date}#article"`,
     `"@id":"${SITE_URL}/en/article/${date}#article"`,
     `self.__next_f.push([1,"{\\"createdAt\\":\\"${date}T11:00:11.000Z\\"}"])`,
+    // A sonda do par de JWT (13.7), aceita no dia.
+    `{"ok":true,"reason":"accepted","status":200,"checkedAt":"${date}T11:03:00.000Z"}`,
   ].join('\n');
 }
 const FRESH = bodyOf(RUN_DATE);

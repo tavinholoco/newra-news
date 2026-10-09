@@ -101,10 +101,66 @@ describe('getProductMetrics', () => {
 
     expect(m.readingDepth).toEqual({
       opened: 2,
+      viewed: 0,
+      completed: 0,
       scroll25: 1,
       scroll50: 1,
       scroll90: 1,
     });
+  });
+
+  it('a leitura completa divide pela tela vista, não pelo clique no card', async () => {
+    // 13.4 do plano de observabilidade: em 01/10/2026 a tela marcava 1.034
+    // leituras a 90% contra 0 aberturas. Quem chega pelo buscador não clica em
+    // card nenhum — o denominador é a tela de leitura vista.
+    const leitura = { contentId: 'n1', contentType: 'story' };
+    findMany.mockResolvedValue([
+      evento('article_view', leitura, 's1'),
+      evento('article_scroll_90', leitura, 's1'),
+      evento('article_view', leitura, 's2'),
+      evento('article_view', { contentId: 'b1', contentType: 'briefing' }, 's2'),
+      evento('article_scroll_90', { contentId: 'b1', contentType: 'briefing' }, 's2'),
+    ]);
+
+    const m = await getProductMetrics();
+
+    expect(m.readingDepth.opened).toBe(0);
+    expect(m.readingDepth.viewed).toBe(3);
+    expect(m.readingDepth.completed).toBe(2);
+  });
+
+  it('só conta como completa a leitura cuja visualização está na janela', async () => {
+    // O 90% de antes do `article_view` existir — e o das ferramentas, que
+    // nunca tiveram visualização — não entra: o par é (sessão, conteúdo).
+    findMany.mockResolvedValue([
+      evento('article_scroll_90', { contentId: 'n1', contentType: 'story' }, 's1'),
+      evento('article_view', { contentId: 'n2', contentType: 'story' }, 's1'),
+      evento('article_scroll_90', { contentId: 'n2', contentType: 'story' }, 's2'),
+      evento('article_view', { contentId: 'n3', contentType: 'story' }, 's3'),
+      evento('article_scroll_90', { contentId: 'n3', contentType: 'briefing' }, 's3'),
+    ]);
+
+    const m = await getProductMetrics();
+
+    expect(m.readingDepth.viewed).toBe(2);
+    expect(m.readingDepth.completed).toBe(0);
+    expect(m.readingDepth.scroll90).toBe(3);
+  });
+
+  it('a mesma tela vista duas vezes na sessão é uma leitura possível, não duas', async () => {
+    // Dois `article_view` do mesmo conteúdo na mesma sessão (voltou à tela)
+    // contra um 90% — contar as duas visualizações daria 50% para quem leu.
+    const leitura = { contentId: 'n1', contentType: 'story' };
+    findMany.mockResolvedValue([
+      evento('article_view', leitura, 's1'),
+      evento('article_view', leitura, 's1'),
+      evento('article_scroll_90', leitura, 's1'),
+    ]);
+
+    const m = await getProductMetrics();
+
+    expect(m.readingDepth.viewed).toBe(1);
+    expect(m.readingDepth.completed).toBe(1);
   });
 
   it('agrupa por dia em UTC, e em ordem cronológica', async () => {

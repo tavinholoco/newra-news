@@ -64,6 +64,9 @@ const WITHOUT_SHARED_TYPE: Record<string, string> = {
   pipelineStatusResponseSchema: 'status de job, lido por operador',
   healthResponseSchema: 'sonda de plataforma (Render), sem consumidor no web',
   providersHealthResponseSchema: 'sonda de operador, sem consumidor no web',
+  // 13.7: a rota do web que a chama lê só o status (200 = o par de JWT fecha);
+  // o corpo é a confirmação, e nada o desenha.
+  healthAuthResponseSchema: 'sonda do par de JWT Vercel→API; o web lê só o status',
   weeklyMetricsResponseSchema: 'rota sem tela; o mesmo schema é coberto dentro do dashboard',
   monthlyMetricsResponseSchema: 'rota sem tela, sem tipo compartilhado equivalente',
 };

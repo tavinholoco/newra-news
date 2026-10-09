@@ -33,12 +33,25 @@ function probe(status: number | null, body = '', ms = 300, headers: Record<strin
 const homeWith = (locale: string, date: string) =>
   probe(200, `<a href="/${locale}/article/${date}">o briefing</a>`);
 
+/** O que a rota `/api/health/auth` do web devolve (13.7). */
+const authWith = (ok: boolean, day: string, status: number | null = ok ? 200 : 401) =>
+  probe(
+    200,
+    JSON.stringify({
+      ok,
+      reason: ok ? 'accepted' : status === 401 ? 'rejected' : 'unreachable',
+      status,
+      checkedAt: `${day}T11:03:00.000Z`,
+    }),
+  );
+
 function healthy(overrides: Partial<Observation> = {}): Observation {
   return {
     now: NOW,
     homes: { 'pt-BR': homeWith('pt-BR', TODAY), en: homeWith('en', TODAY) },
     api: [probe(200, JSON.stringify({ status: 'ok', uptime: 3600 }), 280)],
     latest: probe(200, JSON.stringify({ data: { date: `${TODAY}T00:00:00.000Z` } })),
+    authProbe: authWith(true, TODAY),
     repoPushedAt: '2026-10-07T19:07:46Z',
     ...overrides,
   };
@@ -57,8 +70,52 @@ describe('o veredito', () => {
       ['api', 'ok'],
       ['briefing', 'ok'],
       ['home', 'ok'],
+      ['login', 'ok'],
       ['activity', 'ok'],
     ]);
+  });
+
+  /**
+   * **O login, perguntado sem segredo no CI** (13.7, 09/10/2026). Os fluxos
+   * com login do Smoke ficam desligados por decisão do dono; o defeito que
+   * eles pegariam — a API recusar a assinatura da Vercel, todo leitor logado
+   * em 401 com o site anônimo perfeito — é o que a sonda do cron responde, e
+   * esta pergunta a lê.
+   */
+  it('fails when the API refuses the signature the Vercel makes — the login is broken', () => {
+    const login = evaluate(healthy({ authProbe: authWith(false, TODAY) })).checks.find(
+      (c) => c.id === 'login',
+    );
+
+    expect(login?.state).toBe('fail');
+    expect(login?.summary).toMatch(/401/);
+    expect(login?.action).toContain('AUTH_JWT_SECRET');
+  });
+
+  it('fails when the probe is from the day before — the cron did not ask today', () => {
+    const login = evaluate(healthy({ authProbe: authWith(true, '2026-10-07') })).checks.find(
+      (c) => c.id === 'login',
+    );
+
+    expect(login?.state).toBe('fail');
+    expect(login?.summary).toContain('2026-10-07');
+    expect(login?.action).toContain('cron.daily-news.warm');
+  });
+
+  it('fails when the probe page does not answer with a probe', () => {
+    expect(state(healthy({ authProbe: probe(500, 'erro') }), 'login')).toBe('fail');
+    expect(state(healthy({ authProbe: probe(200, '<html></html>') }), 'login')).toBe('fail');
+  });
+
+  it('does not ask about the login on a day without the briefing — one cause, one line', () => {
+    // O cron só pergunta depois de um run em `SUCCESS`; sem o briefing de
+    // hoje, a sonda de ontem é o esperado, não outra causa.
+    const o = healthy({
+      latest: probe(200, JSON.stringify({ data: { date: '2026-10-07T00:00:00.000Z' } })),
+      authProbe: authWith(true, '2026-10-07'),
+    });
+
+    expect(state(o, 'login')).toBe('skipped');
   });
 
   it('fails when the Home does not answer 200', () => {
@@ -215,7 +272,7 @@ describe('o resumo do job', () => {
   it('lists every check, and the API probe always — even on a green day', () => {
     const md = renderSummary(evaluate(healthy()));
 
-    for (const id of ['site', 'api', 'briefing', 'home', 'activity']) {
+    for (const id of ['site', 'api', 'briefing', 'home', 'login', 'activity']) {
       expect(md).toContain(id);
     }
     expect(md).toContain('280 ms');
@@ -255,12 +312,15 @@ describe('a observação, com o fetch de mentira', () => {
   const ok = (body: string, headers: Record<string, string> = {}) =>
     new Response(body, { status: 200, headers });
 
-  it('asks both Homes, the health and the latest briefing — and only GETs', async () => {
+  const PROBE = JSON.stringify({ ok: true, reason: 'accepted', status: 200, checkedAt: `${TODAY}T11:03:00.000Z` });
+
+  it('asks both Homes, the health, the latest briefing and the login probe — and only GETs', async () => {
     const { fetchFn, calls } = respond({
       [`${SITE}/pt-BR`]: [ok(`/pt-BR/article/${TODAY}`)],
       [`${SITE}/en`]: [ok(`/en/article/${TODAY}`)],
       [`${API}/api/health`]: [ok('{"status":"ok","uptime":10}')],
       [`${API}/api/articles/latest`]: [ok(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`)],
+      [`${SITE}/api/health/auth`]: [ok(PROBE)],
     });
 
     const o = await observe({
@@ -272,8 +332,16 @@ describe('a observação, com o fetch de mentira', () => {
       repoPushedAt: null,
     });
 
+    // A sonda do login é lida **do site** (o cache da Vercel), nunca da API:
+    // quem fala com a API é o cron, uma vez por dia.
     expect(calls.sort()).toEqual(
-      [`${API}/api/articles/latest`, `${API}/api/health`, `${SITE}/en`, `${SITE}/pt-BR`].sort(),
+      [
+        `${API}/api/articles/latest`,
+        `${API}/api/health`,
+        `${SITE}/api/health/auth`,
+        `${SITE}/en`,
+        `${SITE}/pt-BR`,
+      ].sort(),
     );
     for (const [, init] of fetchFn.mock.calls as unknown as Array<[string, RequestInit | undefined]>) {
       expect(init?.method ?? 'GET').toBe('GET');
@@ -288,6 +356,7 @@ describe('a observação, com o fetch de mentira', () => {
       [`${SITE}/en`]: [ok(`/en/article/${TODAY}`)],
       [`${API}/api/health`]: [new Error('The operation was aborted due to timeout'), ok('{"uptime":3}')],
       [`${API}/api/articles/latest`]: [ok(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`)],
+      [`${SITE}/api/health/auth`]: [ok(PROBE)],
     });
 
     const o = await observe({
@@ -365,6 +434,11 @@ describe('a saída do processo', () => {
       if (url.endsWith('/api/articles/latest')) {
         return new Response(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`);
       }
+      if (url.endsWith('/api/health/auth')) {
+        return new Response(
+          JSON.stringify({ ok: true, reason: 'accepted', status: 200, checkedAt: `${TODAY}T11:03:00.000Z` }),
+        );
+      }
       const locale = url.endsWith('/en') ? 'en' : 'pt-BR';
       return new Response(`/${locale}/article/${TODAY}`);
     }) as typeof fetch;
@@ -394,6 +468,11 @@ describe('a saída do processo', () => {
         if (url.endsWith('/api/health')) return new Response('{"uptime":5000}');
         if (url.endsWith('/api/articles/latest')) {
           return new Response(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`);
+        }
+        if (url.endsWith('/api/health/auth')) {
+          return new Response(
+            JSON.stringify({ ok: true, reason: 'accepted', status: 200, checkedAt: `${TODAY}T11:03:00.000Z` }),
+          );
         }
         const locale = url.endsWith('/en') ? 'en' : 'pt-BR';
         return new Response(`/${locale}/article/${TODAY}`);

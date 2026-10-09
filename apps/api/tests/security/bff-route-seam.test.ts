@@ -248,12 +248,15 @@ describe('a costura BFF → API', () => {
   });
 
   it('finds the anonymous relays too — the routes that never touch proxyToApi', () => {
-    // As duas portas sem sessão do BFF, e a asserção é pelo caminho: se a
-    // leitura do `fetch` cru quebrar, é aqui que ela aparece — não numa lista
-    // vazia que aprova tudo.
+    // As portas sem sessão de leitor do BFF, e a asserção é pelo caminho: se
+    // a leitura do `fetch` cru quebrar, é aqui que ela aparece — não numa
+    // lista vazia que aprova tudo. A terceira (13.7) é a sonda do par de JWT:
+    // o próprio servidor assina um token `health-probe`, sem sessão de
+    // ninguém, e pergunta.
     const anonymous = calls.filter((call) => call.via === 'fetch');
 
     expect(anonymous.map((call) => `${call.method} /api${call.pattern}`).sort()).toEqual([
+      'GET /api/health/auth',
       'POST /api/errors/client',
       'POST /api/events',
     ]);

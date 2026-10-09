@@ -346,6 +346,130 @@ describe('fetchFromRssWithOutcomes — o desfecho por feed', () => {
   });
 });
 
+/**
+ * **A falha rápida de rede ganha uma segunda chance, e a causa fica gravada.**
+ * (13.5 do plano de observabilidade, 09/10/2026)
+ *
+ * Em outubro, cinco feeds falharam com `fetch failed` em 0,8–2,2 s, um ou
+ * dois dias cada, nunca dois seguidos — e a coleta saiu degradada em 5 de 9
+ * dias. A Veja Saúde passou em 6 de 8: não é bloqueio, é rede. E o
+ * `failureReason` dizia só `fetch failed`, porque o undici põe o motivo no
+ * `cause`.
+ */
+describe('fetchFromRssWithOutcomes — a falha rápida de rede', () => {
+  const okResponse = () => ({
+    arrayBuffer: () => Promise.resolve(new TextEncoder().encode('').buffer),
+    headers: new Headers({ 'content-type': 'application/xml; charset=UTF-8' }),
+  });
+
+  /** A forma exata do undici: `TypeError: fetch failed`, o motivo no `cause`. */
+  function undiciFailure(code = 'ECONNRESET') {
+    return new TypeError('fetch failed', {
+      cause: Object.assign(new Error(`read ${code}`), { code }),
+    });
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  async function settle<T>(pending: Promise<T>): Promise<T> {
+    await vi.advanceTimersByTimeAsync(10_000);
+    return pending;
+  }
+
+  it('tenta de novo, uma vez, a falha de rede que veio rápido — e a fonte entra no dia', async () => {
+    mockFetch.mockRejectedValueOnce(undiciFailure()).mockResolvedValueOnce(okResponse());
+
+    const { outcomes, items } = await settle(fetchFromRssWithOutcomes([sourceWithCategory]));
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(outcomes[0]).toEqual({ source: 'TechCrunch', fetched: 1, latencyMs: expect.any(Number) });
+    expect(items).toHaveLength(1);
+  });
+
+  it('espera antes da segunda tentativa, em vez de bater de novo na mesma hora', async () => {
+    mockFetch.mockRejectedValueOnce(undiciFailure()).mockResolvedValueOnce(okResponse());
+
+    const pending = fetchFromRssWithOutcomes([sourceWithCategory]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    await settle(pending);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('grava a causa do undici, não só "fetch failed"', async () => {
+    mockFetch.mockRejectedValue(undiciFailure('ECONNRESET'));
+
+    const { outcomes } = await settle(fetchFromRssWithOutcomes([sourceWithCategory]));
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(outcomes[0]).toMatchObject({ fetched: 0, failure: 'fetch failed (ECONNRESET)' });
+  });
+
+  it('sem código no cause, grava a mensagem dele', async () => {
+    mockFetch.mockRejectedValue(
+      new TypeError('fetch failed', { cause: new Error('other side closed') }),
+    );
+
+    const { outcomes } = await settle(fetchFromRssWithOutcomes([sourceWithCategory]));
+
+    expect(outcomes[0]?.failure).toBe('fetch failed: other side closed');
+  });
+
+  it('não tenta de novo o prazo estourado — seriam mais 30 s no cron', async () => {
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError')),
+            30_000,
+          ),
+        ),
+    );
+
+    const pending = fetchFromRssWithOutcomes([sourceWithCategory]);
+    await vi.advanceTimersByTimeAsync(40_000);
+    const { outcomes } = await pending;
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(outcomes[0]?.failure).toMatch(/timeout/);
+  });
+
+  it('não tenta de novo a falha de rede lenta — ela não é o espirro que a regra cobre', async () => {
+    mockFetch.mockImplementation(
+      () => new Promise((_, reject) => setTimeout(() => reject(undiciFailure()), 6_000)),
+    );
+
+    const pending = fetchFromRssWithOutcomes([sourceWithCategory]);
+    await vi.advanceTimersByTimeAsync(20_000);
+    await pending;
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('não tenta de novo o XML que não parseia — a resposta chegou, e repetir dá o mesmo', async () => {
+    mockParseString.mockRejectedValue(new Error('Non-whitespace before first tag.'));
+
+    const { outcomes } = await settle(fetchFromRssWithOutcomes([sourceWithCategory]));
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(outcomes[0]?.failure).toBe('Non-whitespace before first tag.');
+  });
+
+  it('avisa no log da nova tentativa, com a causa', async () => {
+    const warn = vi.spyOn(baseLogger, 'warn').mockImplementation(() => baseLogger);
+    mockFetch.mockRejectedValueOnce(undiciFailure('ECONNRESET')).mockResolvedValueOnce(okResponse());
+
+    await settle(fetchFromRssWithOutcomes([sourceWithCategory]));
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ feed: 'TechCrunch', reason: 'fetch failed (ECONNRESET)' }),
+      '[rss] falha rápida de rede; nova tentativa',
+    );
+    warn.mockRestore();
+  });
+});
+
 describe('extractImageUrl', () => {
   it('should use enclosure url when available', async () => {
     mockParseString.mockResolvedValue({

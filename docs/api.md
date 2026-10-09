@@ -722,7 +722,14 @@ janela maior mostraria queda onde houve **apagamento**.
     "byType": [{ "type": "homepage_view", "count": 9 }],
     "storyOpensBySource": [{ "source": "hero", "count": 4 }],
     "categoryViews": [{ "category": "HEALTH", "count": 2 }],
-    "readingDepth": { "opened": 6, "scroll25": 4, "scroll50": 3, "scroll90": 1 },
+    "readingDepth": {
+      "opened": 6,
+      "viewed": 5,
+      "completed": 1,
+      "scroll25": 4,
+      "scroll50": 3,
+      "scroll90": 1
+    },
     "searchesWithoutResults": [{ "query": "eclipse", "count": 2 }]
   }
 }
@@ -732,6 +739,16 @@ janela maior mostraria queda onde houve **apagamento**.
 > fechar a aba — é isso que mantém a medição anônima. Quem mede audiência
 > recorrente são `newsletterSubscribers` e `accounts`, que não vêm do
 > `ProductEvent`: são estado persistente.
+
+**`readingDepth`: a leitura completa é `completed / viewed`, e não `scroll90 /
+opened`** (13.4 do plano de observabilidade, 09/10/2026). `viewed` conta os
+pares (sessão, conteúdo) com `article_view` — a tela de leitura vista;
+`completed`, os desses pares que chegaram a 90% do texto. Pelo par, a taxa
+nunca passa de 100 %, e o 90% sem visualização na janela (o de antes de o
+evento existir, ou o de uma ferramenta) fica fora do numerador. `opened` são
+os cliques em card (`story_open` + `briefing_open`): é o CTR, não a leitura —
+quem chega pelo buscador não clica em card nenhum. `scroll25/50/90` são as
+contagens cruas dos limiares.
 
 `searchesWithoutResults` traz **texto digitado por leitor** (higienizado na
 origem, truncado em 100). É mais uma razão para a rota ser admin-only. Teto de
@@ -839,6 +856,29 @@ Healthcheck do servidor (usado pelo UptimeRobot).
 ```json
 { "status": "ok", "timestamp": "ISO string", "uptime": 3600.5 }
 ```
+
+### GET /api/health/auth
+
+**A sonda do par de JWT entre a Vercel e a API** (13.7 do plano de
+observabilidade, 09/10/2026). Responde se a API aceita o que a Vercel assina
+com o `AUTH_JWT_SECRET` — o par que, divergente, põe todo leitor logado em 401
+com o site anônimo perfeito. Quem chama é a rota `GET /api/health/auth` do
+web, uma vez por dia, depois do run (o cron a invalida e a pede); o batimento
+lê o resultado de lá.
+
+**Auth:** `Authorization: Bearer <JWT>` com `purpose: 'health-probe'`, **e só
+ele** — o token de sessão e o de `auth-upsert` recebem 401, e o token da sonda
+recebe 401 em qualquer outra rota. Não toca o banco.
+
+**Resposta 200:**
+```json
+{ "data": { "accepted": true } }
+```
+
+**Resposta 401:** sem token, token de outro escopo, ou assinado com outro
+segredo — que é o defeito que a sonda existe para ver.
+
+---
 
 ### GET /api/health/providers
 
