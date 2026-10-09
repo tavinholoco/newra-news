@@ -3536,9 +3536,10 @@ Não-objetivos declarados como número, nunca como item de lista.
 | Leitura do painel de erros pesada | **p95 de `GET /api/admin/errors` > 1.000 ms** no `/api/metrics/http` — ou `truncated: true` em qualquer resposta (o teto de 5.000 linhas lidas foi alcançado) |
 | Mutação por segredo sem ator | **o primeiro BFF para `POST /api/jobs/renormalize-news`** — hoje só operador com `JOB_SECRET` a chama, e `dryRun: false` reescreve o acervo sem linha de auditoria; com BFF, `news.renormalized` entra no tuple |
 | Heartbeat do `DailyUptime` perdendo crédito | a soma de um dia UTC **acima de 86.400 s** (duas instâncias, ou tique creditado duas vezes), ou um dia com a API acordada e **zero** linha — o `warn` `[uptime] failed to credit` no log é o sintoma |
+| **As horas do `NetsheetEngine` entram por leitura manual do Billing** (13b, decidido pelo dono em 09/10/2026) | o Render não tem API de cobrança e a chave dele não tem escopo; o dono digita o total do workspace na `/admin`, e entre leituras a tela estima o outro serviço no ritmo da última. **A saída automática está desenhada:** o `NetsheetEngine` conta as próprias horas (heartbeat que só escreve no banco dele, como o `DailyUptime`) e expõe uma rota com segredo; o run diário da Newra — a API já acordada pelo pipeline às 11h — pergunta uma vez por dia e grava por serviço. Custa até ~7,5 h/mês do `NetsheetEngine` (a pergunta o acorda quando ele dorme; o inverso, ele avisar a Newra, acordaria esta API a cada acordada dele), uma migration aqui, um segredo nos dois serviços e trabalho no repositório dele. **Gatilho: a projeção do workspace acima de 600 h (80 % do teto) em duas leituras seguidas** — aí a estimativa entre leituras deixa de ser folga e passa a ser o número que decide. **A primeira leitura, em 09/10 (169,72 h), já projetou 603 h na tela** — o ritmo do mês inteiro, que carrega os 24,8 h/dia de antes de 06/10; no ritmo recente (12,2 h/dia desde 06/10) são **~441 h**, e as leituras seguintes puxam a projeção para lá sozinhas. **Releitura sugerida: ~16/10** — se ela ainda passar de 600 h, o gatilho disparou |
 | Buffer de erro pequeno demais | contador de descarte diferente de zero em qualquer dia |
 | Quarta aba | a `/admin/security` passar de ~6 painéis |
-| ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo a partir da promoção** que o levar à `main` |
+| ~~Alerta ativo (e-mail/webhook)~~ **Fechada em 07/10/2026 pelo 13a (§23)** | ~~depois de a tela existir e de sabermos qual sinal dispara de fato~~ — **as duas condições se cumpriram, e a linha virou trabalho: Fase 13, item 13.1 (§23)**. O sinal é "o briefing de hoje não existe" — e, desde o 13a, também "a Home não o mostra". O `heartbeat.yml` pergunta às 12:40 UTC e o job reprovado é o e-mail; **ativo desde a promoção #277 (09/10/2026)** — o primeiro agendado é o das 12:40 UTC de 10/10 |
 | Degradação virou norma | **3 dias seguidos de `SUCCESS_DEGRADED` pelo mesmo `degradedBy`** — a versão medida do gatilho do fallback do Groq, hoje escrito em prosa |
 | Portão de saída afrouxando | **taxa de aprovação < 90% em 7 dias** — ou **qualquer** bloqueio por URL no briefing (`unanchored-url` ou `copied-url`), que é evento único e merece olhar no mesmo dia |
 | Portão de entrada sensível demais | **> 1 bloqueio por semana** sem que a colheita estivesse de fato ruim — recalibrar a mediana móvel, não desligar o portão. **E o aviso também conta**: `category-drift` ou `duplicate-rate` em mais de um dia por semana é o teto pedindo o número real — o da deriva foi calibrado contra produção em 24/09 (0,25, Fase 12); o de duplicata segue por cima (0,6) — e o `gates:rehearse` imprime o p95 |
@@ -4918,8 +4919,9 @@ promovido sozinho no #272).** Item **91** do
   seguidos com `cron.daily-news.warm` — aí a regeneração falha de forma
   sistemática (a borda do Render? o 13.8), e três rodadas não bastam.
 
-**O que o PR 13a decidiu — 07/10/2026 ✅ (na `dev`; o agendamento só existe
-depois da promoção — o GitHub roda `schedule` da branch padrão).** Item
+**O que o PR 13a decidiu — 07/10/2026 ✅ (promovido no #277 em 09/10, junto
+do 13b; o GitHub roda `schedule` da branch padrão, então o primeiro agendado
+é o das 12:40 UTC de 10/10).** Item
 **92** do `docs/progress.md`. O 13.1 e o 13.10, juntos como a ordem pedia.
 
 - **`.github/workflows/heartbeat.yml`, às 12:40 UTC, e `apps/api/scripts/heartbeat.ts`.**
@@ -4978,8 +4980,8 @@ depois da promoção — o GitHub roda `schedule` da branch padrão).** Item
   `workflow-hardening` cobrou a classificação (`FORA`) e a contagem em prosa dos
   dois READMEs (seis → sete).
 
-**O que o PR 13b decidiu — 09/10/2026 ✅ (na `dev`; o arco do workspace só
-existe em produção depois da promoção e da primeira leitura).** Item **93** do
+**O que o PR 13b decidiu — 09/10/2026 ✅ (no ar desde 17:29 UTC de 09/10,
+promovido no #277 com o 13a; a primeira leitura entrou às 17:32 UTC).** Item **93** do
 `docs/progress.md`. O 13.2 e, dentro dele, o 13.9 — como a lista acima manda.
 
 - **A pergunta que abria o PR — de onde vem o número do `NetsheetEngine` —
@@ -5041,6 +5043,24 @@ existe em produção depois da promoção e da primeira leitura).** Item **93** 
 - **O que fica do dono:** a promoção, e depois dela **a primeira leitura** na
   `/admin` (Billing → Free instance hours). Entre leituras os outros serviços
   são estimados no ritmo da última; a tela diz de quando ela é.
+- **Promovido no #277 e medido (09/10/2026).** O merge às 17:27 UTC; às
+  17:29:25 a rota nova respondia 401 sem sessão nos dois lados (a Vercel e o
+  Render), em vez do 404 da versão anterior. CI, CodeQL e Gitleaks verdes —
+  o Gitleaks varreu `0 commits` outra vez, a 15.ª medição do 13.6; Smoke
+  **32/6** (o novo é o 401 da escrita de admin sem sessão). **A
+  primeira leitura, pelo dono, às 17:32 UTC: 169,72 h** no workspace, com
+  esta API em **48 h** e o `NetsheetEngine` em **~121 h** (71 %). O arco
+  marcou 23 % (~170 h de 750) e a projeção do mês, **603 h (80 % do
+  teto)**.
+- **A projeção da tela é no ritmo do mês inteiro, e por isso atrasa.** O
+  ritmo dos outros é a parte deles na leitura dividida pelas horas desde o
+  dia 1º — e outubro carrega os 24,8 h/dia de antes de 06/10. Entre a leitura
+  de 06/10 (124,27 h, feita à mão) e esta, o workspace andou **12,2 h/dia**,
+  e nesse ritmo o mês fecha em **~441 h**. As leituras seguintes vão
+  puxando a projeção para o ritmo recente sozinhas — um ritmo entre as duas
+  últimas leituras responderia mais rápido, e pediria guardar o histórico
+  delas; não foi feito, e a linha do §16 depende de duas leituras seguidas
+  justamente por isso.
 
 ### O que fica de fora, e por quê
 
@@ -5059,8 +5079,8 @@ existe em produção depois da promoção e da primeira leitura).** Item **93** 
 | PR | Itens | Depende de |
 |---|---|---|
 | ~~**13a′**~~ ✅ 07/10 | 13.12 (o cron pede as páginas que invalidou) — **primeiro, desde 07/10**: o gatilho disparou. Promovido sozinho no #272 (`ce38866`) | a Fase 12 fechada |
-| ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Na `dev`; agenda só depois da promoção | a Fase 12 fechada |
-| ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Na `dev`; a primeira leitura do Billing é do dono, depois da promoção | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
+| ~~**13a**~~ ✅ 07/10 | 13.1 (o batimento) e 13.10 (o `turbo.json`). Promovido no #277 (09/10); o primeiro agendado é 10/10 12:40 UTC; o ensaio do alerta espera o ok do dono | a Fase 12 fechada |
+| ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Promovido no #277 (09/10); a primeira leitura (169,72 h) entrou no mesmo dia | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
 | **13c** | 13.4 (a métrica de leitura) | o inventário dos eventos |
 | **13d** | 13.6 (o Gitleaks) | — |
 | — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
@@ -5078,9 +5098,9 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 > (armadilhas, até a 47). Siga pelo **PR 13c — a métrica de leitura (13.4)**,
 > que começa pelo inventário dos eventos de rolagem contra as horas em que as
 > ferramentas rodaram; e depois o 13d. Corte a branch da `dev`. O 13a (o
-> batimento) e o 13b (o arco do workspace) estão na `dev` e só valem depois
-> da promoção — decida comigo quando promover. Antes de qualquer escrita em
-> produção, me pergunte.
+> batimento) e o 13b (o arco do workspace) estão no ar desde a promoção #277
+> (09/10); o ensaio do alerta do batimento espera o meu ok. Antes de qualquer
+> escrita em produção, me pergunte.
 >
 > *(O de 09/10, que abriu o 13b: "…siga pelo PR 13b — o denominador (13.2),
 > que começa pela pergunta de onde vem o número do `NetsheetEngine`". O de
