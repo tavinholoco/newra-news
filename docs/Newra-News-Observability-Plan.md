@@ -3839,6 +3839,25 @@ Não-objetivos declarados como número, nunca como item de lista.
     ("a premissa do Next"), lendo o código instalado — o Next 15 move esses
     arquivos, e a guarda reprova para a decisão ser revista.
 
+48. **`fetch` com `cache: 'no-store'` num route handler com `revalidate`
+    torna a rota dinâmica — e o `revalidate` deixa de valer em silêncio.**
+    Medido em produção em 09/10/2026, minutos depois da promoção #285: a
+    sonda do login (`app/api/health/auth/route.ts`) declarava
+    `revalidate = 86400` para um robô não acordar a API com ela, e o `fetch`
+    levava `no-store`. No Next 14 isso é uso dinâmico: o build marcou a rota
+    `ƒ` (`Dynamic server usage: no-store fetch` — e o `catch` da própria rota
+    engoliu esse erro interno e o gravou como "unreachable"). Duas sondas
+    seguidas responderam `X-Vercel-Cache: MISS`, `Age: 0` e dois `checkedAt`
+    — cada pedido chamava o Render. **A suíte passava**: ela mocka o `fetch`,
+    e o modo de renderização só existe no build. A saída é
+    `next: { revalidate }` com o mesmo período (a resposta não é reaproveitada
+    entre regenerações porque o token novo muda a chave do cache de dados —
+    os cabeçalhos entram nela, lido no `next@14.2.35`). Guarda em
+    `tests/lib/rendering-mode.test.ts`, sobre todo arquivo de `app/` que
+    declara `revalidate`; mutação A1.107. **Ao pôr `revalidate` num route
+    handler, confira o modo no `pnpm build` (`○` e não `ƒ`)**, e o
+    `X-Vercel-Cache` de dois pedidos seguidos em produção.
+
 ---
 
 ## §18 O que cada fase custa em guarda
@@ -5231,9 +5250,18 @@ promoção da fase).** Item **97** do `docs/progress.md`.
   marca no conjunto do dia, e o Heartbeat (recusada, velha, ausente, pulada
   sem briefing). Mutações **A1.102–A1.106**. **1.498 → 1.527 na API, 1.009
   → 1.018 no web.**
-- **O que conferir depois da promoção:** a rota do web respondendo
-  `"ok":true` com o `checkedAt` do dia depois do cron, e a pergunta `login`
-  do Heartbeat verde. **Gatilho para reabrir a decisão dos seis testes:** o
+- **Conferido na promoção #285 (09/10/2026, 22:20 UTC):** as duas pontas no
+  ar (a API em 401 sem token, a do web em 200) e a sonda **aceita** —
+  `"ok":true, "reason":"accepted"`: o par de JWT fecha em produção. **E a
+  medição achou um defeito meu, a armadilha 48:** o `fetch` da sonda levava
+  `cache: 'no-store'`, que no Next 14 torna o route handler dinâmico — dois
+  pedidos seguidos deram `MISS`, `Age: 0` e dois `checkedAt`, cada um
+  chamando o Render. Corrigido com `next: { revalidate: 86400 }` (o build
+  passou de `ƒ` a `○`), com guarda e mutação A1.107, num PR próprio.
+- **O que conferir depois da promoção da correção:** dois pedidos seguidos à
+  rota do web com o mesmo `checkedAt` e `X-Vercel-Cache: HIT` no segundo; a
+  rota respondendo `"ok":true` com o `checkedAt` do dia depois do cron; e a
+  pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão dos seis testes:** o
   produto ganhar leitores com conta de verdade (assinantes ou contas acima
   de algumas dezenas — o número do §21), ou um defeito no caminho logado que
   a sonda não pegue. Aí o caminho é um ambiente de teste com segredo

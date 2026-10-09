@@ -143,7 +143,9 @@
         "saved": "Reading recorded.",
         "invalid": "Type the hours as the dashboard shows them, for example 124.27.",
         "belowApi": "The reading is below the {hours} this API already recorded this month — check the dashboard number.",
-        "failed": "Could not record the reading."
+        "failed": "Could not record the reading.",
+        "tooHigh": "The reading is above the {max} ceiling — check for an extra digit (124.27, not 12427).",
+        "refused": "The API refused the reading: it is below this API’s hours this month, or above the ceiling. Check the dashboard number."
       }
     },
     "security": {

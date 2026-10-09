@@ -1,5 +1,5 @@
 import { prisma } from '@newranews/database';
-import type { PlanHoursReading } from '@newranews/types';
+import { PLAN_READING_MAX_HOURS, type PlanHoursReading } from '@newranews/types';
 import { z } from 'zod';
 import { AppError } from '../utils/errors';
 import { baseLogger } from '../utils/logger';
@@ -48,11 +48,11 @@ import {
  */
 
 /**
- * O teto da entrada. O pool para em 750 h (setembro marcou 753,4 com o atraso
- * da suspensão), então mil é folga de sobra — e recusa o `12427` digitado no
- * lugar de `124,27`, que é o erro que este teto existe para pegar.
+ * O teto da entrada — o mesmo número que a tela confere antes de mandar, e por
+ * isso ele mora em `packages/types` (`PLAN_READING_MAX_HOURS`, onde está o
+ * porquê dele).
  */
-export const MAX_WORKSPACE_HOURS = 1_000;
+export const MAX_WORKSPACE_HOURS = PLAN_READING_MAX_HOURS;
 
 /** O literal da ação, tipado contra o tuple da auditoria. */
 const READING_ACTION: AuditAction = 'plan.hours_recorded';

@@ -113,10 +113,17 @@ export interface PlanHoursReading {
   apiHours: number;
 }
 
-/** As horas desta API por dia (13.9) — a janela e os dias que têm linha. */
+/**
+ * As horas desta API por dia (13.9) — a janela e os dias que têm linha. **Uma
+ * declaração só**: até a revisão da Fase 13 (09/10/2026) o
+ * `uptime.service.ts` da API tinha a sua cópia, igual por enquanto.
+ */
 export interface UptimeSeries {
+  /** O primeiro dia da janela, `YYYY-MM-DD` em UTC. */
   since: string;
+  /** Hoje, `YYYY-MM-DD` em UTC — a linha dele é parcial por definição. */
   until: string;
+  /** Só os dias com linha, em ordem; o dia sem linha é a API que não acordou. */
   days: Array<{ date: string; seconds: number }>;
 }
 
@@ -124,6 +131,19 @@ export interface UptimeSeries {
 export interface PlanHoursReadingInput {
   workspaceHours: number;
 }
+
+/**
+ * O teto de uma leitura do Billing, em horas (13b). O pool para em 750 h
+ * (setembro marcou 753,4 com o atraso da suspensão), então mil é folga de
+ * sobra — e recusa o `12427` digitado no lugar de `124,27`, que é o erro que
+ * este teto existe para pegar.
+ *
+ * **Mora aqui, e não na API, porque a tela confere antes de mandar** (revisão
+ * da Fase 13, 09/10/2026): com o teto só na API, o "12427" voltava 400 e o
+ * formulário — que lia todo 400 como "abaixo das horas desta API" — dizia o
+ * contrário do erro. Um número só, lido pelos dois lados.
+ */
+export const PLAN_READING_MAX_HOURS = 1_000;
 
 /** O quarto sinal de ouro (§3.1): teto e razão já calculados para cada medida. */
 export interface Saturation {

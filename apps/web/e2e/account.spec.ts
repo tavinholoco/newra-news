@@ -18,7 +18,7 @@ import { ADMIN, READER, canSignIn, canSignInAsAdmin, signIn } from './support/se
 test.describe('conta', () => {
   test.skip(
     !canSignIn,
-    'E2E_NEXTAUTH_SECRET/E2E_USER_ID ausentes — fluxo com login desligado (ver e2e/support/session.ts)',
+    'fluxo com login desligado por decisão (13.7, 09/10/2026) — o login é medido pela sonda /api/health/auth (ver e2e/support/session.ts)',
   );
 
   test.beforeEach(async ({ context, baseURL }) => {
@@ -105,7 +105,7 @@ test.describe('conta', () => {
 test.describe('admin', () => {
   test.skip(
     !canSignInAsAdmin,
-    'E2E_ADMIN_USER_ID ausente — fluxo de admin desligado (ver e2e/support/session.ts)',
+    'fluxo de admin desligado por decisão (13.7, 09/10/2026) — ver e2e/support/session.ts',
   );
 
   test.beforeEach(async ({ context, baseURL }) => {

@@ -3,6 +3,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithIntl } from '@/tests/utils';
 import { httpMetrics } from '@/tests/fixtures/observability';
+import { ApiError } from '@/lib/api';
 
 const { useHttpMetrics, useRecordPlanHoursReading } = vi.hoisted(() => ({
   useHttpMetrics: vi.fn(),
@@ -270,6 +271,35 @@ describe('ApiHealth — o formulário da leitura do Billing', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'A leitura é menor que as 305 h que esta API já registrou neste mês',
     );
+  });
+
+  it('refuses, before sending, the digit too many — 12427 typed for 124,27', async () => {
+    // O teto existe na API para este erro; sem ele na tela, o 400 voltava e
+    // a mensagem dizia "abaixo das horas desta API", que é o contrário.
+    const user = userEvent.setup();
+    useHttpMetrics.mockReturnValue({ data: httpMetrics, isError: false });
+
+    renderWithIntl(<ApiHealth />);
+    await user.type(screen.getByLabelText(/Total do Billing/), '12427');
+    await user.click(screen.getByRole('button', { name: 'Registrar leitura' }));
+
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('passa do teto de 1.000 h');
+  });
+
+  it('does not blame a cause the API did not name when it refuses the reading (400)', () => {
+    // As duas checagens da tela vêm antes; um 400 que ainda volta é corrida
+    // (as horas desta API cresceram entre carregar e enviar) — a mensagem
+    // cobre as duas causas em vez de afirmar uma.
+    useHttpMetrics.mockReturnValue({ data: httpMetrics, isError: false });
+    useRecordPlanHoursReading.mockReturnValue(
+      mutation({ isError: true, error: new ApiError('API error: 400', 400) }),
+    );
+
+    renderWithIntl(<ApiHealth />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('A API recusou a leitura');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('A leitura é menor que');
   });
 
   it('refuses text that is not a number of hours', async () => {

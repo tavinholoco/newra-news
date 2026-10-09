@@ -77,10 +77,12 @@
   repetida nem entra de novo). Por isso a invalidação do `SUCCESS` vai pela
   rota irmã **`/api/cron/daily-news/revalidate`** (mesmo `CRON_SECRET`; só
   caminhos do conjunto; não é cron): ela retorna, a tag é aplicada, e só então
-  o cron pede as dez páginas de `dailyPages` (Home primeiro). **Página sem a
+  o cron pede as páginas de `dailyPages` (Home primeiro; onze desde o 13.7,
+  com a sonda do login no fim). **Página sem a
   marca do run** (o link do briefing do dia; o `#article` do JSON-LD na
   `/article/[date]`, porque a data sozinha está no payload até da "não
-  encontrada"; um `createdAt` do dia na `/news`) **é invalidada de novo e
+  encontrada"; um `createdAt` do dia na `/news`; a sonda do login **aceita**
+  hoje) **é invalidada de novo e
   pedida de novo** — a regeneração que falha consome a invalidação, e a Vercel
   mantém o documento velho até o `revalidate` vencer (a Home `/pt-BR` em 07/10).
   Até três rodadas, no que sobra do `maxDuration`; ao desistir, o cron anota a
@@ -88,8 +90,11 @@
   e escreve `cron.daily-news.warm` com status e `x-vercel-cache` de cada um.
   **O botão da `/admin` e os desfechos sem `SUCCESS` continuam anotando em
   processo**, sem pedir página nenhuma
-  O conjunto é Home, `/news`, `/article`, `/article/[date]` e os dois
-  sitemaps, cada um com `'page'` — **nunca `('/[locale]', 'layout')`**, que
+  O conjunto é Home, `/news`, `/article`, `/article/[date]` (cada uma com
+  `'page'`), os dois sitemaps e a sonda do login `/api/health/auth` (13.7 do
+  plano: um route handler guardado pela ISR por um dia, que assina um token
+  `health-probe` e pergunta à API se ela aceita a assinatura da Vercel; o
+  Heartbeat lê o resultado) — **nunca `('/[locale]', 'layout')`**, que
   levava as milhares de `/news/[id]` junto e fazia cada uma acordar a API no
   próximo robô. A porta é `isCronAuthorized` (`lib/cron-auth.ts`):
   `CRON_SECRET` ausente fecha, em vez de aceitar `Bearer undefined`.

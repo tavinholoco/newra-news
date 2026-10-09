@@ -1445,6 +1445,34 @@ const MUTATIONS = [
     dropLine: "    checks.push({ id: 'login', state: 'skipped', summary: 'depende do briefing de hoje' });",
     expect: 'does not ask about the login on a day without the briefing',
   },
+  {
+    id: 'A1.107',
+    what: 'o fetch da sonda volta a `no-store` — a rota vira `ƒ` e cada pedido acorda o Render',
+    pkg: 'web',
+    test: 'tests/lib/rendering-mode.test.ts',
+    file: 'apps/web/app/api/health/auth/route.ts',
+    edits: [{ find: '      next: { revalidate: 86400 },', replace: "      cache: 'no-store'," }],
+    expect: 'never opts a revalidating file into dynamic rendering through its fetch',
+  },
+  // ── Fase 13: a revisão de 09/10/2026 ────────────────────────────────────
+  {
+    id: 'A1.108',
+    what: 'os limiares da matéria anterior valem para a seguinte quando o componente é reaproveitado',
+    pkg: 'web',
+    test: 'tests/components/scroll-depth.test.tsx',
+    file: 'apps/web/components/analytics/scroll-depth.tsx',
+    dropLine: '      reached.current = new Set();',
+    expect: 'mede de novo quando o mesmo componente passa a mostrar outro conteúdo',
+  },
+  {
+    id: 'A1.109',
+    what: 'a tela deixa passar o "12427" — o teto só na API, e a mensagem do 400 errada',
+    pkg: 'web',
+    test: 'tests/components/api-health.test.tsx',
+    file: 'apps/web/components/admin/plan-reading-form.tsx',
+    edits: [{ find: '    if (hours > PLAN_READING_MAX_HOURS) {', replace: '    if (hours < 0) {' }],
+    expect: 'refuses, before sending, the digit too many',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
@@ -1481,7 +1509,6 @@ const EXCLUDED = {
   'web:tests/lib/i18n-messages.test.ts': 'V2 (16/08) — paridade dos JSONs de idioma; anterior ao plano',
   'web:tests/lib/images.test.ts': 'V2 (22/08) — hosts de imagem; anterior ao plano',
   'web:tests/lib/markdown-text.test.ts': 'V2, pós-Fase 12 (01/09) — limpeza de Markdown em metadata; anterior ao plano',
-  'web:tests/lib/rendering-mode.test.ts': 'V2, Fase 11 (24/08) — revalidate ⇒ rota guardada; anterior ao plano',
   'web:tests/lib/seo.test.ts': 'V2 (22/08) — metadata; anterior ao plano',
   'web:tests/routes/events-anonymity.test.ts': 'V2, Fase 11 (24/08) — anonimato do BFF de eventos; anterior ao plano',
   'web:tests/security/browser-surface.test.ts': 'V2, Fase 10 (24/08) — o plano (5c) só trocou prosa ("15 páginas")',

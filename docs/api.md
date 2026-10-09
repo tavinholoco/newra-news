@@ -1205,8 +1205,10 @@ porque `track()` despacha em blocos e não uma requisição por clique.
 ```
 
 Os quatro campos de base vêm em todo evento e são anexados por `track()`, nunca
-pelo componente. O resto depende do `type` — são os 14 do catálogo, cada um com
-o seu payload fechado, validados por união discriminada.
+pelo componente. O resto depende do `type` — são os 13 do catálogo
+(`PRODUCT_EVENT_TYPES` em `packages/types`; o 13.º, `article_view`, entrou em
+09/10/2026 como o denominador da leitura completa), cada um com o seu payload
+fechado, validados por união discriminada.
 
 | Regra | Por quê |
 |---|---|

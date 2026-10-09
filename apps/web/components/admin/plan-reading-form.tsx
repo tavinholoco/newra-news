@@ -2,7 +2,7 @@
 
 import { useId, useState, type FormEvent } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import type { Saturation } from '@newranews/types';
+import { PLAN_READING_MAX_HOURS, type Saturation } from '@newranews/types';
 import { useRecordPlanHoursReading } from '@/lib/queries';
 import { ApiError } from '@/lib/api';
 import { formatHours } from '@/lib/format';
@@ -55,6 +55,12 @@ export function PlanReadingForm({ plan }: { plan: NonNullable<Saturation['plan']
       setProblem(belowApi);
       return;
     }
+    // O mesmo teto da API, conferido aqui: o "12427" no lugar de "124,27" é o
+    // erro que ele existe para pegar, e a mensagem tem de dizer qual foi.
+    if (hours > PLAN_READING_MAX_HOURS) {
+      setProblem(t('overview.reading.tooHigh', { max: formatHours(PLAN_READING_MAX_HOURS, locale) }));
+      return;
+    }
 
     setProblem(null);
     record.mutate(hours);
@@ -62,9 +68,13 @@ export function PlanReadingForm({ plan }: { plan: NonNullable<Saturation['plan']
 
   // A recusa da API (400) é a mesma conferência feita lá, com o banco do
   // momento — o arco pode estar alguns minutos atrás. O resto é falha de ida.
+  // Um 400 que ainda volta depois das duas checagens acima é corrida (as horas
+  // desta API cresceram entre carregar a tela e enviar) ou um cliente velho: a
+  // mensagem cobre as duas recusas da API, em vez de afirmar uma que o status
+  // não diz.
   const serverProblem = record.isError
     ? record.error instanceof ApiError && record.error.status === 400
-      ? belowApi
+      ? t('overview.reading.refused')
       : t('overview.reading.failed')
     : null;
   const message = problem ?? serverProblem;

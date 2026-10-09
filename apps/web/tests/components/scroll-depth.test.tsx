@@ -179,6 +179,28 @@ describe('ScrollDepth — a profundidade (o numerador)', () => {
     expect(scrollEvents()).toEqual(['article_scroll_25']);
   });
 
+  it('mede de novo quando o mesmo componente passa a mostrar outro conteúdo', () => {
+    // Revisão da Fase 13: a visualização já era "uma por conteúdo", e os
+    // limiares eram "uma vez por montagem". Se o React reaproveitar o
+    // componente entre duas matérias, quem leu a primeira até o fim nunca
+    // registraria rolagem na segunda — e o par (visualização, 90%) mentiria.
+    const body = mountBody({ top: -10, height: 400 });
+
+    const { rerender } = render(
+      <ScrollDepth contentId='c1' contentType='story' targetId='corpo' />,
+    );
+    scroll();
+    expect(scrollEvents()).toHaveLength(3);
+
+    track.mockClear();
+    rerender(<ScrollDepth contentId='c2' contentType='story' targetId='corpo' />);
+    placeBody(body, { top: -10, height: 400 });
+    scroll();
+
+    expect(track).toHaveBeenCalledWith('article_view', { contentId: 'c2', contentType: 'story' });
+    expect(track).toHaveBeenCalledWith('article_scroll_90', { contentId: 'c2', contentType: 'story' });
+  });
+
   it('dispara cada limiar uma vez só', () => {
     // Voltar para cima e descer de novo não é uma segunda leitura.
     const body = mountBody({ top: 0, height: 2000 });
