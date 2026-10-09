@@ -9166,6 +9166,33 @@ promoções #215, #251, #272 e #277.
   botão do GitHub só faz merge limpo; o gatilho é a próxima sincronização
   `main → dev` com conflito.
 
+### 96. A Veja Saúde fica, e a falha rápida de rede do feed ganha uma nova tentativa ✅ 2026-10-09
+
+O 13.5 da §23 do plano de observabilidade (branch
+`observability/fase-13e-feed-failures`). A §23 pedia medir o feed de um
+datacenter e decidir se a Veja Saúde saía, como o Drauzio saiu no #243.
+
+- **A `SourceHealth` de produção respondeu antes da medição** (MCP do Neon,
+  só leitura): a Veja Saúde **passou em 6 de 8 runs** de outubro, com as
+  falhas em 01/10 e 05/10 (`fetch failed`, ~1,7 s). **Cinco feeds** falharam
+  do mesmo jeito em 9 dias — Folha 3, Veja Saúde 2, Olhar Digital 1,
+  Trivela 1, Drauzio no último run com ele —, entre 0,8 e 2,2 s, **nunca dois
+  dias seguidos**, e **a etapa 1 saiu degradada em 5 de 9 dias**. Bloqueio de
+  datacenter falha todo dia; isto é rede. A medição no runner perdeu o objeto.
+- **E o dado não dizia mais por dois motivos:** o `failureReason` gravava só
+  `fetch failed` (o undici põe o motivo no `cause`, que só ia ao log do
+  Render), e não havia nova tentativa nenhuma.
+- **Decidido pelo dono em 09/10:** a fonte fica; o `TypeError` do próprio
+  `fetch()`, abaixo de 5 s, repete uma vez depois de 2 s — prazo estourado,
+  XML inválido e falha lenta não; o `failureReason` passa a dizer
+  `fetch failed (ECONNRESET)`.
+- **Guardas:** 8 testes no `rss.provider.test.ts` (5 vistos reprovando; os 3
+  de "não repete" são segurados por mutação). Mutações **A1.97–A1.101**.
+  **1.490 → 1.498 na API.**
+- **Depois da promoção:** menos dias de `FAILED` na `SourceHealth`, e a causa
+  gravada. **Gatilho para reabrir:** uma fonte com `FAILED` em mais de dois
+  dias de uma semana com a nova tentativa no ar.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

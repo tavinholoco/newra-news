@@ -5186,6 +5186,40 @@ promoção da fase).** Item **95** do `docs/progress.md`. O 13.6.
   sincronização `main → dev` por `git merge` local, com conflito.
   Depois, a promoção: a medição na `main`.
 
+**O que o 13.5 decidiu — 09/10/2026 ✅ (na `dev`; sobe na segunda
+promoção da fase).** Item **96** do `docs/progress.md`.
+
+- **A medição descartável no runner do GitHub não foi feita, porque a
+  `SourceHealth` de produção já respondia a pergunta** (lida pelo MCP do
+  Neon, só leitura). A Veja Saúde **passou em 6 de 8 runs** de outubro
+  (42–48 itens, ~8 s), e as duas falhas (01/10 e 05/10) foram `fetch failed`
+  em ~1,7 s, em dias soltos. Bloqueio de datacenter falha **todo** dia — o
+  Drauzio falhava 9 de 12. E o padrão não era dela: **cinco feeds**
+  falharam assim em 9 dias (Folha 3, Veja Saúde 2, Olhar Digital 1,
+  Trivela 1, e o Drauzio no último run com ele), entre 0,8 e 2,2 s, nunca
+  dois dias seguidos — e **a etapa 1 saiu degradada em 5 de 9 dias**
+  (`PIPELINE_STAGE_DEGRADED · stage-1` no `ErrorEvent`).
+- **Dois achados que explicavam por que o dado não dizia mais:** o
+  `failureReason` gravava só `err.message`, que para o undici é **sempre**
+  `fetch failed` — o motivo (reset, DNS, TLS) mora no `cause`, que só ia ao
+  log do Render, já rolado; e **não havia nova tentativa**: o espirro de um
+  segundo tirava a fonte do briefing pelo dia.
+- **Decidido pelo dono em 09/10: a Veja Saúde fica, e a falha rápida ganha
+  uma nova tentativa.** A regra é estreita: só o `TypeError` que o próprio
+  `fetch()` lança, e só abaixo de 5 s, repete uma vez depois de 2 s. O prazo
+  estourado não repete (mais 30 s no cron), o XML que não parseia não repete
+  (a resposta chegou), a falha lenta não repete. O `failureReason` passa a
+  dizer `fetch failed (ECONNRESET)` — `describeFeedFailure`, exportado.
+- **Guardas e mutações:** 8 testes novos no `rss.provider.test.ts` (5 vistos
+  reprovando; os 3 de "não repete" passavam antes por não haver tentativa
+  nenhuma, e são segurados pelas mutações A1.98 e A1.99); mutações
+  **A1.97–A1.101**. **1.490 → 1.498 na API.**
+- **O que conferir depois da promoção:** os dias com `FAILED` por fonte na
+  `SourceHealth` (eram 8 em 9 dias de outubro) e a causa que aparece no
+  `failureReason`. **Gatilho para reabrir:** uma fonte com `FAILED` em mais
+  de dois dias de uma semana **com a nova tentativa no ar** — aí a causa
+  gravada diz se é a fonte (DNS, TLS, recusa) ou a rede do Render.
+
 ### O que fica de fora, e por quê
 
 - **`fastify@5` e `next@15`** — majors com dívidas próprias e gatilhos
@@ -5207,7 +5241,8 @@ promoção da fase).** Item **95** do `docs/progress.md`. O 13.6.
 | ~~**13b**~~ ✅ 09/10 | 13.2 (o denominador) **e o 13.9** (as horas por dia na `/admin`). Promovido no #277 (09/10); a primeira leitura (169,72 h) entrou no mesmo dia | a decisão do dono sobre o `NetsheetEngine` — tomada em 07/10: leitura digitada |
 | ~~**13c**~~ ✅ 09/10 | 13.4 (a métrica de leitura): `webdriver` recusado, a rolagem como prova de leitor, e `article_view` como denominador. Na `dev`; sobe na segunda promoção | o inventário dos eventos — medido nas ferramentas; o cruzamento com produção fica para depois da promoção |
 | ~~**13d**~~ ✅ 09/10 | 13.6 (o Gitleaks): o `push` roda o binário sobre `before..after`; a action fica no PR. Na `dev`; sobe na segunda promoção | — |
-| — | 13.3, 13.5, 13.7 | uma semana da série do 13a; 04/10; a decisão do dono |
+| ~~13.5~~ ✅ 09/10 | a Veja Saúde fica; a falha rápida de rede do feed ganha uma nova tentativa, e a causa do undici vai para o `failureReason`. Na `dev`; sobe na segunda promoção | a decisão do dono — tomada em 09/10, sobre a `SourceHealth` de produção |
+| — | 13.3, 13.7 | uma semana da série do 13a (~17/10); a decisão do dono |
 | — | 13.8, ~~13.9~~, ~~13.10~~ | o gatilho da armadilha 45; ~~uma semana de `DailyUptime`~~ (no 13b); ~~junto do 13a~~ (no 13a) |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.
@@ -5218,28 +5253,26 @@ próximo apagão de doze dias num e-mail na mesma manhã.
 
 > Vamos continuar a **Fase 13** do `docs/Newra-News-Observability-Plan.md`.
 > Leia o §19 (o ritual), a §23 (esta fase — o 13a′ e o 13a fecharam em
-> 07/10, o 13b, o 13c e o 13d em 09/10; leia os cinco blocos "O que o PR …
-> decidiu") e o §17 (armadilhas, até a 47). O que sobra da fase não é PR de
-> código pronto: é **o 13.5 (a Veja Saúde) medido de um datacenter e levado
-> a mim para decidir**, **o 13.7 (os fluxos autenticados do Smoke) como
-> decisão minha**, e **o 13.3 com uma semana da série do batimento** (~17/10).
+> 07/10, o 13b, o 13c, o 13d e o 13.5 em 09/10; leia os blocos "O que o
+> PR … decidiu" e "O que o 13.5 decidiu") e o §17 (armadilhas, até a 47). O
+> que sobra da fase: **o 13.7 (os fluxos autenticados do Smoke) como decisão
+> minha**, **o 13.3 com uma semana da série do batimento** (~17/10), e a
+> **segunda promoção** (13c, 13d e 13.5).
 > Comece conferindo as execuções **agendadas** do Heartbeat (desde 10/10
 > 12:40 UTC): verdes, e a linha `heartbeat api_ms=…` no log. Antes de
 > qualquer escrita em produção, me pergunte.
 >
-> **O que a sessão fria precisa saber:** o 13c e o 13d estão na `dev` (#280
-> e o PR do 13d, empilhado nele) e sobem juntos na **segunda promoção** da
-> fase. Depois dela: (a) o resumo do job `gitleaks-push` no push da `main`
+> **O que a sessão fria precisa saber:** o 13c, o 13d e o 13.5 estão na
+> `dev` e sobem juntos na **segunda promoção** da fase. Depois dela, além do
+> que segue: a `SourceHealth` com menos dias de `FAILED` e a causa no
+> `failureReason`. Depois dela: (a) o resumo do job `gitleaks-push` no push da `main`
 > tem de dizer o número de commits da promoção, não zero (na `dev` já disse:
 > o merge do #281 deu 3 commits, 2 varridos);
 > (b) uma execução do Lighthouse sem nenhuma linha de `ProductEvent` na
 > janela dela, e o `article_view` aparecendo — pelo **MCP do Neon**, que o
 > dono conectou em 09/10 (`mcp__Neon__run_sql`, projeto
 > `rapid-art-19064809`; o `neonctl connection-string` é recusado pelo
-> classificador). O 13.5 pede rodar o feed num runner do GitHub: um
-> `workflow_dispatch` só dispara do branch padrão, então a medição
-> descartável vai por `pull_request` num PR de rascunho que não mergeia. O
-> Auto-fix do CI fica desligado. Pendência do dono que não trava nada:
+> classificador). O Auto-fix do CI fica desligado. Pendência do dono que não trava nada:
 > reler o Billing por volta de 16/10 (o gatilho da contagem automática,
 > §16).
 >
