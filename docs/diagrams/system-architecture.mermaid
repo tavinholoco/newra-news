@@ -1,6 +1,8 @@
 %% Diagrama de Arquitetura do Sistema — Newra News
 %% ---
-%% Atualizado em 01/09/2026, depois das Fases 0–12 da V2. Este é o mapa de
+%% Atualizado em 01/09/2026, depois das Fases 0–12 da V2, e em 10/10/2026 com o
+%% que o plano de observabilidade pôs em volta: o Heartbeat de fora, a sonda do
+%% login e os passos 3 e 4 do cron. Este é o mapa de
 %% caixas grandes: o detalhe das rotas do frontend está em
 %% `frontend-routes.mermaid`, o da sessão em `auth-flow.mermaid`, e o do
 %% pipeline em `pipeline-sequence.mermaid`.
@@ -17,6 +19,7 @@ flowchart TB
         PRIV["Rotas de conta e admin<br/>(exigem sessão)"]
         BFF["BFF — app/api/*<br/>assina um JWT por requisição —<br/>menos /events e /errors/client, anônimas"]
         CR["API Route<br/>/api/cron/daily-news"]
+        PROBE["Sonda do login<br/>/api/health/auth · ISR de um dia"]
         W --- PUB
         W --- PRIV
         PRIV --> BFF
@@ -45,6 +48,14 @@ flowchart TB
     VC["Vercel Cron<br/>0 11 * * * UTC = 08:00 BRT"] -->|"GET /api/cron/daily-news<br/>Bearer CRON_SECRET"| CR
     CR -->|"1 · GET /api/health<br/>acorda a instância"| API
     CR -->|"2 · POST /api/jobs/daily-pipeline<br/>Bearer JOB_SECRET"| API
+    CR -->|"3 · GET /api/jobs/:id até o run fechar"| API
+    CR -->|"4 · invalida pela rota irmã e pede as páginas do dia,<br/>conferindo a marca do run"| PUB
+    CR -.->|"4 · regenera"| PROBE
+    PROBE -->|"JWT purpose health-probe"| API
+
+    HB["GitHub Actions · Heartbeat<br/>12:40 UTC — o job reprovado é o e-mail"]
+    HB -->|"site · as duas Homes · a sonda do login"| W
+    HB -->|"/api/health · o briefing de hoje<br/>(e se é suspensão do Render)"| API
 
     PUB -->|"HTTP REST · JSON"| API
     BFF -->|"Bearer JWT · AUTH_JWT_SECRET"| API

@@ -14,7 +14,7 @@ import { SOURCE_HEALTH_RETENTION_DAYS } from '../../src/services/source-health.s
 /**
  * A guarda contra a retenção que envelhece em prosa.
  *
- * A etapa 8 apaga seis tabelas por idade, e o número de cada uma está escrito
+ * A etapa 8 apaga sete tabelas por idade, e o número de cada uma está escrito
  * — em dias — em documentos que a etapa não abre: os dois diagramas do
  * pipeline, a seção "Pipeline Diário" do `apps/api/CLAUDE.md` e a lista de
  * models do `packages/database/CLAUDE.md`. A verificação pós-merge do 5a
@@ -108,6 +108,17 @@ const AFIRMACOES: Record<string, Claim[]> = {
     { pattern: /ErrorEvent \((\d+)d\)/g, expected: ERROR_EVENT_RETENTION_DAYS },
     { pattern: /AuditEvent \((\d+)d\)/g, expected: AUDIT_EVENT_RETENTION_DAYS },
     { pattern: /SourceHealth \((\d+)d\)/g, expected: SOURCE_HEALTH_RETENTION_DAYS },
+  ],
+  // A tabela da retenção, reescrita em 09/10/2026 — a versão da V1 dizia
+  // "DailyMetric indefinida" e não conhecia quatro das sete tabelas.
+  'docs/architecture.md': [
+    { pattern: /^\| News \| (\d+) dias/gm, expected: NEWS_RETENTION_DAYS },
+    { pattern: /^\| PipelineLog \| (\d+) dias/gm, expected: PIPELINE_LOG_RETENTION_DAYS },
+    { pattern: /^\| Article \| (\d+) dias/gm, expected: ARTICLE_RETENTION_DAYS },
+    { pattern: /^\| ProductEvent \| (\d+) dias/gm, expected: PRODUCT_EVENT_RETENTION_DAYS },
+    { pattern: /^\| ErrorEvent \| (\d+) dias/gm, expected: ERROR_EVENT_RETENTION_DAYS },
+    { pattern: /^\| AuditEvent \| (\d+) dias/gm, expected: AUDIT_EVENT_RETENTION_DAYS },
+    { pattern: /^\| SourceHealth \| (\d+) dias/gm, expected: SOURCE_HEALTH_RETENTION_DAYS },
   ],
   'README.md': [{ pattern: /cleaned up after (\d+) days/g, expected: NEWS_RETENTION_DAYS }],
   'README.pt-BR.md': [{ pattern: /expurgados após (\d+) dias/g, expected: NEWS_RETENTION_DAYS }],

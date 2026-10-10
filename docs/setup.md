@@ -255,15 +255,25 @@ Isso inicia os dois apps via Turborepo:
 ## 6. Testes, lint e build
 
 ```bash
-pnpm test                      # Vitest (API + web, via turbo)
+pnpm test                      # Vitest (API + web, via turbo) — sem banco e sem rede
 pnpm --filter @newranews/api test:coverage   # testes + cobertura (threshold 70%)
+pnpm --filter @newranews/web test:coverage   # idem, no web
 pnpm lint                      # ESLint no monorepo
+pnpm turbo typecheck           # tsc por pacote (o `pnpm build` tipa só o `src/`)
 pnpm build                     # build de produção (todos os apps)
+pnpm guard:mutations           # quebra cada comportamento guardado e confere que a guarda reprova
 ```
 
 > No CI (GitHub Actions), a cobertura é obrigatória: `pnpm turbo test:coverage`
-> falha se cair abaixo de 70%. O Lighthouse é auditado semanalmente contra a
-> produção (workflow `lighthouse.yml`).
+> falha se cair abaixo de 70%, e o `pnpm audit --audit-level=high --prod`
+> reprova advisory nova em dependência de produção (as aceitas, com motivo e
+> gatilho, estão em `docs/security-advisories.md`). O Lighthouse é auditado
+> toda segunda às 12:00 UTC contra a produção (workflow `lighthouse.yml`).
+>
+> **Guarda nova se vê reprovando antes de valer** (o ritual do §19 do plano de
+> observabilidade): escreva o teste, quebre o código, confirme a reprovação, e
+> registre a quebra em `scripts/guard-mutations.mjs` — o script só aplica
+> mutação sobre arquivo commitado.
 
 ---
 
@@ -275,12 +285,21 @@ Para disparar manualmente:
 ```bash
 curl -X POST http://localhost:3001/api/jobs/daily-pipeline \
   -H "Authorization: Bearer <SEU_JOB_SECRET>"
-# → { "status": "started", "pipelineId": "uuid" }
+# → { "outcome": "started | already-running | already-succeeded-today",
+#     "pipelineId": "uuid", "startedAt": "..." }
 
-# Acompanhar a execução
-curl http://localhost:3001/api/jobs/<pipelineId>
+# Acompanhar a execução (exige o segredo desde a Fase 9 da V2)
+curl http://localhost:3001/api/jobs/<pipelineId> -H "Authorization: Bearer <SEU_JOB_SECRET>"
 # → { "data": { "status": "SUCCESS | RUNNING | FAILED", ... } }
 ```
+
+> **É idempotente por dia.** Um run de hoje já em `SUCCESS` devolve
+> `already-succeeded-today` e não roda nada; em `RUNNING`, `already-running`
+> — e um `RUNNING` há mais de 15 min é enterrado como morto antes do disparo
+> seguinte. Re-disparar depois de um `FAILED` roda de novo; **quando quem
+> falhou foi o portão de saída por segurança** (`PIPELINE_GATE_BLOCKED` com
+> `unanchored-url`, `copied-url` ou `envelope-leak`), rodar de novo repete o
+> ataque — o mesmo material volta ao modelo, e o portão bloqueia outra vez.
 
 Diagnóstico rápido das chaves dos providers (NewsData, Gemini, Groq):
 
@@ -289,7 +308,20 @@ curl http://localhost:3001/api/health/providers -H "Authorization: Bearer <SEU_J
 # → { "newsdata": "ok", "gemini": "ok", "groq": "ok" }
 ```
 
-Observabilidade da pipeline (dev-only, protegida por `JOB_SECRET`):
+**O painel de admin é o lugar de ler o pipeline** (plano de observabilidade):
+com uma conta ADMIN, `http://localhost:3000/pt-BR/admin` tem três abas —
+*Painel* (runs com o desfecho, a faixa de 30 dias, as horas do plano),
+*Métricas* (os quatro sinais, produto, saúde por fonte) e *Logs e segurança*
+(falhas por fingerprint, auditoria, invariantes, portões). O seed popula as
+tabelas de observabilidade, então o painel tem o que desenhar sem rodar o
+pipeline. Para fotografar as três abas sem fazer login:
+
+```bash
+pnpm --filter @newranews/web admin:capture   # só localhost; NEXTAUTH_SECRET local ≠ produção
+```
+
+O caminho por segredo continua, e é o que funciona **quando não há sessão**
+(o provedor de login quebrado é justamente quando se precisa dele):
 
 ```bash
 # Últimos runs + erros recentes (filtros: ?status=FAILED&since=2026-08-01&limit=20)
@@ -298,8 +330,12 @@ curl http://localhost:3001/api/dev/logs -H "Authorization: Bearer <SEU_JOB_SECRE
 # Detalhe de um run com os eventos por etapa
 curl http://localhost:3001/api/dev/logs/<pipelineId> -H "Authorization: Bearer <SEU_JOB_SECRET>"
 
-# Painel HTML no browser
-# http://localhost:3001/dev/dashboard?secret=<SEU_JOB_SECRET>
+# Painel HTML: abrir http://localhost:3001/dev/dashboard e digitar o segredo no
+# formulário (vira um cookie HttpOnly de prazo curto). O `?secret=` na URL saiu
+# na Fase 9 da V2 — segredo em query string entra em log, histórico e Referer.
+
+# Ensaiar os dois portões do pipeline contra os briefings gravados
+pnpm --filter @newranews/api gates:rehearse
 ```
 
 Auth local (OAuth): logar em `http://localhost:3000/pt-BR/signin` com
@@ -320,11 +356,18 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
 | Conteúdo com `ONLY AVAILABLE IN PAID PLANS` | Tier free da NewsData (placeholder) | Normal — o provider já converte para `null` |
 | Notícia repetida no feed (mesma URL 2×) | Pipeline rodou 2x no mesmo dia antes do fix de duplicatas | Rodar `db:cleanup-news-duplicates` (seção 4) e aplicar o schema atualizado |
 | `pnpm install` demora/erro de rede | Cache pnpm corrompido | `pnpm install --force` ou apagar `node_modules` |
+| Run `FAILED` na etapa 5.5 ou 6.5 | Um dos portões bloqueou (`PIPELINE_GATE_BLOCKED`, com o motivo no `route`) | `/admin/security` → painel "Portões" e a tabela de falhas. Na 5.5, a colheita estava ruim; na 6.5 por segurança, **não re-dispare** — o mesmo material bloquearia de novo |
+| Run `SUCCESS_DEGRADED` na `/admin` | Uma etapa engoliu a própria falha com `WARN` (o fallback para o Groq, uma fonte em falha, a newsletter…) | O `degradedBy` diz quais; o detalhe do run mostra o evento. Três dias seguidos pela mesma etapa é o gatilho do §16 do plano |
+| `pnpm test` falha no `prisma generate` | Dev server de pé segurando a DLL do Prisma (Windows) | Parar o `pnpm dev` antes da suíte |
+| Heartbeat reprovou (e-mail "Run failed: Heartbeat") | Uma das seis perguntas de fora falhou | O resumo do job diz qual — site, API (e se é suspensão do Render), briefing, Homes, login, último push |
 
 ---
 
 ## 9. Deploy (resumo)
 
+- **Integração** → todo PR entra na `dev`; a `main` — o que está no ar — só
+  recebe promoção `dev → main`, e é esse merge que publica (política no
+  `CLAUDE.md` da raiz)
 - **Frontend** → Vercel (repo conectado; cron em `vercel.json`)
 - **Backend** → Render (blueprint `render.yaml`; deploy automático a partir da `main`)
 - **Banco** → Neon (PostgreSQL serverless); migrations aplicadas pelo workflow `migrate.yml` (`pnpm db:migrate:deploy`), disparado em push na `main` quando o schema ou as migrations mudam
@@ -332,6 +375,11 @@ no **próximo sign-in** (sair e entrar de novo após mudar a lista).
   tráfego e acorda na primeira requisição; quem precisava dela quente — o
   pipeline e o gate do Lighthouse — acorda sozinho. Ver §9.0, com os números e
   as duas tentativas que falharam antes
+- **Alerta** → o workflow `heartbeat.yml`, todo dia às 12:40 UTC, pergunta de
+  fora se o site, a API, o briefing de hoje, as duas Homes, o login e a
+  atividade do repositório respondem; **o job reprovado é o e-mail** do GitHub
+  (Settings → Notifications → Actions → falhas, por e-mail). Para ensaiar:
+  Actions → Heartbeat → Run workflow → `rehearse_failure`
 
 Detalhes completos: `docs/PRD-NewraNews_V1.1.md` §13.
 

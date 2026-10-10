@@ -7,10 +7,15 @@
 
 ## Fase Atual
 
-> **Onde estamos, em uma linha (24/08/2026):** V2.0 com as **Fases 0 a 11
-> concluídas**; a **12 (ajustes finos e release final)** é a última e pode abrir.
-> O detalhe de cada uma está nos itens numerados abaixo — as quatro finais são
-> **34** (backend review), **35** (frontend review) e **36** (integração geral).
+> **Onde estamos, em uma linha (10/10/2026):** V2.0 com as **Fases 0 a 12
+> concluídas** e a **13 (release final)** por abrir; o **plano de
+> observabilidade** (itens **47–99**) com as Fases 1–12 fechadas e a 13 no ar
+> inteira menos o 13.3 (~17/10) — o que sobra, com data ou gatilho, está em
+> "O que sobra", no fim da §23 do plano. O detalhe de cada fase está nos
+> itens numerados abaixo.
+>
+> *(A linha de 24/08/2026 dizia: "Fases 0 a 11 concluídas; a 12 é a última e
+> pode abrir" — a numeração das fases finais mudou em 25/08.)*
 >
 > **O que segue nesta seção é um log de anexação, não uma ordem.** As entradas
 > foram acrescentadas conforme cada fase fechou e não estão em ordem
@@ -9227,11 +9232,90 @@ de produção no CI.
   e um `checkedAt` novo a cada pedido — cada um chamava o Render). Corrigido
   com `next: { revalidate: 86400 }` (build `○`), guarda no
   `rendering-mode.test.ts` e mutação A1.107, num PR próprio.
-- **Depois da promoção da correção:** dois pedidos seguidos com o mesmo
-  `checkedAt` e `HIT` no segundo; a rota com `"ok":true` e o `checkedAt` do
-  dia depois do cron; e a pergunta `login` do Heartbeat verde. **Gatilho para reabrir a decisão:**
+- **A correção promovida no #287 (23:19 UTC) e medida:** às 23:15, antes,
+  `MISS`/`MISS` com dois `checkedAt`; às 23:20, `PRERENDER`/`HIT` com o mesmo
+  `checkedAt` (23:19:56, a sonda do build, `"ok":true`). Fica a pergunta
+  `login` do Heartbeat de 10/10. **Gatilho para reabrir a decisão:**
   leitores com conta de verdade, ou um defeito do caminho logado que a sonda
   não pegue — e aí com um ambiente de teste de segredo próprio.
+
+### 98. A revisão do código da Fase 13, e a terceira promoção ✅ 2026-10-09
+
+A pedido do dono, entre a segunda e a terceira promoção: o código de produção
+de #271 a #286 lido de novo, cruzando as peças que conversam entre si (#286,
+promovido no #287).
+
+- **Defeito de produto:** o teto de 1.000 h da leitura do Billing só na API,
+  e o formulário lendo todo 400 como "abaixo das horas desta API" — o
+  `12427` no lugar de `124,27` recebia a mensagem oposta. Hoje o teto é
+  `PLAN_READING_MAX_HOURS` em `packages/types`, conferido pela tela.
+- **Inconsistências:** `UptimeSeries` duplicada (API e `packages/types`); o
+  JSDoc de `getMonthUptimeSeconds` órfão; o `ScrollDepth` com a visualização
+  por conteúdo e os limiares por montagem (latente). E prosa velha: "dez
+  páginas", "a quinta pergunta", "os 14 do catálogo", o diagrama de sessão
+  sem `health-probe`.
+- **No mesmo PR:** a armadilha 48 (a sonda do login dinâmica por um
+  `no-store`) e o pulo do Smoke escrito como decisão.
+- **As 48 mutações da fase rodadas juntas: 50/50.** Novas: A1.107–A1.109.
+  **1.527 na API, 1.023 no web.**
+- **Terceira promoção, #287 (`4cdc121`, 23:19:17 UTC), medida:** a sonda
+  `PRERENDER`/`HIT` com o mesmo `checkedAt`; Gitleaks no push da `main` com
+  `d999643..4cdc121` = **5 commits, 2 merges, 3 varridos**, sem vazamento;
+  **um processo novo da API às 23:20:41**, 84 s depois do merge (o mesmo
+  intervalo da #285) — o código que lê o teto de `packages/types` bootou;
+  `POST /api/admin/plan-hours` e `GET /api/health/auth` em 401 sem
+  credencial; **Smoke 32/6**, com o pulo saindo "por decisão (13.7)". A
+  `dev` foi realinhada.
+
+### 99. A varredura do que o plano de observabilidade fez ao projeto — e a conferência que reprovou ✅ 2026-10-10
+
+A pedido do dono, depois do #288: anotar no plano o que falta e deixar todo
+documento vivo do projeto dizendo o que o plano entregou.
+
+- **As pendências num lugar só:** "O que sobra", no fim da §23 do plano —
+  com data (a sonda e o Heartbeat de 10/10, o `article_view` e a
+  `SourceHealth` da primeira semana, a releitura do Billing ~16/10, o 13.3
+  ~17/10, o Ubuntu 26 em 19/10), com gatilho (oito linhas, todas no §16 — o
+  13a′, o 13.8, o 13.9, o 13.5 e o 13.7 só moravam nos blocos da §23 e
+  ganharam linha lá) e fora do plano (a newsletter, a release da V2,
+  `fastify@5`/`next@15`). O estado no topo do plano e o §19 (Fases 12 e 13)
+  estavam em 01/10 e 24/09.
+- **A guarda da contagem de feeds tinha furo:** o README dizia "twelve
+  Brazilian and international RSS feeds" (são onze) e o `feed-count-drift`
+  passava — o padrão exigia o numeral colado em `feeds`. A terceira forma
+  (até três palavras, só com `RSS` antes de `feeds`) entrou, vista reprovando
+  sobre o README.
+- **`docs/architecture.md` ainda descrevia a V1** (nove etapas, sem contas,
+  sem painel, "DailyMetric indefinida" como toda a retenção). Reescrito contra
+  o código — estrutura, as 14 etapas, o fluxo de erro, as três abas, o que
+  mede de fora — e a tabela de retenção entrou no `retention-drift`.
+- **Os READMEs, a apresentação, o setup e o CONTRIBUTING** ganharam o que o
+  plano fez: os portões, as três abas, a observabilidade, o Heartbeat com a
+  sonda do login, `guard:mutations`/`gates:rehearse`/`admin:capture`, CodeQL e
+  Dependabot. Velhos: "seis workflows … Keep-alive" e o keep-alive "janelado"
+  na apresentação, a `dev` "parada desde a V1", a API "suspensa desde 29/08",
+  o `?secret=` do `/dev/dashboard` e o disparo devolvendo `status` no setup.
+  Dois diagramas (arquitetura e sequência do pipeline) ganharam o fim do cron
+  e o Heartbeat — o de sequência dizia que só `started` invalida a ISR —,
+  conferidos pelo `mermaid.render`.
+- **A conferência (a) do 13c reprovou**, num Lighthouse disparado à mão (run
+  38014345418): **cinco `homepage_view`** na janela, um por carga da Home —
+  o `HeadlessChrome/154` do runner não declara a automação (o 13c tinha
+  medido o lhci local). `--enable-automation` no `.lighthouserc.json`, guarda
+  e mutação **A1.110**, e **provado antes do merge** num Lighthouse disparado
+  da branch (run 38018246130): **zero** linhas em 12 cargas, com o controle
+  positivo — uma visita real gravou um `homepage_view` às 02:53:30.
+- **O mesmo run mediu cinco rotas, não sete**: o passo das rotas de detalhe
+  tinha 20 s contra uma acordada de ~43 s. Agora acorda com 75 s antes.
+  Medianas da branch: 95 · 92 · 94 · 96 · 93 · 96 · 95, a11y/BP/SEO 100.
+- **Medidos para os documentos:** cobertura da API **98,63 · 94,01 · 99,69**
+  e do web **80,05 · 91,19 · 80,32** (era 74 % em 07/09); produção com 7.386
+  notícias de 123 veículos, 77 briefings, e de 01/10 a 09/10 um briefing por
+  dia (mediana de 548 colhidas, 8 pelo Gemini e 1 pelo Groq).
+- **Testes: 1.529 na API, 1.024 no web** (2.553 em 194). O
+  `bff-error-log` ("news sitemap") falhou uma vez na suíte cheia e passa
+  sozinho — o `import` frio da rota sob as duas suítes em paralelo;
+  anotado, sem mudança.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

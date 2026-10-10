@@ -79,15 +79,23 @@ const POR_EXTENSO: Record<string, number> = {
 const NUMERAL = String.raw`\d{1,3}|onze|doze|treze|quatorze|catorze|quinze|eleven|twelve|thirteen|fourteen|fifteen`;
 
 /**
- * "12 feeds", "doze feeds", "twelve RSS feeds", "(12 fontes)".
+ * "12 feeds", "doze feeds", "twelve RSS feeds", "(12 fontes)" — e
+ * "twelve Brazilian and international RSS feeds".
  *
  * O `fontes` exige parênteses **fora do escopo de RSS**: solto, ele casaria com
  * as **87 fontes** distintas do acervo que a armadilha do `CLAUDE.md` cita, que
  * é outro número e está certo.
+ *
+ * **A terceira forma entrou na varredura de 09/10/2026, e por um furo:** o
+ * README dizia "twelve Brazilian and international RSS feeds" desde a saída do
+ * Drauzio (são 11), e a guarda passava verde — o padrão exigia o numeral
+ * colado em `feeds`. Até três palavras no meio, **só com `RSS` antes de
+ * `feeds`**: sem essa âncora, "etapa 1 só com feeds vazios" (o `CLAUDE.md`)
+ * viraria contagem.
  */
 const CONTAGEM_ESCRITA = new RegExp(
-  String.raw`\b(${NUMERAL})\s+(?:RSS\s+)?feeds\b|\((${NUMERAL})\s+fontes\)`,
-  'gi',
+  String.raw`\b(${NUMERAL})\s+(?:RSS\s+)?feeds\b|\((${NUMERAL})\s+fontes\)|\b(${NUMERAL})\s+(?:[\p{L}-]+\s+){1,3}RSS\s+feeds\b`,
+  'giu',
 );
 
 /**
@@ -152,6 +160,18 @@ describe('a contagem de feeds escrita em prosa acompanha rss-sources.ts', () => 
     expect(esperado).toBeGreaterThan(0);
   });
 
+  it('acha a contagem com palavras entre o número e "RSS feeds" — o furo de 09/10', () => {
+    const { texto } = textoCorrido('from NewsData.io and twelve Brazilian and international RSS feeds');
+    const achados = [...texto.matchAll(CONTAGEM_ESCRITA)];
+
+    expect(achados).toHaveLength(1);
+    expect(valorDe(achados[0]![3]!)).toBe(12);
+    // Sem `RSS` antes de `feeds`, uma etapa numerada não vira contagem.
+    expect([...textoCorrido('a etapa 1 só com feeds vazios').texto.matchAll(CONTAGEM_ESCRITA)]).toEqual(
+      [],
+    );
+  });
+
   it('acha uma contagem quebrada entre duas linhas — o furo de 04/09', () => {
     const { texto, inicios } = textoCorrido(
       ['// prende a etapa 1 do pipeline sem teto — e treze', '// fontes em paralelo bastam.'].join(
@@ -176,7 +196,7 @@ describe('a contagem de feeds escrita em prosa acompanha rss-sources.ts', () => 
 
     for (const padrao of padroes) {
       for (const casamento of texto.matchAll(padrao)) {
-        const escrito = valorDe(casamento[1] ?? casamento[2] ?? '');
+        const escrito = valorDe(casamento[1] ?? casamento[2] ?? casamento[3] ?? '');
         if (escrito !== esperado) {
           divergentes.push(
             `${relativo}:${linhaDe(casamento.index!, inicios)}  "${casamento[0].trim()}"`,

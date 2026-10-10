@@ -46,10 +46,12 @@ O Newra News coleta centenas de matérias por dia da NewsData.io e de onze feeds
 
 O ponto não é a automação — é que o leitor possa confiar no que sai dela. As fontes são nomeadas, a data de geração fica visível, o modelo é declarado, e tudo o que o pipeline tocou continua a um clique de distância.
 
+Como o briefing vai ao ar sem um humano no meio, o sistema confere o próprio trabalho. Dois portões decidem se o briefing do dia deve ser publicado, uma suíte de invariantes pergunta se a manutenção que deveria ter acontecido aconteceu, e um batimento de fora da stack manda e-mail ao dono quando o briefing de hoje falta ou uma página não o mostra.
+
 ## Funcionalidades
 
 - **Briefing diário gerado por IA** — Gemini como modelo principal e Groq como fallback, com fontes citadas e aviso explícito de geração por IA
-- **Pipeline de ingestão automático** — NewsData.io mais onze feeds RSS, normalizados, deduplicados por URL de origem e expurgados após 30 dias
+- **Pipeline de ingestão automático** — NewsData.io mais onze feeds RSS, normalizados, deduplicados por URL de origem e expurgados após 30 dias. Uma falha rápida de rede num feed ganha uma nova tentativa, e toda falha fica registrada com a causa
 - **Oito categorias** — tecnologia, política, economia, esportes, ciência, entretenimento, mundo e saúde, classificadas por palavra-chave
 - **Busca e filtros por categoria** com o recorte preservado na URL
 - **Acervo navegável por data** para todos os briefings anteriores
@@ -58,17 +60,21 @@ O ponto não é a automação — é que o leitor possa confiar no que sai dela.
 - **Bilíngue pt-BR e en** — rotas, metadados e geração estática por idioma
 - **SEO** — sitemap, news sitemap, imagens de Open Graph e metadados localizados por rota
 - **Modo escuro** seguindo a preferência do sistema, com alternância manual
-- **Painel de métricas** — execuções do pipeline e contagens de ingestão por provider e categoria, restrito ao papel ADMIN
+- **Analytics de produto com privacidade por padrão** — de primeira parte e sem cookie, sem identificador entre sessões. Respeita o Do Not Track e o Global Privacy Control, ignora navegadores que declaram automação e só conta a profundidade de leitura depois de uma rolagem de verdade, contra as matérias de fato abertas
+- **Dois portões no pipeline** — o de entrada mede a colheita (volume contra a mediana de sete dias, diversidade de fontes, frescor) antes de gastar a chamada de IA; o de saída bloqueia qualquer URL ou prompt ecoado no briefing gerado e falha o dia em vez de tentar de novo no segundo modelo
+- **Publicação que confere a si mesma** — quando o run termina com sucesso, a rota do cron pede cada página que atualizou e invalida de novo a que voltar sem o run do dia. Uma sonda diária confere que a API ainda aceita os tokens de login que o web assina, e um batimento de fora da stack manda e-mail ao dono quando o site ou a API caem, o briefing de hoje falta, ou alguma das duas Homes não o mostra
+- **Painel admin em três abas**, restrito ao papel ADMIN — *Painel* (execuções do pipeline com o desfecho derivado, a faixa de 30 dias, o tempo desde o último briefing e as horas gratuitas do workspace de hospedagem inteiro — esta API medida, os outros serviços por uma leitura do Billing que o dono registra —, com a projeção do fim do mês e duas semanas de horas por dia), *Métricas* (os quatro sinais de ouro, as métricas de produto e a saúde de cada fonte) e *Logs e segurança* (falhas agrupadas por fingerprint, a trilha de auditoria de admin, as invariantes e as decisões dos portões)
+- **Observabilidade de ponta a ponta** — log estruturado em JSON com redação de segredo, taxonomia de erro, registro durável de falha coalescido por hora, error boundaries que reportam o digest do servidor, e uma conferência de invariantes no fim de todo run
 
 ## Stack
 
 | Camada | Tecnologias |
 | --- | --- |
-| Frontend | Next.js 14.2 (App Router), React 18.3, TypeScript 5.9, Tailwind CSS 4.2, Base UI, TanStack Query 5.90, next-intl 3.26 |
-| Backend | Fastify 4.29, Node.js 22, TypeScript 5.9, Zod 3.25, next-auth 4.24 com JWT compartilhado entre os dois apps |
+| Frontend | Next.js 14.2 (App Router), React 18.3, TypeScript 5.9, Tailwind CSS 4.3, Base UI, TanStack Query 5.103, next-intl 3.26 |
+| Backend | Fastify 4.29, Node.js 22, TypeScript 5.9, Zod 3.25, pino 9, next-auth 4.24 com JWT compartilhado entre os dois apps |
 | Banco | PostgreSQL 16, Prisma ORM 5.22 |
 | IA e dados | Google Gemini (principal), Groq (fallback), NewsData.io, feeds RSS, Resend |
-| Qualidade | Vitest 2.1, Testing Library, Playwright 1.62, ESLint, Prettier, Gitleaks, Lighthouse CI |
+| Qualidade | Vitest 2.1, Testing Library, Playwright 1.63, ESLint, Prettier, Gitleaks, CodeQL, Dependabot, Lighthouse CI |
 | Infra | Turborepo, pnpm workspaces, Vercel, Render, Neon, GitHub Actions |
 
 ## Arquitetura
@@ -80,14 +86,18 @@ flowchart LR
     ING --> DEDUP[Deduplicação]
     DEDUP --> DB[(PostgreSQL)]
     DEDUP --> SEL[Seleção das 15 mais recentes]
-    SEL --> AI["Gemini, com fallback Groq"]
-    AI --> ART[Briefing do dia]
+    SEL --> GIN{Portão de entrada}
+    GIN --> AI["Gemini, com fallback Groq"]
+    AI --> GOUT{Portão de saída}
+    GOUT --> ART[Briefing do dia]
     ART --> MAIL[Newsletter]
+    MAIL --> INV[Invariantes]
     DB --> API[API Fastify]
     API --> WEB[Web Next.js]
+    ART -.->|renova as páginas do dia| WEB
 ```
 
-O pipeline roda uma vez por dia às 08:00 BRT, disparado por um cron da Vercel que acorda a API com um health check antes de disparar. Um agendador interno do Fastify aponta para o mesmo instante, mas só roda se o processo estiver de pé — no plano free ele frequentemente não está, então é caminho feliz, não rede de segurança. Ele é idempotente por dia: um segundo disparo num dia que já teve sucesso informa que não fez nada, em vez de rodar de novo. O web lê a API por geração estática com ISR, então uma página já construída continua no ar mesmo enquanto a API está indisponível.
+O pipeline roda uma vez por dia às 08:00 BRT, disparado por um cron da Vercel que acorda a API com um health check antes de disparar. Um agendador interno do Fastify aponta para o mesmo instante, mas só roda se o processo estiver de pé — no plano free ele frequentemente não está, então é caminho feliz, não rede de segurança. Ele é idempotente por dia: um segundo disparo num dia que já teve sucesso informa que não fez nada, em vez de rodar de novo. O web lê a API por geração estática com ISR, então uma página já construída continua no ar mesmo enquanto a API está indisponível — e, quando o run termina com sucesso, a rota do cron invalida as páginas do dia, pede cada uma e confere que trazem o run novo antes de responder.
 
 Seis diagramas completos estão em [`docs/diagrams/`](docs/diagrams): arquitetura do sistema, mapa de rotas do frontend, fluxo de sessão e autorização, entidade-relacionamento, sequência do pipeline e fluxo de dados diário.
 
@@ -103,8 +113,8 @@ newra-news/
 │   ├── types/            # Types TypeScript compartilhados entre os apps
 │   ├── eslint-config/    # Configuração ESLint compartilhada
 │   └── tsconfig/         # Configuração base do TypeScript
-├── docs/                 # Setup, arquitetura, API, diagramas, plano V2
-├── scripts/              # Bootstrap local e geração de assets
+├── docs/                 # Setup, arquitetura, API, diagramas, planos da V2 e de observabilidade
+├── scripts/              # Bootstrap local, ciclo do banco de dev, mutações das guardas
 └── docker-compose.yml    # PostgreSQL 16 + pgAdmin para desenvolvimento
 ```
 
@@ -215,9 +225,12 @@ O web sobe em `http://localhost:3000` e a API em `http://localhost:3001`. Em má
 | `pnpm db:seed` | Popula o banco com dados realistas |
 | `pnpm --filter @newranews/api test:coverage` | Testes da API com o piso de cobertura |
 | `pnpm --filter @newranews/web test:coverage` | Testes do web com o piso de cobertura |
+| `pnpm guard:mutations` | Quebra de propósito cada comportamento guardado e confere que a guarda reprova |
 | `pnpm --filter @newranews/api archive:hygiene` | Mede a higiene de texto do acervo contra produção |
+| `pnpm --filter @newranews/api gates:rehearse` | Ensaia os dois portões do pipeline contra os briefings gravados |
 | `pnpm --filter @newranews/web test:e2e` | Specs end-to-end do Playwright |
 | `pnpm --filter @newranews/web visual:baseline` | Captura a baseline visual das rotas públicas |
+| `pnpm --filter @newranews/web admin:capture` | Fotografa as três abas de admin em 375 e 1440px, claro e escuro, com uma sessão forjada localmente |
 | `pnpm --filter @newranews/web lighthouse:audit` | Auditoria Lighthouse contra produção |
 
 ## Testes
@@ -226,9 +239,11 @@ O web sobe em `http://localhost:3000` e a API em `http://localhost:3001`. Em má
 pnpm test
 ```
 
-**1.409 testes de unidade e integração em 127 suítes** — 804 da API em 61 suítes e 605 do web em 66. A suíte não precisa de banco nem de rede: o backend usa `fastify.inject()` e o frontend usa Testing Library sobre jsdom. A cobertura tem piso de 70% em linhas, statements, funções e branches nos dois apps, e o CI reprova abaixo disso.
+**2.553 testes de unidade e integração em 194 suítes** — 1.529 da API em 100 suítes e 1.024 do web em 94. A suíte não precisa de banco nem de rede: o backend usa `fastify.inject()` e o frontend usa Testing Library sobre jsdom. A cobertura tem piso de 70% em linhas, statements, funções e branches nos dois apps, e o CI reprova abaixo disso.
 
-A cobertura end-to-end é separada: **um arquivo de spec de Playwright por fluxo** — visitante, acervo, conta, newsletter e autorização. Elas rodam contra produção pelo workflow `Smoke E2E` a cada push na `main`, e propositalmente não fazem parte do `pnpm test`.
+Parte da suíte guarda o projeto contra ele mesmo: testes que enumeram uma superfície e exigem decisão para cada item — toda rota tem linha na [`docs/api.md`](docs/api.md) e na matriz de autorização, toda contagem escrita em prosa bate com o código que ela descreve, toda página tem modo de renderização. O `pnpm guard:mutations` quebra de propósito cada comportamento guardado e confere que a guarda de fato reprova.
+
+A cobertura end-to-end é separada: **um arquivo de spec de Playwright por fluxo** — visitante, acervo, conta, newsletter e autorização. Elas rodam contra produção pelo workflow `Smoke E2E` a cada push na `main`, e propositalmente não fazem parte do `pnpm test`. Os fluxos com login (conta e admin) ficam pulados por decisão: rodá-los poria o segredo de sessão de produção no CI. O caminho do login é conferido todo dia por uma sonda — `/api/health/auth`, que pede à API para aceitar um token assinado pelo web.
 
 ```bash
 pnpm --filter @newranews/web test:e2e
@@ -238,11 +253,11 @@ pnpm --filter @newranews/web test:e2e
 
 | Componente | Onde | Como |
 | --- | --- | --- |
-| Web | Vercel | Deploy a cada push na `main`. Geração estática com ISR, mais um cron que chama `/api/cron/daily-news` às 11:00 UTC |
+| Web | Vercel | Deploy a cada push na `main`. Geração estática com ISR, mais um cron que chama `/api/cron/daily-news` às 11:00 UTC e renova as páginas do dia quando o run termina com sucesso |
 | API | Render | Blueprint `render.yaml`, plano free, health check em `/api/health` |
 | Banco | Neon | PostgreSQL gerenciado. Migrations aplicadas pelo workflow `Migrate`, nunca de máquina local |
 
-Sete workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build e um `pnpm audit` que reprova qualquer advisory *high* em dependência de produção), `Gitleaks` (varredura de segredos), `CodeQL` (análise estática dos dois apps), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria), `Migrate` e `Heartbeat` (diário, de fora: o site, a API, o briefing do dia e as duas Homes mostrando-o — a execução que reprova é o e-mail). Todo workflow declara o mínimo de permissão para o `GITHUB_TOKEN`, e toda action de terceiro está fixada em SHA completo — as advisories aceitas, cada uma com motivo, data e gatilho de revisão, estão em [`docs/security-advisories.md`](docs/security-advisories.md).
+Sete workflows do GitHub Actions sustentam isso: `CI` (lint, testes com cobertura, build e um `pnpm audit` que reprova qualquer advisory *high* em dependência de produção), `Gitleaks` (varredura de segredos em todo pull request e em todo intervalo de push, merges incluídos), `CodeQL` (análise estática dos dois apps), `Smoke E2E` (fluxos em produção depois de cada deploy), `Lighthouse CI` (semanal, reprovando abaixo de 90 em qualquer categoria), `Migrate` e `Heartbeat` (diário às 12:40 UTC, de fora: o site, a API — separando a suspensão da hospedagem —, o briefing do dia, as duas Homes mostrando-o, a sonda do login e um push nos últimos 45 dias — a execução que reprova é o e-mail). Todo workflow declara o mínimo de permissão para o `GITHUB_TOKEN`, e toda action de terceiro está fixada em SHA completo — as advisories aceitas, cada uma com motivo, data e gatilho de revisão, estão em [`docs/security-advisories.md`](docs/security-advisories.md).
 
 A UI interativa do Swagger é servida apenas em desenvolvimento, em `/api/docs`. Em produção o documento OpenAPI continua sendo gerado, mas a UI não é registrada — o contrato é a [`docs/api.md`](docs/api.md), guardada contra deriva por um teste.
 
@@ -252,13 +267,14 @@ A UI interativa do Swagger é servida apenas em desenvolvimento, em `/api/docs`.
 - [x] Contas, favoritos, newsletter e painel de métricas
 - [x] Bilíngue pt-BR e en com SEO localizado
 - [x] Redesign editorial V2 — tokens de design, telas de leitura, integração e refinamento visual
+- [x] Observabilidade — log estruturado, taxonomia de erro e registro durável de falha, três abas de admin, invariantes, saúde por fonte, portões no pipeline, CI/CD endurecido, um batimento de fora, um cron que confere as páginas que atualizou e métricas de leitura que contam leitores, não ferramentas
 - [ ] Release final — baseline visual recapturada, changelog e primeira tag
 - [ ] Verificar o domínio de envio no Resend para a newsletter alcançar inscritos reais
 - [ ] Classificação de categoria por IA, no lugar do classificador por palavra-chave
 - [ ] Opt-out de analytics na interface
 - [ ] Next.js 15 e Fastify 5
 
-O plano da V2 está em [`docs/Newra-News-V2-Frontend-Redesign-Plan.md`](docs/Newra-News-V2-Frontend-Redesign-Plan.md), e o histórico fase a fase em [`docs/progress.md`](docs/progress.md).
+O plano da V2 está em [`docs/Newra-News-V2-Frontend-Redesign-Plan.md`](docs/Newra-News-V2-Frontend-Redesign-Plan.md), o de observabilidade em [`docs/Newra-News-Observability-Plan.md`](docs/Newra-News-Observability-Plan.md), e o histórico fase a fase em [`docs/progress.md`](docs/progress.md).
 
 ## Contribuindo
 
