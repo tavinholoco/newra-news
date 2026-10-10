@@ -364,6 +364,19 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **10/10/2026: a Fase 13 da V2 (a release) abriu pelo inventário
+  reconferido.** Item **101**; §28 do plano V2, "Fase 13" e §13.0. O
+  inventário de 25/08 foi cruzado com o que o plano de observabilidade
+  entregou (dependência no CI, sinais de ouro, documentação) e ganhou quatro
+  itens que uma pesquisa de prontidão achou: **o "Trecho" sem teto** (G1 com
+  mediana de 2.334 caracteres, máximo 14.954 — a matéria inteira), **o
+  aviso de privacidade** (LGPD art. 9; não existe página), **o fim de
+  suporte do `next@14` (26/10/2025) e do `fastify@4` (30/06/2025)** — e o
+  `next@15` sai em 21/10/2026, então os gatilhos "Next 15" viram "Next 16" —
+  e **o domínio próprio**, que destrava a newsletter. **Decisões do dono
+  antes do trabalho:** domínio/newsletter, LCP como risco ou escopo, trending
+  e opt-out.
+
 - 🟢 **10/10/2026: o README da Fase 13 e a quarta promoção (#291,
   `128252d`) — `dev` = `main`.** Item **100**. O README ganhou a publicação
   que confere a si mesma, o analytics com privacidade por padrão e a nova
@@ -1644,6 +1657,13 @@ a suíte de unidade, que roda sem rede.
   desde a Fase 10, que antes media só a API.
 
 ### Por onde começar a Fase 13 (Ajustes finos e release final)
+
+> **O inventário da Fase 13 foi reconferido em 10/10/2026** (item **101**),
+> depois do plano de observabilidade — que fechou boa parte dele — e com
+> quatro itens novos: o "Trecho" que é a matéria inteira (13.8), o domínio
+> próprio (13.9), o fim de suporte do `next@14` e do `fastify@4` (13.10) e o
+> aviso de privacidade. **Comece pela §13.0 do plano V2**; a lista abaixo e a
+> "dívida que a 13 herda" são de 25/08 e estão lá, com o estado de cada item.
 
 **As Fases 9, 10, 11 e 12 estão fechadas.** Leia os itens **34**, **35**, **36**
 e **38** do `docs/progress.md` — a 13 é o fechamento, e cada um dos quatro

@@ -9355,6 +9355,44 @@ e a `dev` inteira na `main` antes da release da V2.
   `--enable-automation`, então não deve gravar `homepage_view` (conferir pelo
   MCP do Neon na janela do run).
 
+### 101. A Fase 13 da V2 abre: o inventário reconferido, e o que um release público pergunta ✅ 2026-10-10
+
+A pedido do dono, depois do item 100: reescrever o inventário da Fase 13
+(§28 do plano V2, escrito em 25/08) com o estado real, e pesquisar se o
+projeto fica pronto para o release quando ela fechar. Branch `release/v2.0`.
+
+- **O que já estava fechado sem a fase fazer nada:** a varredura de
+  dependência que a 13.S dava como inexistente (Fase 10 da observabilidade,
+  05/09), o error rate e a latência da §26 (Fase 5), a documentação da 13.4
+  menos o `CHANGELOG`, a cobertura com os dois pisos, e metade do "o gate
+  reprova quando deve" (110 mutações, o `pnpm audit` de 06/10, o ensaio do
+  Heartbeat). A tabela da 13.7 envelheceu na direção boa.
+- **O "Trecho" sem teto (13.8).** A `/news/[id]` rotula o corpo do feed como
+  trecho e não corta: nas 100 notícias mais recentes de produção, G1 com
+  mediana de **2.334** caracteres (máximo **14.954**) e Valor com **2.747**
+  (máximo **13.644**). O rótulo mente, e a jurisprudência sobre o art. 46,
+  I, "a", da Lei 9.610/98 pesa contra a reprodução integral.
+- **O aviso de privacidade.** Das 16 páginas, nenhuma é de privacidade ou
+  termos; a conta guarda nome e e-mail, e o art. 9 da LGPD pede a informação
+  "clara, adequada e ostensiva". Já era caixa da 13.S; continua aberta.
+- **O fim de suporte (13.10), conferido nas páginas oficiais:** `next@14`
+  sem suporte desde 26/10/2025, `fastify@4` desde 30/06/2025 — e o
+  `next@15` sai em **21/10/2026**, então os gatilhos escritos como "o Next
+  15" passam a ser "o Next 16". As advisories estão aceitas uma a uma
+  (a GHSA-h25m-26qc-wcjf exige Server Action, que o app não tem); o fim de
+  suporte em si não estava escrito em lugar nenhum.
+- **O domínio próprio (13.9), se o dono decidir:** destrava a newsletter (o
+  Resend verifica com SPF/DKIM no DNS de quem possui o domínio).
+  `newranews.com.br` (Registro.br, R$ 40/ano) e `newranews.com`
+  (Cloudflare, US$ 10,46/ano até 01/11/2026) livres em 10/10. O endereço
+  atual está em 15 arquivos versionados fora de `docs/`, mais variáveis na
+  Vercel e no Render e as URLs de callback do OAuth.
+- **Duas decisões escritas, não trabalho:** o banco sem cópia fora do Neon
+  (o plano gratuito restaura até 6 h para trás) e o Hobby da Vercel como uso
+  não comercial.
+- **LCP medido para a §31** (run 38018246130, medianas de 3): 2,42 s na
+  `/news/[id]`, 2,72–2,95 s nas outras seis; CLS 0; TBT 90–181 ms.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
