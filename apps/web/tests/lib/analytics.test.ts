@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { Category } from '@newranews/types';
 import {
   track,
@@ -95,9 +97,11 @@ describe('oposição pelo navegador', () => {
 
   it('não mede navegador sob automação — as nossas ferramentas não são leitores', () => {
     // Medido em 09/10/2026 (13.4 do plano de observabilidade): o Chromium do
-    // Playwright (Smoke, baseline, `admin:capture`) e o do Lighthouse CI expõem
-    // `navigator.webdriver === true`. Sem isto, a `/admin/metrics` marcava
-    // 1.034 leituras completas contra zero aberturas.
+    // Playwright (Smoke, baseline, `admin:capture`) expõe
+    // `navigator.webdriver === true`; o do Lighthouse CI só desde que o
+    // `.lighthouserc.json` passa `--enable-automation` (10/10, o teste abaixo).
+    // Sem isto, a `/admin/metrics` marcava 1.034 leituras completas contra
+    // zero aberturas.
     vi.stubGlobal('navigator', {
       sendBeacon: beacon,
       webdriver: true,
@@ -113,6 +117,20 @@ describe('oposição pelo navegador', () => {
     } as unknown as Navigator);
 
     expect(isTrackingAllowed()).toBe(true);
+  });
+
+  it('o Lighthouse CI declara a automação — o Chrome do runner não a declara sozinho', () => {
+    // Medido em produção em 10/10/2026 (run 38014345418): o
+    // `HeadlessChrome/154` que o Lighthouse CI lança no runner do GitHub **não**
+    // expõe `navigator.webdriver`, e cada carga da Home virou um
+    // `homepage_view` gravado ~0,6 s depois — cinco numa execução. A medição do
+    // 13c tinha sido local. O Playwright passa `--enable-automation` sozinho;
+    // o chrome-launcher do lhci não, e é o `.lighthouserc.json` que o declara.
+    const rc = JSON.parse(
+      readFileSync(path.resolve(__dirname, '../../../../.lighthouserc.json'), 'utf8'),
+    ) as { ci: { collect: { settings: { chromeFlags: string } } } };
+
+    expect(rc.ci.collect.settings.chromeFlags.split(/\s+/)).toContain('--enable-automation');
   });
 });
 

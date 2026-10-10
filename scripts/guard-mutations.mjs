@@ -1473,6 +1473,15 @@ const MUTATIONS = [
     edits: [{ find: '    if (hours > PLAN_READING_MAX_HOURS) {', replace: '    if (hours < 0) {' }],
     expect: 'refuses, before sending, the digit too many',
   },
+  {
+    id: 'A1.110',
+    what: 'o Lighthouse CI sem `--enable-automation` — o Chrome do runner não declara a automação, e cada carga da Home vira `homepage_view`',
+    pkg: 'web',
+    test: 'tests/lib/analytics.test.ts',
+    file: '.lighthouserc.json',
+    edits: [{ find: '"--no-sandbox --enable-automation"', replace: '"--no-sandbox"' }],
+    expect: 'o Lighthouse CI declara a automação',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

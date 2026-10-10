@@ -1,6 +1,8 @@
 %% Diagrama de Sequência do Pipeline Diário — Newra News
 %% ---
-%% Atualizado em 19/09/2026. São **14 etapas**: 1–5, 5.5 (portão de entrada),
+%% Atualizado em 19/09/2026, e em 10/10/2026 com o fim do cron (13a′ do plano
+%% de observabilidade: esperar o run, invalidar pela rota irmã, pedir as
+%% páginas do dia). São **14 etapas**: 1–5, 5.5 (portão de entrada),
 %% 6, 6.5 (portão de saída), 7, 7.5 (newsletter), 8, 8.5 (renormalização), 9 e
 %% 9.5 (invariantes). As cinco não críticas — 7.5, 8, 8.5, 9 e 9.5 — falham
 %% sem abortar o pipeline; desde a Fase 11 do plano de observabilidade a
@@ -31,7 +33,7 @@ sequenceDiagram
     NX->>API: POST /api/jobs/daily-pipeline (Bearer JOB_SECRET)
     API->>API: idempotência por dia — já rodou hoje?
     API-->>NX: { outcome, pipelineId, startedAt }
-    Note over NX,API: outcome ∈ started · already-running · already-succeeded-today.<br/>Só "started" invalida a ISR — o "não fiz" cabe no contrato.
+    Note over NX,API: outcome ∈ started · already-running · already-succeeded-today — o "não fiz" cabe no contrato.<br/>Os três levam o cron a esperar o run do dia e a renovar as páginas (fim do diagrama).
 
     par 1 · coleta paralela (Promise.allSettled)
         API->>ND: 8 categorias (size=10, country=br, language=pt)
@@ -58,3 +60,12 @@ sequenceDiagram
     API->>DB: 9.5 · invariantes — 12 consultas agregadas (retenção × 7, briefing × 2, run morto, métrica do dia, newsletter)
 
     Note over API,DB: Toda etapa grava um PipelineEvent (INFO · WARN · ERROR).<br/>A falha grava errorStage e errorDetail no PipelineLog.<br/>O evento final da 9 resume o run (colheita, modelo, briefing,<br/>newsletter, invariantes, degradedBy) — o desfecho é derivado dos WARN na leitura.
+
+    loop de 10 em 10 s, até 90 s
+        NX->>API: GET /api/jobs/:id — o run do dia fechou?
+    end
+    NX->>NX: SUCCESS → a rota irmã /api/cron/daily-news/revalidate invalida o conjunto do dia
+    loop até 3 rodadas
+        NX->>NX: pede as 11 páginas do dia (Home primeiro) e confere a marca do run em cada uma
+    end
+    Note over NX: A que voltou velha é invalidada de novo. O Next 14 só aplica a tag<br/>de um route handler quando ele retorna — daí a rota irmã (armadilha 47).<br/>Ao desistir, o cron escreve cron.daily-news.warm com o estado de cada página.

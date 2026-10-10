@@ -86,7 +86,9 @@ Os 14 da §18.5, com payload fechado. `EventBase` (`sessionId`, `locale`,
 > cliques em card — e quem chega pelo buscador não clica em card nenhum —, e
 > o numerador contava as nossas ferramentas: 1.034 leituras a 90% contra zero
 > aberturas em 01/10. Hoje: (1) `track()` não mede navegador sob automação
-> (`navigator.webdriver`, exposto pelo Playwright e pelo Lighthouse CI);
+> (`navigator.webdriver`, exposto pelo Playwright — e pelo Lighthouse CI só
+> porque o `.lighthouserc.json` passa `--enable-automation`: o Chrome do runner
+> não o declara sozinho, medido em produção em 10/10/2026);
 > (2) os limiares só contam depois da primeira rolagem — a medição da
 > montagem fazia texto curto "nascer lido"; (3) a taxa é `completed /
 > viewed` sobre o par (sessão, conteúdo), cruzado pela API.

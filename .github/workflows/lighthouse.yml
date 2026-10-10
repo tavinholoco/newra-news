@@ -65,6 +65,15 @@ jobs:
           api=https://newra-news-api.onrender.com/api
           site=https://newra-news-web.vercel.app
 
+          # Acordar a API antes de perguntar, com prazo de acordada. A acordada
+          # do Render passou de ~5 s (24/08) para 43–52 s (desde 01/10), e os
+          # 20 s abaixo estouravam em toda execução com a API dormindo: a de
+          # 10/10/2026 (run 38014345418) mediu cinco rotas e saiu verde, sem
+          # nada reprovar. O `|| true` mantém a regra do passo — não acordar
+          # nunca reprova o gate.
+          wake=$(curl -sS -o /dev/null -w '%{http_code} %{time_total}s' --max-time 75 "$api/health" || true)
+          echo "acordada da API: ${wake:-sem resposta}"
+
           news_id=$(curl -sS --max-time 20 "$api/news?limit=1" | jq -r '.data[0].id // empty' || true)
           article_date=$(curl -sS --max-time 20 "$api/articles?limit=1" | jq -r '.data[0].date // empty' || true)
           article_date=${article_date:0:10}

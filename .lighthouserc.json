@@ -16,7 +16,7 @@
           "best-practices",
           "seo"
         ],
-        "chromeFlags": "--no-sandbox"
+        "chromeFlags": "--no-sandbox --enable-automation"
       }
     },
     "assert": {
