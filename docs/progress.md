@@ -9317,6 +9317,44 @@ documento vivo do projeto dizendo o que o plano entregou.
   sozinho — o `import` frio da rota sob as duas suítes em paralelo;
   anotado, sem mudança.
 
+### 100. O README da Fase 13, e a quarta promoção ✅ 2026-10-10
+
+A pedido do dono, depois do #289: o README dizendo o que a Fase 13 entregou,
+e a `dev` inteira na `main` antes da release da V2.
+
+- **O README nos dois idiomas (#290).** O #289 já tinha levado os portões, as
+  três abas e o Heartbeat; faltavam três linhas de funcionalidade que a Fase
+  13 tornou verdade — **a publicação que confere a si mesma** (o cron pede as
+  páginas que invalidou, a sonda do login, o batimento de fora), **o
+  analytics com privacidade por padrão** (sem cookie, Do Not Track e GPC,
+  automação ignorada, profundidade só depois de uma rolagem, contra o
+  `article_view`) e **a nova tentativa do feed** com a causa registrada —, e
+  a linha do *Painel* passou a descrever as horas do workspace, a projeção e
+  as duas semanas por dia.
+- **Três versões da stack tinham ficado para trás do lockfile:** Tailwind CSS
+  4.2 → **4.3**, TanStack Query 5.90 → **5.103**, Playwright 1.62 → **1.63**.
+  Nenhuma guarda lê versão em prosa; quem achou foi o passo do gerador de
+  README que manda conferir toda afirmação contra o arquivo real.
+- **A contagem de testes conferida rodando a suíte:** 1.529 + 1.024 em 194
+  suítes, a mesma do #289. Paridade dos dois idiomas (21 títulos, 42 itens,
+  76 linhas de tabela, 18 cercas, 45 links), sem emoji, links internos
+  existentes, badge `CI: PASSING`; o LinkedIn devolve 999 ao `curl`
+  (bloqueio de robô), link inalterado.
+- **Quarta promoção, #291 (`128252d`, 03:50 UTC), medida.** O lote: #288,
+  #289 e #290 — 7 commits, sem migration, env ou dependência, nenhum arquivo
+  ignorado na `main`, e **nenhuma mudança de comportamento em produção** (o
+  `consent.ts` mudou só no comentário). Gitleaks no push da `main` com
+  `4cdc121..128252d` = **8 commits, 4 merges, 4 varridos**, sem vazamento;
+  CodeQL e CI verdes; **um processo novo da API às 03:51:52**, ~1,5 min
+  depois do merge; **Smoke 32/6**. **O Migrate não dispara**, e é o certo: o
+  `migrate.yml` filtra por `prisma/migrations/**` e `schema.prisma` — o corpo
+  do #291 dizia "roda sem o que aplicar" e foi corrigido. A `dev` foi
+  realinhada (0/0).
+- **O que a promoção resolve com data:** o Lighthouse agendado de segunda,
+  12/10 12:00 UTC, roda a configuração da `main` — agora com o
+  `--enable-automation`, então não deve gravar `homepage_view` (conferir pelo
+  MCP do Neon na janela do run).
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -364,6 +364,17 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟢 **10/10/2026: o README da Fase 13 e a quarta promoção (#291,
+  `128252d`) — `dev` = `main`.** Item **100**. O README ganhou a publicação
+  que confere a si mesma, o analytics com privacidade por padrão e a nova
+  tentativa do feed, e três versões da stack que o lockfile já tinha deixado
+  para trás (Tailwind 4.3, TanStack 5.103, Playwright 1.63). A promoção levou
+  #288–#290 sem mudar comportamento em produção: Gitleaks 8 commits / 4
+  varridos, API nova às 03:51:52, Smoke 32/6; o Migrate não dispara sem
+  schema no lote (filtro de caminho). O `--enable-automation` está na `main`
+  antes do Lighthouse de 12/10. **Próximo: a release final da V2** (§28) — e
+  o 13.3 do plano de observabilidade, ~17/10.
+
 - 🟢 **10/10/2026 (madrugada): o projeto inteiro dizendo o que o plano de
   observabilidade fez, e as pendências num lugar só.** Item **99**. "O que
   sobra", no fim da §23 do plano, lista tudo com data, gatilho ou dono.
