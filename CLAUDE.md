@@ -343,7 +343,9 @@ a suíte de unidade, que roda sem rede.
   com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
   curso, e tudo menos o 13.3 está no ar**: o 13a′, o 13a e o 13b (#272,
   #277); o 13c, o 13d, o 13.5 e o 13.7 (promoções #285 e #287, 09/10). Sobra
-  o 13.3 (~17/10), pelo prompt de abertura no fim da §23.
+  o 13.3 (~17/10), pelo prompt de abertura no fim da §23 — **e tudo o que
+  depende de data, gatilho ou do dono está em "O que sobra", logo antes
+  dele**.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -361,6 +363,20 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **10/10/2026 (madrugada): o projeto inteiro dizendo o que o plano de
+  observabilidade fez, e as pendências num lugar só.** Item **99**. "O que
+  sobra", no fim da §23 do plano, lista tudo com data, gatilho ou dono.
+  `docs/architecture.md` reescrito (era V1) e guardado; READMEs,
+  apresentação, setup, CONTRIBUTING e dois diagramas atualizados; a guarda da
+  contagem de feeds tinha furo (o README dizia "twelve"). **E a conferência
+  do 13c reprovou:** o Chrome do Lighthouse CI no runner não declara a
+  automação, e cada carga da Home virou `homepage_view` — `--enable-automation`
+  no `.lighthouserc.json` (A1.110), provado da branch com zero linhas e um
+  controle positivo. O passo das rotas de detalhe esperava 20 s por uma
+  acordada de ~43 s e media cinco rotas; agora acorda antes. **1.529 na API,
+  1.024 no web.** **Próximo: o 13.3, ~17/10** — e o Ubuntu 26 nos runners a
+  partir de 19/10.
 
 - 🟢 **09/10/2026 (noite): a Fase 13 no ar, menos o 13.3 — duas promoções e
   uma revisão de código.** Itens **97** e **98**; §23 do plano. A segunda
@@ -1608,14 +1624,13 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.550 em 194 suites (**1.527 API em 100** + **1.023 web em 94** —
-  todos passando, contados em 09/10/2026, depois da revisão da Fase 13), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.553 em 194 suites (**1.529 API em 100** + **1.024 web em 94** —
+  todos passando, contados em 10/10/2026, depois da varredura do item 99), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
-  da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
-  web remedida em 07/09: **74,16% stmts · 90,25% branch · 73,48% funcs** — com
-  piso de 70% no CI desde
-  a Fase 10, que antes media só a API.
+  remedida em 10/10/2026: API **98,63% stmts · 94,01% branch · 99,69% funcs**;
+  web **80,05% stmts · 91,19% branch · 80,32% funcs** — com piso de 70% no CI
+  desde a Fase 10, que antes media só a API.
 
 ### Por onde começar a Fase 13 (Ajustes finos e release final)
 
@@ -1680,16 +1695,14 @@ em 200, endereço errado em 404; advisories de produção em 36, sem regressão.
 
 **O que a 11 deixou explicitamente para a 13**, e é bom não redescobrir:
 
-- **A primeira leitura honesta da tela de métricas** é o único item da 11 que não
-  fechou: exige credencial de admin de produção. Tudo que a prepara está feito —
-  a cadeia de ingestão provada ponta a ponta (`accepted: 1`), o balde
-  compartilhado medido, e o gatilho de subcontagem **observável sem
-  instrumentação nova**: 429 em `POST /api/events` dentro de
-  `GET /api/metrics/http`.
-- **Os fluxos autenticados do smoke** (conta e admin) ficam pulados até os
-  quatro segredos serem configurados — e o pulo é impresso pelo workflow. Ligá-los
-  põe o `NEXTAUTH_SECRET` de produção no runner do CI; a decisão é de quem é dono
-  do segredo. `apps/web/e2e/support/session.ts` documenta.
+- ~~**A primeira leitura honesta da tela de métricas**~~ — **feita na Fase 12
+  do plano de observabilidade** (as três abas lidas com a sessão do dono,
+  06/10), e a leitura passou a medir leitores no 13c (09/10). O gatilho de
+  subcontagem é a coluna "4xx" por rota da `/admin/metrics` desde a Fase 7c.
+- ~~**Os fluxos autenticados do smoke**~~ — **decidido em 09/10/2026 (13.7 do
+  plano de observabilidade): ficam pulados**, porque ligá-los põe o
+  `NEXTAUTH_SECRET` de produção no CI; o login é perguntado todo dia pela sonda
+  `/api/health/auth`. Ver "O que ficou em aberto", abaixo.
 - **Rollback pós-deploy** (§13.6). O smoke falha e avisa; reverter sozinho exige
   distinguir "o deploy quebrou" de "a API estava dormindo", e este projeto já
   cometeu o erro oposto com o gate do Lighthouse medindo cold start.
@@ -2130,8 +2143,11 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   `packages/database` + banco limpo + `prisma migrate diff`; foi feito em 23/08
   e o resultado está no item 34.
 - **O gate do Lighthouse é real desde 21/08** (`configPath` nos inputs da
-  action): a execução semanal de segunda 09:00 UTC falha se alguma categoria
-  cair abaixo de 90.
+  action): a execução semanal de segunda 12:00 UTC (09:00 BRT, desde 31/08)
+  falha se alguma categoria cair abaixo de 90. **E ela pode simplesmente não
+  rodar:** o agendado de 05/10/2026 saiu "failure" sem passo nenhum — *the job
+  was not acquired by Runner* —, o que não é medição nem reprovação; o gatilho
+  da `/news` no §16 do plano conta só execuções que mediram.
 
 ### O que ficou em aberto
 

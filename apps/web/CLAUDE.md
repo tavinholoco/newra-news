@@ -697,10 +697,15 @@ Regras que não são óbvias no código:
 - **Navegador sob automação não é medido** (`navigator.webdriver === true`,
   13.4 do plano de observabilidade, 09/10/2026). Não é oposição — é que não há
   leitor: medido, o Chromium do Playwright (Smoke, baseline, `admin:capture`)
-  e o do Lighthouse CI expõem o sinal, e eram eles que enchiam a
-  profundidade de leitura (1.034 leituras a 90% contra zero aberturas em
-  01/10). O sinal é a regra do WebDriver, não o user agent — o Lighthouse se
-  apresenta como um celular emulado.
+  expõe o sinal, e as ferramentas enchiam a profundidade de leitura (1.034
+  leituras a 90% contra zero aberturas em 01/10). O sinal é a regra do
+  WebDriver, não o user agent — o Lighthouse se apresenta como um celular
+  emulado. **O Lighthouse CI só o expõe porque o `.lighthouserc.json` passa
+  `--enable-automation`**: o `HeadlessChrome/154` do runner não o declara
+  sozinho, e em 10/10/2026 cada carga da Home pelo Lighthouse virou um
+  `homepage_view` em produção (a medição do 13c tinha sido local). Guarda em
+  `tests/lib/analytics.test.ts`; ferramenta nova que abra o site em produção
+  declara a automação, ou entra na métrica.
 - **`source` e `position` são props obrigatórias nos cards.** Opcionais, um uso
   novo nasceria sem atribuição e a falta só apareceria na hora de ler a métrica.
   O compilador é quem cobra.
