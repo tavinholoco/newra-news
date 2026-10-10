@@ -50,11 +50,16 @@ function browserOptedOut(): boolean {
  *
  * **Não é oposição — é que não há leitor.** Medido em 09/10/2026 (13.4 do
  * plano de observabilidade): o Chromium do Playwright (Smoke E2E, baseline
- * visual, `admin:capture`) e o do Lighthouse CI expõem
- * `navigator.webdriver === true`, e eram eles que enchiam a profundidade de
- * leitura — a `/admin/metrics` marcava 1.034 leituras completas contra zero
- * aberturas em 01/10. A regra é do WebDriver (W3C), não uma heurística sobre
- * o user agent, que o Lighthouse troca por um celular emulado.
+ * visual, `admin:capture`) expõe `navigator.webdriver === true`, e as
+ * ferramentas enchiam a profundidade de leitura — a `/admin/metrics` marcava
+ * 1.034 leituras completas contra zero aberturas em 01/10. A regra é do
+ * WebDriver (W3C), não uma heurística sobre o user agent, que o Lighthouse
+ * troca por um celular emulado.
+ *
+ * **O Lighthouse CI só expõe o sinal porque o `.lighthouserc.json` passa
+ * `--enable-automation`.** O `HeadlessChrome/154` do runner do GitHub não o
+ * declara sozinho — medido em produção em 10/10/2026: cada carga da Home pelo
+ * Lighthouse virou um `homepage_view`. A medição do 13c tinha sido local.
  *
  * O robô que esconde o sinal continua contado; os nossos não escondem.
  */
