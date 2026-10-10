@@ -341,9 +341,9 @@ a suíte de unidade, que roda sem rede.
   da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
   com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
-  curso: o 13a′, o 13a e o 13b fecharam e estão no ar (#272, #277); o 13c,
-  o 13d, o 13.5 e o 13.7 fecharam na `dev` (09/10) e sobem na segunda
-  promoção; sobra o 13.3 (~17/10)**, pelo prompt de abertura no fim da §23.
+  curso, e tudo menos o 13.3 está no ar**: o 13a′, o 13a e o 13b (#272,
+  #277); o 13c, o 13d, o 13.5 e o 13.7 (promoções #285 e #287, 09/10). Sobra
+  o 13.3 (~17/10), pelo prompt de abertura no fim da §23.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -361,6 +361,18 @@ a suíte de unidade, que roda sem rede.
   `apps/api/tests/docs/diagram-drift.test.ts`
 
 ## Status Atual
+
+- 🟢 **09/10/2026 (noite): a Fase 13 no ar, menos o 13.3 — duas promoções e
+  uma revisão de código.** Itens **97** e **98**; §23 do plano. A segunda
+  promoção (#285) levou o 13c, o 13d, o 13.5 e o 13.7, e a medição achou a
+  **armadilha 48** (a sonda do login dinâmica por um `fetch` `no-store` —
+  cada pedido chamava o Render). A **revisão do código da fase**, a pedido
+  do dono, achou um defeito de produto (o teto da leitura do Billing só na
+  API, e o "12427" recebendo a mensagem errada) e quatro inconsistências; as
+  48 mutações da fase passaram juntas (50/50). A terceira promoção (#287)
+  levou tudo: a sonda `PRERENDER`/`HIT` com o mesmo `checkedAt`, Gitleaks com
+  número na `main` (5 commits, 3 varridos), API nova bootada, Smoke 32/6.
+  **1.527 na API, 1.023 no web.** **Próximo: o 13.3, ~17/10.**
 
 - 🟢 **09/10/2026: o 13.7 decidido — os fluxos com login do Smoke ficam
   desligados, e o login é perguntado todo dia sem segredo no CI.** Item
@@ -1596,9 +1608,8 @@ a suíte de unidade, que roda sem rede.
 - **Monetização é só planejamento** (§21): publicidade **cancelada**; newsletter
   patrocinada, Newra Plus e API B2B **adiados**. O gatilho é um número —
   **assinantes ativos e contas**, os dois persistentes.
-- **Testes:** 2.545 em 194 suites (**1.527 API em 100** + **1.018 web em 94** —
-  todos passando, contados em 09/10/2026, depois do 13c, do 13d, do 13.5 e do
-  13.7), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
+- **Testes:** 2.550 em 194 suites (**1.527 API em 100** + **1.023 web em 94** —
+  todos passando, contados em 09/10/2026, depois da revisão da Fase 13), mais o **smoke E2E** — um arquivo de spec por fluxo (visitante,
   acervo, conta, newsletter, autorização) —, que roda contra produção pelo
   workflow `Smoke E2E` e **não** faz parte do `pnpm test`. Cobertura
   da API medida em 31/08: **98,77% stmts · 92,96% branch · 99,49% funcs**; a do
