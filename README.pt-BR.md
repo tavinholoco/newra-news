@@ -51,7 +51,7 @@ Como o briefing vai ao ar sem um humano no meio, o sistema confere o próprio tr
 ## Funcionalidades
 
 - **Briefing diário gerado por IA** — Gemini como modelo principal e Groq como fallback, com fontes citadas e aviso explícito de geração por IA
-- **Pipeline de ingestão automático** — NewsData.io mais onze feeds RSS, normalizados, deduplicados por URL de origem e expurgados após 30 dias
+- **Pipeline de ingestão automático** — NewsData.io mais onze feeds RSS, normalizados, deduplicados por URL de origem e expurgados após 30 dias. Uma falha rápida de rede num feed ganha uma nova tentativa, e toda falha fica registrada com a causa
 - **Oito categorias** — tecnologia, política, economia, esportes, ciência, entretenimento, mundo e saúde, classificadas por palavra-chave
 - **Busca e filtros por categoria** com o recorte preservado na URL
 - **Acervo navegável por data** para todos os briefings anteriores
@@ -60,19 +60,21 @@ Como o briefing vai ao ar sem um humano no meio, o sistema confere o próprio tr
 - **Bilíngue pt-BR e en** — rotas, metadados e geração estática por idioma
 - **SEO** — sitemap, news sitemap, imagens de Open Graph e metadados localizados por rota
 - **Modo escuro** seguindo a preferência do sistema, com alternância manual
+- **Analytics de produto com privacidade por padrão** — de primeira parte e sem cookie, sem identificador entre sessões. Respeita o Do Not Track e o Global Privacy Control, ignora navegadores que declaram automação e só conta a profundidade de leitura depois de uma rolagem de verdade, contra as matérias de fato abertas
 - **Dois portões no pipeline** — o de entrada mede a colheita (volume contra a mediana de sete dias, diversidade de fontes, frescor) antes de gastar a chamada de IA; o de saída bloqueia qualquer URL ou prompt ecoado no briefing gerado e falha o dia em vez de tentar de novo no segundo modelo
-- **Painel admin em três abas**, restrito ao papel ADMIN — *Painel* (execuções do pipeline com o desfecho derivado, a faixa de 30 dias, o tempo desde o último briefing e as horas do plano de hospedagem), *Métricas* (os quatro sinais de ouro, as métricas de produto e a saúde de cada fonte) e *Logs e segurança* (falhas agrupadas por fingerprint, a trilha de auditoria de admin, as invariantes e as decisões dos portões)
+- **Publicação que confere a si mesma** — quando o run termina com sucesso, a rota do cron pede cada página que atualizou e invalida de novo a que voltar sem o run do dia. Uma sonda diária confere que a API ainda aceita os tokens de login que o web assina, e um batimento de fora da stack manda e-mail ao dono quando o site ou a API caem, o briefing de hoje falta, ou alguma das duas Homes não o mostra
+- **Painel admin em três abas**, restrito ao papel ADMIN — *Painel* (execuções do pipeline com o desfecho derivado, a faixa de 30 dias, o tempo desde o último briefing e as horas gratuitas do workspace de hospedagem inteiro — esta API medida, os outros serviços por uma leitura do Billing que o dono registra —, com a projeção do fim do mês e duas semanas de horas por dia), *Métricas* (os quatro sinais de ouro, as métricas de produto e a saúde de cada fonte) e *Logs e segurança* (falhas agrupadas por fingerprint, a trilha de auditoria de admin, as invariantes e as decisões dos portões)
 - **Observabilidade de ponta a ponta** — log estruturado em JSON com redação de segredo, taxonomia de erro, registro durável de falha coalescido por hora, error boundaries que reportam o digest do servidor, e uma conferência de invariantes no fim de todo run
 
 ## Stack
 
 | Camada | Tecnologias |
 | --- | --- |
-| Frontend | Next.js 14.2 (App Router), React 18.3, TypeScript 5.9, Tailwind CSS 4.2, Base UI, TanStack Query 5.90, next-intl 3.26 |
+| Frontend | Next.js 14.2 (App Router), React 18.3, TypeScript 5.9, Tailwind CSS 4.3, Base UI, TanStack Query 5.103, next-intl 3.26 |
 | Backend | Fastify 4.29, Node.js 22, TypeScript 5.9, Zod 3.25, pino 9, next-auth 4.24 com JWT compartilhado entre os dois apps |
 | Banco | PostgreSQL 16, Prisma ORM 5.22 |
 | IA e dados | Google Gemini (principal), Groq (fallback), NewsData.io, feeds RSS, Resend |
-| Qualidade | Vitest 2.1, Testing Library, Playwright 1.62, ESLint, Prettier, Gitleaks, CodeQL, Dependabot, Lighthouse CI |
+| Qualidade | Vitest 2.1, Testing Library, Playwright 1.63, ESLint, Prettier, Gitleaks, CodeQL, Dependabot, Lighthouse CI |
 | Infra | Turborepo, pnpm workspaces, Vercel, Render, Neon, GitHub Actions |
 
 ## Arquitetura
@@ -265,7 +267,7 @@ A UI interativa do Swagger é servida apenas em desenvolvimento, em `/api/docs`.
 - [x] Contas, favoritos, newsletter e painel de métricas
 - [x] Bilíngue pt-BR e en com SEO localizado
 - [x] Redesign editorial V2 — tokens de design, telas de leitura, integração e refinamento visual
-- [x] Observabilidade — log estruturado, taxonomia de erro e registro durável de falha, três abas de admin, invariantes, saúde por fonte, portões no pipeline, CI/CD endurecido e um batimento de fora
+- [x] Observabilidade — log estruturado, taxonomia de erro e registro durável de falha, três abas de admin, invariantes, saúde por fonte, portões no pipeline, CI/CD endurecido, um batimento de fora, um cron que confere as páginas que atualizou e métricas de leitura que contam leitores, não ferramentas
 - [ ] Release final — baseline visual recapturada, changelog e primeira tag
 - [ ] Verificar o domínio de envio no Resend para a newsletter alcançar inscritos reais
 - [ ] Classificação de categoria por IA, no lugar do classificador por palavra-chave
