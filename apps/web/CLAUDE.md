@@ -111,6 +111,18 @@
   `formatCount` via `toDateFormatLocale()` de `lib/i18n.ts`
 - Adicionar/renomear chaves exige atualizar **os dois** JSONs — o teste
   `tests/lib/i18n-messages.test.ts` falha se houver divergência
+- **O navegador só recebe os namespaces que um componente cliente de página
+  pública lê** (`PUBLIC_CLIENT_NAMESPACES` em `lib/i18n.ts`, item 102 do
+  `docs/progress.md`): o provider do layout serializa as mensagens no RSC e no
+  HTML de toda página da ISR, e o dicionário inteiro eram 31 KB nas duas
+  pontas. **Componente cliente público lendo namespace novo entra na lista** —
+  senão a página imprime `ns.chave`; `tests/lib/client-messages.test.ts`
+  deriva a lista pelo parser e reprova nas duas direções. `/admin`, `/account`
+  e `/favorites` recebem o dicionário inteiro pelo `FullMessagesProvider`
+  (`components/i18n/`), só em segmento `force-dynamic`; **um provider
+  aninhado substitui as mensagens do de fora, não soma**. Componente de
+  `components/{admin,dashboard,account}` usado fora delas pede o provider na
+  tela que o usa (é o caso da `/favorites` com a `AccountNav`)
 - **Chave que ninguém lê também falha o teste.** Reescrever uma tela leva o
   `t('...')` embora e deixa a string para trás; a Fase 5 achou sete de uma vez.
   Namespaces resolvidos dinamicamente (`categories`, `categoryDescriptions`,
@@ -851,6 +863,17 @@ Regras que não são óbvias no código:
 - **Todo `sizes` termina em largura fixa acima do breakpoint do contêiner.**
   `66vw` num monitor de 2560 px pede 1.690 px para desenhar 790. O hero usa
   `62vw`, medido nas duas pontas da faixa fluida.
+- **Só os dois heros têm `sizes`; o resto tem uma largura só** (item 102,
+  16/10/2026). Com `fill` + `sizes`, o `next/image` põe a **maior** largura do
+  `srcset` no `src` — as 30 imagens da Home saíam com `w=1920`, e o robô que
+  lê o `src` transformava a miniatura de 96 px a 1920. O `StoryImage` recebe
+  `sizes` (o `srcset` inteiro, para o LCP) **ou** `fixedWidth` (um `src` com a
+  URL do otimizador, `unoptimized`, sem `srcset`); as larguras são as de
+  `FIXED_IMAGE_WIDTH` (`lib/image-widths.ts`: 192 · 828 · 1200) e têm de estar
+  em `deviceSizes`/`imageSizes` — fora da lista o otimizador responde 400.
+  Imagem nova fora do LCP usa `fixedWidth`; a guarda reprova `sizes` fora dos
+  heros. E o `robots.txt` tira `/_next/image` do rastreio: o `og:image` e o
+  JSON-LD apontam direto para a fonte.
 - **A baseline cobre as 12 rotas nos dois temas.** Escuro é onde token errado
   aparece; `bg-white` é invisível no claro e ilegível no escuro, e a suíte
   proíbe cor fixa fora dos quatro véus declarados.

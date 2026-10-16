@@ -6,6 +6,7 @@ import type { HomeCategorySection } from '@newranews/types';
 import { SectionHeading } from '@/components/editorial/section-heading';
 import { StoryCard } from '@/components/editorial/story-card';
 import { StoryCardHorizontal } from '@/components/editorial/story-card-horizontal';
+import { FIXED_IMAGE_WIDTH } from '@/lib/image-widths';
 import { cn } from '@/lib/utils';
 
 interface CategorySectionProps {
@@ -50,11 +51,9 @@ export function CategorySection({ section, className }: CategorySectionProps) {
           position={0}
           story={lead}
           size='lead'
-          sizes={
-            rest.length > 0
-              ? '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 608px'
-              : '(max-width: 1280px) 100vw, 1216px'
-          }
+          // 608 px ao lado da lista cabem no `card`; sozinho, o líder ocupa
+          // os 1.216 px da faixa e pede o `wide`.
+          imageWidth={rest.length > 0 ? FIXED_IMAGE_WIDTH.card : FIXED_IMAGE_WIDTH.wide}
         />
 
         {rest.length > 0 ? (

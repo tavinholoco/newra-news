@@ -116,9 +116,15 @@ describe('StoryCard', () => {
       <StoryCard source='hero' position={0} story={makeStory({ imageUrl: 'https://cdn.test/a.jpg' })} />,
     );
 
-    expect(
-      screen.getByRole('img', { name: /Matéria de teste/ }),
-    ).toHaveAttribute('src', 'https://cdn.test/a.jpg');
+    // Uma largura só, já na URL do otimizador, e sem `srcset` — o card nunca
+    // é o LCP (`lib/image-widths.ts`).
+    const image = screen.getByRole('img', { name: /Matéria de teste/ });
+    expect(image).toHaveAttribute(
+      'src',
+      '/_next/image?url=https%3A%2F%2Fcdn.test%2Fa.jpg&w=828&q=75',
+    );
+    expect(image).toHaveAttribute('data-unoptimized', 'true');
+    expect(image).not.toHaveAttribute('sizes');
   });
 
   it('should omit the dek when showDek is false', () => {

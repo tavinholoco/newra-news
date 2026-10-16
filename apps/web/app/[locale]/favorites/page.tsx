@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { FavoritesList } from '@/components/favorites/favorites-list';
 import { AccountNav } from '@/components/account/account-nav';
+import { FullMessagesProvider } from '@/components/i18n/full-messages-provider';
 import { alternatesFor } from '@/lib/seo';
 
 // Página protegida (lê a sessão por request) — não pode ser prerenderizada
@@ -47,20 +48,25 @@ export default async function FavoritesPage({ params }: Props) {
     redirect(`/signin?callbackUrl=/${locale}/favorites`);
   }
 
+  // A `AccountNav` lê `account`, que o layout de idioma não manda ao
+  // navegador (`PUBLIC_CLIENT_NAMESPACES`) — esta é a única tela de conta
+  // fora do `account/layout.tsx`, então traz o provider ela mesma.
   return (
-    <div className='container-editorial py-section'>
-      <AccountNav />
-
-      <div className='mt-8'>
-        <h1 className='font-display text-h2 font-bold text-ink'>{t('title')}</h1>
-        <p className='mt-2 max-w-prose text-body text-ink-secondary'>
-          {t('description')}
-        </p>
+    <FullMessagesProvider>
+      <div className='container-editorial py-section'>
+        <AccountNav />
 
         <div className='mt-8'>
-          <FavoritesList />
+          <h1 className='font-display text-h2 font-bold text-ink'>{t('title')}</h1>
+          <p className='mt-2 max-w-prose text-body text-ink-secondary'>
+            {t('description')}
+          </p>
+
+          <div className='mt-8'>
+            <FavoritesList />
+          </div>
         </div>
       </div>
-    </div>
+    </FullMessagesProvider>
   );
 }
