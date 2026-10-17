@@ -832,7 +832,12 @@ Regras que não são óbvias no código:
   árvore do `app/not-found.tsx` no payload de **toda** rota; o provider dela
   levava o dicionário pt-BR inteiro para cada página (30 KB de 110 KB do RSC
   numa `/news/[id]`), e a Vercel cobra ISR Write por 8 KB. Guarda em
-  `tests/lib/isr-determinism.test.ts`.
+  `tests/lib/isr-determinism.test.ts`. **A exceção, desde 16/10/2026 (item
+  102), é o `FullMessagesProvider`** (`components/i18n/`): o layout de idioma
+  passou a mandar só o recorte público, e `/admin`, `/account` e `/favorites`
+  — `force-dynamic`, fora da ISR — embrulham a própria tela nele para receber
+  o dicionário inteiro. Ele só pode aparecer em arquivo `force-dynamic`;
+  guarda em `tests/lib/client-messages.test.ts`.
 - **Id fora do formato UUID devolve 400, não 404**, e os dois significam "não
   existe" para quem lê. `isAboutTheRequest` cobre os dois; tratar só o 404
   mandaria URL digitada errada para a página de erro.

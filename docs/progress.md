@@ -9434,11 +9434,13 @@ escrita da ISR, então o número absoluto do painel será outro; a proporção �
 que este item afirma. **Só o gráfico diário do Usage confirma**, a partir do
 primeiro dia inteiro depois da promoção.
 
-**Guardas, vistas reprovando** (A1.111–A1.124 no `guard-mutations.mjs`;
+**Guardas, vistas reprovando** (A1.111–A1.125 no `guard-mutations.mjs`;
 `image-optimizer.test.ts` saiu de `EXCLUDED` e entrou na tabela):
 `tests/security/image-optimizer.test.ts` (larguras na lista do otimizador, a
 URL igual à do carregador do Next, o `next/image` de verdade sem `srcset`, só
-os heros com `sizes`), `tests/lib/robots.test.ts` (avalia as regras pela RFC
+os heros com `sizes`, varrendo todo `app/` e `components/` — a primeira versão
+olhava só `components/editorial/`, achado da revisão antes do merge),
+`tests/lib/robots.test.ts` (avalia as regras pela RFC
 9309, com o grupo escolhido como o robô escolhe) e `tests/lib/client-messages.test.ts` (o recorte derivado pelo parser,
 nas duas direções; componente privado só em tela com o dicionário inteiro; o
 inteiro só em `force-dynamic`).

@@ -1570,6 +1570,16 @@ const MUTATIONS = [
     expect: 'o ClaudeBot ainda lê a Home, os briefings e as listagens',
   },
   {
+    id: 'A1.125',
+    what: 'um `StoryImage` com `sizes` fora de `components/editorial` — a varredura de uma pasta só não o via',
+    pkg: 'web',
+    test: 'tests/security/image-optimizer.test.ts',
+    file: 'apps/web/components/news/guard-mutation-story-image.tsx',
+    create:
+      "// Arquivo criado pelo scripts/guard-mutations.mjs; é apagado ao fim.\nimport { StoryImage } from '@/components/editorial/story-image';\n\nexport function GuardMutation() {\n  return <StoryImage src='https://x.test/a.jpg' alt='' sizes='96px' />;\n}\n",
+    expect: 'só os dois heros pedem `sizes` ao `StoryImage`',
+  },
+  {
     id: 'A1.117',
     what: 'um namespace que um card público lê fica fora do recorte — a página imprime `news.chave`',
     pkg: 'web',

@@ -27,8 +27,9 @@ export default function robots(): MetadataRoute.Robots {
         // de página da ISR: 318 `/news/[id]`, cada uma nos dois idiomas, numa
         // rajada às 14 UTC — e todas as 167 transformações de imagem. Com o
         // cache da ISR vazio para elas, cada visita era uma escrita, e a cota
-        // do Hobby (200 mil em 30 dias, que pausa a conta inteira) cruzaria
-        // os 200 mil ~26/10 mesmo com as páginas mais leves. As matérias são
+        // do Hobby (200 mil em 30 dias — acima dela, os relatos da comunidade
+        // da Vercel são de pausa da conta inteira) cruzaria os 200 mil ~26/10
+        // mesmo com as páginas mais leves. As matérias são
         // texto dos veículos agregado por feed; a Home, os briefings, as
         // listagens e o `/about` continuam abertos a ele.
         //

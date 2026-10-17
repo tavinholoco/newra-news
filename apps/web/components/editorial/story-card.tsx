@@ -21,8 +21,10 @@ interface StoryCardProps {
   /** Esconde o dek onde a coluna é estreita demais para três linhas de resumo. */
   showDek?: boolean;
   /**
-   * A largura única da foto (`lib/image-widths.ts`). O card nunca é o LCP de
-   * página nenhuma — o hero é —, então não leva o `srcset` inteiro.
+   * A largura única da foto (`lib/image-widths.ts`). Nenhuma tela de hoje usa
+   * o card como LCP — o hero é —, então ele não leva o `srcset` inteiro. Se
+   * um dia o card líder de uma listagem passar `priority`, a foto continua
+   * numa largura só, só que carregada primeiro.
    */
   imageWidth?: FixedImageWidth;
   priority?: boolean;

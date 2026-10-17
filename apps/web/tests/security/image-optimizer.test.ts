@@ -248,16 +248,39 @@ describe('uma largura só fora do LCP', () => {
     // O tipo do `StoryImage` obriga a escolher entre `sizes` e `fixedWidth`;
     // esta é a outra metade — quem escolhe o `srcset` inteiro. Imagem nova com
     // `sizes` fora do LCP é cota gasta para nada.
-    const editorial = path.resolve(WEB_ROOT, 'components/editorial');
-    const comSizes = readdirSync(editorial)
-      .filter((nome) => nome.endsWith('.tsx'))
-      .filter((nome) => {
-        const fonte = stripComments(readFileSync(path.join(editorial, nome), 'utf8'));
-        return [...fonte.matchAll(/<StoryImage\b([\s\S]*?)\/>/g)].some((m) =>
-          /\bsizes=/.test(m[1] ?? ''),
-        );
-      });
+    //
+    // A varredura é por **onde o `StoryImage` pode ser usado** — todo `.tsx` de
+    // `app/` e `components/` —, e não pela pasta onde ele está hoje: guarda que
+    // varre uma pasta só responde o que alguém lembrou de olhar.
+    const usos = ['app', 'components']
+      .flatMap((dir) => tsxFiles(path.resolve(WEB_ROOT, dir)))
+      .map((file) => ({
+        file: path.relative(WEB_ROOT, file).replace(/\\/g, '/'),
+        openings: [...stripComments(readFileSync(file, 'utf8')).matchAll(/<StoryImage\b([\s\S]*?)\/>/g)],
+      }))
+      .filter(({ openings }) => openings.length > 0);
+    const comSizes = usos
+      .filter(({ openings }) => openings.some((m) => /\bsizes=/.test(m[1] ?? '')))
+      .map(({ file }) => file);
 
-    expect(comSizes.sort()).toEqual(['article-hero.tsx', 'hero-story.tsx']);
+    // Coletor que não acha nada passaria em tudo: os quatro chamadores de hoje
+    // têm de aparecer.
+    expect(usos.length).toBeGreaterThanOrEqual(4);
+    expect(comSizes.sort()).toEqual([
+      'components/editorial/article-hero.tsx',
+      'components/editorial/hero-story.tsx',
+    ]);
   });
 });
+
+/**
+ * Todo `.tsx` sob `dir`, pelo `Dirent` do `readdirSync` — sem `statSync` à
+ * parte, que o CodeQL (`js/file-system-race`) acusa como TOCTOU.
+ */
+function tsxFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return tsxFiles(full);
+    return entry.isFile() && entry.name.endsWith('.tsx') ? [full] : [];
+  });
+}

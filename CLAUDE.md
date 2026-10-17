@@ -367,7 +367,8 @@ a suíte de unidade, que roda sem rede.
 - 🟡 **16/10/2026: as duas cotas do Hobby da Vercel cortadas antes de
   estourar — na `dev`, falta promover.** Item **102**. Imagem em 3,9K de 5K
   (estoura ~20–22/10) e ISR Writes em 193,5K de 200K pelo gráfico diário
-  (cruza ~24/10 e fica acima; no Hobby a pausa por ISR é da **conta**). Toda
+  (cruza ~24/10 e fica acima; acima da cota, os relatos da comunidade da
+  Vercel são de pausa da **conta**, não só do projeto). Toda
   imagem fora do LCP sai com **um `src` e sem `srcset`** (`lib/image-widths.ts`:
   192 · 828 · 1200 — o `src` era `w=1920` em todas as 30 da Home), o
   `robots.txt` tira `/_next/image` do rastreio, e o layout de idioma manda ao
