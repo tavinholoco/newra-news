@@ -373,9 +373,13 @@ a suíte de unidade, que roda sem rede.
   `robots.txt` tira `/_next/image` do rastreio, e o layout de idioma manda ao
   cliente só os namespaces que as páginas públicas leem (`/admin`, `/account`
   e `/favorites` recebem o resto pelo `FullMessagesProvider`). Medido: Home
-  47,5 → 35,7 unidades, `/news/[id]` 31,3 → 25,1. **Promover uma vez só, até
-  ~19/10** — cada deploy zera o cache da ISR — e conferir no gráfico diário do
-  Usage a partir do dia seguinte.
+  47,5 → 35,7 unidades, `/news/[id]` 31,3 → 25,1. **O consumo era quase todo
+  do ClaudeBot** (16/10: 578 das 597 regenerações, todas em `/news/[id]`, e as
+  167 transformações de imagem) — por decisão do dono, um grupo `ClaudeBot`
+  no `robots.txt` o tira das matérias (a listagem, a Home e os briefings
+  seguem abertos). **Promover uma vez só, até ~19/10** — cada deploy zera o
+  cache da ISR — e conferir no gráfico diário do Usage a partir do dia
+  seguinte.
 
 - 🟢 **10/10/2026: o README da Fase 13 e a quarta promoção (#291,
   `128252d`) — `dev` = `main`.** Item **100**. O README ganhou a publicação

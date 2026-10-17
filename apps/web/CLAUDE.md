@@ -874,6 +874,13 @@ Regras que não são óbvias no código:
   Imagem nova fora do LCP usa `fixedWidth`; a guarda reprova `sizes` fora dos
   heros. E o `robots.txt` tira `/_next/image` do rastreio: o `og:image` e o
   JSON-LD apontam direto para a fonte.
+- **O ClaudeBot tem grupo próprio no `robots.txt`, e fica fora das
+  matérias** (`/pt-BR/news/`, `/en/news/` — decisão do dono, 16/10/2026: ele
+  fazia 578 das 597 regenerações da ISR do dia). **Robô com grupo próprio
+  ignora o `*`** (RFC 9309, §2.2.1), então toda regra que valha para todos
+  — hoje o `/_next/image` — tem de ser repetida nele. A barra final de
+  `/news/` mantém a listagem aberta. `tests/lib/robots.test.ts` escolhe o
+  grupo como o robô escolhe.
 - **A baseline cobre as 12 rotas nos dois temas.** Escuro é onde token errado
   aparece; `bg-white` é invisível no claro e ilegível no escuro, e a suíte
   proíbe cor fixa fora dos quatro véus declarados.

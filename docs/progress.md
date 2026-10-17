@@ -9355,7 +9355,7 @@ e a `dev` inteira na `main` antes da release da V2.
   `--enable-automation`, então não deve gravar `homepage_view` (conferir pelo
   MCP do Neon na janela do run).
 
-### 102. As duas cotas do Hobby da Vercel antes de estourarem: uma largura por imagem, e o dicionário que só as páginas públicas leem ✅ 2026-10-16
+### 102. As duas cotas do Hobby da Vercel antes de estourarem: uma largura por imagem, o dicionário que só as páginas públicas leem, e o ClaudeBot fora das matérias ✅ 2026-10-16
 
 **Por que agora:** a leitura de 16/10 (Usage, 30 dias) deu **Image
 Transformations em 3,9K de 5K**, a ≥190 por dia, com os dias 16–30/09 — em
@@ -9402,7 +9402,8 @@ onde importa menos.
   não muda (`img-src 'self'`).
 - **`Disallow: /_next/image`** no `robots.txt`. O `og:image` e o `image` do
   JSON-LD da `/news/[id]` já apontam para a fonte — o que o Discover e o
-  Notícias usam segue rastreável; o `/_next/static` segue liberado.
+  Notícias usam segue rastreável; o `/_next/static` segue liberado. **E o
+  ClaudeBot fora das matérias** (abaixo).
 - **O dicionário enxuto:** o layout de idioma manda ao cliente só os 19
   namespaces que um componente cliente de página pública lê
   (`PUBLIC_CLIENT_NAMESPACES`, ~10 KB de 31 KB); `/admin`, `/account` e
@@ -9433,20 +9434,35 @@ escrita da ISR, então o número absoluto do painel será outro; a proporção �
 que este item afirma. **Só o gráfico diário do Usage confirma**, a partir do
 primeiro dia inteiro depois da promoção.
 
-**Guardas, vistas reprovando** (A1.111–A1.121 no `guard-mutations.mjs`;
+**Guardas, vistas reprovando** (A1.111–A1.124 no `guard-mutations.mjs`;
 `image-optimizer.test.ts` saiu de `EXCLUDED` e entrou na tabela):
 `tests/security/image-optimizer.test.ts` (larguras na lista do otimizador, a
 URL igual à do carregador do Next, o `next/image` de verdade sem `srcset`, só
 os heros com `sizes`), `tests/lib/robots.test.ts` (avalia as regras pela RFC
-9309) e `tests/lib/client-messages.test.ts` (o recorte derivado pelo parser,
+9309, com o grupo escolhido como o robô escolhe) e `tests/lib/client-messages.test.ts` (o recorte derivado pelo parser,
 nas duas direções; componente privado só em tela com o dicionário inteiro; o
 inteiro só em `force-dynamic`).
 
-**O dado de CDN do dia** (12 h, `vercel logs requests`): até as 13 UTC, 49
-requisições, nenhuma em `/_next/image`, ClaudeBot só nos sitemaps — o volume é
-de dia no Brasil, e a coleta das 19 e da 01 UTC é que dá o número de quem
-regenera. **Promover uma vez só, até ~19/10**: cada deploy de produção zera o
-cache da ISR (é por deployment) e os robôs regeneram as `/news/[id]` do zero.
+**Quem gasta as duas cotas é um robô só, e ele saiu das matérias.** O log de
+CDN de 16/10, de 01:39 a 18:25 UTC (`vercel logs requests`, 867 requisições
+deduplicadas), deu o **ClaudeBot** (Anthropic) em 817 delas: **578 das 597
+regenerações de página** — `/news/[id]` em MISS, 318 matérias, cada uma nos
+dois idiomas, numa rajada às 14 UTC com pico de 155/min — e **as 167
+transformações de imagem**. O resto foi o cron e as minhas sondas. Ele relê o
+`robots.txt` a cada 1–2 h e a Anthropic diz que o respeita. Com as páginas mais
+leves e só isso, a janela de ISR cruzaria os 200K ~26/10 e chegaria a ~229K em
+31/10. **Decidido pelo dono:** um grupo `ClaudeBot` no `robots.txt` com
+`Disallow` em `/pt-BR/news/` e `/en/news/` (derivados de `routing.locales`) e
+de novo em `/_next/image` — **o robô com grupo próprio ignora o `*`** (RFC 9309,
+§2.2.1). A barra final deixa a listagem `/news` aberta; a Home, os briefings e
+o `/about` continuam lidos por ele. Projeção com o bloqueio no ar a partir de
+~20/10: escrita diária de ~8K para ~0,5K (o cron), janela em ~158K em 31/10.
+A projeção supõe que 16/10 é um dia típico — o gráfico diário de ~8K estável
+sustenta, e só ele confirma. `tests/lib/robots.test.ts` escolhe o grupo como o
+robô escolhe; mutações A1.122–A1.124.
+
+**Promover uma vez só, até ~19/10**: cada deploy de produção zera o cache da
+ISR (é por deployment) e os robôs regeneram as `/news/[id]` do zero.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
