@@ -4,7 +4,7 @@
 **Projeto:** Newra News  
 **Versão do plano:** 2.1  
 **Data original:** 18/08/2026  
-**Última atualização:** 19/08/2026  
+**Última atualização:** 10/10/2026 (o inventário da Fase 13 reconferido)  
 **Referência visual principal:** The Daily Star — Digital News Platform Redesign (Behance)  
 **Stack atual do web:** Next.js 14 App Router, Tailwind CSS, shadcn/ui, next-intl  
 **Objetivo:** transformar o Newra News de um portal funcional em um produto editorial com identidade forte, hierarquia de conteúdo, leitura premium e fundação preparada para monetização.
@@ -3001,78 +3001,195 @@ layout e sumir com ela seria salto.
 > Lighthouse por rota, baseline visual, e o smoke.
 
 ---
-## Fase 13 — Ajustes finos e release final
+## Fase 13 — Ajustes finos e release final — branch `release/v2.0`, inventário reconferido em 10/10/2026
 
 **Objetivo:** fechar. Não é mais revisão — é decidir cada coisa que ficou em
 aberto, provar cada critério que o plano prometeu, e publicar um release que
 alguém consiga apontar.
 
 **O que diferencia esta fase das três anteriores:** as Fases 9, 10 e 11 acham
-coisas. A 12 **não pode achar** — se ela achar defeito grande, ela não é a 12,
+coisas. A 13 **não pode achar** — se ela achar defeito grande, ela não é a 13,
 é a continuação da fase que o deixou passar. O trabalho aqui é de fechamento, e
 o inventário é o dos documentos, não o do código.
 
-```text
-    -- 13.1 os critérios de aceite --
-[x] §31 Visual: os 7, **fechados na Fase 10.3** com evidência medida
-[ ] §31 UX: os 6, com evidência
-[ ] §31 Performance: os 5, com número — **o LCP já tem o dele e reprova**:
-    medido pós-merge da Fase 10, as cinco rotas ficam entre 2,57 s e 2,94 s,
-    e o critério pede < 2,5 s
-[ ] §31 Monetização: reescrever — 4 critérios falam de anúncio cancelado
+> **O inventário abaixo foi reescrito em 10/10/2026**, depois do plano de
+> observabilidade (`docs/Newra-News-Observability-Plan.md`, Fases 1–13, de
+> 05/09 a 09/10), que fechou boa parte do que a versão de 25/08 listava sem
+> ter sido escrito para isso. Cada `[x]` diz onde está a evidência; `[~]` é
+> parcial, com o que falta; os itens **novos** são o que a reconferência
+> acrescentou, e a §13.0 diz por que nenhum deles é defeito que as revisões
+> deixaram passar. A versão de 25/08 está no histórico do git.
 
-    -- 13.2 as métricas de sucesso --
-[ ] §26 Técnica: error rate, latência e cache hit rate — medir ou riscar
-[ ] §26 Produto: o que a tela de métricas já mostra, com a data da leitura
-[ ] §26 Monetização: marcar como adiada, conforme §21
+```text
+    -- 13.1 os critérios de aceite (§31) --
+[x] Visual: os 7, fechados na Fase 10.3 (24/08) com evidência medida
+[ ] UX: os 6 — todos existem no produto; falta a evidência de cada um
+    (captura da baseline, teste ou medição), como a 10.3 fez com os visuais
+[ ] Performance: os 5, com número e decisão. Medido em 10/10 (run
+    38018246130, medianas de 3, celular emulado em 4G lento): LCP 2,42 s na
+    /news/[id] e 2,72–2,95 s nas outras seis; CLS 0 nas sete; TBT 90–181 ms.
+    O "LCP < 2,5 s" vira risco aceito ou escopo — o limiar do Google é p75
+    de campo, e este tráfego não gera dado de campo; o INP o laboratório não
+    mede, e o TBT entra como substituto declarado
+[ ] Monetização: reescrever — os dois critérios de anúncio morrem
+    (publicidade cancelada em 22/08); ficam o CTA de newsletter consistente
+    e o espaço conceitual da §21
+
+    -- 13.2 as métricas de sucesso (§26) --
+[x] Técnica — error rate e API latency: os quatro sinais de ouro
+    (`GET /api/metrics/http`, a `/admin/metrics`; Fase 5 da observabilidade)
+[x] Técnica — Lighthouse e Core Web Vitals de laboratório: o gate semanal
+[ ] Técnica — cache hit rate: sem produtor. Riscar com o motivo, ou uma
+    leitura do `x-vercel-cache` com data
+[ ] Técnica — image transfer size: o Lighthouse já mede; registrar o número
+[ ] Produto: a leitura com data. Só depois de uma semana de dado limpo — a
+    profundidade de leitura foi corrigida em 09/10 (13c) e o Lighthouse
+    parou de contar como leitor em 10/10 (A1.110): ≥ 17/10
+[ ] Monetização: marcar como adiada, conforme §21
 
     -- 13.3 a dívida --
-[ ] cada item de "O que ficou em aberto" com decisão: entra, fica ou morre
-[ ] os achados das Fases 9–11 que viraram dívida, com gatilho
-[ ] a data do agregado diário (~90 dias da ingestão: ~20/11/2026)
-[ ] o controle de opt-out na interface — item da Fase 8, ainda aberto
-[ ] **a newsletter não entrega a assinante real** — domínio nunca verificado no
-    Resend, envio só para o e-mail da conta (aberto desde 16/08)
-[ ] **`GET /api/trending` etapa 2** — esperava a camada de analytics, que existe
-    desde a Fase 8: o gatilho disparou e ninguém percebeu
+[ ] o veredito de cada item de "O que ficou em aberto" (`CLAUDE.md`): entra,
+    fica ou morre. A maioria já tem gatilho escrito — falta a lista
+[x] os achados das Fases 9–11 que viraram dívida, com gatilho: §16 do plano
+    de observabilidade e `docs/security-advisories.md` (guardado)
+[ ] a data do agregado diário (~20/11/2026) escrita como dívida com data
+[ ] o opt-out na interface: decisão. Recomendado: não — DNT e Global
+    Privacy Control cobrem a oposição; o aviso de privacidade da 13.S é que
+    é obrigatório
+[ ] a newsletter não entrega a assinante real: verificar o envio no Resend
+    exige um domínio próprio (não se verifica `vercel.app`). Decisão do dono:
+    comprar o domínio (13.9), ou declarar a newsletter como demonstração
+[ ] `GET /api/trending` etapa 2: decisão. Recomendado: gatilho — o clique só
+    está limpo desde 10/10 (o 13c achou 1.015 sessões de robô na rolagem)
+[ ] NOVO — o "Trecho" que é a matéria inteira (13.8)
+[ ] NOVO — os gatilhos "next@15" reapontados para next@16: o 15 sai de
+    suporte em 21/10/2026 (`CLAUDE.md`, `docs/security-advisories.md`, §16)
 
     -- 13.4 documentação de release --
-[ ] README: screenshots de 15/08 mostram **a V1**, redesenhada desde 20/08 — a
-    matéria-prima já existe em `docs/v2/baseline-v2/` (51 capturas)
-[ ] **o diagrama ER documenta 3 entidades e o schema tem 12** — faltam nove,
-    todas da V2; os quatro `.mermaid` são de 15/08
-[ ] docs/api.md (guardado por `api-docs-drift`), docs/setup.md (de 24/08),
-    docs/architecture.md
-[ ] docs/presentation.md — a peça de portfólio, de 16/08, descreve a V1
-[ ] CHANGELOG e a tag v2.0.0 (o repositório não tem nenhuma tag)
+[x] README nos dois idiomas, com as capturas da `baseline-v2` (31/08) e o que
+    a observabilidade entregou (#289, #290 — 10/10)
+[x] os seis diagramas reescritos contra o código, com guarda (01/09)
+[x] docs/api.md (guardado), setup.md (10/10), architecture.md (reescrito e
+    guardado em 10/10), presentation.md (31/08, 10/10)
+[ ] CHANGELOG.md e a tag v2.0.0 com nota de release — o repositório não tem
+    nenhuma tag
 
     -- 13.5 o ritual final --
-[ ] Lighthouse por rota, contra produção quente
-[ ] baseline visual completa — e a decisão das larguras
-[ ] smoke E2E verde
-[ ] validação de SEO e leitura de analytics
+[ ] Lighthouse por rota contra produção (o workflow aquece sozinho)
+[ ] baseline visual: recapturada de produção em 01/10 (A7.13 do plano de
+    observabilidade); recapturar no dia, e a §30 passa a pedir as três
+    larguras que o conjunto usa
+[ ] smoke E2E verde (32 passed, 6 skipped em 10/10, na promoção #291)
+[ ] validação de SEO — sitemap, news sitemap, robots, Open Graph, hreflang,
+    canonical — e a leitura de analytics da 13.2
 
     -- 13.6 canary e rollback --
-[ ] o runbook que não existe: o que fazer quando quebra às 3 da manhã
-[ ] promoção de preview na Vercel × build congelada no Render
-[ ] o que o smoke reprovado dispara
+[~] o runbook: os pedaços existem — setup.md §8 (portões, degradado,
+    Heartbeat), §9.0 (suspensão do Render), §9.1 (rotação do AUTH_JWT_SECRET),
+    e o resumo do Heartbeat diz qual pergunta reprovou. Falta juntá-los num
+    só, do e-mail ao conserto
+[ ] o rollback escrito: o deployment anterior na Vercel e o deploy anterior
+    no Render, conferidos no painel de cada um
+[ ] o que o smoke reprovado dispara: hoje avisa e não reverte — escrever
+    como decisão (reverter sozinho exige separar "o deploy quebrou" de "a API
+    estava dormindo", e o gate do Lighthouse já errou nessa direção)
 
     -- 13.7 o dia seguinte --
-[ ] o que roda sozinho depois do release, e quem olha
+[ ] a tabela da 13.7 com o que roda hoje: + Heartbeat (12:40 UTC, o e-mail),
+    o cron conferindo as páginas que invalidou, as invariantes (9.5), a
+    saúde por fonte, Dependabot, CodeQL e Gitleaks no push
 
     -- 13.S o gate de segurança do release (eixo obrigatório) --
-[ ] os achados de 9.S, 10.S e 11.S: corrigidos ou com aceite escrito
-[ ] varredura de dependência — hoje não existe nenhuma
-[ ] gitleaks conferido contra o histórico, não só contra o PR
-[ ] segredos de produção: inventário, dono e rotação
-[ ] LGPD: a página que explica o que é medido e como se opor
+[x] varredura de dependência no CI: `pnpm audit --audit-level=high --prod`
+    reprovando o merge (reprovou de verdade em 06/10, item 89), Dependabot e
+    CodeQL (Fase 10 da observabilidade, 05/09)
+[x] as advisories aceitas, cada uma com motivo, data e gatilho
+    (`docs/security-advisories.md`, guardado contra o `package.json`)
+[ ] os achados de 9.S, 10.S e 11.S: a conferência de que cada um está
+    corrigido com teste ou aceito com risco escrito
+[ ] o alerta aberto do CodeQL (`feed-text.ts:143`, aceito no §16 do plano
+    de observabilidade): dispensá-lo no GitHub com o motivo, para o painel
+    bater com o documento
+[~] gitleaks: todo PR e todo push são varridos, merges incluídos (13d,
+    09/10); falta uma execução contra o histórico inteiro, com o número
+[ ] segredos de produção: inventário, onde cada um mora, dono e rotação —
+    sem valores (o runbook do AUTH_JWT_SECRET existe, setup.md §9.1)
+[ ] LGPD: o aviso de privacidade — o que é medido, por quanto tempo, como se
+    opor, o que a conta guarda e quem é o controlador (art. 9)
+[ ] NOVO — o fim de suporte do next@14 (26/10/2025) e do fastify@4
+    (30/06/2025) escrito como risco aceito, com gatilho (13.10)
 
     -- 13.T a suíte no dia do release (eixo obrigatório) --
-[ ] suíte inteira verde, sem cache, nos dois apps
-[ ] o gate reprova quando deve — provar com uma falha proposital
+[ ] suíte inteira verde, sem cache (`turbo --force`), nos dois apps
+[~] o gate reprova quando deve: `guard:mutations` (110 mutações), o `pnpm
+    audit` (06/10) e o ensaio do Heartbeat (09/10) já reprovaram de verdade;
+    falta o piso de cobertura, numa branch descartável
 [ ] smoke pós-deploy verde contra produção
-[ ] cobertura: os dois pisos no CI, não um
+[x] cobertura: os dois pisos no CI (o do web desde a Fase 10)
 ```
+
+### 13.0 O inventário reconferido — 10/10/2026
+
+**O que mudou de estado sem que esta fase fizesse nada:** a varredura de
+dependência que a 13.S dava como inexistente (Fase 10 da observabilidade),
+o error rate e a latência que a 13.2 dava como sem produtor (Fase 5), a
+documentação inteira da 13.4 menos o `CHANGELOG`, e a metade do "o gate reprova
+quando deve". A tabela da 13.7 envelheceu na direção boa: hoje roda mais coisa
+sozinha do que ela lista.
+
+**O que a reconferência acrescentou — e por que não é defeito que as revisões
+deixaram passar.** As Fases 9–11 revisaram camada (servidor, navegador,
+costura) e a 12, tela; nenhuma tinha no escopo o **direito** sobre o texto
+exibido nem o **ciclo de vida** dos frameworks. Os itens novos são dessas duas
+classes, e mais duas perguntas que só um release público faz:
+
+**13.8 — O "Trecho" que é a matéria inteira.** A `/news/[id]` rotula o corpo
+do feed como "Trecho" e não tem teto: medido em 10/10 nas 100 notícias mais
+recentes de produção, o G1 aparece com mediana de **2.334** caracteres (máximo
+**14.954**) e o Valor com **2.747** (máximo **13.644**) — a matéria praticamente
+inteira, com crédito do veículo e link para a fonte. Duas razões para um teto,
+e a primeira basta: o rótulo mente (a nota no `news-detail.tsx` diz que o
+`content` do RSS "é quase sempre um trecho", e para essas fontes não é); e o
+art. 46, I, "a", da Lei 9.610/98 permite reproduzir notícia **com** autor e
+fonte, mas a jurisprudência pesa contra a reprodução integral — o caso mais
+próximo de agregador (TJSC, Recurso Cível 0000745-45.2020.8.24.0070) é
+reprodução integral com crédito precário. O teto (alguns parágrafos, decidido
+na implementação) deixa a tela fiel ao rótulo e o caminho para o veículo onde
+ele deve estar.
+
+**13.9 — O domínio próprio, se o dono decidir por ele.** É o que destrava a
+newsletter (o Resend só verifica domínio com SPF e DKIM no DNS de quem o
+possui), e é o que o Google exige para verificar a marca na tela de
+consentimento do OAuth, se um dia ela for pedida. O preço medido em 10/10:
+`.com.br` no Registro.br por R$ 40/ano (CPF aceito); `.com` por US$ 10,46/ano
+no Cloudflare Registrar, a preço de custo, que sobe para ~US$ 11,17 em
+01/11/2026 com o reajuste da Verisign. `newranews.com.br` e `newranews.com`
+estavam livres na data. **A troca não é só DNS:** o domínio atual está escrito
+em 15 arquivos versionados fora de `docs/` (o Smoke, o Lighthouse e o
+`.lighthouserc.json`, o `render.yaml`, o Heartbeat, o Playwright, testes,
+READMEs), mais
+`NEXTAUTH_URL`/`NEXT_PUBLIC_SITE_URL` na Vercel, `CORS_ORIGIN`/`SITE_URL`/
+`NEWSLETTER_FROM` no Render, as URLs de callback no Google e no GitHub, e a
+propriedade no Search Console. Se entrar, entra antes da baseline e do
+Lighthouse do dia — senão as duas medições são do endereço velho.
+
+**13.10 — Os frameworks fora de suporte.** O `next@14` saiu de suporte em
+26/10/2025 e o `fastify@4` em 30/06/2025 (as páginas de política de suporte
+de cada um, conferidas em 10/10). As advisories que isso deixa abertas estão
+aceitas uma a uma — a GHSA-h25m-26qc-wcjf, por exemplo, exige Server Action e
+o app não tem nenhuma —, mas **o fim de suporte em si não está escrito em
+lugar nenhum**, e é ele que diz que a próxima advisory não terá correção na
+linha 14. E o alvo mudou: **o `next@15` sai de suporte em 21/10/2026**, então
+todo gatilho escrito como "o Next 15" passa a ser "o Next 16". A migração não
+cabe aqui — a §13.S já explicou por que major de framework não é ajuste de
+release —; o que cabe é a linha de risco aceito, com gatilho e data, e a
+migração como o primeiro trabalho depois da tag.
+
+**E duas perguntas que entram como decisão escrita, não como trabalho:** o
+banco não tem cópia fora do Neon, e o plano gratuito restaura até **6 horas**
+para trás (documentação do Neon, 10/10) — contas e favoritos são o único dado
+que não se reconstrói pelo pipeline; e o Hobby da Vercel é para uso **não
+comercial**, o que este projeto é e o README precisa continuar sendo.
 
 ### 13.1 Os critérios de aceite: 24 caixas, 7 fechadas, 4 obsoletas
 
@@ -3101,6 +3218,10 @@ newsletter consistente, e espaço conceitual para o futuro que a §21 descreve.
 
 ### 13.2 As métricas: três números prometidos que ninguém produz
 
+> **Reconferido em 10/10/2026: dois dos três já têm produtor.** Error rate e
+> latência são os sinais de ouro da Fase 5 da observabilidade
+> (`GET /api/metrics/http`, `/admin/metrics`). Sobra o cache hit rate.
+
 A §26 promete, como métrica **técnica** de sucesso: Lighthouse, Core Web Vitals,
 **error rate**, **API latency**, image transfer size e **cache hit rate**. Os
 dois primeiros o gate mede toda segunda. Os três em negrito **não têm
@@ -3127,6 +3248,12 @@ e não precisam de discussão — só de registro:
   Fase 8, e merece decisão — não silêncio.
 
 ### 13.4 A documentação ainda descreve a V1
+
+> **Reconferido em 10/10/2026: não descreve mais.** README (31/08, com as
+> capturas da `baseline-v2`; 10/10 com a observabilidade), os seis diagramas
+> com guarda (01/09), `architecture.md` e `setup.md` (10/10) e
+> `presentation.md` (31/08). O que esta seção pede e continua faltando é o
+> `CHANGELOG` e a tag.
 
 O `README.md` é a porta do projeto, e ele **não passou pela V2**:
 
@@ -3175,6 +3302,12 @@ o valor está em não redescobri-los.
 
 ### 13.7 O dia seguinte
 
+> **Reconferido em 10/10/2026: a tabela abaixo é de 25/08 e roda mais coisa
+> hoje** — o Heartbeat (12:40 UTC, o job reprovado é o e-mail), o cron que
+> pede as páginas que invalidou e confere a marca do run, as invariantes da
+> etapa 9.5, a saúde por fonte, o Dependabot semanal, o CodeQL e o Gitleaks
+> sobre o intervalo de cada push. Reescrevê-la é caixa do inventário.
+
 O que continua rodando sozinho depois do release, e o que cada coisa prova:
 
 | Mecanismo | Quando | O que ele guarda |
@@ -3198,6 +3331,11 @@ Ela faz três coisas:
 de duas colunas: **corrigido com teste**, ou **aceito com risco escrito** —
 qual é o risco, quem aceita, e o que mudaria a decisão. Achado de segurança sem
 uma das duas bloqueia o release. É a única classe de achado que bloqueia.
+
+> **Reconferido em 10/10/2026: a lacuna do item 2 fechou em 05/09** (Fase 10
+> da observabilidade) — `pnpm audit --audit-level=high --prod` reprovando o
+> merge, Dependabot e CodeQL. O que o item 2 não previa é o **fim de
+> suporte** dos dois frameworks, que nenhum `audit` mede: 13.10.
 
 **2. Fecha a lacuna que nenhuma fase cobre: a dependência.** O CI tem
 **gitleaks** (segredo no commit) e mais nada. Não há `dependabot.yml`, não há
@@ -3250,6 +3388,13 @@ propriedades do próprio mecanismo**, que ninguém verificou até hoje:
 > evidência ou risca, README no desenho novo, runbook escrito, dívida com data,
 > **achados de segurança corrigidos ou com aceite escrito**, e varredura de
 > dependência no CI. **A V2.0 acaba aqui.**
+>
+> **Acrescentado na reconferência de 10/10/2026:** o trecho com teto (13.8),
+> o aviso de privacidade no ar, o fim de suporte do `next@14` e do
+> `fastify@4` escrito como risco aceito com a migração para o Next 16 como
+> próximo trabalho (13.10), e a decisão sobre o domínio e a newsletter
+> (13.9) tomada — comprar ou declarar como demonstração; a varredura de
+> dependência no CI já existe desde 05/09.
 
 ---
 
