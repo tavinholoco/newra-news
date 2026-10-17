@@ -8,6 +8,7 @@ import { ArticleMeta } from '@/components/editorial/article-meta';
 import { StoryImage } from '@/components/editorial/story-image';
 import { HighlightTerm } from '@/components/editorial/highlight-term';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
+import { FIXED_IMAGE_WIDTH } from '@/lib/image-widths';
 import { cn } from '@/lib/utils';
 import type { EventSource } from '@newranews/types';
 import { track } from '@/lib/analytics';
@@ -85,7 +86,7 @@ export function StoryCardHorizontal({
           <StoryImage
             src={story.imageUrl}
             alt={story.title}
-            sizes='96px'
+            fixedWidth={FIXED_IMAGE_WIDTH.thumbnail}
             aspect='photo'
             placeholderSize='sm'
             className='w-24 shrink-0 rounded-md'

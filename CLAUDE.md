@@ -364,6 +364,24 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟡 **16/10/2026: as duas cotas do Hobby da Vercel cortadas antes de
+  estourar — na `dev`, falta promover.** Item **102**. Imagem em 3,9K de 5K
+  (estoura ~20–22/10) e ISR Writes em 193,5K de 200K pelo gráfico diário
+  (cruza ~24/10 e fica acima; acima da cota, os relatos da comunidade da
+  Vercel são de pausa da **conta**, não só do projeto). Toda
+  imagem fora do LCP sai com **um `src` e sem `srcset`** (`lib/image-widths.ts`:
+  192 · 828 · 1200 — o `src` era `w=1920` em todas as 30 da Home), o
+  `robots.txt` tira `/_next/image` do rastreio, e o layout de idioma manda ao
+  cliente só os namespaces que as páginas públicas leem (`/admin`, `/account`
+  e `/favorites` recebem o resto pelo `FullMessagesProvider`). Medido: Home
+  47,5 → 35,7 unidades, `/news/[id]` 31,3 → 25,1. **O consumo era quase todo
+  do ClaudeBot** (16/10: 578 das 597 regenerações, todas em `/news/[id]`, e as
+  167 transformações de imagem) — por decisão do dono, um grupo `ClaudeBot`
+  no `robots.txt` o tira das matérias (a listagem, a Home e os briefings
+  seguem abertos). **Promover uma vez só, até ~19/10** — cada deploy zera o
+  cache da ISR — e conferir no gráfico diário do Usage a partir do dia
+  seguinte.
+
 - 🟢 **10/10/2026: o README da Fase 13 e a quarta promoção (#291,
   `128252d`) — `dev` = `main`.** Item **100**. O README ganhou a publicação
   que confere a si mesma, o analytics com privacidade por padrão e a nova

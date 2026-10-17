@@ -85,8 +85,11 @@ describe('auditoria de imagem', () => {
 
   it('toda imagem com `fill` declara `sizes`', () => {
     // Sem `sizes`, `fill` faz o Next servir a maior variante em todo aparelho:
-    // o mobile baixa a imagem de desktop. É por isso que `StoryImage` já exige
-    // `sizes` no tipo — esta guarda cobre quem chamar `Image` direto.
+    // o mobile baixa a imagem de desktop. O `StoryImage` exige no tipo `sizes`
+    // **ou** `fixedWidth` (desde 16/10/2026 — uma largura só, `unoptimized`,
+    // sem `srcset`: ver `lib/image-widths.ts`), e repassa `sizes` ao
+    // `SafeImage` sempre por extenso; esta guarda cobre quem chamar `Image`
+    // direto.
     const semSizes = jsxOpenings('Image|SafeImage|StoryImage')
       .filter(({ body }) => /\bfill\b/.test(body) && !/\bsizes[=]/.test(body))
       .map(({ file, tag }) => `${file}: <${tag} fill> sem sizes`);

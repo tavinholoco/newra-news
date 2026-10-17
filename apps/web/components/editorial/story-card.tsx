@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArticleMeta } from '@/components/editorial/article-meta';
 import { StoryImage } from '@/components/editorial/story-image';
 import type { HeadingLevel } from '@/components/editorial/heading-level';
+import { FIXED_IMAGE_WIDTH, type FixedImageWidth } from '@/lib/image-widths';
 import { cn } from '@/lib/utils';
 import type { EventSource } from '@newranews/types';
 import { track } from '@/lib/analytics';
@@ -19,7 +20,13 @@ interface StoryCardProps {
   size?: 'default' | 'lead';
   /** Esconde o dek onde a coluna é estreita demais para três linhas de resumo. */
   showDek?: boolean;
-  sizes?: string;
+  /**
+   * A largura única da foto (`lib/image-widths.ts`). Nenhuma tela de hoje usa
+   * o card como LCP — o hero é —, então ele não leva o `srcset` inteiro. Se
+   * um dia o card líder de uma listagem passar `priority`, a foto continua
+   * numa largura só, só que carregada primeiro.
+   */
+  imageWidth?: FixedImageWidth;
   priority?: boolean;
   /**
    * De onde este card foi renderizado. **Obrigatório de propósito**: é o que
@@ -65,7 +72,7 @@ export function StoryCard({
   headingLevel: Heading = 'h3',
   size = 'default',
   showDek = true,
-  sizes = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 384px',
+  imageWidth = FIXED_IMAGE_WIDTH.card,
   priority = false,
   source,
   position,
@@ -106,7 +113,7 @@ export function StoryCard({
             <StoryImage
               src={story.imageUrl}
               alt={story.title}
-              sizes={sizes}
+              fixedWidth={imageWidth}
               priority={priority}
               placeholderSize={isLead ? 'lg' : 'md'}
             />

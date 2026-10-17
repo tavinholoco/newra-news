@@ -105,10 +105,15 @@ const nextConfig = {
      * **reabre a GHSA-2xp9-vwfh-vxw4** (ver `docs/security-advisories.md`).
      */
     deviceSizes: [640, 828, 1200, 1920],
-    // 64 = avatar do perfil · 96 = miniatura do `story-card-horizontal`; o
-    // resto são os múltiplos de DPR dessas duas. O `256` saiu no mesmo corte de
-    // 09/09: quem o pedia (as relacionadas, em 288 px) cai no `384`, que já
-    // existia — um degrau a menos por imagem pequena, sem tela nenhuma mudando.
+    // 64 = avatar do perfil (e 128, o 2x dele). O `256` saiu no mesmo corte de
+    // 09/09: quem o pedia (as relacionadas, em 288 px) caía no `384`.
+    //
+    // **Desde 16/10/2026 a imagem fora do LCP tem uma largura só**
+    // (`lib/image-widths.ts`: 192 · 828 · 1200), e as três **têm de estar
+    // nestas duas listas** — o otimizador recusa com 400 todo `w` fora delas
+    // (guarda em `tests/security/image-optimizer.test.ts`). Com isso o `96` e
+    // o `384` deixaram de ser pedidos por alguma tela; ficam porque não custam
+    // transformação a quem não os pede.
     imageSizes: [64, 96, 128, 192, 384],
 
     /**
