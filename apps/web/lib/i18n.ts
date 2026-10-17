@@ -1,4 +1,6 @@
+import type { AbstractIntlMessages } from 'next-intl';
 import { routing } from '@/i18n/routing';
+import type ptBR from '../messages/pt-BR.json';
 
 // Constantes derivadas da config central de roteamento (i18n/routing.ts) para
 // não duplicar a lista de locales em vários lugares.
@@ -55,4 +57,59 @@ export function localeFromPathname(pathname: string): Locale {
 /** Locale BCP-47 → locale de formatação de datas/números (Intl). */
 export function toDateFormatLocale(locale: string): string {
   return locale === 'en' ? 'en-US' : 'pt-BR';
+}
+
+type Namespace = keyof typeof ptBR;
+
+/**
+ * **Os namespaces que um componente cliente de página pública lê — e só
+ * eles vão para o navegador.** 16/10/2026.
+ *
+ * O `NextIntlClientProvider` do layout de idioma serializa as mensagens que
+ * recebe no payload RSC de **toda** página, e o HTML leva a mesma cópia de
+ * novo, escapada. Com o dicionário inteiro eram 31 KB nas duas pontas, e
+ * metade era `admin`, `dashboard` e `productMetrics`, que nenhuma página
+ * pública mostra. A Vercel cobra a escrita da ISR em unidades de 8 KB.
+ *
+ * Fora daqui: o que só as telas atrás de sessão leem (`admin`, `dashboard`,
+ * `productMetrics`, `account`) — elas são `force-dynamic`, não passam pela
+ * ISR, e recebem o dicionário inteiro pelo `FullMessagesProvider` — e o que
+ * só o servidor lê (`metadata`, `about`, `footer`, `site`, `notFound`), por
+ * `getTranslations`, que não depende do provider.
+ *
+ * **A lista é derivada, não escolhida:** `tests/lib/client-messages.test.ts`
+ * lê todo `useTranslations('…')` de arquivo `'use client'` fora das áreas
+ * privadas e cobra igualdade nas duas direções. Um namespace novo num card
+ * reprova lá — aqui ele viraria `news.chave` impresso na tela.
+ */
+export const PUBLIC_CLIENT_NAMESPACES = [
+  'article',
+  'auth',
+  'categories',
+  'categoryDescriptions',
+  'common',
+  'editorial',
+  'errors',
+  'favorites',
+  'home',
+  'locale',
+  'nav',
+  'news',
+  'newsletter',
+  'newsPeriod',
+  'newsSort',
+  'pagination',
+  'shell',
+  'signin',
+  'theme',
+] as const satisfies readonly Namespace[];
+
+/** Só os namespaces pedidos, na ordem do dicionário — saída determinística. */
+export function pickMessages(
+  messages: AbstractIntlMessages,
+  namespaces: readonly string[],
+): AbstractIntlMessages {
+  return Object.fromEntries(
+    Object.entries(messages).filter(([namespace]) => namespaces.includes(namespace)),
+  );
 }

@@ -136,6 +136,13 @@ describe('o dicionário vai uma vez por página', () => {
    * O único provider é o do layout de idioma — é ele que serve os componentes
    * cliente de verdade. Um segundo, em qualquer arquivo de `app/`, é o mesmo
    * dicionário outra vez em toda página que aquele arquivo alcança.
+   *
+   * **A exceção desde 16/10/2026 é o `FullMessagesProvider`** (em
+   * `components/i18n/`, fora desta varredura de propósito): o layout passou a
+   * mandar só o recorte que as páginas públicas leem, e as telas atrás de
+   * sessão recebem o dicionário inteiro por ele — só em segmento
+   * `force-dynamic`, que não grava na ISR. A guarda dele é
+   * `tests/lib/client-messages.test.ts`.
    */
   it('só o layout de idioma renderiza o `NextIntlClientProvider`', () => {
     const files = collect(path.resolve(WEB_ROOT, 'app'));

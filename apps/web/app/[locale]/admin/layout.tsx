@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Link } from '@/i18n/navigation';
 import { AdminNav } from '@/components/admin/admin-nav';
+import { FullMessagesProvider } from '@/components/i18n/full-messages-provider';
 
 // Segmento protegido (lê a sessão por request) — não pode ser prerenderizado
 // como SSG: o redirect() seria "assado" no HTML estático e todos seriam
@@ -61,10 +62,14 @@ export default async function AdminLayout({ children, params }: Props) {
     );
   }
 
+  // Os componentes do painel leem `admin`, `dashboard` e `productMetrics`,
+  // que o layout de idioma não manda ao navegador (`PUBLIC_CLIENT_NAMESPACES`).
   return (
-    <div className='container-editorial py-section'>
-      <AdminNav />
-      <div className='mt-8'>{children}</div>
-    </div>
+    <FullMessagesProvider>
+      <div className='container-editorial py-section'>
+        <AdminNav />
+        <div className='mt-8'>{children}</div>
+      </div>
+    </FullMessagesProvider>
   );
 }
