@@ -1,14 +1,33 @@
 'use client';
 
 import { SafeImage } from '@/components/ui/safe-image';
+import { optimizedImageUrl, type FixedImageWidth } from '@/lib/image-widths';
 import { cn } from '@/lib/utils';
 
-interface StoryImageProps {
+/**
+ * **Ou `sizes`, ou `fixedWidth` — nunca os dois, nunca nenhum.**
+ *
+ * `sizes` é o `srcset` inteiro, e fica para os dois heros: são o LCP, e é ali
+ * que a nitidez em cada tela paga o custo. `fixedWidth` é **uma** variante,
+ * num `src` sem `srcset`, para tudo o mais — ver `lib/image-widths.ts`, com a
+ * conta da cota de imagem do Hobby.
+ */
+type StoryImageWidth =
+  | {
+      /** Obrigatório no modo responsivo: `fill` sem `sizes` baixa a maior variante. */
+      sizes: string;
+      fixedWidth?: never;
+    }
+  | {
+      /** A largura única, de `FIXED_IMAGE_WIDTH`. */
+      fixedWidth: FixedImageWidth;
+      sizes?: never;
+    };
+
+type StoryImageProps = StoryImageWidth & {
   /** `imageUrl` da matéria; `null` cai no placeholder de marca. */
   src: string | null;
   alt: string;
-  /** Obrigatório: `fill` sem `sizes` faz o Next baixar a maior variante. */
-  sizes: string;
   /** Só para a imagem do hero — é o LCP da Home. */
   priority?: boolean;
   /** Proporção da caixa. O hero usa 16/9; os cards horizontais, 4/3. */
@@ -18,7 +37,7 @@ interface StoryImageProps {
   /** Zoom no hover — depende de um `group` no ancestral clicável. */
   zoomOnHover?: boolean;
   className?: string;
-}
+};
 
 const ASPECT: Record<NonNullable<StoryImageProps['aspect']>, string> = {
   video: 'aspect-[16/9]',
@@ -61,6 +80,7 @@ export function StoryImage({
   src,
   alt,
   sizes,
+  fixedWidth,
   priority = false,
   aspect = 'video',
   placeholderSize = 'md',
@@ -94,10 +114,15 @@ export function StoryImage({
     >
       {src ? (
         <SafeImage
-          src={src}
+          // Largura única: o `src` já é a URL do otimizador, e `unoptimized`
+          // só diz ao `next/image` para não montar o `srcset` em volta dela.
+          // A imagem continua otimizada — pelo mesmo `/_next/image`, na mesma
+          // origem (a CSP é `img-src 'self'`).
+          src={fixedWidth ? optimizedImageUrl(src, fixedWidth) : src}
+          sizes={fixedWidth ? undefined : sizes}
+          unoptimized={fixedWidth !== undefined}
           alt={alt}
           fill
-          sizes={sizes}
           priority={priority}
           className={cn(
             'object-cover',

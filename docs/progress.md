@@ -9393,6 +9393,117 @@ projeto fica pronto para o release quando ela fechar. Branch `release/v2.0`.
 - **LCP medido para a §31** (run 38018246130, medianas de 3): 2,42 s na
   `/news/[id]`, 2,72–2,95 s nas outras seis; CLS 0; TBT 90–181 ms.
 
+### 102. As duas cotas do Hobby da Vercel antes de estourarem: uma largura por imagem, o dicionário que só as páginas públicas leem, e o ClaudeBot fora das matérias ✅ 2026-10-16
+
+**Por que agora:** a leitura de 16/10 (Usage, 30 dias) deu **Image
+Transformations em 3,9K de 5K**, a ≥190 por dia, com os dias 16–30/09 — em
+que a cota estava estourada e tudo respondia 402 — valendo ~0 na janela
+móvel: **estoura ~20–22/10**. E **ISR Writes em 193,5K** pelo gráfico diário
+(o cartão do resumo dizia 173K), a ~8K por dia, estável e sem relação com
+deploy: com 16–19/09 saindo da janela, **cruza os 200K ~24/10 e fica acima**
+(8K × 30 = 240K). O dono quer as fotos e o Hobby, e escolheu otimizar menos
+onde importa menos.
+
+**A pesquisa, com as fontes** (notas completas na pasta da sessão):
+
+- **A imagem é cobrada por par (imagem, largura)** em cada MISS (KB da
+  Vercel *reduce-image-optimization-costs*; a chave é projeto + `url` + `w` +
+  `q` + `Accept`), e acima da cota a imagem nova responde 402 — o `SafeImage`
+  mostra o placeholder. **A ISR, pior:** sem doc específica, o Hobby manda
+  "esperar 30 dias", e na comunidade a pausa por ISR foi **da conta** — os
+  cinco projetos do time.
+- **Com `fill` + `sizes`, o `next/image` põe a maior largura no `src`**
+  (`getWidths` e `generateImgAttrs` em `get-img-props.js`, `next@14.2.35`):
+  `sizes='96px'` não tem `vw`, então a miniatura levava as nove larguras no
+  `srcset` e `w=1920` no `src`. **Medido na Home de produção: as 30 imagens
+  com `src` a `w=1920`, e 69,5 KB de atributos de `<img>` no HTML.** O Google
+  lê o `src` e diz que nem todo robô entende `srcset`.
+- **`unoptimized` com a URL do otimizador no `src` continua otimizada** — o
+  `next/image` só deixa de montar o `srcset`; o endpoint valida `w` contra
+  `deviceSizes` ∪ `imageSizes` (Next e Build Output API da Vercel) e `q` entre
+  1 e 100. O `loader` por imagem foi descartado: repete a mesma URL nove vezes
+  no `srcset` e não encolhe o HTML, que também é ISR Write.
+- **O Data Cache não é ISR Write** — é outra camada (docs da Vercel, *Data
+  Cache*, beta, em Observability → Runtime Cache). Encolher o JSON da API só
+  ajuda no que vira prop de componente cliente.
+- **next-intl 3.26.5:** a doc da v3 manda `pick(messages, …)` num
+  `NextIntlClientProvider`; o `IntlProvider` do `use-intl` **substitui** as
+  mensagens no provider aninhado, não mescla.
+
+**O que entrou:**
+
+- **Uma largura só fora do LCP** (`lib/image-widths.ts`): o `StoryImage`
+  ganhou `fixedWidth` (ou `sizes`, nunca os dois, pelo tipo); miniatura de
+  96 px → **192**, card, líder de categoria e relacionadas → **828**, líder
+  sozinho (1.216 px) → **1200**. Os dois heros ficam com o `srcset`. A URL é
+  montada igual à do carregador padrão do Next (mesma chave de cache) e a CSP
+  não muda (`img-src 'self'`).
+- **`Disallow: /_next/image`** no `robots.txt`. O `og:image` e o `image` do
+  JSON-LD da `/news/[id]` já apontam para a fonte — o que o Discover e o
+  Notícias usam segue rastreável; o `/_next/static` segue liberado. **E o
+  ClaudeBot fora das matérias** (abaixo).
+- **O dicionário enxuto:** o layout de idioma manda ao cliente só os 19
+  namespaces que um componente cliente de página pública lê
+  (`PUBLIC_CLIENT_NAMESPACES`, ~10 KB de 31 KB); `/admin`, `/account` e
+  `/favorites` — `force-dynamic`, fora da ISR — recebem o inteiro pelo
+  `FullMessagesProvider`.
+
+**Medido** num build de produção local contra a API de produção, com o dado
+do dia, contra a mesma página em produção (unidades de 8 KB, HTML + RSC):
+
+| Página | Antes | Depois |
+|---|---|---|
+| Home (`/pt-BR`, `/en`) | 47,5 · 47,0 | **35,7 · 35,5** (−25 %) |
+| `/news/[id]` (pt-BR, en) | 31,3 · 30,8 | **25,1 · 24,9** (−20 %) |
+| `/article/[date]` | 35,8 | **30,2** (−16 %) |
+| `/news` | 33,3 | **27,7** (−17 %) |
+| `/article` | 44,6 | **39,0** (−13 %) |
+| `/about` | 19,5 | **14,0** (−28 %) |
+
+Larguras por imagem na Home: 13 miniaturas só em `w=192`, 16 cards e médias
+só em `w=828`, o hero com o `srcset` de quatro. Atributos de `<img>`: 69,5 →
+**20,0 KB**. As 30 carregam (`next start` local, 30/30). **A troca, medida
+nas 16 + 13 da Home:** a tela 1x de desktop baixa ~+0,5 MB (cards a 828 em vez
+de 384), o celular 2x fica igual e o 3x baixa ~0,6 MB a menos; o LCP (hero)
+não muda, e o Lighthouse móvel (DPR 1,75) já pedia 828 e 192.
+
+**A unidade é medida sobre o byte sem compressão** — a Vercel comprime a
+escrita da ISR, então o número absoluto do painel será outro; a proporção é o
+que este item afirma. **Só o gráfico diário do Usage confirma**, a partir do
+primeiro dia inteiro depois da promoção.
+
+**Guardas, vistas reprovando** (A1.111–A1.125 no `guard-mutations.mjs`;
+`image-optimizer.test.ts` saiu de `EXCLUDED` e entrou na tabela):
+`tests/security/image-optimizer.test.ts` (larguras na lista do otimizador, a
+URL igual à do carregador do Next, o `next/image` de verdade sem `srcset`, só
+os heros com `sizes`, varrendo todo `app/` e `components/` — a primeira versão
+olhava só `components/editorial/`, achado da revisão antes do merge),
+`tests/lib/robots.test.ts` (avalia as regras pela RFC
+9309, com o grupo escolhido como o robô escolhe) e `tests/lib/client-messages.test.ts` (o recorte derivado pelo parser,
+nas duas direções; componente privado só em tela com o dicionário inteiro; o
+inteiro só em `force-dynamic`).
+
+**Quem gasta as duas cotas é um robô só, e ele saiu das matérias.** O log de
+CDN de 16/10, de 01:39 a 18:25 UTC (`vercel logs requests`, 867 requisições
+deduplicadas), deu o **ClaudeBot** (Anthropic) em 817 delas: **578 das 597
+regenerações de página** — `/news/[id]` em MISS, 318 matérias, cada uma nos
+dois idiomas, numa rajada às 14 UTC com pico de 155/min — e **as 167
+transformações de imagem**. O resto foi o cron e as minhas sondas. Ele relê o
+`robots.txt` a cada 1–2 h e a Anthropic diz que o respeita. Com as páginas mais
+leves e só isso, a janela de ISR cruzaria os 200K ~26/10 e chegaria a ~229K em
+31/10. **Decidido pelo dono:** um grupo `ClaudeBot` no `robots.txt` com
+`Disallow` em `/pt-BR/news/` e `/en/news/` (derivados de `routing.locales`) e
+de novo em `/_next/image` — **o robô com grupo próprio ignora o `*`** (RFC 9309,
+§2.2.1). A barra final deixa a listagem `/news` aberta; a Home, os briefings e
+o `/about` continuam lidos por ele. Projeção com o bloqueio no ar a partir de
+~20/10: escrita diária de ~8K para ~0,5K (o cron), janela em ~158K em 31/10.
+A projeção supõe que 16/10 é um dia típico — o gráfico diário de ~8K estável
+sustenta, e só ele confirma. `tests/lib/robots.test.ts` escolhe o grupo como o
+robô escolhe; mutações A1.122–A1.124.
+
+**Promover uma vez só, até ~19/10**: cada deploy de produção zera o cache da
+ISR (é por deployment) e os robôs regeneram as `/news/[id]` do zero.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

@@ -19,7 +19,7 @@ import { Providers } from '../providers';
 import { SITE_URL, SITE_NAME, toOgLocale } from '@/lib/seo';
 import { organizationJsonLd, webSiteJsonLd } from '@/lib/json-ld';
 import { routing } from '@/i18n/routing';
-import type { Locale } from '@/lib/i18n';
+import { PUBLIC_CLIENT_NAMESPACES, pickMessages, type Locale } from '@/lib/i18n';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -117,7 +117,14 @@ export default async function LocaleLayout({
         <JsonLd
           data={[organizationJsonLd(), webSiteJsonLd(locale, siteDescription)]}
         />
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        {/* Só o que um componente cliente de página pública lê: o dicionário
+            inteiro pesava 31 KB no RSC e de novo no HTML de toda página da
+            ISR. As telas atrás de sessão recebem o resto pelo
+            `FullMessagesProvider` — ver `PUBLIC_CLIENT_NAMESPACES`. */}
+        <NextIntlClientProvider
+          locale={locale}
+          messages={pickMessages(messages, PUBLIC_CLIENT_NAMESPACES)}
+        >
           <Providers>
             {/* Bypass block (WCAG 2.4.1). O shell tem três linhas e a faixa
                 de assuntos: são doze paradas de tabulação antes do conteúdo, e

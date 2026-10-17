@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import nextDefaultLoader from 'next/dist/shared/lib/image-loader';
+import { imageConfigDefault } from 'next/dist/shared/lib/image-config';
+import { StoryImage } from '@/components/editorial/story-image';
+import { FIXED_IMAGE_WIDTH, optimizedImageUrl } from '@/lib/image-widths';
 
 /**
  * **O otimizador de imagem aceita qualquer host, e isso é aceite de risco
@@ -127,15 +133,12 @@ describe('os `sizes` limitados em pixel', () => {
    * breakpoint, o `srcset` deixa o navegador pedir a maior variante para
    * desenhar 800 — e, com o host aberto, é uma transformação a mais por URL.
    */
+  // Só os dois heros têm `sizes` desde 16/10/2026 — o resto saiu do `srcset`
+  // e tem uma largura só (ver "uma largura só fora do LCP", abaixo).
   const COM_SIZES = [
     'components/editorial/hero-story.tsx',
-    'components/editorial/story-card.tsx',
-    'components/editorial/related-stories.tsx',
-    'components/editorial/category-section.tsx',
     // Já nasceu com o limite: `768px` é a largura de `max-w-narrow`.
     'components/editorial/article-hero.tsx',
-    // `96px` fixo — a miniatura não muda de tamanho.
-    'components/editorial/story-card-horizontal.tsx',
   ];
 
   it('todo `sizes` termina em largura fixa, nunca em unidade de viewport', () => {
@@ -171,3 +174,113 @@ describe('os `sizes` limitados em pixel', () => {
     expect(hero).toContain('(max-width: 1280px) 62vw, 800px');
   });
 });
+
+describe('uma largura só fora do LCP', () => {
+  /**
+   * **Cada imagem que não é o LCP sai com um `src` só, sem `srcset`** — 16/10/2026.
+   *
+   * Com `fill` + `sizes` o `next/image` monta o `srcset` com até nove
+   * larguras e põe a **maior** no `src`: medido na Home de produção, as 30
+   * imagens saíam com `src` a `w=1920`, a miniatura de 96 px inclusive. Quem
+   * lê o `src` — o Google, e todo robô que não entende `srcset` — pedia a
+   * variante de 1920 px que nenhum leitor pede, e cada par (imagem, largura)
+   * é uma transformação na cota de 5.000 do Hobby. E os `<img>` somavam
+   * 69,5 KB do HTML da Home, cobrados na ISR em unidades de 8 KB.
+   */
+  const larguras = [...listaNumerica('deviceSizes'), ...listaNumerica('imageSizes')];
+
+  it('toda largura fixa é uma que o otimizador aceita', () => {
+    // O otimizador do Next e o da Vercel recusam com 400 todo `w` fora de
+    // `deviceSizes` ∪ `imageSizes` — a imagem viraria o placeholder de marca,
+    // em silêncio, porque o `SafeImage` degrada sem gritar.
+    expect(larguras.length).toBeGreaterThan(0);
+    for (const largura of Object.values(FIXED_IMAGE_WIDTH)) {
+      expect(larguras).toContain(largura);
+    }
+  });
+
+  it('a URL é a mesma que o carregador do Next escreve — a mesma chave de cache', () => {
+    // Contra o carregador de verdade, não contra uma cópia do formato: um Next
+    // novo que mude a URL reprova aqui, em vez de partir o cache em dois.
+    const src = 'https://s2-g1.glbimg.com/a b/c.jpg?x=1&y=2';
+    for (const width of Object.values(FIXED_IMAGE_WIDTH)) {
+      const doNext = nextDefaultLoader({
+        config: { ...imageConfigDefault, path: '/_next/image' },
+        src,
+        width,
+      });
+      expect(optimizedImageUrl(src, width)).toBe(doNext);
+    }
+  });
+
+  it('a imagem de largura fixa sai com um `src` e sem `srcset` — no `next/image` de verdade', () => {
+    const html = renderToStaticMarkup(
+      createElement(StoryImage, {
+        src: 'https://s2-g1.glbimg.com/foto.jpg',
+        alt: 'Foto',
+        fixedWidth: FIXED_IMAGE_WIDTH.thumbnail,
+      }),
+    );
+
+    expect(html).toContain(
+      'src="/_next/image?url=https%3A%2F%2Fs2-g1.glbimg.com%2Ffoto.jpg&amp;w=192&amp;q=75"',
+    );
+    expect(html).not.toMatch(/srcset=/i);
+    expect(html).not.toMatch(/\ssizes=/);
+  });
+
+  it('o hero continua com o `srcset` inteiro', () => {
+    // O controle do teste acima: sem ele, "sem `srcset`" passaria também se o
+    // `next/image` deixasse de montar `srcset` para todo mundo.
+    const html = renderToStaticMarkup(
+      createElement(StoryImage, {
+        src: 'https://s2-g1.glbimg.com/foto.jpg',
+        alt: 'Foto',
+        sizes: '(max-width: 1024px) 100vw, 768px',
+        priority: true,
+      }),
+    );
+
+    expect(html).toMatch(/srcset=/i);
+  });
+
+  it('só os dois heros pedem `sizes` ao `StoryImage`', () => {
+    // O tipo do `StoryImage` obriga a escolher entre `sizes` e `fixedWidth`;
+    // esta é a outra metade — quem escolhe o `srcset` inteiro. Imagem nova com
+    // `sizes` fora do LCP é cota gasta para nada.
+    //
+    // A varredura é por **onde o `StoryImage` pode ser usado** — todo `.tsx` de
+    // `app/` e `components/` —, e não pela pasta onde ele está hoje: guarda que
+    // varre uma pasta só responde o que alguém lembrou de olhar.
+    const usos = ['app', 'components']
+      .flatMap((dir) => tsxFiles(path.resolve(WEB_ROOT, dir)))
+      .map((file) => ({
+        file: path.relative(WEB_ROOT, file).replace(/\\/g, '/'),
+        openings: [...stripComments(readFileSync(file, 'utf8')).matchAll(/<StoryImage\b([\s\S]*?)\/>/g)],
+      }))
+      .filter(({ openings }) => openings.length > 0);
+    const comSizes = usos
+      .filter(({ openings }) => openings.some((m) => /\bsizes=/.test(m[1] ?? '')))
+      .map(({ file }) => file);
+
+    // Coletor que não acha nada passaria em tudo: os quatro chamadores de hoje
+    // têm de aparecer.
+    expect(usos.length).toBeGreaterThanOrEqual(4);
+    expect(comSizes.sort()).toEqual([
+      'components/editorial/article-hero.tsx',
+      'components/editorial/hero-story.tsx',
+    ]);
+  });
+});
+
+/**
+ * Todo `.tsx` sob `dir`, pelo `Dirent` do `readdirSync` — sem `statSync` à
+ * parte, que o CodeQL (`js/file-system-race`) acusa como TOCTOU.
+ */
+function tsxFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return tsxFiles(full);
+    return entry.isFile() && entry.name.endsWith('.tsx') ? [full] : [];
+  });
+}
