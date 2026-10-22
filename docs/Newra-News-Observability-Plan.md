@@ -1,13 +1,16 @@
 # Plano de Observabilidade e Painel do Admin — Newra News
 
-> **Estado (09/10/2026):** as onze fases de implementação estão **em
+> **Estado (22/10/2026):** as onze fases de implementação estão **em
 > produção** desde a promoção #251, e a **Fase 12, o ensaio de aceitação
 > (§22), fechou em 06/10** — a matriz `docs/observability-acceptance.md` tem o
 > estado linha a linha. **A Fase 13 (§23) está no ar inteira menos o 13.3**:
 > o 13a′ e o 13a (07/10), o 13b, o 13c, o 13d, o 13.5 e o 13.7 (09/10), em
 > quatro promoções (#272, #277, #285, #287), mais uma revisão do código da
-> fase. **O que sobra tem data, gatilho ou dono, e está num lugar só: "O que
-> sobra", no fim da §23.** O estado de cada fase vive no §19.
+> fase. **O 13.3 fechou na `dev` em 22/10** (a terceira tentativa de aquecer;
+> as sete acordadas medidas passaram de 52 s, e 21/10 ficou sem briefing) e
+> sobe na próxima promoção — com ela, o plano fecha. **O que sobra tem data,
+> gatilho ou dono, e está num lugar só: "O que sobra", no fim da §23.** O
+> estado de cada fase vive no §19.
 > *(Em 01/10, antes de a 13 abrir, as horas do Render foram atacadas pela
 > raiz — #255, promovido no #256: a ISR deixou de acordar a API a cada hora.
 > O começo da §23 conta.)*
@@ -4191,7 +4194,8 @@ aplica as duas migrations juntas na promoção.**
   corrigidos com guarda e mutação (três de produto: a ESPN com o fuso
   errado, a NewsData recusada lida como vazia, a etapa 8 sem contagem por
   tabela). Item **90** do `docs/progress.md`.
-- **§23 — Fase 13 (o que o ensaio deixou aberto). ← no ar, menos o 13.3.**
+- **§23 — Fase 13 (o que o ensaio deixou aberto). ← no ar, menos o 13.3,
+  que fechou na `dev` em 22/10 (item 103) e sobe na próxima promoção.**
   O cron pede as páginas que invalidou (13a′), o batimento de fora com o
   e-mail (13a), o denominador das horas do workspace e as horas por dia
   (13b), a métrica de leitura medindo leitores (13c), o Gitleaks varrendo o
@@ -5385,6 +5389,56 @@ duas das conferências de antes da hora — e reprovou numa. Item **99** do
   `ubuntu-latest` passa a ser o Ubuntu 26 a partir de 19/10/2026** (aviso
   em toda execução) — os sete workflows usam esse rótulo.
 
+**O que o 13.3 decidiu — 22/10/2026 ✅ (na `dev`; sobe na próxima
+promoção).** Item **103** do `docs/progress.md`.
+
+- **A série, lida nos logs das doze execuções agendadas do Heartbeat (10 a
+  21/10):** sete acordaram a API, em **52.185 a 53.392 ms** (13, 14, 15, 17,
+  18, 20 e 21/10); nas outras cinco ela já estava de pé (229 ms em 19/10). As
+  sete passam dos 45 s — **o gatilho disparou**. E o Ubuntu 26 dos runners,
+  a partir de 19/10, não quebrou nada.
+- **O que a série dizia sobre o cron:** com duas tentativas de 25 s, a
+  janela de aquecer era 50 s, e **a segunda desistia dois segundos antes de
+  a API responder, todo dia em que ela dormia**. O briefing saía porque o
+  POST de 20 s chegava logo depois — a folga do dia era essa, ~18 s, e um
+  POST que estoura não é repetido. **Em 21/10 o dia ficou sem briefing**: sem
+  `DailyMetric` e sem uma `News` com o `createdAt` do dia (o run não chegou
+  à etapa 4, ou nem existiu); o Heartbeat reprovou às 17:40 UTC e o e-mail
+  saiu. A causa exata não é legível — o log da Vercel guarda 1 h —, e o
+  formato bate com a janela curta.
+- **O envelope, reequilibrado sob o mesmo `maxDuration = 290`:** aquecer
+  `3 × 25 s` + duas pausas = 105 s (eram 65); disparar `3 × 20 s` + duas
+  pausas = 90 s (eram quatro tentativas, 125); esperar o run, **85 s** (eram
+  90) — 280 s, mais os 10 s de margem da resposta. A terceira tentativa está
+  no ar aos ~53 s de 75, e a recusa da borda passa a ser absorvida também
+  no aquecimento, que agora tem duas pausas antes do POST.
+- **O "90 s" da espera eram 108:** o `settleRun` testava o prazo antes de
+  dormir 10 s e dava à sonda os 8 s cheios de `API_TIMEOUT_MS`. Hoje não
+  começa uma pausa que acabe depois do prazo, e a sonda recebe o que sobra
+  dele — a última sai aos ~80 s, o que cobre o run medido (média de 66,7 s
+  na semana de 16 a 22/10; 1 min 13 s em 06/10).
+- **A soma deixou de ser só prosa:** `tests/lib/daily-revalidation.test.ts`
+  refaz o pior caso a partir das constantes e cobra que uma tentativa de
+  aquecer esteja no ar quando a acordada medida (`API_WAKE_MEASURED_MS`,
+  agora o máximo da série, 53.400 ms) termina — com duas tentativas, as duas
+  reprovam. O `daily-news-api.test.ts` cobra a sonda dentro do prazo.
+- **Junto, fora do 13.3, a pedido do dono:** o `NODE_VERSION` do
+  `render.yaml` saiu de `22.12.0` (dez/2024, anterior a todas as correções
+  de segurança de 2025–2026 da linha 22) para `"22"`, que o Render resolve
+  para a 22.x mais nova a cada deploy. A 22 e não a 24 porque o `fastify@4`
+  só declara suporte até a 22. Guarda em
+  `apps/api/tests/build/node-version.test.ts`: só a major, e a mesma de todo
+  `node-version:` dos workflows.
+- **Mutações A1.126–A1.131.**
+- **O que conferir depois da promoção:** o primeiro cron com a API
+  dormindo devolve `warmed: true` (a resposta e a linha `cron.daily-news`
+  ficam no log da Vercel por 1 h; o sinal durável é o Heartbeat verde no
+  dia), e o log de build do Render diz `Using Node.js version 22.23.x` — se
+  disser 22.12.0, o `NODE_VERSION` está fixado no painel e o blueprint não o
+  alcança (Render → Environment). **Gatilho para reabrir:** um dia sem
+  briefing com a API acordada pelo cron, ou uma acordada acima de 65 s na
+  série do Heartbeat (a terceira tentativa deixa de ter folga de 10 s).
+
 ### O que sobra — 09/10/2026, depois da terceira promoção
 
 **Tudo o que a Fase 13 deixou depende de uma data, de um gatilho ou do dono.**
@@ -5402,7 +5456,7 @@ blocos "O que … decidiu" acima têm o detalhe de cada um.
 | a primeira semana (até ~16/10) | o `article_view` aparecendo | MCP do Neon: `article_view` por dia, contra o tráfego da `/news/[id]` no log da Vercel | zero com tráfego é **ingestão perdida** (a borda do Render recusando a Vercel, armadilha 45), não falta de leitor |
 | a primeira semana | a `SourceHealth` com menos dias de `FAILED`, e a causa do undici no `failureReason` | MCP do Neon sobre outubro (eram 8 dias com `FAILED` em 9) | o gatilho do 13.5 no §16 |
 | **~16/10 — do dono** | reler o Billing do Render | Render → Billing → Free instance hours → "Total do Billing" na `/admin` | projeção acima de 600 h na segunda leitura seguida → a contagem automática do §16 vira trabalho |
-| **~17/10** | **o 13.3** — uma semana de acordadas, uma por dia desde 10/10 | as linhas `heartbeat api_ms=…` das execuções agendadas | alguma acima de **45 s** → terceira tentativa no aquecimento do cron e o envelope reequilibrado sob o `maxDuration = 290`; senão, nada muda e a decisão fica escrita com o número |
+| ~~**~17/10**~~ **feito em 22/10** | ~~**o 13.3** — uma semana de acordadas, uma por dia desde 10/10~~ — sete acordadas de 52,2 a 53,4 s: terceira tentativa no aquecimento, o envelope reequilibrado (ver "O que o 13.3 decidiu", acima) | as linhas `heartbeat api_ms=…` das execuções agendadas | — |
 
 **Com gatilho — todos no §16, com o número:** a página que o cron desiste
 de aquecer (13a′); a borda do Render (13.8); as horas por dia (13.9); a
@@ -5416,7 +5470,8 @@ assinante real (o domínio nunca foi verificado no Resend); a release final da
 V2 (a baseline recapturada, o `CHANGELOG.md`, a primeira tag — §28 do plano
 da V2); `fastify@5` e `next@15`, logo abaixo.
 
-**Quando o 13.3 fechar, a Fase 13 fecha** — e com ela o plano. O que ficar
+**O 13.3 fechou em 22/10 na `dev`; com a promoção que o levar, a Fase 13
+fecha** — e com ela o plano. O que ficar
 depois é o §16, que é o lugar de dívida com número; nenhuma fase nova nasce
 de uma linha dele sem o gatilho disparar.
 
@@ -5443,7 +5498,7 @@ de uma linha dele sem o gatilho disparar.
 | ~~**13d**~~ ✅ 09/10 | 13.6 (o Gitleaks): o `push` roda o binário sobre `before..after`; a action fica no PR. Na `dev`; sobe na segunda promoção | — |
 | ~~13.5~~ ✅ 09/10 | a Veja Saúde fica; a falha rápida de rede do feed ganha uma nova tentativa, e a causa do undici vai para o `failureReason`. Na `dev`; sobe na segunda promoção | a decisão do dono — tomada em 09/10, sobre a `SourceHealth` de produção |
 | ~~13.7~~ ✅ 09/10 | os fluxos com login do Smoke **ficam desligados**, e o defeito que eles pegariam vira a sonda diária do par de JWT, sem segredo no CI. Na `dev`; sobe na segunda promoção | a decisão do dono — tomada em 09/10, depois da análise e da pesquisa |
-| — | 13.3 | uma semana da série do 13a (~17/10) |
+| ~~—~~ ✅ 22/10 | 13.3: a terceira tentativa de aquecer e o envelope reequilibrado, mais o `NODE_VERSION` do Render só na major. Na `dev`; sobe na próxima promoção | ~~uma semana da série do 13a (~17/10)~~ — doze execuções, 10 a 21/10 |
 | — | 13.8, ~~13.9~~, ~~13.10~~ | o gatilho da armadilha 45, hoje linha do §16; ~~uma semana de `DailyUptime`~~ (no 13b); ~~junto do 13a~~ (no 13a) |
 
 Cada PR contra a `dev`, com o ritual de sempre (§19); a promoção leva o lote.

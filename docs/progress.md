@@ -9504,6 +9504,52 @@ robô escolhe; mutações A1.122–A1.124.
 **Promover uma vez só, até ~19/10**: cada deploy de produção zera o cache da
 ISR (é por deployment) e os robôs regeneram as `/news/[id]` do zero.
 
+### 103. O 13.3: a terceira tentativa de aquecer, porque 21/10 ficou sem briefing — e o Node do Render só na major ✅ 2026-10-22
+
+**Por que agora:** a pedido do dono, uma leitura das execuções das últimas
+semanas. De 01 a 22/10, **21 dias tiveram briefing e um não: 21/10** — sem
+`Article`, sem `DailyMetric` (a semanal de 16–22/10 conta 6 dias) e sem uma
+`News` com o `createdAt` do dia (de 290 a 430 nos outros). O run não chegou à
+etapa 4, ou nem existiu. O Heartbeat de 21/10 reprovou (`o briefing mais novo
+é de 2026-10-20`) e o e-mail saiu; 22/10 rodou normal.
+
+- **A série do 13.3, nos logs das doze execuções agendadas do Heartbeat (10 a
+  21/10):** sete acordaram a API, em 52.185 a 53.392 ms; cinco a acharam de pé
+  (229 ms). Todas as sete acima dos 45 s do gatilho. **Com duas tentativas de
+  25 s, o aquecimento desistia dois segundos antes de a API responder, todo
+  dia em que ela dormia**, e o briefing dependia do POST de 20 s, que não é
+  repetido quando estoura. A causa de 21/10 não é legível (o log da Vercel
+  guarda 1 h); o formato bate com a janela curta.
+- **O envelope sob o mesmo `maxDuration = 290`:** aquecer `3 × 25 s` + duas
+  pausas (105 s), disparar `3 × 20 s` + duas pausas (90 s; eram quatro
+  tentativas), esperar o run por 85 s (eram 90) — 280 s mais a margem de 10 s.
+  E **a espera era 108 s, não 90**: o `settleRun` dormia 10 s depois do prazo e
+  dava à sonda os 8 s cheios; hoje o prazo é teto.
+- **A soma virou guarda** (`tests/lib/daily-revalidation.test.ts`): o pior caso
+  refeito das constantes, e uma tentativa de aquecer no ar quando a acordada
+  medida termina (`API_WAKE_MEASURED_MS`, agora 53.400 ms, o máximo da série).
+  Mais dois testes no `daily-news-api.test.ts` (a terceira tentativa; a sonda
+  dentro do prazo).
+- **O `NODE_VERSION` do Render, achado na conferência de fim de suporte das
+  dependências que o dono pediu antes:** fixado em `22.12.0` (dez/2024), atrás
+  de todas as correções de segurança de 2025–2026 da linha 22 (março, junho e
+  julho de 2026 com *high*), enquanto o CI testava a 22.x mais nova e a Vercel
+  publica o web na 24. Agora `"22"`, que o Render resolve a cada deploy; a 22 e
+  não a 24 porque o `fastify@4` só declara suporte até a 22. Guarda em
+  `apps/api/tests/build/node-version.test.ts`.
+- **O resto da conferência ficou como relatório, não como trabalho:** `next@14`
+  (e agora o 15, desde 21/10), `react@18`, `fastify@4`, `prisma@5`, `pnpm@9`,
+  `eslint@8` e `vitest@2`/`vite@5` estão fora de suporte; `rss-parser` não
+  publica desde 04/2023; o `gemini-2.5-flash` não tem data de desligamento, mas
+  o Google restringe o acesso a quem já o usava. São majors de framework, que a
+  §13.S do plano V2 põe depois da tag — entram como linha da 13.10 dele.
+- **Mutações A1.126–A1.131. 1.531 na API, 1.047 no web.**
+- **O que conferir depois da promoção:** o Heartbeat verde num dia em que a API
+  dormia, e o log de build do Render dizendo `Using Node.js version 22.23.x`
+  (se disser 22.12.0, o valor está fixado no painel — Render → Environment).
+  **A promoção zera o cache da ISR** (item 102): o gráfico diário de ISR Writes
+  da Vercel sobe no dia dela.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
