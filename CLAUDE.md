@@ -364,6 +364,16 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
+- 🟡 **24/10/2026: três advisories novas reprovavam o `pnpm audit` de toda
+  branch — na `dev`, falta promover.** Item **104**. As duas do `next`
+  (GHSA-2464-fhr4-w9xw *critical*, a RCE da biblioteca de imagem; e uma DoS
+  de Server Action) não alcançam e foram aceitas, a do `sharp` fora da árvore
+  agora com guarda. **A do `zod` alcança**: com o corpo de 1 MB padrão do
+  Fastify, um `[0,0,…]` no `/api/events` custava ~465 MB numa instância de
+  512 MB, sem sessão. O corpo da API passou a ter teto de **64 KB**
+  (`REQUEST_BODY_LIMIT_BYTES`, 413 antes da validação), e a advisory fica
+  aceita até o `zod@4`, que pede o `fastify@5`.
+
 - 🟡 **16/10/2026: as duas cotas do Hobby da Vercel cortadas antes de
   estourar — na `dev`, falta promover.** Item **102**. Imagem em 3,9K de 5K
   (estoura ~20–22/10) e ISR Writes em 193,5K de 200K pelo gráfico diário

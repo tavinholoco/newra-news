@@ -241,6 +241,27 @@ describe('superfície do navegador', () => {
       // que caracterizaria o *custom server* das duas advisories de SSRF.
       expect(readdirSync(WEB_ROOT)).not.toContain('server.js');
     });
+
+    /**
+     * **As duas RCE do otimizador de imagem dependem do `sharp` estar no
+     * artefato** — a GHSA-2xp9-vwfh-vxw4 (AVIF, aceita em 09/09/2026) e a
+     * GHSA-2464-fhr4-w9xw (SVG, aceita em 24/10/2026, cujo contorno é
+     * `sharp ≥ 0.35.5`). O `/_next/image` deste deploy é servido pela
+     * plataforma da Vercel (a medição está em `docs/security-advisories.md`),
+     * e o que garante isso do lado do repositório é o `sharp` não estar na
+     * árvore. Era só prosa no aceite: o dia em que um proxy de imagem próprio,
+     * um `output: standalone` ou uma dependência o trouxer, é aqui que reprova.
+     */
+    it('o `sharp` não está na árvore — o otimizador de imagem é o da plataforma', () => {
+      const lockfile = readFileSync(path.resolve(WEB_ROOT, '../../pnpm-lock.yaml'), 'utf8');
+      const config = stripComments(
+        readFileSync(path.resolve(WEB_ROOT, 'next.config.js'), 'utf8'),
+      );
+
+      expect(lockfile).not.toMatch(/^ {2}'?sharp@/m);
+      expect(config).not.toMatch(/\boutput\s*:\s*['"]standalone['"]/);
+      expect(config).not.toMatch(/\bloader(File)?\s*:/);
+    });
   });
 });
 
