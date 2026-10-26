@@ -9504,6 +9504,41 @@ robô escolhe; mutações A1.122–A1.124.
 **Promover uma vez só, até ~19/10**: cada deploy de produção zera o cache da
 ISR (é por deployment) e os robôs regeneram as `/news/[id]` do zero.
 
+### 104. Três advisories de 22–23/10: as duas do `next` aceitas com guarda, e a do `zod` fechada na porta com um teto de 64 KB no corpo ✅ 2026-10-24
+
+**Por que agora:** o CI do #301 (o 13.3, item 103) reprovou no `pnpm audit
+--audit-level=high --prod` sem mexer em dependência — três advisories
+publicadas ou revisadas entre 22 e 23/10, que reprovam toda branch com o mesmo
+lockfile. Decidido pelo dono, num PR separado.
+
+- **GHSA-2464-fhr4-w9xw (*critical*, `next`)** — RCE na biblioteca de imagem
+  por trás do otimizador, ao processar SVG; contorno `sharp ≥ 0.35.5`. Não
+  alcança: o `sharp` não está na árvore e o `/_next/image` é da plataforma da
+  Vercel (a medição de 09/09 da GHSA-2xp9-vwfh-vxw4). **Essa premissa era só
+  prosa** e ganhou guarda (`browser-surface.test.ts`: sem `sharp` no
+  lockfile, sem `output: standalone`, sem `loader`).
+- **GHSA-p3m5-59mp-jv5r (high, `next`)** — exige Server Action; o app não tem
+  nenhuma, e a premissa já era teste.
+- **GHSA-mrhx-c7xc-m3w5 (high, `zod`) — alcança.** Medido contra o schema do
+  `/api/events`: um corpo de 1 MB (o padrão do Fastify) com `[0,0,0,…]` vira
+  **1 milhão de issues** (duas por elemento: a interseção valida as duas
+  metades), **~265 MB no parse e ~200 MB na mensagem** — uma requisição passa
+  dos 512 MB do Render. O `.max(20)` não para a validação, e ela roda antes do
+  `preHandler` de autenticação. Sem correção na linha 3; o `zod@4` pede o
+  `fastify-type-provider-zod` ≥ 6, que pede o `fastify@5`. **Mitigação:**
+  `bodyLimit` de **64 KB** no `buildApp` (`REQUEST_BODY_LIMIT_BYTES`); o maior
+  lote legítimo mede 15,7 KB, e no teto o pior corpo custa ~65 mil issues,
+  ~27 + 12 MB. Guarda em `tests/security/body-limit.test.ts` (o teto ligado, o
+  maior lote cabendo com folga, 413 antes da validação na rota anônima e numa
+  protegida, e o custo no teto).
+- `docs/security-advisories.md`: três linhas, a seção de medição, as contagens
+  (22 → 25) e os dois grupos. Mutações **A1.132–A1.136**; o
+  `browser-surface.test.ts` saiu do `EXCLUDED` e entrou na tabela.
+- **1.534 na API, 1.044 no web.**
+- **O que conferir depois da promoção:** um `POST /api/events` legítimo segue
+  em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
+  responde 413.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)
