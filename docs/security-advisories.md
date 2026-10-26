@@ -19,10 +19,11 @@ gatilho.
 > publicada: `eslint@8`, `vitest@2`, o CLI do `shadcn`. Uma lista de exceção com
 > 35 linhas é a armadilha 21 do §17 do plano de observabilidade — vira ruído,
 > alguém desliga o passo, e ele deixa de existir de fato enquanto continua
-> existindo no arquivo. Com `--prod` são **22** — 16 com alcance analisado nos
+> existindo no arquivo. Com `--prod` são **25** — 16 com alcance analisado nos
 > itens **9.S** e **10.S** do `docs/progress.md`, mais as **duas *critical* do
-> `next`** que chegaram em 09/09/2026 e as **quatro do `fastify`** que chegaram
-> em 01/10/2026, as seis medidas na hora.
+> `next`** que chegaram em 09/09/2026, as **quatro do `fastify`** que chegaram
+> em 01/10/2026 e as **três de 22–23/10/2026** (duas do `next`, uma do `zod`),
+> todas medidas na hora.
 >
 > O outro lado fica com o **Dependabot**, que abre PR semanal para dependência de
 > desenvolvimento também. A diferença entre os dois é o que cada um faz quando
@@ -30,14 +31,14 @@ gatilho.
 
 ## As três dívidas, e são só três
 
-**22** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
+**25** advisories, quatro grupos, três gatilhos — e as duas contagens escritas
 neste documento têm guarda **derivada da lista**, porque número em prosa que
 descreve uma coleção é a armadilha do `13` dos feeds (item 41).
 
 | Gatilho | Advisories | Onde o aceite foi escrito |
 |---|---|---|
-| **`next` 14 → 15** | 10 do `next` + 5 da cadeia de build que ele carrega | item 10.S do `docs/progress.md`, e as duas de 09/09 na seção de medição abaixo |
-| **`fastify` 4 → 5** | 5 do `fastify` e 1 do `find-my-way` | item 9.S, e as quatro de 01/10 na seção de medição abaixo |
+| **`next` 14 → 15** | 12 do `next` + 5 da cadeia de build que ele carrega | item 10.S do `docs/progress.md`, e as de 09/09 e de 24/10 nas seções de medição abaixo |
+| **`fastify` 4 → 5** | 5 do `fastify`, 1 do `find-my-way` e 1 do `zod` (o `zod@4` pede o `fastify@5`) | item 9.S, e as de 01/10 e de 24/10 nas seções de medição abaixo |
 | **UI do Swagger em produção** | `@fastify/static` | item 9.S |
 
 No dia em que qualquer um dos três acontecer — ou um bump corrigir a
@@ -81,6 +82,9 @@ com a lista vazia e recusa toda exceção que não casa mais com achado nenhum.
 | GHSA-p68q-wchp-6fh7 | `fastify` | URL malformada cai no not-found handler **encapsulado** de outro prefixo, sem o `preHandler` dele — há um handler só, na raiz do `buildApp`, sem opções, e ele devolve `{ error: 'Not Found' }`: não há dado protegido atrás de um 404. Mesma guarda | 01/10/2026 | um segundo `setNotFoundHandler`, num plugin com prefixo, ou `fastify@5` |
 | GHSA-hwr6-493r-vm6h | `fastify` | Pedaço do schema declarado como booleano `false` não é compilado — nenhuma rota declara schema booleano; os schemas são objetos do Zod. Mesma guarda | 01/10/2026 | o primeiro pedaço de schema booleano numa rota, ou `fastify@5` |
 | GHSA-9q9j-q6p8-xq58 | `fastify` | `dependencies` num schema de `headers` não acompanha a caixa baixa do Node — nenhuma rota declara schema de `headers` (com o type provider ele **substitui** `request.headers`, decisão do 5b do plano de observabilidade). Mesma guarda | 01/10/2026 | o primeiro schema de `headers` numa rota, ou `fastify@5` |
+| GHSA-2464-fhr4-w9xw | `next` | RCE (*critical*) na biblioteca de imagem por trás do otimizador, ao processar SVG; o contorno da própria advisory é `sharp ≥ 0.35.5`. **`sharp` não está no `pnpm-lock.yaml`**, e o `/_next/image` é servido pela plataforma da Vercel — a premissa e a medição da GHSA-2xp9-vwfh-vxw4, logo acima. Guarda: `apps/web/tests/security/browser-surface.test.ts` (sem `sharp` no lockfile, sem `output: standalone`, sem `loader`) | 24/10/2026 | trazer a otimização de imagem para dentro, `sharp` entrar na árvore, ou o `next@16` (o 15 saiu de suporte em 21/10/2026; a correção existe no 15.5.28 e no 16.4.1, sem backport para a 14) |
+| GHSA-p3m5-59mp-jv5r | `next` | DoS no App Router que exige **ao menos uma Server Action** — o app não tem nenhuma, e a premissa é teste (a mesma das quatro de 23/08) | 24/10/2026 | a primeira Server Action, ou o `next@16` |
+| GHSA-mrhx-c7xc-m3w5 | `zod` | **Alcança, e está mitigado na porta.** O `zod@3` guarda uma issue por elemento inválido de um array, sem teto, e a validação roda antes da autenticação. O corpo da API passou a ter teto de **64 KB** (`REQUEST_BODY_LIMIT_BYTES` no `buildApp`; o padrão do Fastify é 1 MB), e corpo maior responde 413 antes do parser. Guarda: `apps/api/tests/security/body-limit.test.ts`. Medição logo abaixo | 24/10/2026 | o `zod@4` (≥ 4.6.6), que pede o `fastify-type-provider-zod` ≥ 6 e com ele o `fastify@5`; ou uma rota que precise de corpo maior que 64 KB |
 
 > **Quem aceita:** Pedro Levi. As linhas de 23/08/2026 vêm dos itens 9.S e 10.S do
 > `docs/progress.md`, onde cada "não alcança" já era uma afirmação sobre o código
@@ -92,7 +96,9 @@ com a lista vazia e recusa toda exceção que não casa mais com achado nenhum.
 > `dev`, e o alcance das duas foi **medido**, não deduzido — a medição está logo
 > abaixo. As de **01/10/2026** são as quatro do `fastify` que reprovaram o CI da
 > `dev` na véspera da promoção da Fase 12 do plano de observabilidade — a seção
-> de medição delas também está abaixo.
+> de medição delas também está abaixo. As de **24/10/2026** são duas do `next`
+> e uma do `zod` que reprovaram o CI do #301; a do `zod` **alcança** e foi
+> mitigada na porta antes de ser aceita — a medição está no fim.
 
 ### Como o alcance da GHSA-2xp9-vwfh-vxw4 foi medido — 09/09/2026
 
@@ -156,6 +162,32 @@ pré-condição por escrito, e a pergunta foi se este código a cumpre:
 TypeScript —, cada uma vista reprovando por uma mutação do `pnpm guard:mutations`
 (A1.54–A1.58). O aceite deixa de ser verdade no dia em que uma rota passar a
 cumprir a pré-condição, e é ali que reprova.
+
+### Como o alcance das três de 22–23/10 foi medido — 24/10/2026
+
+Publicadas no banco de advisories do GitHub entre 22 e 23/10/2026, reprovaram o
+CI do PR #301 (o 13.3 do plano de observabilidade, que não mexia em
+dependência) — a lição de 09/09 e de 01/10 pela terceira vez.
+
+- **As duas do `next`** têm a premissa das vizinhas: a GHSA-p3m5-59mp-jv5r
+  exige Server Action, e o app não tem nenhuma; a GHSA-2464-fhr4-w9xw é a
+  biblioteca de imagem por trás do otimizador, e o `sharp` não está na árvore
+  — a premissa da GHSA-2xp9-vwfh-vxw4, que **ganhou guarda própria agora**
+  (era só a prosa da medição de 09/09). Correção só no 15.5.28 e no 16.4.1;
+  como o 15 saiu de suporte em 21/10, o alvo útil é o 16.
+- **A do `zod` alcança, e foi medida contra o schema do `/api/events`.** Um
+  corpo de 1 MB (o padrão do Fastify) com `[0,0,0,…]` vira **1 milhão de
+  issues — duas por elemento, porque a interseção do evento valida as duas
+  metades —, ~265 MB de heap no parse e ~200 MB ao serializar a mensagem**:
+  uma requisição só passa dos 512 MB da instância do Render. O `.max(20)` do
+  lote não para a validação; e como a validação roda antes do `preHandler` do
+  `authPlugin`, rota protegida também alcança. Não há correção na linha 3 do
+  `zod`, e o `zod@4` não tem type provider para o `fastify@4`. **A mitigação é
+  o teto de 64 KB** no corpo: o maior lote legítimo de eventos, com todo campo
+  no tamanho máximo, mede 15,7 KB; no teto, o pior corpo custa ~65 mil
+  issues, ~27 MB mais ~12 MB de mensagem. É o mesmo tipo de aceite da
+  GHSA-jx2c-rxcm-jvmq: alcançável pela advisory, fechado na porta, com guarda
+  — e sai na mesma migração.
 
 ## Como acrescentar uma linha
 

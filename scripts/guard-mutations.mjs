@@ -1692,6 +1692,52 @@ const MUTATIONS = [
     edits: [{ find: '        value: "22"', replace: '        value: "24"' }],
     expect: 'runs the same major the CI tests',
   },
+  // ── As advisories de 22–23/10 (24/10/2026) ───────────────────────────────
+  {
+    id: 'A1.132',
+    what: 'o corpo da API volta ao 1 MB padrão do Fastify — um `[0,0,…]` passa dos 512 MB no `zod@3`',
+    pkg: 'api',
+    test: 'tests/security/body-limit.test.ts',
+    file: 'apps/api/src/app.ts',
+    dropLine: '    bodyLimit: REQUEST_BODY_LIMIT_BYTES,',
+    expect: 'is wired into the server at 64 KB',
+  },
+  {
+    id: 'A1.133',
+    what: 'o teto do corpo sobe para 1 MB na constante',
+    pkg: 'api',
+    test: 'tests/security/body-limit.test.ts',
+    file: 'apps/api/src/app.ts',
+    edits: [{ find: 'export const REQUEST_BODY_LIMIT_BYTES = 64 * 1024;', replace: 'export const REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;' }],
+    expect: 'is wired into the server at 64 KB',
+  },
+  {
+    id: 'A1.134',
+    what: 'o teto do corpo desce abaixo do maior lote legítimo de eventos',
+    pkg: 'api',
+    test: 'tests/security/body-limit.test.ts',
+    file: 'apps/api/src/app.ts',
+    edits: [{ find: 'export const REQUEST_BODY_LIMIT_BYTES = 64 * 1024;', replace: 'export const REQUEST_BODY_LIMIT_BYTES = 16 * 1024;' }],
+    expect: 'fits the largest legitimate batch of events',
+  },
+  {
+    id: 'A1.135',
+    what: 'o `sharp` entra no lockfile — as duas RCE do otimizador de imagem passam a alcançar',
+    pkg: 'web',
+    test: 'tests/security/browser-surface.test.ts',
+    file: 'pnpm-lock.yaml',
+    append: '\n  sharp@0.34.0:\n    resolution: {integrity: sha512-guard-mutation}\n',
+    expect: 'o `sharp` não está na árvore',
+  },
+  {
+    id: 'A1.136',
+    what: 'a primeira Server Action — quatro DoS do `next@14` e a GHSA-p3m5-59mp-jv5r passam a alcançar',
+    pkg: 'web',
+    test: 'tests/security/browser-surface.test.ts',
+    file: 'apps/web/lib/guard-mutation-action.ts',
+    create: "'use server';\n// Arquivo criado pelo scripts/guard-mutations.mjs; é apagado ao fim.\nexport async function guardMutation() {}\n",
+    expect: 'não existe Server Action no projeto',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
@@ -1730,7 +1776,6 @@ const EXCLUDED = {
   'web:tests/lib/markdown-text.test.ts': 'V2, pós-Fase 12 (01/09) — limpeza de Markdown em metadata; anterior ao plano',
   'web:tests/lib/seo.test.ts': 'V2 (22/08) — metadata; anterior ao plano',
   'web:tests/routes/events-anonymity.test.ts': 'V2, Fase 11 (24/08) — anonimato do BFF de eventos; anterior ao plano',
-  'web:tests/security/browser-surface.test.ts': 'V2, Fase 10 (24/08) — o plano (5c) só trocou prosa ("15 páginas")',
   'web:tests/security/response-headers.test.ts': 'V2, Fase 10 (24/08) — o plano (5c) só trocou prosa ("15 páginas")',
 };
 

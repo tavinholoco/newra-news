@@ -40,8 +40,32 @@ import { UNHANDLED_CODE, recordError } from './services/error-event.service';
 import { baseLogger } from './utils/logger';
 import { UNMATCHED_ROUTE, routePatternOf } from './utils/request-route';
 
+/**
+ * **O teto do corpo de requisição: 64 KB, e não o 1 MB padrão do Fastify**
+ * (24/10/2026, GHSA-mrhx-c7xc-m3w5).
+ *
+ * O `zod@3` valida **todo** elemento de um array e guarda uma issue por
+ * elemento que falha, sem teto — o `.max(20)` do lote de eventos não para a
+ * validação, só acrescenta mais uma issue. Medido contra o schema do
+ * `/api/events` (duas issues por elemento — a interseção valida as duas
+ * metades): um corpo de 1 MB com `[0,0,0,…]` vira **1 milhão de issues, ~265 MB
+ * de heap, e mais ~200 MB ao serializar a mensagem** — uma requisição só passa
+ * dos 512 MB da instância do Render. E a validação roda **antes**
+ * do `preHandler` de autenticação, então qualquer rota com array no corpo é
+ * alcançável sem sessão. A correção do `zod` só existe na 4.6.6, e o `zod@4`
+ * pede o `fastify-type-provider-zod` ≥ 6, que pede o `fastify@5`.
+ *
+ * O teto age antes do parser: corpo maior responde **413** sem chegar à
+ * validação. O maior corpo legítimo é o lote de 20 eventos no tamanho máximo de
+ * cada campo, ~16 KB; com 64 KB o pior caso é ~65 mil issues, ~27 MB mais
+ * ~12 MB de mensagem (medido). Guarda em
+ * `tests/security/body-limit.test.ts`. **Sai quando o `zod@4` entrar.**
+ */
+export const REQUEST_BODY_LIMIT_BYTES = 64 * 1024;
+
 export async function buildApp() {
   const app = Fastify({
+    bodyLimit: REQUEST_BODY_LIMIT_BYTES,
     /**
      * **A instancia, e nao um booleano.**
      *
