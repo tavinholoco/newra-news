@@ -30,11 +30,15 @@ import type { PipelineTrigger } from '@newranews/types';
 export const dynamic = 'force-dynamic';
 
 /**
- * 290 s, e o número sai da soma do pior caso: aquecer (`2 × 25 s` + uma pausa
- * de 15 s) = 65 s; disparar com a borda recusando (`4 × 20 s` + `3 × 15 s`) =
- * 125 s; esperar o fim do run (`PIPELINE_SETTLE_MAX_MS`) = 90 s — 280 s. O
- * teto do plano Hobby da Vercel é 300 s. Era 90 s até 01/10/2026; 240 com a
- * espera pelo run; 290 com a repetição do 429.
+ * 290 s, e o número sai da soma do pior caso: aquecer (`3 × 25 s` + duas
+ * pausas de 15 s) = 105 s; disparar com a borda recusando (`3 × 20 s` +
+ * `2 × 15 s`) = 90 s; esperar o fim do run (`PIPELINE_SETTLE_MAX_MS`) = 85 s —
+ * 280 s, mais os 10 s de `CRON_RESPONSE_MARGIN_MS`. O teto do plano Hobby da
+ * Vercel é 300 s. Era 90 s até 01/10/2026; 240 com a espera pelo run; 290 com
+ * a repetição do 429. **Em 22/10 (13.3) o total ficou e a divisão mudou**: a
+ * terceira tentativa de aquecer, porque a acordada mede ~53 s e duas
+ * tentativas cobriam 50; o disparo e a espera encolheram para caber.
+ * `tests/lib/daily-revalidation.test.ts` refaz a soma a partir das constantes.
  *
  * **O pedido das páginas do dia (13.12) usa o que sobra** até
  * `CRON_MAX_DURATION_MS − CRON_RESPONSE_MARGIN_MS` — no caso comum (a API
@@ -115,11 +119,15 @@ async function settleRun(jobUrl: string, pipelineId: string): Promise<RunStatus>
   const statusUrl = new URL(encodeURIComponent(pipelineId), jobUrl).toString();
   const deadline = Date.now() + PIPELINE_SETTLE_MAX_MS;
 
-  while (Date.now() < deadline) {
+  // **O prazo é teto, e o envelope do `maxDuration` conta com isso** (13.3):
+  // não começa uma pausa que acabe depois dele, e a sonda não passa dele. Com
+  // `Date.now() < deadline`, a última dormia 10 s além do prazo e esperava
+  // ainda os 8 s da resposta.
+  while (Date.now() + PIPELINE_SETTLE_POLL_MS < deadline) {
     await new Promise((resolve) => setTimeout(resolve, PIPELINE_SETTLE_POLL_MS));
     try {
       const res = await fetch(statusUrl, {
-        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(API_TIMEOUT_MS, deadline - Date.now()))),
         headers: { Authorization: `Bearer ${process.env.BACKEND_JOB_SECRET}` },
         cache: 'no-store',
       });

@@ -53,7 +53,10 @@
         "GHSA-667r-xxjv-c9mm",
         "GHSA-p68q-wchp-6fh7",
         "GHSA-hwr6-493r-vm6h",
-        "GHSA-9q9j-q6p8-xq58"
+        "GHSA-9q9j-q6p8-xq58",
+        "GHSA-2464-fhr4-w9xw",
+        "GHSA-p3m5-59mp-jv5r",
+        "GHSA-mrhx-c7xc-m3w5"
       ]
     }
   }

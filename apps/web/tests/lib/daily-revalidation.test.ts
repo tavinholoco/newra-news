@@ -5,11 +5,18 @@ import { join } from 'node:path';
 import { DAILY_REVALIDATION_PATHS, dailyPages } from '@/lib/daily-revalidation';
 import { DEFAULT_LOCALE, LOCALES } from '@/lib/i18n';
 import {
+  API_WAKE_MEASURED_MS,
   CRON_MAX_DURATION_MS,
   CRON_RESPONSE_MARGIN_MS,
   DAILY_PAGES_FLOOR_MS,
   DAILY_PAGES_PAUSE_MS,
   DAILY_PAGES_TIMEOUT_MS,
+  PIPELINE_REFUSED_PAUSE_MS,
+  PIPELINE_SETTLE_MAX_MS,
+  PIPELINE_TRIGGER_ATTEMPTS,
+  PIPELINE_TRIGGER_TIMEOUT_MS,
+  PIPELINE_WARM_ATTEMPTS,
+  PIPELINE_WARM_TIMEOUT_MS,
   VERCEL_FUNCTION_MAX_MS,
 } from '@/lib/timeouts';
 
@@ -247,6 +254,33 @@ describe('o prazo do cron', () => {
     expect(CRON_RESPONSE_MARGIN_MS + DAILY_PAGES_PAUSE_MS + DAILY_PAGES_FLOOR_MS).toBeLessThan(
       CRON_MAX_DURATION_MS,
     );
+  });
+
+  /**
+   * **O envelope do cron, refeito a partir das constantes** (13.3 do plano de
+   * observabilidade, 22/10/2026). A soma morava só em prosa no comentário do
+   * `maxDuration`, e a prosa não reprova: com duas tentativas de aquecer, a
+   * janela era 50 s contra uma acordada de 52–53 s, e nada no CI dizia isso.
+   */
+  it('keeps a wake attempt in flight when the API finishes waking', () => {
+    // A última tentativa ainda está no ar quando a acordada medida termina —
+    // senão o aquecimento desiste segundos antes de a API responder, e o dia
+    // depende só do prazo do POST.
+    expect(PIPELINE_WARM_ATTEMPTS * PIPELINE_WARM_TIMEOUT_MS).toBeGreaterThan(API_WAKE_MEASURED_MS);
+  });
+
+  it('fits the worst case of waking, triggering and waiting for the run before the response margin', () => {
+    // Cada tentativa pode gastar o prazo inteiro, e entre duas há a pausa da
+    // recusa da borda (uma recusa que demore o prazo é o pior caso). A espera
+    // pelo run é teto: o `settleRun` não começa sonda que passe dele.
+    const repeated = (attempts: number, timeoutMs: number) =>
+      attempts * timeoutMs + (attempts - 1) * PIPELINE_REFUSED_PAUSE_MS;
+    const worst =
+      repeated(PIPELINE_WARM_ATTEMPTS, PIPELINE_WARM_TIMEOUT_MS) +
+      repeated(PIPELINE_TRIGGER_ATTEMPTS, PIPELINE_TRIGGER_TIMEOUT_MS) +
+      PIPELINE_SETTLE_MAX_MS;
+
+    expect(worst).toBeLessThanOrEqual(CRON_MAX_DURATION_MS - CRON_RESPONSE_MARGIN_MS);
   });
 });
 

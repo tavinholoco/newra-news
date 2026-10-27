@@ -340,12 +340,12 @@ a suíte de unidade, que roda sem rede.
   num PR só — a última do plano**, com o ensaio contra os retidos pendente
   da API voltar (item 83).** **A Fase 12 — o ensaio de aceitação (§22) —
   fechou em 06/10** (item 90): a matriz `docs/observability-acceptance.md`
-  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está em
-  curso, e tudo menos o 13.3 está no ar**: o 13a′, o 13a e o 13b (#272,
-  #277); o 13c, o 13d, o 13.5 e o 13.7 (promoções #285 e #287, 09/10). Sobra
-  o 13.3 (~17/10), pelo prompt de abertura no fim da §23 — **e tudo o que
-  depende de data, gatilho ou do dono está em "O que sobra", logo antes
-  dele**.
+  com 81 linhas `[x]` e 15 `[!]`, nenhuma aberta. **A Fase 13 (§23) está no
+  ar inteira menos o 13.3**: o 13a′, o 13a e o 13b (#272, #277); o 13c, o
+  13d, o 13.5 e o 13.7 (promoções #285 e #287, 09/10). **O 13.3 fechou na
+  `dev` em 22/10** (item 103) e sobe na próxima promoção — com ela, o plano
+  fecha. **Tudo o que depende de data, gatilho ou do dono está em "O que
+  sobra", no fim da §23**.
   O **§19** é o ponto de entrada: traz o ritual, a ordem das 11 fases e o que uma
   sessão fria erra. Traz também a pesquisa de quais métricas e eventos de segurança um
   painel deve ter (OWASP A09 e vocabulário de log, quatro sinais de ouro do
@@ -364,8 +364,34 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- 🟡 **16/10/2026: as duas cotas do Hobby da Vercel cortadas antes de
-  estourar — na `dev`, falta promover.** Item **102**. Imagem em 3,9K de 5K
+- 🟡 **24/10/2026: três advisories novas reprovavam o `pnpm audit` de toda
+  branch — na `dev`, falta promover.** Item **104**. As duas do `next`
+  (GHSA-2464-fhr4-w9xw *critical*, a RCE da biblioteca de imagem; e uma DoS
+  de Server Action) não alcançam e foram aceitas, a do `sharp` fora da árvore
+  agora com guarda. **A do `zod` alcança**: com o corpo de 1 MB padrão do
+  Fastify, um `[0,0,…]` no `/api/events` custava ~465 MB numa instância de
+  512 MB, sem sessão. O corpo da API passou a ter teto de **64 KB**
+  (`REQUEST_BODY_LIMIT_BYTES`, 413 antes da validação), e a advisory fica
+  aceita até o `zod@4`, que pede o `fastify@5`.
+
+- 🟡 **22/10/2026: o 13.3 — o cron acorda a API em três tentativas — e o Node
+  do Render só na major, na `dev`; falta promover.** Item **103**. **21/10
+  ficou sem briefing**, e o run nem chegou à coleta (nenhuma `News` do dia);
+  o Heartbeat reprovou e o e-mail saiu. As sete acordadas que ele mediu de
+  13 a 21/10 deram **52–53 s**, e o aquecimento do cron (`2 × 25 s`)
+  desistia dois segundos antes de a API responder, todo dia em que ela
+  dormia — o briefing dependia do POST de 20 s, sem repetição. Hoje são
+  `3 × 25 s`, o disparo caiu de quatro para três tentativas e a espera pelo
+  run de 90 para 85 s (que eram 108 de verdade), e o pior caso é refeito
+  das constantes por uma guarda. **E o `render.yaml` fixava o Node em
+  22.12.0** (dez/2024, antes de todas as correções de segurança de
+  2025–2026); agora `"22"`, a mesma major do CI, com guarda. **Depois da
+  promoção:** o log de build do Render deve dizer `Using Node.js version
+  22.23.x` — se disser 22.12.0, o valor está fixado no painel. A promoção
+  zera o cache da ISR (item 102).
+
+- 🟢 **16/10/2026: as duas cotas do Hobby da Vercel cortadas antes de
+  estourar — promovido no #298 (17/10).** Item **102**. Imagem em 3,9K de 5K
   (estoura ~20–22/10) e ISR Writes em 193,5K de 200K pelo gráfico diário
   (cruza ~24/10 e fica acima; acima da cota, os relatos da comunidade da
   Vercel são de pausa da **conta**, não só do projeto). Toda
@@ -381,6 +407,19 @@ a suíte de unidade, que roda sem rede.
   seguem abertos). **Promover uma vez só, até ~19/10** — cada deploy zera o
   cache da ISR — e conferir no gráfico diário do Usage a partir do dia
   seguinte.
+
+- 🟢 **10/10/2026: a Fase 13 da V2 (a release) abriu pelo inventário
+  reconferido.** Item **101**; §28 do plano V2, "Fase 13" e §13.0. O
+  inventário de 25/08 foi cruzado com o que o plano de observabilidade
+  entregou (dependência no CI, sinais de ouro, documentação) e ganhou quatro
+  itens que uma pesquisa de prontidão achou: **o "Trecho" sem teto** (G1 com
+  mediana de 2.334 caracteres, máximo 14.954 — a matéria inteira), **o
+  aviso de privacidade** (LGPD art. 9; não existe página), **o fim de
+  suporte do `next@14` (26/10/2025) e do `fastify@4` (30/06/2025)** — e o
+  `next@15` sai em 21/10/2026, então os gatilhos "Next 15" viram "Next 16" —
+  e **o domínio próprio**, que destrava a newsletter. **Decisões do dono
+  antes do trabalho:** domínio/newsletter, LCP como risco ou escopo, trending
+  e opt-out.
 
 - 🟢 **10/10/2026: o README da Fase 13 e a quarta promoção (#291,
   `128252d`) — `dev` = `main`.** Item **100**. O README ganhou a publicação
@@ -1663,6 +1702,13 @@ a suíte de unidade, que roda sem rede.
 
 ### Por onde começar a Fase 13 (Ajustes finos e release final)
 
+> **O inventário da Fase 13 foi reconferido em 10/10/2026** (item **101**),
+> depois do plano de observabilidade — que fechou boa parte dele — e com
+> quatro itens novos: o "Trecho" que é a matéria inteira (13.8), o domínio
+> próprio (13.9), o fim de suporte do `next@14` e do `fastify@4` (13.10) e o
+> aviso de privacidade. **Comece pela §13.0 do plano V2**; a lista abaixo e a
+> "dívida que a 13 herda" são de 25/08 e estão lá, com o estado de cada item.
+
 **As Fases 9, 10, 11 e 12 estão fechadas.** Leia os itens **34**, **35**, **36**
 e **38** do `docs/progress.md` — a 13 é o fechamento, e cada um dos quatro
 registra o que deixou pendente para ela.
@@ -1801,9 +1847,13 @@ schema ⇒ linha no blueprint, e o mapa de confiança como teste.
   primeira acordada depois de um mês suspenso. Em 01/09/2026 ele estourou, o
   `catch` devolveu 500, e **o dia ficou sem briefing** — o único sinal foi o
   briefing ausente. Hoje a rota do cron **acorda antes de disparar**
-  (`warmApi`, duas tentativas de 25 s no `/api/health`) e devolve `warmed`, que
+  (`warmApi`, três tentativas de 25 s no `/api/health`) e devolve `warmed`, que
   é o que separa "não acordou" de "acordou e recusou". Ao agendar chamada para
-  serviço que hiberna, o prazo do disparo não é o prazo de acordar.
+  serviço que hiberna, o prazo do disparo não é o prazo de acordar. **E o
+  prazo de acordar se mede, não se lembra:** eram duas tentativas até
+  22/10/2026, escolhidas quando a acordada media 4,9 s; ela passou a medir
+  52–53 s, a janela de 50 s desistia antes de a API responder, e em 21/10 o
+  dia ficou sem briefing de novo. A série do Heartbeat é a medição.
 - **Agendamento do GitHub Actions não serve para keep-alive.** Medido em
   01/09/2026: o workflow de 10 em 10 minutos rodou **2 vezes contra 46
   esperadas**, uma delas 47 min atrasada e fora da janela. A documentação do

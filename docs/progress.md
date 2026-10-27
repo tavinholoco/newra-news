@@ -9355,6 +9355,44 @@ e a `dev` inteira na `main` antes da release da V2.
   `--enable-automation`, então não deve gravar `homepage_view` (conferir pelo
   MCP do Neon na janela do run).
 
+### 101. A Fase 13 da V2 abre: o inventário reconferido, e o que um release público pergunta ✅ 2026-10-10
+
+A pedido do dono, depois do item 100: reescrever o inventário da Fase 13
+(§28 do plano V2, escrito em 25/08) com o estado real, e pesquisar se o
+projeto fica pronto para o release quando ela fechar. Branch `release/v2.0`.
+
+- **O que já estava fechado sem a fase fazer nada:** a varredura de
+  dependência que a 13.S dava como inexistente (Fase 10 da observabilidade,
+  05/09), o error rate e a latência da §26 (Fase 5), a documentação da 13.4
+  menos o `CHANGELOG`, a cobertura com os dois pisos, e metade do "o gate
+  reprova quando deve" (110 mutações, o `pnpm audit` de 06/10, o ensaio do
+  Heartbeat). A tabela da 13.7 envelheceu na direção boa.
+- **O "Trecho" sem teto (13.8).** A `/news/[id]` rotula o corpo do feed como
+  trecho e não corta: nas 100 notícias mais recentes de produção, G1 com
+  mediana de **2.334** caracteres (máximo **14.954**) e Valor com **2.747**
+  (máximo **13.644**). O rótulo mente, e a jurisprudência sobre o art. 46,
+  I, "a", da Lei 9.610/98 pesa contra a reprodução integral.
+- **O aviso de privacidade.** Das 16 páginas, nenhuma é de privacidade ou
+  termos; a conta guarda nome e e-mail, e o art. 9 da LGPD pede a informação
+  "clara, adequada e ostensiva". Já era caixa da 13.S; continua aberta.
+- **O fim de suporte (13.10), conferido nas páginas oficiais:** `next@14`
+  sem suporte desde 26/10/2025, `fastify@4` desde 30/06/2025 — e o
+  `next@15` sai em **21/10/2026**, então os gatilhos escritos como "o Next
+  15" passam a ser "o Next 16". As advisories estão aceitas uma a uma
+  (a GHSA-h25m-26qc-wcjf exige Server Action, que o app não tem); o fim de
+  suporte em si não estava escrito em lugar nenhum.
+- **O domínio próprio (13.9), se o dono decidir:** destrava a newsletter (o
+  Resend verifica com SPF/DKIM no DNS de quem possui o domínio).
+  `newranews.com.br` (Registro.br, R$ 40/ano) e `newranews.com`
+  (Cloudflare, US$ 10,46/ano até 01/11/2026) livres em 10/10. O endereço
+  atual está em 15 arquivos versionados fora de `docs/`, mais variáveis na
+  Vercel e no Render e as URLs de callback do OAuth.
+- **Duas decisões escritas, não trabalho:** o banco sem cópia fora do Neon
+  (o plano gratuito restaura até 6 h para trás) e o Hobby da Vercel como uso
+  não comercial.
+- **LCP medido para a §31** (run 38018246130, medianas de 3): 2,42 s na
+  `/news/[id]`, 2,72–2,95 s nas outras seis; CLS 0; TBT 90–181 ms.
+
 ### 102. As duas cotas do Hobby da Vercel antes de estourarem: uma largura por imagem, o dicionário que só as páginas públicas leem, e o ClaudeBot fora das matérias ✅ 2026-10-16
 
 **Por que agora:** a leitura de 16/10 (Usage, 30 dias) deu **Image
@@ -9465,6 +9503,87 @@ robô escolhe; mutações A1.122–A1.124.
 
 **Promover uma vez só, até ~19/10**: cada deploy de produção zera o cache da
 ISR (é por deployment) e os robôs regeneram as `/news/[id]` do zero.
+
+### 103. O 13.3: a terceira tentativa de aquecer, porque 21/10 ficou sem briefing — e o Node do Render só na major ✅ 2026-10-22
+
+**Por que agora:** a pedido do dono, uma leitura das execuções das últimas
+semanas. De 01 a 22/10, **21 dias tiveram briefing e um não: 21/10** — sem
+`Article`, sem `DailyMetric` (a semanal de 16–22/10 conta 6 dias) e sem uma
+`News` com o `createdAt` do dia (de 290 a 430 nos outros). O run não chegou à
+etapa 4, ou nem existiu. O Heartbeat de 21/10 reprovou (`o briefing mais novo
+é de 2026-10-20`) e o e-mail saiu; 22/10 rodou normal.
+
+- **A série do 13.3, nos logs das doze execuções agendadas do Heartbeat (10 a
+  21/10):** sete acordaram a API, em 52.185 a 53.392 ms; cinco a acharam de pé
+  (229 ms). Todas as sete acima dos 45 s do gatilho. **Com duas tentativas de
+  25 s, o aquecimento desistia dois segundos antes de a API responder, todo
+  dia em que ela dormia**, e o briefing dependia do POST de 20 s, que não é
+  repetido quando estoura. A causa de 21/10 não é legível (o log da Vercel
+  guarda 1 h); o formato bate com a janela curta.
+- **O envelope sob o mesmo `maxDuration = 290`:** aquecer `3 × 25 s` + duas
+  pausas (105 s), disparar `3 × 20 s` + duas pausas (90 s; eram quatro
+  tentativas), esperar o run por 85 s (eram 90) — 280 s mais a margem de 10 s.
+  E **a espera era 108 s, não 90**: o `settleRun` dormia 10 s depois do prazo e
+  dava à sonda os 8 s cheios; hoje o prazo é teto.
+- **A soma virou guarda** (`tests/lib/daily-revalidation.test.ts`): o pior caso
+  refeito das constantes, e uma tentativa de aquecer no ar quando a acordada
+  medida termina (`API_WAKE_MEASURED_MS`, agora 53.400 ms, o máximo da série).
+  Mais dois testes no `daily-news-api.test.ts` (a terceira tentativa; a sonda
+  dentro do prazo).
+- **O `NODE_VERSION` do Render, achado na conferência de fim de suporte das
+  dependências que o dono pediu antes:** fixado em `22.12.0` (dez/2024), atrás
+  de todas as correções de segurança de 2025–2026 da linha 22 (março, junho e
+  julho de 2026 com *high*), enquanto o CI testava a 22.x mais nova e a Vercel
+  publica o web na 24. Agora `"22"`, que o Render resolve a cada deploy; a 22 e
+  não a 24 porque o `fastify@4` só declara suporte até a 22. Guarda em
+  `apps/api/tests/build/node-version.test.ts`.
+- **O resto da conferência ficou como relatório, não como trabalho:** `next@14`
+  (e agora o 15, desde 21/10), `react@18`, `fastify@4`, `prisma@5`, `pnpm@9`,
+  `eslint@8` e `vitest@2`/`vite@5` estão fora de suporte; `rss-parser` não
+  publica desde 04/2023; o `gemini-2.5-flash` não tem data de desligamento, mas
+  o Google restringe o acesso a quem já o usava. São majors de framework, que a
+  §13.S do plano V2 põe depois da tag — entram como linha da 13.10 dele.
+- **Mutações A1.126–A1.131. 1.531 na API, 1.047 no web.**
+- **O que conferir depois da promoção:** o Heartbeat verde num dia em que a API
+  dormia, e o log de build do Render dizendo `Using Node.js version 22.23.x`
+  (se disser 22.12.0, o valor está fixado no painel — Render → Environment).
+  **A promoção zera o cache da ISR** (item 102): o gráfico diário de ISR Writes
+  da Vercel sobe no dia dela.
+
+### 104. Três advisories de 22–23/10: as duas do `next` aceitas com guarda, e a do `zod` fechada na porta com um teto de 64 KB no corpo ✅ 2026-10-24
+
+**Por que agora:** o CI do #301 (o 13.3, item 103) reprovou no `pnpm audit
+--audit-level=high --prod` sem mexer em dependência — três advisories
+publicadas ou revisadas entre 22 e 23/10, que reprovam toda branch com o mesmo
+lockfile. Decidido pelo dono, num PR separado.
+
+- **GHSA-2464-fhr4-w9xw (*critical*, `next`)** — RCE na biblioteca de imagem
+  por trás do otimizador, ao processar SVG; contorno `sharp ≥ 0.35.5`. Não
+  alcança: o `sharp` não está na árvore e o `/_next/image` é da plataforma da
+  Vercel (a medição de 09/09 da GHSA-2xp9-vwfh-vxw4). **Essa premissa era só
+  prosa** e ganhou guarda (`browser-surface.test.ts`: sem `sharp` no
+  lockfile, sem `output: standalone`, sem `loader`).
+- **GHSA-p3m5-59mp-jv5r (high, `next`)** — exige Server Action; o app não tem
+  nenhuma, e a premissa já era teste.
+- **GHSA-mrhx-c7xc-m3w5 (high, `zod`) — alcança.** Medido contra o schema do
+  `/api/events`: um corpo de 1 MB (o padrão do Fastify) com `[0,0,0,…]` vira
+  **1 milhão de issues** (duas por elemento: a interseção valida as duas
+  metades), **~265 MB no parse e ~200 MB na mensagem** — uma requisição passa
+  dos 512 MB do Render. O `.max(20)` não para a validação, e ela roda antes do
+  `preHandler` de autenticação. Sem correção na linha 3; o `zod@4` pede o
+  `fastify-type-provider-zod` ≥ 6, que pede o `fastify@5`. **Mitigação:**
+  `bodyLimit` de **64 KB** no `buildApp` (`REQUEST_BODY_LIMIT_BYTES`); o maior
+  lote legítimo mede 15,7 KB, e no teto o pior corpo custa ~65 mil issues,
+  ~27 + 12 MB. Guarda em `tests/security/body-limit.test.ts` (o teto ligado, o
+  maior lote cabendo com folga, 413 antes da validação na rota anônima e numa
+  protegida, e o custo no teto).
+- `docs/security-advisories.md`: três linhas, a seção de medição, as contagens
+  (22 → 25) e os dois grupos. Mutações **A1.132–A1.136**; o
+  `browser-surface.test.ts` saiu do `EXCLUDED` e entrou na tabela.
+- **1.534 na API, 1.044 no web.**
+- **O que conferir depois da promoção:** um `POST /api/events` legítimo segue
+  em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
+  responde 413.
 
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 

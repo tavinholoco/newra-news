@@ -6,6 +6,7 @@ import { SITE_URL } from '@/lib/seo';
 import {
   CRON_MAX_DURATION_MS,
   DAILY_PAGES_ROUNDS,
+  PIPELINE_SETTLE_MAX_MS,
   PIPELINE_TRIGGER_ATTEMPTS,
 } from '@/lib/timeouts';
 
@@ -561,12 +562,39 @@ describe('GET /api/cron/daily-news', () => {
       expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
+    it('tries a third time when the second attempt also times out — the wake measures ~53 s', async () => {
+      // **13.3 do plano de observabilidade (22/10/2026).** Com duas
+      // tentativas de 25 s a janela era 50 s, e a acordada medida pelo
+      // Heartbeat de 13 a 21/10 foi de 52 a 53 s: a segunda desistia logo
+      // antes de a API responder, todo dia em que ela dormia. Em 21/10 o dia
+      // ficou sem briefing.
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('TimeoutError'))
+        .mockRejectedValueOnce(new Error('TimeoutError'))
+        // a terceira está no ar quando a API termina de acordar
+        .mockResolvedValueOnce({ ok: true, status: 200 })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue(trigger),
+        });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const res = await GET(authorizedRequest());
+
+      expect((await res.json()).warmed).toBe(true);
+      // Três para acordar, o disparo, e a sonda do fim do run.
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+    });
+
     it('triggers anyway when it never manages to wake the API', async () => {
       // **Desistir de acordar não é desistir de disparar.** A API pode ter
       // acordado entre a última tentativa e o POST, e um disparo que falha
       // custa menos que um dia sem briefing.
       const fetchMock = vi
         .fn()
+        .mockRejectedValueOnce(new Error('TimeoutError'))
         .mockRejectedValueOnce(new Error('TimeoutError'))
         .mockRejectedValueOnce(new Error('TimeoutError'))
         .mockResolvedValueOnce({
@@ -588,7 +616,7 @@ describe('GET /api/cron/daily-news', () => {
         settled: 'UNKNOWN',
         pages: null,
       });
-      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(fetchMock).toHaveBeenCalledTimes(5);
     });
 
     it('does not spend a second attempt when the first one wakes it', async () => {
@@ -695,6 +723,31 @@ describe('GET /api/cron/daily-news — a espera pelo fim do run', () => {
 
     expect((await res.json()).settled).toBe('RUNNING');
     expect(revalidatePathMock).toHaveBeenCalledTimes(DAILY_REVALIDATION_PATHS.length);
+  });
+
+  it('never lets a status poll wait past the deadline — the cron envelope counts on it (13.3)', async () => {
+    // Com o prazo fixo de 8 s (`API_TIMEOUT_MS`), a última sonda passava do
+    // fim da espera, e o pior caso do `maxDuration` tinha 18 s fora da conta.
+    const timeoutOf = new WeakMap<AbortSignal, number>();
+    const original = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const signal = original(ms);
+      timeoutOf.set(signal, ms);
+      return signal;
+    });
+    const fetchMock = siteFetch({ trigger, statuses: ['RUNNING'] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await GET(authorizedRequest());
+
+    const polls = fetchMock.mock.calls.filter(
+      ([input]) => String(input).startsWith('https://api.example.com/jobs/') && String(input) !== JOB_URL,
+    );
+    expect(polls.length).toBeGreaterThan(0);
+    for (const [, init] of polls) {
+      const signal = (init as RequestInit).signal as AbortSignal;
+      expect(timeoutOf.get(signal)).toBeLessThanOrEqual(PIPELINE_SETTLE_MAX_MS);
+    }
   });
 
   it('does not wait on a manual trigger from the panel — the button would hang', async () => {
