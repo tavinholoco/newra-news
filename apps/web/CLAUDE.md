@@ -55,7 +55,7 @@
   num `THEME`, com guarda na `state-matrix` contra o `tokens.css`
 - **Revalidação on-demand** — o cron do `vercel.json`
   (`app/api/cron/daily-news`, 11:00 UTC) espera o run do dia fechar
-  (`settleRun`: `GET /api/jobs/:id` de 10 em 10 s, até 90 s,
+  (`settleRun`: `GET /api/jobs/:id` de 10 em 10 s, até 85 s,
   `maxDuration = 290`, repetindo o 429 da borda do Render) e, no `SUCCESS`,
   **invalida o conjunto do dia e pede ele mesmo cada página**, conferindo que
   ela traz o run (13.12 do plano de observabilidade, 07/10/2026 — abaixo).

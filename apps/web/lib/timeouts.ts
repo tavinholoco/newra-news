@@ -94,8 +94,14 @@ export const API_TIMEOUT_MS = 8_000;
  * sonda achou o processo com 11 s de vida) e 52,4 s em 05/10 (9 s de vida):
  * ~43 s do Render subindo a máquina, ~9 s do boot da API. Em agosto eram
  * 4,9 s, e era sobre esse número que os 8 s acima foram escolhidos.
+ *
+ * **A série do Heartbeat confirmou, e é o máximo dela que fica aqui** (13.3
+ * do plano de observabilidade, 22/10/2026): as sete execuções agendadas que
+ * acordaram a API entre 13 e 21/10 mediram de 52.185 a **53.392 ms**
+ * (`heartbeat api_ms=…` no log); nas outras cinco ela já estava acordada
+ * (229 ms).
  */
-export const API_WAKE_MEASURED_MS = 52_600;
+export const API_WAKE_MEASURED_MS = 53_400;
 
 /**
  * **Servidor do Next → API quando ele monta uma página** (`fetchApi` fora do
@@ -145,12 +151,23 @@ export const PIPELINE_WARM_TIMEOUT_MS = 25_000;
 /**
  * Quantas vezes tentar acordar antes de desistir e disparar mesmo assim.
  *
- * Duas, e o teto vem da soma: 2 × 25 s + 20 s de disparo = 70 s, dentro do
- * `maxDuration = 90` da rota do cron. Desistir e **tentar disparar do mesmo
- * jeito** é de propósito — a API pode ter acordado entre a última tentativa e
- * o POST, e um disparo que falha custa menos que um dia sem briefing.
+ * **Três desde 22/10/2026** (13.3 do plano de observabilidade). Com duas, a
+ * janela era `2 × 25 s` = 50 s contra uma acordada de **~52–53 s**
+ * (`API_WAKE_MEASURED_MS`): a segunda tentativa desistia dois segundos antes
+ * de a API responder, **todo dia em que ela dormia**, e o briefing só saía
+ * porque o POST, com os seus 20 s, chegava logo depois — folga de ~18 s, sem
+ * repetição se o POST estourasse. Em 21/10 o dia ficou sem briefing e sem uma
+ * notícia ingerida (o run nem começou). A terceira tentativa está no ar quando
+ * a API termina de acordar (aos ~53 s de 75), e o POST passa a encontrá-la de
+ * pé.
+ *
+ * Desistir e **tentar disparar do mesmo jeito** continua de propósito — a API
+ * pode ter acordado entre a última tentativa e o POST, e um disparo que falha
+ * custa menos que um dia sem briefing. O envelope inteiro está no
+ * `maxDuration` da rota, e `tests/lib/daily-revalidation.test.ts` refaz a
+ * soma a partir destas constantes.
  */
-export const PIPELINE_WARM_ATTEMPTS = 2;
+export const PIPELINE_WARM_ATTEMPTS = 3;
 
 /**
  * **Esperar o pipeline terminar, no disparo agendado** (01/10/2026). O
@@ -160,13 +177,18 @@ export const PIPELINE_WARM_ATTEMPTS = 2;
  * `SUCCESS`, invalida e pede as páginas do dia (13.12); a API já está acordada
  * pelo próprio run, então a sonda não custa hora nenhuma.
  *
- * 90 s, o que o run mede (~1,5 min; 1 min 13 s em 06/10). Era 150 s; encolheu
- * para caber a repetição do 429 (abaixo) sob o `maxDuration` — se o run passar
- * disso, o cron invalida com o run ainda correndo (no fim da invocação, sem
- * pedir as páginas), e a página que alguém regenerar antes de o run terminar
- * fica até o `revalidate` de um dia. É o 13.3 do plano de observabilidade.
+ * 85 s, contra o que o run mede (1 min 13 s em 06/10; média de 66,7 s na
+ * semana de 16 a 22/10, `GET /api/metrics/weekly`). Era 150 s; encolheu para
+ * 90 para caber a repetição do 429 (abaixo) sob o `maxDuration`, e para 85 no
+ * 13.3, quando o aquecimento ganhou a terceira tentativa. **E é teto de
+ * verdade desde então**: a espera não começa uma sonda que não caiba nela (a
+ * última sai aos ~80 s), e a sonda não passa do prazo — antes, a última dormia
+ * 10 s depois do prazo e ainda esperava os 8 s da resposta, e "90 s" eram 108.
+ * Se o run passar disso, o cron invalida com o run ainda correndo (no fim da
+ * invocação, sem pedir as páginas), e a página que alguém regenerar antes de o
+ * run terminar fica até o `revalidate` de um dia.
  */
-export const PIPELINE_SETTLE_MAX_MS = 90_000;
+export const PIPELINE_SETTLE_MAX_MS = 85_000;
 
 /** O intervalo entre duas sondas do run. */
 export const PIPELINE_SETTLE_POLL_MS = 10_000;
@@ -200,8 +222,16 @@ export const API_RETRY_MAX_WAIT_MS = 15_000;
  */
 export const PIPELINE_REFUSED_PAUSE_MS = 15_000;
 
-/** Quantas vezes o disparo é tentado quando a borda devolve 429/503. */
-export const PIPELINE_TRIGGER_ATTEMPTS = 4;
+/**
+ * Quantas vezes o disparo é tentado quando a borda devolve 429/503.
+ *
+ * **Três desde 22/10/2026** (eram quatro): dos 40 s que a terceira tentativa
+ * de aquecer acrescentou ao pior caso (25 s de prazo e mais uma pausa), 35
+ * saíram daqui e 5 da espera pelo run. A
+ * recusa da borda também é repetida no aquecimento, que vem antes — com três
+ * tentativas e duas pausas, ele absorve 30 s de recusa antes do POST.
+ */
+export const PIPELINE_TRIGGER_ATTEMPTS = 3;
 
 /**
  * **O `maxDuration` da rota do cron, em milissegundos.** O `290` de

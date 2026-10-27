@@ -10,8 +10,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Só a major: o Render resolve para a 22.x mais nova a cada deploy. A
+      # 22.12.0 fixada (dez/2024) ficou atrás de todas as correções de
+      # segurança de 2025 e 2026. A 22, e não a 24, porque o fastify@4 só
+      # declara suporte até a 22. Guarda em apps/api/tests/build/node-version.test.ts
       - key: NODE_VERSION
-        value: 22.12.0
+        value: "22"
       - key: DATABASE_URL
         sync: false
       - key: NEWSDATA_API_KEY
