@@ -9585,6 +9585,58 @@ lockfile. Decidido pelo dono, num PR separado.
   em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
   responde 413.
 
+### 108. A etapa 8.5 só varre o acervo inteiro quando as regras mudam ✅ 2026-11-11
+
+**Por que agora:** P5 do plano de ação de 11/11
+(`docs/pipeline-action-plan-2026-11.md`). A etapa 8.5 levava **~49 s de um run
+de ~75 s** varrendo ~10,5 mil linhas para **mudar zero**. Os runs foram de 76
+a 144 s, e o cron da Vercel espera o run por **85 s**
+(`PIPELINE_SETTLE_MAX_MS`); quando é ele quem dispara, um run mais longo fica
+sem o `refresh()`. Em **02/11 o run levou 85,05 s**, a sonda do login ficou
+na véspera e o Heartbeat reprovou — o único vermelho em 15 dias. Subir a
+janela não é saída: o `maxDuration` é 290 s e o aquecimento pode levar 75.
+
+**A correção:** a ingestão já grava o que é novo com as regras atuais, e o
+que está gravado só muda quando uma regra muda. Então a etapa passou a ter
+**dois modos**, e o evento diz qual rodou:
+
+- **`full`** quando não há varredura anterior ou quando a anterior foi feita
+  com outra versão das regras — é o dia em que uma correção alcança o
+  acervo, e "o acervo converge no dia seguinte ao deploy" continua valendo;
+- **`incremental`** quando a anterior terminou com a versão atual: só as
+  linhas com `createdAt` desde o **início** dela (`sweepStartedAt`).
+
+`planRenormalization` lê o último evento `INFO` da 8.5, e não o do último run
+— um run cuja 8.5 falhou não grava o `INFO`, e o seguinte cobre o buraco. O
+evento grava `rulesVersion`, `mode`, `since` ou `reason`/`previousVersion`,
+`sweepStartedAt` e `durationMs`.
+
+**A versão não depende de ninguém lembrar.** `RENORMALIZE_RULES_VERSION`
+(`services/renormalize-rules.ts`) é a impressão digital dos arquivos que a 8.5
+aplica — `feed-text.ts`, o classificador, `rss-sources.ts`, o próprio
+renormalizador e, de `ai-utils.ts`, só as declarações do `decodeEntities` —
+**sem comentários e sem espaço** (pelo parser). A guarda
+(`tests/services/renormalize-rules.test.ts`) a recalcula e reprova dizendo o
+valor novo; documentar uma regra não força uma varredura completa, mudar uma
+linha de código força. A mesma suíte cobra que todo import do renormalizador
+esteja na lista. Mutação **A1.144** e controle **C.03** (um comentário numa
+regra não muda a versão).
+
+- Testes: o plano (sem varredura anterior, outra versão, os eventos antigos
+  sem versão, a mesma versão, o `sweepStartedAt` ilegível), o filtro `since`
+  no renormalizador, e a fiação no pipeline (incremental com `since`,
+  completa sem, o contexto do evento, e o plano que lança degradando a 8.5
+  sem abortar o run).
+- O `POST /api/jobs/renormalize-news` não muda: continua varrendo tudo,
+  `dryRun` por padrão.
+
+**O primeiro run depois da promoção faz uma varredura completa** — os eventos
+anteriores não têm `rulesVersion`. Do segundo em diante, incremental.
+
+**Como saber que funcionou:** no evento da 8.5 do segundo run depois da
+promoção, `mode: 'incremental'` e `durationMs` **abaixo de 5 s**; o run
+abaixo de **40 s**; e a pergunta `login` do Heartbeat verde todo dia.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

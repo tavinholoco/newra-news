@@ -10,6 +10,7 @@ import {
 } from '../providers/news/feed-text';
 import { yieldToEventLoop } from '../utils/event-loop';
 import { classifyCategory } from './category-classifier.service';
+import { RENORMALIZE_RULES_VERSION } from './renormalize-rules';
 
 /**
  * Reaplica as regras de ingestão às notícias **já gravadas**.
@@ -99,6 +100,12 @@ export interface RenormalizeOptions {
   sources?: string[];
   /** Ver `CategoryMode`. Padrão `clear-only`. */
   categoryMode?: CategoryMode;
+  /**
+   * Só as linhas gravadas a partir deste instante (`createdAt`). Ausente varre
+   * o acervo inteiro. É o que a etapa 8.5 passa quando as regras não mudaram
+   * desde a última varredura — ver {@link planRenormalization}.
+   */
+  since?: Date;
 }
 
 export interface CategoryTransition {
@@ -185,10 +192,10 @@ export async function renormalizeStoredNews(
 ): Promise<RenormalizeReport> {
   const dryRun = options.dryRun ?? true;
   const categoryMode: CategoryMode = options.categoryMode ?? 'clear-only';
-  const scanFilter =
-    options.sources && options.sources.length > 0
-      ? { source: { in: options.sources } }
-      : {};
+  const scanFilter = {
+    ...(options.sources && options.sources.length > 0 ? { source: { in: options.sources } } : {}),
+    ...(options.since ? { createdAt: { gte: options.since } } : {}),
+  };
   // Recorte da **reclassificação**, dentro de qualquer varredura. Ver o
   // cabeçalho: fonte com categoria fixa não tem categoria a recalcular, tenha
   // ela texto sujo ou não.
@@ -347,4 +354,56 @@ export async function renormalizeStoredNews(
     transitions: [...transitions.values()].sort((a, b) => b.count - a.count),
     sample,
   };
+}
+
+/** A mensagem do evento `INFO` que a etapa 8.5 grava ao terminar a varredura. */
+export const RENORMALIZED_EVENT_MESSAGE = 'Stored news renormalized';
+
+/** A etapa do pipeline — literal aqui porque o renormalizador não importa o pipeline. */
+const RENORMALIZE_STAGE = 8.5;
+
+/**
+ * O que a etapa 8.5 varre hoje.
+ *
+ * - **`full`** quando não há varredura anterior (o primeiro deploy, ou a
+ *   retenção do `PipelineLog` levou o evento) ou quando a varredura anterior
+ *   foi feita com outra versão das regras — é o dia em que a correção de uma
+ *   regra alcança o acervo;
+ * - **`incremental`** quando a última varredura terminou com a versão atual:
+ *   só o que entrou desde o início dela.
+ *
+ * A última varredura é o último evento `INFO` da etapa, e não o do último
+ * run: um run cuja 8.5 falhou não grava o `INFO`, e o seguinte varre desde a
+ * anterior que terminou — o buraco é coberto.
+ */
+export type RenormalizationPlan =
+  | { mode: 'full'; reason: 'no-previous-sweep' | 'rules-changed'; previousVersion: string | null }
+  | { mode: 'incremental'; since: Date };
+
+export async function planRenormalization(): Promise<RenormalizationPlan> {
+  const last = await prisma.pipelineEvent.findFirst({
+    where: { stage: RENORMALIZE_STAGE, level: 'INFO', message: RENORMALIZED_EVENT_MESSAGE },
+    orderBy: { createdAt: 'desc' },
+    select: { context: true, createdAt: true },
+  });
+  if (!last) return { mode: 'full', reason: 'no-previous-sweep', previousVersion: null };
+
+  const context =
+    last.context !== null && typeof last.context === 'object' && !Array.isArray(last.context)
+      ? (last.context as Record<string, unknown>)
+      : {};
+  const previousVersion = typeof context.rulesVersion === 'string' ? context.rulesVersion : null;
+  if (previousVersion !== RENORMALIZE_RULES_VERSION) {
+    return { mode: 'full', reason: 'rules-changed', previousVersion };
+  }
+
+  // O início da varredura anterior, e não o fim: as linhas que o run gravou na
+  // etapa 4 já existiam quando ela começou. Sem o campo, o instante do evento
+  // é um teto seguro só se nada entrou entre os dois — o que vale, porque nada
+  // além do run grava `News` e dois runs não correm juntos.
+  const sweepStartedAt =
+    typeof context.sweepStartedAt === 'string' ? new Date(context.sweepStartedAt) : null;
+  const since =
+    sweepStartedAt && !Number.isNaN(sweepStartedAt.getTime()) ? sweepStartedAt : last.createdAt;
+  return { mode: 'incremental', since };
 }

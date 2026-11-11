@@ -237,6 +237,19 @@ Vem **depois** do cleanup de propósito: renormalizar linha que acabou de ser
 apagada é trabalho jogado fora. É idempotente, então em regime ela varre e não
 escreve nada.
 
+**E desde 11/11/2026 ela só varre o acervo inteiro quando as regras mudaram**
+(P5 do plano de ação): em regime eram ~49 s de um run de ~75 s para mudar
+zero linhas, num run que o cron da Vercel espera por 85 s. O evento da etapa
+grava `rulesVersion` (`services/renormalize-rules.ts`) e `sweepStartedAt`; o
+run seguinte lê o último evento `INFO` da 8.5 (`planRenormalization`) e, com
+a mesma versão, varre só o que entrou desde o início daquela varredura. **A
+versão é a impressão digital dos arquivos de regra sem comentários**, e
+`tests/services/renormalize-rules.test.ts` reprova dizendo o valor novo
+quando uma regra muda — então "a correção alcança o acervo no dia seguinte"
+não depende de ninguém lembrar de subir a versão. Arquivo de regra novo
+importado pelo renormalizador entra em `RENORMALIZE_RULE_SOURCES`, e a mesma
+suíte cobra isso.
+
 **O desfecho de um run não é o `status` — é derivado dos eventos** (Fase 8 do
 plano de observabilidade, `services/run-outcome.ts`). `status` é binário e o
 pipeline não é: 7.5, 8, 8.5, 9 e 9.5 falham com `WARN` e o run segue `SUCCESS`,
