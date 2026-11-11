@@ -1763,7 +1763,7 @@ const MUTATIONS = [
     test: 'tests/build/env-defaults.test.ts',
     file: 'docs/setup.md',
     edits: [{ find: '(default `gemini-3.8-flash`', replace: '(default `gemini-2.5-flash`' }],
-    expect: 'a tabela de docs/setup.md escreve o default do schema',
+    expect: "a tabela de 'docs/setup.md' escreve o default do schema",
   },
   {
     id: 'A1.143',
