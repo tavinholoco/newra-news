@@ -153,8 +153,12 @@ export const MIN_DISTINCT_SOURCES = 3;
 /**
  * Quantos itens a seleção alargada pega antes de o portão desistir.
  *
- * `selectTopItems` pega as 15 mais recentes; se elas vierem de menos de três
- * fontes, isso é acidente de ordenação, não escassez de matéria. O portão
+ * A etapa 5 pega as 15 mais recentes; se elas vierem de menos de três
+ * fontes, isso é acidente de ordenação, não escassez de matéria. **Desde
+ * 11/11/2026 a seleção tem teto por fonte** (`services/briefing-selection.ts`,
+ * 3 de 15), e com ele a seleção só traz menos de três fontes quando a
+ * colheita não as tem — o alargamento, que usa a mesma função, fica como
+ * segunda opinião sobre a mesma colheita. O portão
  * refaz a seleção com 30 **uma vez** e só bloqueia se ainda assim não houver
  * diversidade — bloquear na primeira tentativa trocaria "a ordenação
  * concentrou" por "o dia não tem notícia", que são coisas diferentes.

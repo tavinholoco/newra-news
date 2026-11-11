@@ -283,7 +283,8 @@ Regras que não são óbvias no código, e que custaram uma Home errada em produ
 e meio acervo com HTML na tela:
 
 - **O `publishedAt` decide o briefing, e o fuso do feed pode mentir.** A etapa
-  5 escolhe as 15 matérias mais recentes por `publishedAt`; a ESPN escreve a
+  5 escolhe as 15 matérias mais recentes por `publishedAt` (até 3 por fonte
+  desde 11/11/2026 — ver "A seleção do briefing", abaixo); a ESPN escreve a
   hora de Brasília com o rótulo `EST`, o `Date` a lia duas horas no futuro, e
   em 01/09/2026 11 das 15 matérias citadas no briefing eram dela. O conserto
   é `pubDateZone` por fonte em `config/rss-sources.ts` (a hora de parede lida
@@ -376,6 +377,29 @@ e meio acervo com HTML na tela:
 - **`WORLD` é o balde genérico, e é onde matéria de polícia e trânsito deve
   cair.** Não há categoria para esse gênero no enum, e forçá-lo em outra é
   exatamente o defeito que foi corrigido.
+
+## A seleção do briefing (P4 do plano de ação de 11/11/2026)
+
+`services/briefing-selection.ts` — a etapa 5 e o alargamento do portão 5.5
+chamam a mesma função pura, `selectBriefingItems`.
+
+- **As 15 mais recentes, com no máximo 3 por fonte** (decisão do dono). Antes
+  eram as 15 mais recentes, e às 08:00 de Brasília quem publicou por último é
+  o G1: 61,6 % das citações desde 10/10, contra 25,7 % da colheita, e o portão
+  de diversidade bloqueou 02/11 e 06/11. O ensaio sobre 30 colheitas de
+  produção deu **6–9 fontes por dia, G1 em 20 %**, e a matéria mais velha
+  escolhida em 1,6 h, em média.
+- **Duas passadas.** A primeira tem teto e só olha as últimas 24 h — a fonte
+  lenta não troca a quarta do G1 desta manhã pela matéria de três dias atrás.
+  A segunda completa por recência, sem teto: o dia pobre não vira briefing
+  curto, e é o portão 5.5 que bloqueia se a colheita não tiver três fontes.
+- **A chave é o `publishedAt` limitado a agora**: o item carimbado no futuro
+  (a ESPN, ~0,9 h) empata com agora em vez de vencer tudo.
+- **"Fonte" é o `source` do item**, a mesma chave que o portão conta — um item
+  da NewsData leva o nome do veículo. Seleção e portão discordando sobre o que
+  é uma fonte era o defeito a evitar.
+- **O ensaio do portão (`gates:rehearse`) reconstrói o alargamento com a
+  mesma função**, a partir das `News` do dia.
 
 ## Eventos de produto (pré-requisito da Fase 8)
 

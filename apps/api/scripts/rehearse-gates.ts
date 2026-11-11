@@ -65,6 +65,7 @@ import {
   categoryDrift,
   type BaselineDay,
 } from '../src/services/pipeline-gates.service';
+import { selectBriefingItems } from '../src/services/briefing-selection';
 
 const LIMIT = process.env.LIMIT ? Number(process.env.LIMIT) : undefined;
 
@@ -196,6 +197,7 @@ async function rehearseEntryGate(): Promise<number> {
     select: {
       date: true,
       generatedAt: true,
+      createdAt: true,
       sources: { select: { source: true, newsId: true } },
     },
     ...(LIMIT ? { take: LIMIT } : {}),
@@ -213,8 +215,9 @@ async function rehearseEntryGate(): Promise<number> {
    * mais recentes tinham 6, 5 e 3 fontes: nenhum teria bloqueado. O ensaio
    * dizia "o errado é o portão" sobre um portão certo.
    *
-   * O alargamento é **reconstruído** das `News` gravadas naquele dia UTC, na
-   * ordem do `selectTopItems` (`publishedAt` desc) — aproximação: as
+   * O alargamento é **reconstruído** das `News` gravadas naquele dia UTC,
+   * pela mesma `selectBriefingItems` do pipeline (com o teto por fonte desde
+   * 11/11/2026), no instante em que o briefing foi gravado — aproximação: as
    * re-coletadas de dias anteriores não entram. Sem `News` do dia (o expurgo
    * de 30 dias), a linha é **indeterminada** e fica fora da soma.
    */
@@ -226,11 +229,13 @@ async function rehearseEntryGate(): Promise<number> {
     if (selected >= MIN_DISTINCT_SOURCES) continue;
     const dayStart = new Date(b.date);
     const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-    const wider = await prisma.news.findMany({
+    const dayNews = await prisma.news.findMany({
       where: { createdAt: { gte: dayStart, lt: dayEnd } },
-      orderBy: { publishedAt: 'desc' },
-      take: WIDENED_SELECTION,
-      select: { source: true },
+      select: { source: true, publishedAt: true },
+    });
+    const wider = selectBriefingItems(dayNews, {
+      limit: WIDENED_SELECTION,
+      now: b.generatedAt ?? b.createdAt,
     });
     const label = `${day(b.date)} (${selected} fontes em ${b.sources.length}`;
     if (wider.length === 0) {

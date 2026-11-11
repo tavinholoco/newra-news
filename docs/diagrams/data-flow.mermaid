@@ -17,7 +17,7 @@ flowchart TB
     S2["2 · Normalização<br/>(→ RawNewsItem · dek e corpo separados)"]
     S3["3 · Deduplicação<br/>(por sourceUrl)"]
     S4["4 · Persistência<br/>(news.createMany · SourceHealth do dia)"]
-    S5["5 · Seleção<br/>(15 mais recentes)"]
+    S5["5 · Seleção<br/>(15 mais recentes, até 3 por fonte)"]
     S55["5.5 · Portão de entrada<br/>(volume vs mediana de 7 d · ≥ 3 fontes · ≥ 1 item de 24 h)"]
     S6["6 · Geração IA<br/>(Gemini → Groq fallback)"]
     S65["6.5 · Portão de saída, por tentativa<br/>(URL não ancorada · envelope · idioma · teto)"]

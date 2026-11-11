@@ -20,6 +20,7 @@ import {
   PIPELINE_LOG_RETENTION_DAYS,
 } from './retention';
 import { runInvariants } from './invariants.service';
+import { MAX_ITEMS_PER_SOURCE, selectBriefingItems } from './briefing-selection';
 import {
   GateBlockedError,
   WIDENED_SELECTION,
@@ -93,12 +94,6 @@ function countByCategory(items: RawNewsItem[]): Record<string, number> {
     counts[item.category] = (counts[item.category] ?? 0) + 1;
   }
   return counts;
-}
-
-function selectTopItems(items: RawNewsItem[], limit = 15): RawNewsItem[] {
-  return [...items]
-    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
-    .slice(0, limit);
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -380,15 +375,20 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       });
     }
 
-    // Stage 5: Select top items for AI generation
+    // Stage 5: Select top items for AI generation — as mais recentes, com
+    // teto por fonte (`services/briefing-selection.ts`, P4 do plano de ação de
+    // 11/11/2026: o G1 era 61,6 % das citações).
     currentStage = 5;
-    const initialSelection = selectTopItems(deduplicated);
+    const selectionNow = new Date();
+    const initialSelection = selectBriefingItems(deduplicated, { now: selectionNow });
 
     if (initialSelection.length === 0) {
       throw new Error('No news items available for article generation');
     }
     await logPipelineEvent(pipelineLogId, 5, 'INFO', 'Top items selected for AI', {
       count: initialSelection.length,
+      sources: new Set(initialSelection.map((item) => item.source)).size,
+      perSourceCap: MAX_ITEMS_PER_SOURCE,
     });
 
     // Stage 5.5: o portão de entrada (§13.1 do plano de observabilidade, Fase
@@ -413,7 +413,7 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
       deduplicated,
       collected: allItems.length,
       selected: initialSelection,
-      widen: () => selectTopItems(deduplicated, WIDENED_SELECTION),
+      widen: () => selectBriefingItems(deduplicated, { limit: WIDENED_SELECTION, now: selectionNow }),
       baseline: await loadEntryBaseline(today),
       now: new Date(),
     });
