@@ -1738,6 +1738,33 @@ const MUTATIONS = [
     create: "'use server';\n// Arquivo criado pelo scripts/guard-mutations.mjs; é apagado ao fim.\nexport async function guardMutation() {}\n",
     expect: 'não existe Server Action no projeto',
   },
+  {
+    id: 'A1.137',
+    what: 'o GPTBot e o Applebot saem do grupo das matérias — a API do Render volta a ficar acordada 22–24 h/dia (10/11)',
+    pkg: 'web',
+    test: 'tests/lib/robots.test.ts',
+    file: 'apps/web/app/robots.ts',
+    edits: [{ find: "userAgent: ['ClaudeBot', 'GPTBot', 'Applebot'],", replace: "userAgent: 'ClaudeBot'," }],
+    expect: 'o GPTBot não regenera as matérias',
+  },
+  {
+    id: 'A1.138',
+    what: 'o Applebot sozinho fora do grupo — 638 regenerações de `/news/[id]` em 12 h no log de 10/11',
+    pkg: 'web',
+    test: 'tests/lib/robots.test.ts',
+    file: 'apps/web/app/robots.ts',
+    edits: [{ find: "'GPTBot', 'Applebot'],", replace: "'GPTBot']," }],
+    expect: 'o Applebot não regenera as matérias',
+  },
+  {
+    id: 'A1.139',
+    what: 'um robô de busca entra no grupo das matérias por engano — o Google deixa de ler quem leva leitor a elas',
+    pkg: 'web',
+    test: 'tests/lib/robots.test.ts',
+    file: 'apps/web/app/robots.ts',
+    edits: [{ find: "'GPTBot', 'Applebot'],", replace: "'GPTBot', 'Applebot', 'Bingbot']," }],
+    expect: 'o grupo `*` não muda',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

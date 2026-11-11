@@ -364,8 +364,19 @@ a suíte de unidade, que roda sem rede.
 
 ## Status Atual
 
-- 🟡 **24/10/2026: três advisories novas reprovavam o `pnpm audit` de toda
-  branch — na `dev`, falta promover.** Item **104**. As duas do `next`
+- 🔴 **11/11/2026: a análise dos pipelines achou a API do Render acordada
+  22–24 h/dia desde 02/11, e o plano de ação está em
+  `docs/pipeline-action-plan-2026-11.md`** (P1–P8, o que é só do dono, a
+  ordem dos PRs). O pipeline entrega um briefing por dia; o que está errado é
+  estrutural, e dois itens têm prazo. **P1 na `dev`, item 105:** o GPTBot e o
+  Applebot saem das matérias no `robots.txt` (o Applebot fez 638
+  regenerações de `/news/[id]` em 12 h; 224,6 h de API em 10 dias de
+  novembro) — **promover sozinho e já**, depois de conferir o Usage de ISR
+  Writes da Vercel. **Prazo seguinte: o `gemini-2.5-flash` desliga a partir
+  de 01/12/2026** (P2). A promoção #304 (27/10) levou os itens 103 e 104.
+
+- 🟢 **24/10/2026: três advisories novas reprovavam o `pnpm audit` de toda
+  branch — promovido no #304 (27/10).** Item **104**. As duas do `next`
   (GHSA-2464-fhr4-w9xw *critical*, a RCE da biblioteca de imagem; e uma DoS
   de Server Action) não alcançam e foram aceitas, a do `sharp` fora da árvore
   agora com guarda. **A do `zod` alcança**: com o corpo de 1 MB padrão do
@@ -374,8 +385,8 @@ a suíte de unidade, que roda sem rede.
   (`REQUEST_BODY_LIMIT_BYTES`, 413 antes da validação), e a advisory fica
   aceita até o `zod@4`, que pede o `fastify@5`.
 
-- 🟡 **22/10/2026: o 13.3 — o cron acorda a API em três tentativas — e o Node
-  do Render só na major, na `dev`; falta promover.** Item **103**. **21/10
+- 🟢 **22/10/2026: o 13.3 — o cron acorda a API em três tentativas — e o Node
+  do Render só na major — promovido no #304 (27/10).** Item **103**. **21/10
   ficou sem briefing**, e o run nem chegou à coleta (nenhuma `News` do dia);
   o Heartbeat reprovou e o e-mail saiu. As sete acordadas que ele mediu de
   13 a 21/10 deram **52–53 s**, e o aquecimento do cron (`2 × 25 s`)

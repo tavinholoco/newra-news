@@ -33,11 +33,23 @@ export default function robots(): MetadataRoute.Robots {
         // texto dos veículos agregado por feed; a Home, os briefings, as
         // listagens e o `/about` continuam abertos a ele.
         //
+        // **O GPTBot e o Applebot entraram no mesmo grupo** — 11/11/2026,
+        // decisão do dono. Com o ClaudeBot fora, os dois passaram a manter a
+        // API do Render acordada: o `DailyUptime` foi de 0,5–7 h/dia até
+        // 25/10 para **22–24 h/dia desde 02/11** (224,6 h em 10 dias de
+        // novembro, num workspace de 750 h dividido com outro serviço — o
+        // caminho das suspensões de 29/08 e 19/09). No log de CDN de 12 h de
+        // 10/11, o **Applebot fez 638 regenerações** de `/news/[id]`, de 14 a
+        // 90 por hora, toda hora, e o **GPTBot 754 requisições** numa rajada
+        // às 18 UTC; cada regeneração chama a API. Robô novo no lugar deles
+        // no log é o mesmo tratamento, com o dono decidindo.
+        //
         // **O grupo repete o otimizador de imagem de propósito:** o robô que
         // tem um grupo próprio obedece só a ele e ignora o `*` (RFC 9309,
         // §2.2.1). A barra final de `/news/` é o que deixa a listagem
-        // `/pt-BR/news` aberta.
-        userAgent: 'ClaudeBot',
+        // `/pt-BR/news` aberta. Um grupo com vários `User-agent` é um grupo só
+        // (§2.1), e o Next escreve uma linha para cada nome.
+        userAgent: ['ClaudeBot', 'GPTBot', 'Applebot'],
         allow: '/',
         disallow: [IMAGE_OPTIMIZER, ...routing.locales.map((locale) => `/${locale}/news/`)],
       },

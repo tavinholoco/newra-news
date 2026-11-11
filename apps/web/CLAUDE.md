@@ -879,13 +879,19 @@ Regras que não são óbvias no código:
   Imagem nova fora do LCP usa `fixedWidth`; a guarda reprova `sizes` fora dos
   heros. E o `robots.txt` tira `/_next/image` do rastreio: o `og:image` e o
   JSON-LD apontam direto para a fonte.
-- **O ClaudeBot tem grupo próprio no `robots.txt`, e fica fora das
-  matérias** (`/pt-BR/news/`, `/en/news/` — decisão do dono, 16/10/2026: ele
-  fazia 578 das 597 regenerações da ISR do dia). **Robô com grupo próprio
-  ignora o `*`** (RFC 9309, §2.2.1), então toda regra que valha para todos
-  — hoje o `/_next/image` — tem de ser repetida nele. A barra final de
+- **O ClaudeBot, o GPTBot e o Applebot têm um grupo próprio no
+  `robots.txt`, e ficam fora das matérias** (`/pt-BR/news/`, `/en/news/` —
+  decisões do dono: o ClaudeBot em 16/10/2026, que fazia 578 das 597
+  regenerações da ISR do dia; os outros dois em 11/11/2026, que mantinham a
+  API do Render acordada 22–24 h/dia, com 638 regenerações do Applebot em
+  12 h). Cada regeneração de `/news/[id]` chama a API, então **robô que lê
+  as matérias custa hora do Render, não só ISR Write**. **Robô com grupo
+  próprio ignora o `*`** (RFC 9309, §2.2.1), então toda regra que valha para
+  todos — hoje o `/_next/image` — tem de ser repetida nele. A barra final de
   `/news/` mantém a listagem aberta. `tests/lib/robots.test.ts` escolhe o
-  grupo como o robô escolhe.
+  grupo como o robô escolhe, lê o texto que o Next serializa e cobra que o
+  grupo `*` não mude. Robô novo no log de CDN regenerando as matérias é o
+  mesmo tratamento, com o dono decidindo.
 - **A baseline cobre as 12 rotas nos dois temas.** Escuro é onde token errado
   aparece; `bg-white` é invisível no claro e ilegível no escuro, e a suíte
   proíbe cor fixa fora dos quatro véus declarados.
