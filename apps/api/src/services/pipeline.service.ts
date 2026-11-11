@@ -2,7 +2,12 @@ import { prisma, Prisma } from '@newranews/database';
 import { fetchAll } from './news-fetcher.service';
 import { generateArticle } from './ai.service';
 import { sendDailyNewsletter } from './newsletter.service';
-import { renormalizeStoredNews } from './news-renormalizer.service';
+import {
+  RENORMALIZED_EVENT_MESSAGE,
+  planRenormalization,
+  renormalizeStoredNews,
+} from './news-renormalizer.service';
+import { RENORMALIZE_RULES_VERSION } from './renormalize-rules';
 import { deleteExpiredProductEvents } from './product-event.service';
 import { deleteExpiredErrorEvents } from './error-event.service';
 import { deleteExpiredAuditEvents } from './audit.service';
@@ -662,18 +667,33 @@ async function runPipelineStages(pipelineLogId: string): Promise<void> {
     // **Depois do cleanup, de propósito:** renormalizar linha que a etapa 8
     // acabou de apagar é trabalho jogado fora.
     //
-    // É idempotente e barato em regime: a primeira execução depois de uma
-    // mudança de regra ajusta o que precisa, e as seguintes varrem e não
-    // escrevem nada. Fica em `clear-only`, que é o subconjunto seguro — ver
-    // `CategoryMode`.
+    // **E só varre o acervo inteiro quando as regras mudaram** (P5 do plano de
+    // ação de 11/11/2026). Em regime ela varria ~10,5 mil linhas em ~49 s para
+    // mudar zero, num run que o cron da Vercel espera por 85 s — em 02/11 o
+    // run levou 85,05 s e o Heartbeat reprovou. O evento grava a versão das
+    // regras (`RENORMALIZE_RULES_VERSION`, com guarda que a amarra ao código);
+    // com a mesma versão, a varredura é só do que entrou desde a anterior.
+    // Fica em `clear-only`, que é o subconjunto seguro — ver `CategoryMode`.
     try {
       currentStage = 8.5;
-      const report = await renormalizeStoredNews({ dryRun: false });
+      const sweepStartedAt = new Date();
+      const plan = await planRenormalization();
+      const report = await renormalizeStoredNews({
+        dryRun: false,
+        ...(plan.mode === 'incremental' ? { since: plan.since } : {}),
+      });
       renormalized = {
         scanned: report.scanned,
         changed: report.textChanged + report.imageRecovered + report.categoryChanged,
       };
-      await logPipelineEvent(pipelineLogId, 8.5, 'INFO', 'Stored news renormalized', {
+      await logPipelineEvent(pipelineLogId, 8.5, 'INFO', RENORMALIZED_EVENT_MESSAGE, {
+        rulesVersion: RENORMALIZE_RULES_VERSION,
+        mode: plan.mode,
+        ...(plan.mode === 'incremental'
+          ? { since: plan.since.toISOString() }
+          : { reason: plan.reason, previousVersion: plan.previousVersion }),
+        sweepStartedAt: sweepStartedAt.toISOString(),
+        durationMs: Date.now() - sweepStartedAt.getTime(),
         scanned: report.scanned,
         textChanged: report.textChanged,
         imageRecovered: report.imageRecovered,

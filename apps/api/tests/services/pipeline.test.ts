@@ -83,6 +83,8 @@ vi.mock('../../src/services/pipeline-gates.service', async (importOriginal) => {
 });
 vi.mock('../../src/services/news-renormalizer.service', () => ({
   renormalizeStoredNews: vi.fn(),
+  planRenormalization: vi.fn(),
+  RENORMALIZED_EVENT_MESSAGE: 'Stored news renormalized',
 }));
 vi.mock('../../src/services/newsletter.service', () => ({
   sendDailyNewsletter: vi.fn(),
@@ -100,7 +102,11 @@ import { prisma } from '@newranews/database';
 import { fetchAll } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
-import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
+import {
+  planRenormalization,
+  renormalizeStoredNews,
+} from '../../src/services/news-renormalizer.service';
+import { RENORMALIZE_RULES_VERSION } from '../../src/services/renormalize-rules';
 import { runInvariants } from '../../src/services/invariants.service';
 import {
   GateBlockedError,
@@ -175,6 +181,9 @@ const healthyInvariants = {
 // `startedAt` entra na fixture porque a coluna tem default no schema e o
 // `create` real a devolve — o `triggerPipeline` lê dela para dizer quando o
 // run começou. Fixture sem o campo faria o teste medir um Prisma que não existe.
+/** O início da última varredura da 8.5 — a que o plano incremental devolve. */
+const LAST_SWEEP = new Date('2026-11-10T11:30:00.000Z');
+
 const mockLog = {
   id: 'log-uuid-456',
   status: 'RUNNING',
@@ -209,6 +218,7 @@ beforeEach(() => {
   vi.mocked(generateArticle).mockResolvedValue(mockGeneratedArticle);
   vi.mocked(loadEntryBaseline).mockResolvedValue([]);
   vi.mocked(evaluateEntryGate).mockImplementation(passingEntryGate);
+  vi.mocked(planRenormalization).mockResolvedValue({ mode: 'incremental', since: LAST_SWEEP });
   vi.mocked(renormalizeStoredNews).mockReset().mockResolvedValue({
     dryRun: false,
     scanned: 0,
@@ -930,11 +940,63 @@ describe('PipelineService — retenção de eventos de produto (etapa 8)', () =>
 });
 
 describe('PipelineService — renormalização do acervo (etapa 8.5)', () => {
-  it('should renormalize stored news on every run, writing for real', async () => {
+  const renormalizedEvent = () =>
+    vi.mocked(prisma.pipelineEvent.create).mock.calls
+      .map((call) => (call[0] as { data: { stage: number; message: string; context?: Record<string, unknown> } }).data)
+      .find((data) => data.message === 'Stored news renormalized');
+
+  it('with the same rules, sweeps only what came in since the last sweep, writing for real', async () => {
     await triggerPipeline();
     await vi.waitFor(() =>
-      expect(renormalizeStoredNews).toHaveBeenCalledWith({ dryRun: false }),
+      expect(renormalizeStoredNews).toHaveBeenCalledWith({ dryRun: false, since: LAST_SWEEP }),
     );
+  });
+
+  it('with new rules, sweeps the whole archive — the day a rule fix reaches what is stored', async () => {
+    vi.mocked(planRenormalization).mockResolvedValue({
+      mode: 'full',
+      reason: 'rules-changed',
+      previousVersion: 'aaaaaaaaaaaa',
+    });
+
+    await triggerPipeline();
+    await vi.waitFor(() => expect(renormalizeStoredNews).toHaveBeenCalledWith({ dryRun: false }));
+
+    await vi.waitFor(() => expect(renormalizedEvent()).toBeDefined());
+    expect(renormalizedEvent()?.context).toMatchObject({
+      rulesVersion: RENORMALIZE_RULES_VERSION,
+      mode: 'full',
+      reason: 'rules-changed',
+      previousVersion: 'aaaaaaaaaaaa',
+    });
+  });
+
+  it('records the rules version, the mode and when the sweep started — the next run reads them', async () => {
+    await triggerPipeline();
+    await vi.waitFor(() => expect(renormalizedEvent()).toBeDefined());
+
+    const context = renormalizedEvent()?.context ?? {};
+    expect(context).toMatchObject({
+      rulesVersion: RENORMALIZE_RULES_VERSION,
+      mode: 'incremental',
+      since: LAST_SWEEP.toISOString(),
+    });
+    expect(Number.isNaN(new Date(context.sweepStartedAt as string).getTime())).toBe(false);
+    expect(typeof context.durationMs).toBe('number');
+  });
+
+  it('degrades the run, without aborting it, when the plan cannot be read', async () => {
+    vi.mocked(planRenormalization).mockRejectedValue(new Error('db down'));
+
+    await triggerPipeline();
+
+    await vi.waitFor(() => {
+      const warn = vi.mocked(prisma.pipelineEvent.create).mock.calls
+        .map((call) => (call[0] as { data: { stage: number; level: string } }).data)
+        .find((data) => data.stage === 8.5 && data.level === 'WARN');
+      expect(warn).toBeDefined();
+    });
+    expect(renormalizeStoredNews).not.toHaveBeenCalled();
   });
 
   // Depois do cleanup: renormalizar linha que a etapa 8 acabou de apagar é

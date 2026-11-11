@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Category } from '@newranews/database';
 
-const { mockFindMany, mockUpdate, mockTransaction } = vi.hoisted(() => ({
+const { mockFindMany, mockUpdate, mockTransaction, mockFindEvent } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockUpdate: vi.fn(),
   mockTransaction: vi.fn(),
+  mockFindEvent: vi.fn(),
 }));
 
 vi.mock('@newranews/database', async () => {
@@ -15,6 +16,7 @@ vi.mock('@newranews/database', async () => {
     ...actual,
     prisma: {
       news: { findMany: mockFindMany, update: mockUpdate },
+      pipelineEvent: { findFirst: mockFindEvent },
       $transaction: mockTransaction,
     },
   };
@@ -22,8 +24,11 @@ vi.mock('@newranews/database', async () => {
 
 const {
   renormalizeStoredNews,
+  planRenormalization,
+  RENORMALIZED_EVENT_MESSAGE,
   CLASSIFIER_OWNED_SOURCES,
 } = await import('../../src/services/news-renormalizer.service');
+const { RENORMALIZE_RULES_VERSION } = await import('../../src/services/renormalize-rules');
 
 interface Row {
   id: string;
@@ -56,6 +61,7 @@ beforeEach(() => {
   mockUpdate.mockReset();
   mockTransaction.mockReset().mockResolvedValue([]);
   mockUpdate.mockImplementation((args: unknown) => args);
+  mockFindEvent.mockReset();
 });
 
 describe('CLASSIFIER_OWNED_SOURCES', () => {
@@ -123,6 +129,28 @@ describe('renormalizeStoredNews', () => {
 
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { source: { in: ['Reuters'] } } }),
+    );
+  });
+
+  it('should sweep only the rows written since a given instant', async () => {
+    mockFindMany.mockResolvedValue([]);
+    const since = new Date('2026-11-10T11:30:00.000Z');
+
+    await renormalizeStoredNews({ since });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { createdAt: { gte: since } } }),
+    );
+  });
+
+  it('should combine the source override with since', async () => {
+    mockFindMany.mockResolvedValue([]);
+    const since = new Date('2026-11-10T11:30:00.000Z');
+
+    await renormalizeStoredNews({ sources: ['G1'], since });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { source: { in: ['G1'] }, createdAt: { gte: since } } }),
     );
   });
 
@@ -494,5 +522,78 @@ describe('renormalizeStoredNews — varredura em páginas', () => {
     expect(seen).toHaveLength(3);
     expect(batchesWhenLoopTurned).toBeGreaterThan(0);
     expect(batchesWhenLoopTurned).toBeLessThan(3);
+  });
+});
+
+/**
+ * **O plano da etapa 8.5** — P5 do plano de ação de 11/11/2026. Em regime a
+ * etapa varria ~10,5 mil linhas em ~49 s para mudar zero; agora ela varre o
+ * acervo inteiro só quando a versão das regras mudou.
+ */
+describe('planRenormalization', () => {
+  const sweptAt = new Date('2026-11-10T11:31:40.000Z');
+  const startedAt = '2026-11-10T11:30:55.000Z';
+
+  it('sweeps everything when there is no previous sweep', async () => {
+    mockFindEvent.mockResolvedValue(null);
+
+    await expect(planRenormalization()).resolves.toEqual({
+      mode: 'full',
+      reason: 'no-previous-sweep',
+      previousVersion: null,
+    });
+  });
+
+  it('asks for the last finished sweep of the stage — the INFO event, not the last run', async () => {
+    mockFindEvent.mockResolvedValue(null);
+
+    await planRenormalization();
+
+    expect(mockFindEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { stage: 8.5, level: 'INFO', message: RENORMALIZED_EVENT_MESSAGE },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+  });
+
+  it('sweeps everything when the last sweep ran under other rules', async () => {
+    mockFindEvent.mockResolvedValue({
+      createdAt: sweptAt,
+      context: { rulesVersion: 'aaaaaaaaaaaa', sweepStartedAt: startedAt },
+    });
+
+    await expect(planRenormalization()).resolves.toEqual({
+      mode: 'full',
+      reason: 'rules-changed',
+      previousVersion: 'aaaaaaaaaaaa',
+    });
+  });
+
+  it('sweeps everything after the deploy that brings the version — the old events have none', async () => {
+    mockFindEvent.mockResolvedValue({ createdAt: sweptAt, context: { scanned: 10_512, textChanged: 0 } });
+
+    await expect(planRenormalization()).resolves.toMatchObject({ mode: 'full', previousVersion: null });
+  });
+
+  it('sweeps only what came in since the last sweep started, under the same rules', async () => {
+    mockFindEvent.mockResolvedValue({
+      createdAt: sweptAt,
+      context: { rulesVersion: RENORMALIZE_RULES_VERSION, sweepStartedAt: startedAt },
+    });
+
+    await expect(planRenormalization()).resolves.toEqual({
+      mode: 'incremental',
+      since: new Date(startedAt),
+    });
+  });
+
+  it('falls back to the instant of the event when the start is missing or unreadable', async () => {
+    mockFindEvent.mockResolvedValue({
+      createdAt: sweptAt,
+      context: { rulesVersion: RENORMALIZE_RULES_VERSION, sweepStartedAt: 'ontem' },
+    });
+
+    await expect(planRenormalization()).resolves.toEqual({ mode: 'incremental', since: sweptAt });
   });
 });

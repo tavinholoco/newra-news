@@ -1738,6 +1738,15 @@ const MUTATIONS = [
     create: "'use server';\n// Arquivo criado pelo scripts/guard-mutations.mjs; é apagado ao fim.\nexport async function guardMutation() {}\n",
     expect: 'não existe Server Action no projeto',
   },
+  {
+    id: 'A1.144',
+    what: 'uma palavra-chave do classificador muda e a versão das regras não — a correção nunca alcança o acervo gravado',
+    pkg: 'api',
+    test: 'tests/services/renormalize-rules.test.ts',
+    file: 'apps/api/src/services/category-classifier.service.ts',
+    edits: [{ find: "'tarifa', 'tarifas',", replace: "'tarifa', 'tarifaz'," }],
+    expect: 'a versão das regras acompanha o código das regras',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',
@@ -1754,6 +1763,15 @@ const MUTATIONS = [
     pkg: 'web',
     test: 'tests/lib/trust-boundary.test.ts',
     file: 'apps/web/lib/log-server-error.ts',
+    append: '\n// Comentário inócuo do guard-mutations: nenhuma guarda deve reprovar.\n',
+    control: true,
+  },
+  {
+    id: 'C.03',
+    what: 'controle — um comentário numa regra da etapa 8.5 não muda a versão das regras',
+    pkg: 'api',
+    test: 'tests/services/renormalize-rules.test.ts',
+    file: 'apps/api/src/providers/news/feed-text.ts',
     append: '\n// Comentário inócuo do guard-mutations: nenhuma guarda deve reprovar.\n',
     control: true,
   },

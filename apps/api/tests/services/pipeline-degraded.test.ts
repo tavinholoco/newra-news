@@ -49,6 +49,8 @@ vi.mock('../../src/services/news-fetcher.service');
 vi.mock('../../src/services/ai.service');
 vi.mock('../../src/services/news-renormalizer.service', () => ({
   renormalizeStoredNews: vi.fn(),
+  planRenormalization: vi.fn(),
+  RENORMALIZED_EVENT_MESSAGE: 'Stored news renormalized',
 }));
 vi.mock('../../src/services/newsletter.service', () => ({
   sendDailyNewsletter: vi.fn(),
@@ -72,7 +74,10 @@ import { evaluateEntryGate, loadEntryBaseline } from '../../src/services/pipelin
 import { fetchAll, type FetchWarning } from '../../src/services/news-fetcher.service';
 import { generateArticle } from '../../src/services/ai.service';
 import { sendDailyNewsletter } from '../../src/services/newsletter.service';
-import { renormalizeStoredNews } from '../../src/services/news-renormalizer.service';
+import {
+  planRenormalization,
+  renormalizeStoredNews,
+} from '../../src/services/news-renormalizer.service';
 import { runInvariants } from '../../src/services/invariants.service';
 
 const item = (url: string) => ({
@@ -133,6 +138,10 @@ beforeEach(() => {
   });
   vi.mocked(loadEntryBaseline).mockResolvedValue([]);
   vi.mocked(evaluateEntryGate).mockImplementation(passingEntryGate);
+  vi.mocked(planRenormalization).mockResolvedValue({
+    mode: 'incremental',
+    since: new Date('2026-11-10T11:30:00.000Z'),
+  });
   vi.mocked(renormalizeStoredNews).mockResolvedValue({
     dryRun: false,
     scanned: 0,
