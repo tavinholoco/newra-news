@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Category } from '@newranews/database';
-import { generateArticleWithGemini } from '../../src/providers/ai/gemini.provider';
+import { generateArticleWithGemini, responseText } from '../../src/providers/ai/gemini.provider';
 
 vi.mock('../../src/config/env', () => ({
   env: {
     GEMINI_API_KEY: 'test-api-key',
-    GEMINI_MODEL: 'gemini-2.5-flash',
+    GEMINI_MODEL: 'gemini-3.8-flash',
   },
 }));
 
@@ -93,7 +93,7 @@ describe('generateArticleWithGemini', () => {
     await generateArticleWithGemini(mockNewsItems);
 
     const calledUrl = mockFetch.mock.calls[0][0] as string;
-    expect(calledUrl).toContain('gemini-2.5-flash');
+    expect(calledUrl).toContain('/models/gemini-3.8-flash:generateContent');
     expect(calledUrl).not.toContain('key=');
 
     const calledOptions = mockFetch.mock.calls[0][1] as RequestInit;
@@ -284,5 +284,80 @@ describe('generateArticleWithGemini', () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await expect(promise).resolves.toHaveProperty('title');
     expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('responseText — o texto da resposta da Gemini', () => {
+  // A linha 3.x tem raciocínio ligado por padrão, e a documentação diz que a
+  // assinatura dele pode vir "em qualquer parte". Até 11/11/2026 a leitura
+  // era `parts[0].text`: um briefing partido em duas partes perdia a segunda
+  // em silêncio.
+  it('junta as partes de texto, na ordem', () => {
+    const data = {
+      candidates: [{ content: { parts: [{ text: '# Título\n\nPrimeira ' }, { text: 'metade e segunda.' }] } }],
+    };
+    expect(responseText(data)).toBe('# Título\n\nPrimeira metade e segunda.');
+  });
+
+  it('deixa de fora a parte de raciocínio', () => {
+    const data = {
+      candidates: [
+        {
+          content: {
+            parts: [{ text: 'Vou escolher as quinze mais relevantes…', thought: true }, { text: '# Título' }],
+          },
+        },
+      ],
+    };
+    expect(responseText(data)).toBe('# Título');
+  });
+
+  it('lê o texto da parte que carrega a assinatura', () => {
+    const data = {
+      candidates: [{ content: { parts: [{ text: '# Título', thoughtSignature: 'c2lnbmF0dXJl' }] } }],
+    };
+    expect(responseText(data)).toBe('# Título');
+  });
+
+  it('devolve vazio sem candidato, sem partes, ou só com raciocínio', () => {
+    expect(responseText({})).toBe('');
+    expect(responseText({ candidates: [{}] })).toBe('');
+    expect(responseText({ candidates: [{ content: { parts: [{ thoughtSignature: 'x' }] } }] })).toBe('');
+    expect(responseText({ candidates: [{ content: { parts: [{ text: 'pensando', thought: true }] } }] })).toBe('');
+  });
+
+  it('a resposta que só tem raciocínio é resposta vazia para o provider', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          candidates: [{ content: { parts: [{ text: MOCK_MARKDOWN, thought: true }] } }],
+        }),
+      }),
+    );
+    await expect(generateArticleWithGemini(mockNewsItems)).rejects.toThrow('Gemini returned empty response');
+  });
+
+  it('o briefing partido em duas partes chega inteiro ao parser', async () => {
+    const meio = MOCK_MARKDOWN.indexOf('## Seção Principal');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: MOCK_MARKDOWN.slice(0, meio) }, { text: MOCK_MARKDOWN.slice(meio), thoughtSignature: 'x' }],
+              },
+            },
+          ],
+        }),
+      }),
+    );
+    const result = await generateArticleWithGemini(mockNewsItems);
+    expect(result.title).toBe('Título do Artigo de Teste');
+    expect(result.content).toContain('## Seção Principal');
   });
 });

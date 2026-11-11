@@ -61,8 +61,10 @@
   ela traz o run (13.12 do plano de observabilidade, 07/10/2026 — abaixo).
   Não custa hora do Render: o run mantém a API acordada. **E faz o mesmo
   quando não foi ele quem disparou** (02/10/2026): o cron interno da API
-  (`CRON_SCHEDULE`, 08:00 de São Paulo = 11:00 UTC) dispara sozinho quando a
-  instância está acordada, e o cron da Vercel chega depois com
+  (`CRON_SCHEDULE`, 08:20 de São Paulo = 11:20 UTC desde 11/11/2026 — fora
+  do topo da hora, onde a Gemini dava 503) dispara sozinho quando a
+  instância está acordada, e o cron da Vercel (que no Hobby chega em
+  qualquer momento da hora 11 — medido ~11:30) encontra o run com
   `already-succeeded-today` (invalida e pede na hora) ou `already-running`
   (espera o mesmo run). Antes só o `started` invalidava, e a Home ficou o dia
   inteiro no HTML do build da véspera com o briefing novo no banco. **Um cron
