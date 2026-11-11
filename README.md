@@ -97,7 +97,7 @@ flowchart LR
     ART -.->|refreshes the day's pages| WEB
 ```
 
-The pipeline runs once a day at 08:00 BRT, triggered by a Vercel Cron job that wakes the API with a health check before firing. An internal Fastify scheduler points at the same instant, but it only runs if the process happens to be up — on the free tier it often is not, so it is a happy path rather than a safety net. It is idempotent per day: a second trigger on a day that already succeeded reports that it did nothing rather than running again. The web app reads the API through static generation with ISR, so a page that has already been built stays up even while the API is unavailable — and once the run succeeds, the cron route invalidates the day's pages, requests each of them, and checks that they carry the new run before it returns.
+The pipeline runs once a day at 08:00 BRT, triggered by a Vercel Cron job that wakes the API with a health check before firing. An internal Fastify scheduler fires twenty minutes later, off the top of the hour, but it only runs if the process happens to be up — on the free tier it often is not, so it is a happy path rather than a safety net. It is idempotent per day: a second trigger on a day that already succeeded reports that it did nothing rather than running again. The web app reads the API through static generation with ISR, so a page that has already been built stays up even while the API is unavailable — and once the run succeeds, the cron route invalidates the day's pages, requests each of them, and checks that they carry the new run before it returns.
 
 Six full diagrams are in [`docs/diagrams/`](docs/diagrams): system architecture, frontend route map, session and authorization flow, entity relationships, pipeline sequence, and daily data flow.
 
@@ -165,9 +165,9 @@ Backend — `apps/api/.env`:
 | `NODE_ENV` | `development`, `production`, or `test` | No |
 | `CORS_ORIGIN` | Allowed origin. Defaults to `http://localhost:3000` | No |
 | `API_PUBLIC_URL` | Public API address announced by the OpenAPI document | No |
-| `GEMINI_MODEL` | Gemini model id. Defaults to `gemini-2.5-flash` | No |
+| `GEMINI_MODEL` | Gemini model id. Defaults to `gemini-3.8-flash` | No |
 | `GROQ_MODEL` | Groq model id. Defaults to `openai/gpt-oss-20b` | No |
-| `CRON_SCHEDULE` | Internal scheduler expression. Defaults to `0 8 * * *` | No |
+| `CRON_SCHEDULE` | Internal scheduler expression. Defaults to `20 8 * * *` | No |
 | `CRON_TIMEZONE` | Scheduler timezone. Defaults to `America/Sao_Paulo` | No |
 | `RESEND_API_KEY` | Resend key. Without it the newsletter step is skipped | No |
 | `SITE_URL` | Public frontend URL used in newsletter links | No |

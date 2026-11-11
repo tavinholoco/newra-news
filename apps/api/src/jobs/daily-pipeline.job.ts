@@ -10,13 +10,18 @@ import { triggerPipeline } from '../services/pipeline.service';
  *
  * Quem dispara de verdade é o cron da Vercel (`app/api/cron/daily-news`), que
  * acorda a API antes de chamar. Este aqui é um agendador **em processo**: ele só
- * dispara se o processo estiver de pé às 08:00 BRT, e no plano free do Render
+ * dispara se o processo estiver de pé às 08:20 BRT, e no plano free do Render
  * ele frequentemente não está. Não é rede de segurança — é o caminho feliz de
  * quando a API já estava acordada.
  *
- * Os dois apontam para o mesmo instante (`0 8 * * *` em `America/Sao_Paulo` é
- * `0 11 * * *` em UTC) e a idempotência por dia resolve o encontro: o segundo a
- * chegar recebe `already-running` ou `already-succeeded-today`.
+ * Os dois disparam na mesma hora, e a idempotência por dia resolve o encontro:
+ * o segundo a chegar recebe `already-running` ou `already-succeeded-today`.
+ * **Este fica vinte minutos depois do topo da hora** (`20 8 * * *` em
+ * `America/Sao_Paulo` é `20 11 * * *` em UTC) desde 11/11/2026: os runs que
+ * ele começava às 11:00:00 caíam no Groq 8 de 9 vezes (503 "high demand" da
+ * Gemini), contra 1 de 7 dos que o cron da Vercel começava às ~11:30 — o
+ * Hobby dispara o cron em qualquer momento da hora. Correlação medida, causa
+ * não provada.
  */
 export async function runDailyPipelineTask(log: FastifyBaseLogger): Promise<void> {
   log.info('[cron] starting daily pipeline');

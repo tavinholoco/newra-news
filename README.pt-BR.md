@@ -97,7 +97,7 @@ flowchart LR
     ART -.->|renova as páginas do dia| WEB
 ```
 
-O pipeline roda uma vez por dia às 08:00 BRT, disparado por um cron da Vercel que acorda a API com um health check antes de disparar. Um agendador interno do Fastify aponta para o mesmo instante, mas só roda se o processo estiver de pé — no plano free ele frequentemente não está, então é caminho feliz, não rede de segurança. Ele é idempotente por dia: um segundo disparo num dia que já teve sucesso informa que não fez nada, em vez de rodar de novo. O web lê a API por geração estática com ISR, então uma página já construída continua no ar mesmo enquanto a API está indisponível — e, quando o run termina com sucesso, a rota do cron invalida as páginas do dia, pede cada uma e confere que trazem o run novo antes de responder.
+O pipeline roda uma vez por dia às 08:00 BRT, disparado por um cron da Vercel que acorda a API com um health check antes de disparar. Um agendador interno do Fastify dispara vinte minutos depois, fora do topo da hora, mas só roda se o processo estiver de pé — no plano free ele frequentemente não está, então é caminho feliz, não rede de segurança. Ele é idempotente por dia: um segundo disparo num dia que já teve sucesso informa que não fez nada, em vez de rodar de novo. O web lê a API por geração estática com ISR, então uma página já construída continua no ar mesmo enquanto a API está indisponível — e, quando o run termina com sucesso, a rota do cron invalida as páginas do dia, pede cada uma e confere que trazem o run novo antes de responder.
 
 Seis diagramas completos estão em [`docs/diagrams/`](docs/diagrams): arquitetura do sistema, mapa de rotas do frontend, fluxo de sessão e autorização, entidade-relacionamento, sequência do pipeline e fluxo de dados diário.
 
@@ -165,9 +165,9 @@ Backend — `apps/api/.env`:
 | `NODE_ENV` | `development`, `production` ou `test` | Não |
 | `CORS_ORIGIN` | Origem permitida. Padrão `http://localhost:3000` | Não |
 | `API_PUBLIC_URL` | Endereço público anunciado pelo documento OpenAPI | Não |
-| `GEMINI_MODEL` | Id do modelo Gemini. Padrão `gemini-2.5-flash` | Não |
+| `GEMINI_MODEL` | Id do modelo Gemini. Padrão `gemini-3.8-flash` | Não |
 | `GROQ_MODEL` | Id do modelo Groq. Padrão `openai/gpt-oss-20b` | Não |
-| `CRON_SCHEDULE` | Expressão do agendador interno. Padrão `0 8 * * *` | Não |
+| `CRON_SCHEDULE` | Expressão do agendador interno. Padrão `20 8 * * *` | Não |
 | `CRON_TIMEZONE` | Fuso do agendador. Padrão `America/Sao_Paulo` | Não |
 | `RESEND_API_KEY` | Chave do Resend. Sem ela a etapa de newsletter é pulada | Não |
 | `SITE_URL` | URL pública do frontend, usada nos links do e-mail | Não |

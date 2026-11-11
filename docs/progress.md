@@ -9585,6 +9585,64 @@ lockfile. Decidido pelo dono, num PR separado.
   em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
   responde 413.
 
+### 106. O `gemini-3.8-flash` no lugar do `gemini-2.5-flash`, que desliga em 01/12 — e o cron interno fora do topo da hora ✅ 2026-11-11
+
+**Por que agora:** P2 e P3 do plano de ação de 11/11
+(`docs/pipeline-action-plan-2026-11.md`). Desde 26/10 o briefing caiu para o
+Groq em **9 de 16 dias, 4 seguidos (07–10/11)** — o gatilho de "3 dias
+seguidos" do §16 disparou —, sempre por 503 "high demand" da Gemini. Os
+briefings do Groq saem ~25 % menores e fora do formato ("Introdução",
+"Conclusão", `---`, `#` no fim). E os runs que o cron **interno** começava às
+**11:00:00 UTC** caíam no Groq **8 de 9 vezes**, contra **1 de 7** dos que o
+cron da Vercel começava às ~11:30 (correlação medida, causa não provada).
+
+**O prazo:** a página oficial de descontinuações
+(`aistudio.google.com/docs/deprecations`, relida em 11/11) dá o
+`gemini-2.5-flash` com **desligamento mais cedo em 01/12/2026**, e daí em
+diante as chamadas são **roteadas sozinhas para o `gemini-3.5-flash-lite`** —
+o `modelVersion` gravado no briefing passaria a mentir, e a qualidade mudaria
+sem PR. A mesma leitura, mais a página de preços: `gemini-3.8-flash`
+(02/09/2026), `gemini-3.6-flash` e `gemini-3.5-flash-lite` têm nível gratuito
+e nenhum tem data de desligamento; o `gemini-3.7-flash` já roteia para o
+3.8. **O limite diário do nível gratuito não é publicado** — só aparece em
+`aistudio.google.com/rate-limit`, com a conta.
+
+**Decidido pelo dono em 11/11:** `gemini-3.8-flash`.
+
+- **O modelo e o horário mudam em seis lugares**: o default de
+  `apps/api/src/config/env.ts`, o `value:` do `render.yaml`, o
+  `apps/api/.env.example`, a tabela do `docs/setup.md` e as dos dois READMEs.
+  `CRON_SCHEDULE` vai a **`20 8 * * *`** (11:20 UTC) — a disputa com o cron da
+  Vercel continua resolvida pela idempotência (`already-running` →
+  espera). A prosa que dizia "os dois apontam para o mesmo instante" (o
+  cabeçalho do job, os READMEs, o `apps/web/CLAUDE.md`) foi corrigida.
+- **A leitura da resposta da Gemini junta as partes** (`responseText` em
+  `providers/ai/gemini.provider.ts`): era `parts[0].text`. A linha 3.x tem
+  raciocínio ligado por padrão, e a documentação diz que a assinatura dele pode
+  vir em qualquer parte, sem prometer o texto numa parte só — um briefing
+  partido perderia a segunda metade em silêncio. A parte com `thought: true`
+  fica de fora. O pedido não manda `temperature` nem `thinking_budget`, que a
+  página de migração do 3.8 manda tirar, então não muda.
+- **Guarda nova: `apps/api/tests/build/env-defaults.test.ts`.** O `.default()`
+  de cada campo do `envSchema` (pelo parser) contra o `render.yaml` (com duas
+  exceções declaradas, `NODE_ENV` e `SITE_URL`), o `.env.example` e as três
+  tabelas; nenhum modelo com desligamento anunciado no default; e o cron
+  interno fora do minuto zero. Mutações **A1.140–A1.143**. Seis testes novos
+  no provider da Gemini.
+
+**O que é do dono depois da promoção:** o `render.yaml` é Blueprint, mas a
+configuração da API vive no painel do Render (o `CLAUDE.md` da raiz, "As duas
+plataformas publicam pela `main`"). **Conferir em Environment que
+`GEMINI_MODEL` = `gemini-3.8-flash` e `CRON_SCHEDULE` = `20 8 * * *`**; se o
+painel mantiver os valores antigos, mudar à mão. Uma geração real com o
+modelo novo exige a chave de verdade — as do `apps/api/.env` são
+placeholders —, então o ensaio é o primeiro run depois da promoção.
+
+**Como saber que funcionou:** o evento da etapa 6 e o `modelVersion` do
+briefing com `gemini-3.8-flash`; nos 7 runs seguintes, **fallback para o Groq
+em no máximo 1**. Se o 3.8 der 503 como o 2.5, o horário não era a causa — e
+a próxima pergunta é o limite do nível gratuito na página da conta.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

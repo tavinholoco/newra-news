@@ -23,7 +23,8 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        # `gemini-2.5-flash` desliga a partir de 01/12/2026 — decisão do dono em 11/11/2026
+        value: gemini-3.8-flash
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
@@ -34,7 +35,8 @@ services:
       - key: CORS_ORIGIN
         sync: false
       - key: CRON_SCHEDULE
-        value: "0 8 * * *"
+        # 11:20 UTC, fora do topo da hora (11/11/2026)
+        value: "20 8 * * *"
       - key: CRON_TIMEZONE
         value: America/Sao_Paulo
       - key: RESEND_API_KEY

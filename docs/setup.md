@@ -78,12 +78,12 @@ cp apps/web/.env.example apps/web/.env.local  # frontend — URLs públicas
 | `DATABASE_URL` | ✅ | URL do PostgreSQL (local: `postgresql://user:password@localhost:5432/newranews`) |
 | `NEWSDATA_API_KEY` | ⚠️ | Chave da NewsData.io (opcional — sem ela o pipeline roda só com RSS) |
 | `GEMINI_API_KEY` | ✅ | Chave da Gemini (geração do artigo) |
-| `GEMINI_MODEL` | ❌ | Modelo Gemini (default `gemini-2.5-flash`) |
+| `GEMINI_MODEL` | ❌ | Modelo Gemini (default `gemini-3.8-flash` desde 11/11/2026 — o `gemini-2.5-flash` desliga a partir de 01/12/2026) |
 | `GROQ_API_KEY` | ✅ | Chave da Groq (fallback de IA) |
 | `GROQ_MODEL` | ❌ | Modelo Groq (default `openai/gpt-oss-20b` — o antigo `llama-3.1-8b-instant` foi deprecado em 16/08/2026) |
 | `JOB_SECRET` | ✅ | Token Bearer para disparar o pipeline (e proteger os endpoints `/api/dev/*` e `/dev/dashboard`) |
 | `CORS_ORIGIN` | ❌ | Origem permitida no CORS (default `http://localhost:3000`) |
-| `CRON_SCHEDULE` | ❌ | Cron interno (default `0 8 * * *`) |
+| `CRON_SCHEDULE` | ❌ | Cron interno (default `20 8 * * *` — 11:20 UTC, fora do topo da hora, desde 11/11/2026) |
 | `CRON_TIMEZONE` | ❌ | Timezone do cron (default `America/Sao_Paulo`) |
 | `RESEND_API_KEY` | ⚠️ | Chave da Resend p/ a newsletter (opcional — sem ela o envio é pulado no pipeline) |
 | `SITE_URL` | ❌ | URL pública do frontend usada nos links do e-mail (default `http://localhost:3000`) |
@@ -279,7 +279,8 @@ pnpm guard:mutations           # quebra cada comportamento guardado e confere qu
 
 ## 7. Disparar o pipeline manualmente
 
-O pipeline roda 1x/dia (08:00 BRT, via Vercel Cron + cron interno de fallback).
+O pipeline roda 1x/dia (~08:00 BRT pelo Vercel Cron; o cron interno, que só
+dispara com a API acordada, às 08:20).
 Para disparar manualmente:
 
 ```bash

@@ -32,7 +32,13 @@ export const envSchema = z.object({
   // no ambiente (Render). Sem ela, o pipeline roda apenas com RSS.
   NEWSDATA_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().min(1),
-  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  // `gemini-3.8-flash` desde 11/11/2026 (decisão do dono): o
+  // `gemini-2.5-flash` tem desligamento a partir de 01/12/2026, com as
+  // chamadas roteadas sozinhas para outro modelo — e o `modelVersion` gravado
+  // passaria a mentir. O valor mora em quatro lugares (este default, o
+  // `render.yaml`, o `.env.example` e as tabelas do setup e dos READMEs), e
+  // `tests/build/env-defaults.test.ts` cobra que concordem.
+  GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
   GROQ_API_KEY: z.string().min(1),
   GROQ_MODEL: z.string().default('openai/gpt-oss-20b'),
   JOB_SECRET: z.string().min(1),
@@ -52,7 +58,10 @@ export const envSchema = z.object({
     .url()
     .optional()
     .transform((value) => value?.replace(/\/+$/, '')),
-  CRON_SCHEDULE: z.string().default('0 8 * * *'),
+  // 08:20 em São Paulo = 11:20 UTC, desde 11/11/2026: os runs que começavam
+  // às 11:00:00 caíam no Groq 8 de 9 vezes, contra 1 de 7 às ~11:30 (o
+  // topo da hora; correlação medida, causa não provada).
+  CRON_SCHEDULE: z.string().default('20 8 * * *'),
   CRON_TIMEZONE: z.string().default('America/Sao_Paulo'),
   // Newsletter — opcional; sem RESEND_API_KEY o envio é pulado (graceful)
   RESEND_API_KEY: z.string().optional(),
