@@ -287,11 +287,16 @@ Regras que não são óbvias no código:
   Markdown, `parseArticleBody` deixaria de reconhecer o parágrafo de abertura e
   ele apareceria **duas vezes**. Por isso a comparação normaliza os dois lados
   e o `EMPHASIS` mora em `lib/markdown-text.ts`, não no componente.
-- **O nível do subtítulo é relativo, e mapeado por posição.** As profundidades
-  presentes no documento viram `h2`, `h3`, `h4` na ordem — nunca por subtração,
-  que daria `h2` e `h4` num documento com `##` e `####` e reprovaria
-  `heading-order`. 39% dos briefings usam `###` sem nenhum `##`, e ali `###`
-  **é** o `h2`.
+- **O nível do subtítulo é relativo, e sai da ordem do documento.** O
+  primeiro subtítulo é `h2`; um mais fundo que o anterior é filho dele (um
+  nível abaixo, teto `h4`); um igual ou mais raso fecha as seções abertas até
+  achar o pai, e sem pai volta a `h2` — nunca por subtração, que daria `h2` e
+  `h4` num documento com `##` e `####` e reprovaria `heading-order`. 39% dos
+  briefings usam `###` sem nenhum `##`, e ali `###` **é** o `h2`. **Até
+  11/11/2026 era o ranking das profundidades presentes**, e o briefing de
+  10/11 (Groq) tinha cinco `##` e um `# Síntese` no fim: o `#` virava `h2`, os
+  `##` de antes `h3`, e a página saltava do `h1` para um `h3`. O corpo de 10/11
+  é fixture (`tests/fixtures/briefing-2026-11-10.ts`).
 - **`article-hero` é casca com encaixes**, não um componente com `variant`. As
   duas telas compartilham a composição da §8 e quase nada do conteúdo.
 - **A imagem vem depois da metadata** (ordem da §8): numa tela de leitura entra-se

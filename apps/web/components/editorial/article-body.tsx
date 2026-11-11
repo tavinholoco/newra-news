@@ -118,12 +118,17 @@ export function parseInline(text: string): InlineSegment[] {
  * mas `###` também não pode virar `h3` sempre: **39% dos briefings usam `###`
  * sem nenhum `##`**, e ali um `h3` abriria um salto a partir do `h1` do título.
  *
- * A saída é mapear as profundidades **presentes** para níveis consecutivos: a
- * mais rasa vira `h2`, a seguinte `h3`, e o teto é `h4`. **Por posição na
- * lista, e não por diferença aritmética** — um documento com `##` e `####`,
- * sem `###` no meio, daria `h2` e `h4` na subtração, que é exatamente o salto
- * que `heading-order` reprova. Há teste sobre a propriedade, não sobre os
- * casos.
+ * **O nível sai da ordem do documento, e não do ranking das profundidades**
+ * (11/11/2026, P6 do plano de ação). A regra anterior dava `h2` à
+ * profundidade mais rasa **onde quer que ela estivesse** — e o briefing de
+ * 10/11, escrito pelo Groq, tem cinco `##` com `### Relevância` e **um
+ * `# Síntese` no fim**: o `#` virava `h2`, os `##` de antes viravam `h3`, e a
+ * página saltava do `h1` do título para um `h3`. Hoje é uma pilha de seções
+ * abertas: o primeiro subtítulo é `h2`; um mais fundo que o anterior é filho
+ * dele (um nível abaixo, teto `h4`); um igual ou mais raso fecha as seções até
+ * achar o pai — e, sem pai, volta a `h2`. **Por estrutura, e não por diferença
+ * aritmética**: `##` seguido de `####` dá `h2` e `h3`, nunca o salto. Há teste
+ * sobre a propriedade, com o corpo de 10/11 como caso real.
  */
 export function parseArticleBody(content: string, lede?: string | null): Block[] {
   const lines = content
@@ -131,16 +136,10 @@ export function parseArticleBody(content: string, lede?: string | null): Block[]
     .map((line) => line.replace(LEFTOVER_TAG, ' ').replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
-  // Passada de reconhecimento: as profundidades presentes, em ordem, viram
-  // `h2`, `h3`, `h4`. É a posição na lista que decide, nunca a subtração.
-  const depths = [
-    ...new Set(
-      lines.flatMap((line) => {
-        const match = HEADING.exec(line);
-        return match?.[1] ? [match[1].length] : [];
-      }),
-    ),
-  ].sort((a, b) => a - b);
+  // As seções abertas, da mais externa para a mais interna: a profundidade do
+  // Markdown e o nível que a seção recebeu. É ela que decide o nível do
+  // próximo subtítulo — pela ordem do documento, nunca pelo ranking.
+  const open: Array<{ depth: number; level: BodyHeadingLevel }> = [];
 
   const blocks: Block[] = [];
 
@@ -155,12 +154,12 @@ export function parseArticleBody(content: string, lede?: string | null): Block[]
 
     const heading = HEADING.exec(line);
     if (heading?.[1] && heading[2]) {
-      const level = Math.min(2 + depths.indexOf(heading[1].length), 4);
-      blocks.push({
-        kind: 'heading',
-        level: level as BodyHeadingLevel,
-        text: heading[2].trim(),
-      });
+      const depth = heading[1].length;
+      while (open.length > 0 && (open[open.length - 1]?.depth ?? 0) >= depth) open.pop();
+      const parent = open[open.length - 1];
+      const level = (parent ? Math.min(parent.level + 1, 4) : 2) as BodyHeadingLevel;
+      open.push({ depth, level });
+      blocks.push({ kind: 'heading', level, text: heading[2].trim() });
       continue;
     }
 
