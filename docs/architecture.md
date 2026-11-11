@@ -88,7 +88,7 @@ Disparado pelo cron da Vercel (`GET /api/cron/daily-news` → `POST
 - **2 — Normalização** — higiene de texto na entrada (`feed-text.ts`)
 - **3 — Deduplicação** — por `sourceUrl`
 - **4 — Persistência** — e a **saúde por fonte** do dia (`SourceHealth`)
-- **5 — Seleção** — as 15 mais recentes
+- **5 — Seleção** — as 15 mais recentes, até 3 por fonte (desde 11/11/2026)
 - **5.5 — Portão de entrada** — volume contra a mediana de 7 dias, três
   fontes, frescor; bloqueia **antes** de gastar a chamada de IA
 - **6 — Geração IA** — Gemini → Groq

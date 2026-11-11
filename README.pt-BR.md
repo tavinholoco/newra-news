@@ -85,7 +85,7 @@ flowchart LR
     SRC["NewsData.io + 11 feeds RSS"] --> ING
     ING --> DEDUP[Deduplicação]
     DEDUP --> DB[(PostgreSQL)]
-    DEDUP --> SEL[Seleção das 15 mais recentes]
+    DEDUP --> SEL[Seleção das 15 mais recentes, até 3 por fonte]
     SEL --> GIN{Portão de entrada}
     GIN --> AI["Gemini, com fallback Groq"]
     AI --> GOUT{Portão de saída}

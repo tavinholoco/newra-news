@@ -9585,6 +9585,58 @@ lockfile. Decidido pelo dono, num PR separado.
   em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
   responde 413.
 
+### 107. A seleção do briefing com teto por fonte — o G1 era 61,6 % das citações ✅ 2026-11-11
+
+**Por que agora:** P4 do plano de ação de 11/11
+(`docs/pipeline-action-plan-2026-11.md`). A etapa 5 pegava as **15 mais
+recentes por `publishedAt`**, e às 08:00 de Brasília quem publicou por último
+é o G1: **61,6 % das citações desde 10/10, contra 25,7 % da colheita**.
+NewsData (~19 % da colheita), TechCrunch e Trivela nunca foram citados. O
+portão 5.5 media **três fontes (o mínimo) na maioria dos dias** e **bloqueou
+os runs das 11:00 de 02/11 e 06/11** ("2 distinct sources < 3, even among
+30"); o cron das 11:30 refez e passou. E itens da ESPN chegavam ~0,9 h no
+futuro e furavam o topo da ordenação.
+
+**Decidido pelo dono em 11/11:** teto de **3 de 15**.
+
+- `apps/api/src/services/briefing-selection.ts` (novo, puro):
+  `selectBriefingItems` em duas passadas — recência **com teto** entre as das
+  últimas 24 h, depois recência **sem teto** completando o que faltou. A
+  chave de ordenação é o `publishedAt` **limitado a agora**. A etapa 5 e o
+  alargamento do portão (30) chamam a mesma função; o evento da etapa 5
+  passou a dizer `sources` e `perSourceCap`.
+- O `gates:rehearse` reconstrói o alargamento com a mesma função (antes,
+  `take: 30` por `publishedAt`).
+- **Guarda:** `tests/services/briefing-selection.test.ts` (dez testes: o teto,
+  o preenchimento quando faltam fontes, a matéria velha que não entra no
+  lugar da fresca e entra quando é o que há, o item do futuro, o empate, a
+  ordem de saída, o alargamento) e um teste de fiação no `pipeline.test.ts`
+  (o que vai à IA tem no máximo três do G1). O teste do portão continua
+  cobrando o bloqueio quando a colheita é pobre de verdade.
+- Prosa: os dois READMEs, `docs/architecture.md`, `docs/presentation.md`, o
+  `data-flow.mermaid` e uma seção nova no `apps/api/CLAUDE.md`.
+
+**O ensaio antes do merge — só leitura, no Neon de produção (MCP), sobre as
+30 colheitas de 12/10 a 11/11.** A colheita de cada dia foi reconstruída das
+`News` gravadas até o fim do run `SUCCESS` daquele dia; a regra antiga
+aplicada a ela bate com as citações reais da `BriefingSource` (fontes e fatia
+do G1) em 17 dos 30 dias — a diferença provável são as matérias re-coletadas
+de dias anteriores, que não estão nas `News` do dia. 21/10 não tem run.
+
+| | Fontes distintas por dia | G1 nas citações |
+|---|---|---|
+| citações reais | 3–8 (3 em 17 dias) | 13–87 % |
+| regra antiga, reconstruída | 2–9 (2 em 4 dias) | 13–93 % |
+| **regra nova** | **6–9** | **20 % em todos** |
+
+A primeira passada completou as 15 nos 30 dias (o preenchimento sem teto
+nunca foi preciso), e a matéria mais velha escolhida passou de **0,4 h para
+1,6 h** em média (de 1,0 h para 4,6 h no pior dia).
+
+**Como saber que funcionou:** nos 7 runs depois da promoção, **≥ 5 fontes**
+na etapa 5.5 (`sources` no evento), **G1 abaixo de 35 % das citações** e
+**nenhum bloqueio de diversidade**.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

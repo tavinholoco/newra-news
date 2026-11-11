@@ -77,7 +77,7 @@ sequência do pipeline e fluxo de dados.
   `types`, `eslint-config`, `tsconfig`); tipagem única, sem duplicação entre
   os apps.
 - **Pipeline de catorze etapas** — nove numeradas (coleta, normalização, dedup
-  por URL, persistência, seleção das 15 mais recentes, geração por IA, artigo,
+  por URL, persistência, seleção das 15 mais recentes (até 3 por fonte), geração por IA, artigo,
   cleanup aos 30 dias, métricas) mais cinco intercaladas: a **5.5**, o portão
   de entrada (volume contra a mediana de 7 dias, três fontes, um item de 24 h
   — ou o dia não gasta a chamada de IA), a **6.5**, o portão de saída (URL não

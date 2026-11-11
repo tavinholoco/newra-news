@@ -276,6 +276,45 @@ describe('PipelineService', () => {
     expect(context).toHaveProperty('skipped');
   });
 
+  it('sends the AI a selection with at most three items per source, and says so in the stage 5 event', async () => {
+    // P4 do plano de ação de 11/11/2026: às 08:00 o G1 publicou por último, e
+    // as 15 mais recentes eram quase todas dele.
+    const now = Date.now();
+    const item = (source: string, i: number, minutesAgo: number) => ({
+      ...rssItem,
+      source,
+      title: `${source} ${i}`,
+      sourceUrl: `https://example.com/${source}/${i}`,
+      publishedAt: new Date(now - minutesAgo * 60_000),
+    });
+    const items = [
+      ...Array.from({ length: 10 }, (_, i) => item('G1', i, 5 + i)),
+      ...Array.from({ length: 4 }, (_, i) => item('Folha', i, 60 + i)),
+      ...Array.from({ length: 4 }, (_, i) => item('BBC', i, 90 + i)),
+      ...Array.from({ length: 4 }, (_, i) => item('Valor', i, 120 + i)),
+      ...Array.from({ length: 4 }, (_, i) => item('TechCrunch', i, 150 + i)),
+    ];
+    vi.mocked(fetchAll).mockResolvedValue({
+      ...mockFetchResult,
+      newsDataItems: [],
+      rssItems: items,
+      allItems: items,
+    });
+
+    await triggerPipeline();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const sent = vi.mocked(generateArticle).mock.calls[0]?.[0] as Array<{ source: string }>;
+    expect(sent).toHaveLength(15);
+    expect(sent.filter((news) => news.source === 'G1')).toHaveLength(3);
+    expect(new Set(sent.map((news) => news.source)).size).toBe(5);
+
+    const selectedEvent = vi.mocked(prisma.pipelineEvent.create).mock.calls
+      .map((call) => (call[0] as { data: { message: string; context?: Record<string, unknown> } }).data)
+      .find((data) => data.message === 'Top items selected for AI');
+    expect(selectedEvent?.context).toEqual({ count: 15, sources: 5, perSourceCap: 3 });
+  });
+
   /**
    * **A idempotencia continua igual; o que mudou e ela contar isso.**
    *
@@ -758,7 +797,7 @@ describe('PipelineService', () => {
     const createMany = vi.mocked(prisma.briefingSource.createMany).mock
       .calls[0]?.[0] as { data: Array<Record<string, unknown>> };
 
-    // selectTopItems ordena por publishedAt desc: NewsData (10:00) e RSS (09:00)
+    // A seleção ordena por recência: NewsData (10:00) e RSS (09:00)
     expect(createMany.data).toEqual([
       {
         articleId: 'article-uuid-123',
