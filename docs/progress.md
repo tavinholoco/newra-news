@@ -9585,6 +9585,44 @@ lockfile. Decidido pelo dono, num PR separado.
   em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
   responde 413.
 
+### 109. O `heading-order` do corpo do briefing: o nível sai da ordem do documento ✅ 2026-11-11
+
+**Por que agora:** P6 do plano de ação de 11/11
+(`docs/pipeline-action-plan-2026-11.md`). `/pt-BR/article/2026-11-10` saltava
+**de `h1` para `h3`**. O Groq (que serviu o dia) escreveu cinco seções em `##`,
+cada uma com um `### Relevância`, e **um `# Síntese` no fim** — lido no Neon
+em 11/11 com a lista de subtítulos dos briefings de 05 a 11/11.
+`parseArticleBody` (`components/editorial/article-body.tsx`) dava o `h2` à
+profundidade **mais rasa do documento, onde quer que ela estivesse**: o `#` do
+fim virava `h2` e empurrava os `##` de antes para `h3`. O Lighthouse de
+segunda pode cobrar (`heading-order`), e fica mais provável quanto mais o
+Groq for usado — 9 de 16 dias desde 26/10.
+
+**A correção:** uma pilha das seções abertas, na ordem do documento. O
+primeiro subtítulo é `h2`; um mais fundo que o anterior é filho dele (um
+nível abaixo, teto `h4`); um igual ou mais raso fecha as seções até achar o
+pai, e sem pai volta a `h2`. Os casos de antes saem iguais (`##`+`###` →
+`h2`/`h3`; `###` sozinho → `h2`; `##`+`####` → `h2`/`h3`; o teto em `h4`).
+
+- **Guarda com caso real:** o corpo de 10/11 como fixture
+  (`apps/web/tests/fixtures/briefing-2026-11-10.ts`, os 6.895 caracteres
+  gravados), na propriedade que já existia (o primeiro é `h2`, nenhum sobe
+  mais de um nível) junto de quatro formas com a mais rasa no meio ou no fim;
+  os níveis exatos do briefing de 10/11 (`2,3,2,3,…,2`); a seção mais funda
+  voltando ao nível do pai; e o HTML renderizado do briefing abrindo em `h2`
+  com `Síntese` em `h2`. Os testes do `parseArticleBody` que já existiam
+  continuam verdes sem mudança.
+- `apps/web/CLAUDE.md`: a regra do nível, reescrita.
+
+**Não aberto num navegador:** o banco local não tem o briefing de 10/11, e
+um briefing local não exercita o caso; o que mede é o HTML renderizado na
+suíte, que é o que o `heading-order` lê.
+
+**Como saber que funcionou:** acessibilidade **100** em `/article/[date]` no
+próximo Lighthouse (as rotas de detalhe resolvem o briefing do dia — se for
+do Gemini, o caso não aparece; o de 10/11 é que o reproduz:
+`/pt-BR/article/2026-11-10` sem salto de nível).
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

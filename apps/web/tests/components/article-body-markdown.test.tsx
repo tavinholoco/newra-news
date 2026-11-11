@@ -7,6 +7,7 @@ import {
   parseInline,
 } from '@/components/editorial/article-body';
 import { renderWithIntl } from '@/tests/utils';
+import { BRIEFING_2026_11_10 } from '@/tests/fixtures/briefing-2026-11-10';
 
 /**
  * A sintaxe que o modelo realmente escreve, e que a tela mostrava como
@@ -116,6 +117,12 @@ describe('parseArticleBody — a hierarquia dos subtítulos', () => {
       '#### A\n##### B',
       '## A\n#### B',
       '### A\nTexto\n### B',
+      // A mais rasa no fim, ou no meio — o formato do Groq (10/11/2026).
+      '## A\n### B\n# C',
+      '### A\n## B\n### C',
+      '## A\n### B\n## C\n### D\n# E',
+      '#### A\n## B\n#### C\n# D\n### E',
+      BRIEFING_2026_11_10,
     ]) {
       const levels = parseArticleBody(body).flatMap((b) =>
         b.kind === 'heading' ? [b.level] : [],
@@ -126,6 +133,26 @@ describe('parseArticleBody — a hierarquia dos subtítulos', () => {
         expect(levels[i]! - levels[i - 1]!, body).toBeLessThanOrEqual(1);
       }
     }
+  });
+
+  it('o briefing de 10/11: o `# Síntese` do fim não rebaixa as seções de antes', () => {
+    const headings = parseArticleBody(BRIEFING_2026_11_10).flatMap((b) =>
+      b.kind === 'heading' ? [[b.level, b.text] as const] : [],
+    );
+
+    expect(headings[0]).toEqual([2, '1. A Justiça fecha o ciclo das fake news, mas a tensão permanece no STF']);
+    expect(headings[1]).toEqual([3, 'Relevância']);
+    expect(headings.filter(([, text]) => text.startsWith('5.'))[0]?.[0]).toBe(2);
+    expect(headings[headings.length - 1]).toEqual([2, 'Síntese']);
+    expect(headings.map(([level]) => level)).toEqual([2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2]);
+  });
+
+  it('a seção mais funda volta ao nível do pai, e não ao primeiro que apareceu', () => {
+    const levels = parseArticleBody('## A\n### B\n#### C\n### D\n## E\n#### F').flatMap((b) =>
+      b.kind === 'heading' ? [b.level] : [],
+    );
+
+    expect(levels).toEqual([2, 3, 4, 3, 2, 3]);
   });
 });
 
@@ -205,6 +232,20 @@ describe('hasReadableBody', () => {
 });
 
 describe('ArticleBody — o que sai no HTML', () => {
+  it('o briefing de 10/11 abre em h2 e não salta nível — o que o `heading-order` mede', () => {
+    const { container } = renderWithIntl(<ArticleBody content={BRIEFING_2026_11_10} />);
+
+    const levels = [...container.querySelectorAll('h1, h2, h3, h4, h5, h6')].map((el) =>
+      Number(el.tagName.slice(1)),
+    );
+    // O `h1` é o título da página, fora deste componente: o corpo abre em h2.
+    expect(levels[0]).toBe(2);
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]! - levels[i - 1]!).toBeLessThanOrEqual(1);
+    }
+    expect(screen.getByRole('heading', { name: 'Síntese' }).tagName).toBe('H2');
+  });
+
   it('should render bold as strong, not as asterisks on screen', () => {
     renderWithIntl(
       <ArticleBody content='O debate foi o **mais esvaziado desde 1989**.' />,
