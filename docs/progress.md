@@ -9585,6 +9585,58 @@ lockfile. Decidido pelo dono, num PR separado.
   em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
   responde 413.
 
+### 105. O GPTBot e o Applebot fora das matérias — eles mantinham a API do Render acordada 22–24 h/dia ✅ 2026-11-11
+
+**Por que agora:** a análise dos pipelines de 15/10 a 10/11, pedida pelo dono
+em 10/11 (`docs/pipeline-action-plan-2026-11.md`, P1). O `DailyUptime` da API
+foi de **0,5–7 h/dia até 25/10** para **22–24 h/dia desde 02/11**: **224,6 h
+em 10 dias de novembro**, o que projeta ~685 h só para a API num workspace de
+750 h dividido com o `NetsheetEngine` — o caminho das suspensões de 29/08 e
+19/09. A subida começa no deploy da promoção #304 (26–27/10), que zerou o
+cache da ISR (o cache é por deploy). Ninguém soube por 9 dias (P7 do plano).
+
+**A causa, no log de CDN de 12 h de 10/11** (`vercel logs requests --scope
+tavinholocos-projects --project newra-news-web --since 12h --json`): 1.817
+requisições, ~0 humanas (1 `ProductEvent` humano desde 27/10); o **Applebot
+com 638 regenerações (MISS) de `/news/[id]`**, de 14 a 90 por hora, toda
+hora; o **GPTBot com 754 requisições** numa rajada às 18 UTC. Cada MISS é uma
+regeneração da ISR, e cada regeneração chama a API. O `robots.txt` só tirava
+o ClaudeBot das matérias (item 102).
+
+**Decidido pelo dono em 11/11:** os dois entram no grupo do ClaudeBot.
+
+- `apps/web/app/robots.ts`: `userAgent: ['ClaudeBot', 'GPTBot', 'Applebot']`
+  — um grupo só com três `User-agent` (RFC 9309, §2.1), o mesmo `disallow`
+  (o otimizador de imagem, que o grupo próprio não herda do `*`, e
+  `/{locale}/news/`). A listagem `/news`, a Home, os briefings e o `/about`
+  continuam abertos aos três; o grupo `*` não muda.
+- `apps/web/tests/lib/robots.test.ts`: os três testes do ClaudeBot viraram
+  `it.each` sobre os três robôs; **o grupo `*` não muda** (Googlebot, Bingbot,
+  `Applebot-Extended` e `OAI-SearchBot` com `allow: /` e só o otimizador
+  fora — os dois últimos são *product tokens* diferentes e não casam com o
+  grupo); e **o texto que o Next serializa** (`resolveRobots` do
+  `next@14.2.35`) põe os três `User-Agent` seguidos, antes das regras das
+  matérias. Mutações **A1.137–A1.139** (os dois saindo do grupo; o Applebot
+  sozinho saindo; um robô de busca entrando por engano).
+- `apps/web/CLAUDE.md`: a regra do grupo próprio, com os três e o porquê —
+  robô que lê as matérias custa **hora do Render**, não só ISR Write.
+- **A `dev` estava um commit atrás da `main`** (o merge da promoção #304, sem
+  conteúdo): alinhada por fast-forward antes do PR, como o `CLAUDE.md` manda.
+
+**A promoção vai sozinha e já** — cada dia custa ~23 h do Render. Promover é
+deploy novo, e o cache da ISR é por deploy: conferir antes o Usage de ISR
+Writes da Vercel (item D2 do plano).
+
+**Como saber que funcionou:**
+
+- `https://newra-news-web.vercel.app/robots.txt` com os três `User-Agent` no
+  grupo das matérias;
+- o log de CDN 48 h depois sem Applebot nem GPTBot em `/news/` (mesmo
+  comando acima, com `--since 12h`);
+- **`DailyUptime` abaixo de 10 h/dia em até 3 dias** (a série de 14 dias da
+  `/admin`, 13.9). Se outro robô aparecer no lugar deles no log, é o mesmo
+  tratamento — com o dono decidindo.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

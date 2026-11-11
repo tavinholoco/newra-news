@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { resolveRobots } from 'next/dist/build/webpack/loaders/metadata/resolve-route-data';
 import robots from '@/app/robots';
 
 /**
@@ -12,6 +13,10 @@ import robots from '@/app/robots';
  * - **O ClaudeBot fica fora das matérias** (decisão do dono). No log de CDN
  *   de 16/10 ele fez 578 das 597 regenerações da ISR — `/news/[id]` nos dois
  *   idiomas — e as 167 transformações de imagem.
+ * - **O GPTBot e o Applebot também** (decisão do dono, 11/11/2026). Com o
+ *   ClaudeBot fora, os dois mantinham a API do Render acordada 22–24 h/dia
+ *   desde 02/11: no log de CDN de 12 h de 10/11, o Applebot fez 638
+ *   regenerações de `/news/[id]` e o GPTBot 754 requisições numa rajada.
  *
  * A guarda avalia as regras como o robô avalia (RFC 9309): o robô obedece só
  * ao grupo que traz o nome dele, e cai no `*` se não houver um (§2.2.1); no
@@ -48,6 +53,12 @@ const MATERIAS = [
   '/pt-BR/news/42d13b26-941f-473d-a87b-941ef61e5a2a',
   '/en/news/42d13b26-941f-473d-a87b-941ef61e5a2a',
 ];
+/**
+ * Os robôs que ficam fora das matérias. O nome é o *product token* que cada
+ * um declara na documentação dele — o robô procura o próprio nome no arquivo,
+ * sem diferenciar maiúsculas (RFC 9309, §2.2.1).
+ */
+const FORA_DAS_MATERIAS = ['ClaudeBot', 'GPTBot', 'Applebot'];
 const ABERTAS = [
   '/',
   '/pt-BR',
@@ -74,21 +85,48 @@ describe('o robots.txt', () => {
     }
   });
 
-  it('o ClaudeBot também não pede o otimizador — ele não herda o grupo `*`', () => {
-    expect(isAllowed(groupFor('ClaudeBot'), IMAGEM)).toBe(false);
+  it.each(FORA_DAS_MATERIAS)('o %s também não pede o otimizador — ele não herda o grupo `*`', (robo) => {
+    expect(isAllowed(groupFor(robo), IMAGEM)).toBe(false);
   });
 
-  it('o ClaudeBot não regenera as matérias, nos dois idiomas', () => {
+  it.each(FORA_DAS_MATERIAS)('o %s não regenera as matérias, nos dois idiomas', (robo) => {
     for (const caminho of MATERIAS) {
-      expect(isAllowed(groupFor('ClaudeBot'), caminho), caminho).toBe(false);
+      expect(isAllowed(groupFor(robo), caminho), caminho).toBe(false);
     }
   });
 
-  it('o ClaudeBot ainda lê a Home, os briefings e as listagens', () => {
-    const claude = groupFor('ClaudeBot');
+  it.each(FORA_DAS_MATERIAS)('o %s ainda lê a Home, os briefings e as listagens', (robo) => {
+    const grupo = groupFor(robo);
     for (const caminho of ABERTAS) {
-      expect(isAllowed(claude, caminho), caminho).toBe(true);
+      expect(isAllowed(grupo, caminho), caminho).toBe(true);
     }
+  });
+
+  it('o grupo `*` não muda: os outros robôs leem as matérias e só perdem o otimizador', () => {
+    // O Googlebot e o Bingbot são quem leva leitor às matérias; o
+    // `Applebot-Extended` é outro *product token* (só diz se a Apple pode
+    // treinar com o que o Applebot coletou) e não casa com o grupo.
+    for (const robo of ['Googlebot', 'Bingbot', 'Applebot-Extended', 'OAI-SearchBot']) {
+      expect(groupFor(robo), robo).toEqual({ allow: ['/'], disallow: ['/_next/image'] });
+    }
+  });
+
+  it('o texto que o Next escreve põe os três nomes no mesmo grupo das matérias', () => {
+    // Um grupo com vários `User-agent` seguidos é um grupo só (RFC 9309,
+    // §2.1): as regras que vêm depois valem para todos. O avaliador acima lê
+    // o objeto; esta asserção lê o arquivo que o robô baixa.
+    const grupos = resolveRobots(robots())
+      .split('\n\n')
+      .map((bloco) => bloco.trim())
+      .filter((bloco) => bloco.startsWith('User-Agent:'));
+    const dasMaterias = grupos.find((bloco) => bloco.includes('Disallow: /pt-BR/news/'));
+    expect(dasMaterias).toBeDefined();
+    const linhas = dasMaterias!.split('\n');
+    expect(linhas.slice(0, FORA_DAS_MATERIAS.length)).toEqual(
+      FORA_DAS_MATERIAS.map((robo) => `User-Agent: ${robo}`),
+    );
+    expect(linhas).toContain('Disallow: /en/news/');
+    expect(linhas).toContain('Disallow: /_next/image');
   });
 
   it('o avaliador acha um bloqueio quando há um, e escolhe o grupo como o robô', () => {
