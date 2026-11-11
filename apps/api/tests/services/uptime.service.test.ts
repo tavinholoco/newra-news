@@ -10,6 +10,7 @@ import {
   getRecentUptimeDays,
   flushUptimeBeforeClose,
   getMonthUptimeSeconds,
+  getUptimeReading,
   resetUptimeClock,
   splitUptimeCredit,
   startUptimeClock,
@@ -45,6 +46,7 @@ vi.mock('@newranews/database', async () => {
         upsert: vi.fn().mockResolvedValue({}),
         aggregate: vi.fn().mockResolvedValue({ _sum: { seconds: 0 } }),
         findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(null),
       },
     },
   };
@@ -306,5 +308,47 @@ describe('§3.1 — o heartbeat está ligado onde o processo sobe', () => {
     const app = readFileSync(join(__dirname, '../../src/app.ts'), 'utf8');
 
     expect(app).not.toContain('uptimeHeartbeatPlugin');
+  });
+});
+
+/**
+ * **A leitura pública das horas** — P7 do plano de ação de 11/11/2026. O
+ * Heartbeat lê `GET /api/health/hours`, e esta é a conta por trás: ontem (o
+ * último dia inteiro) e o mês até agora, em segundos crus.
+ */
+describe('P7 — a leitura das horas para o Heartbeat', () => {
+  it('reads yesterday by its unique key and sums the month', async () => {
+    vi.mocked(prisma.dailyUptime.findUnique).mockResolvedValueOnce({ seconds: 86_040 } as never);
+    vi.mocked(prisma.dailyUptime.aggregate).mockResolvedValueOnce({ _sum: { seconds: 808_560 } } as never);
+    const now = new Date('2026-11-11T17:02:11.000Z');
+
+    const reading = await getUptimeReading(now);
+
+    expect(reading).toEqual({
+      yesterday: { date: '2026-11-10', seconds: 86_040 },
+      month: { start: '2026-11-01', seconds: 808_560 },
+      checkedAt: '2026-11-11T17:02:11.000Z',
+    });
+    const [arg] = vi.mocked(prisma.dailyUptime.findUnique).mock.calls.at(-1) as [{ where: { date: Date } }];
+    expect(arg.where.date.toISOString()).toBe('2026-11-10T00:00:00.000Z');
+  });
+
+  it('reads a day without a row as zero — the API slept all day', async () => {
+    vi.mocked(prisma.dailyUptime.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.dailyUptime.aggregate).mockResolvedValueOnce({ _sum: { seconds: null } } as never);
+
+    const reading = await getUptimeReading(new Date('2026-11-11T17:00:00.000Z'));
+
+    expect(reading.yesterday.seconds).toBe(0);
+    expect(reading.month.seconds).toBe(0);
+  });
+
+  it('on the 1st, yesterday is the last day of the previous month, and the month starts over', async () => {
+    vi.mocked(prisma.dailyUptime.findUnique).mockResolvedValueOnce({ seconds: 7_200 } as never);
+
+    const reading = await getUptimeReading(new Date('2026-12-01T17:00:00.000Z'));
+
+    expect(reading.yesterday.date).toBe('2026-11-30');
+    expect(reading.month.start).toBe('2026-12-01');
   });
 });

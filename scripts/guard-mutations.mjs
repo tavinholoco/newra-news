@@ -1738,6 +1738,20 @@ const MUTATIONS = [
     create: "'use server';\n// Arquivo criado pelo scripts/guard-mutations.mjs; é apagado ao fim.\nexport async function guardMutation() {}\n",
     expect: 'não existe Server Action no projeto',
   },
+  {
+    id: 'A1.145',
+    what: 'o Heartbeat deixa de perguntar as horas — nove dias de 22–24 h sem ninguém saber (02–10/11)',
+    pkg: 'api',
+    test: 'tests/scripts/heartbeat.test.ts',
+    file: 'apps/api/scripts/heartbeat.ts',
+    edits: [
+      {
+        find: 'const hours = up ? await get(opts.fetch, `${opts.apiUrl}/api/health/hours`, PAGE_TIMEOUT_MS) : null;',
+        replace: 'const hours = null;',
+      },
+    ],
+    expect: 'asks both Homes, the health, the latest briefing, the hours and the login probe',
+  },
   // ── Controles: o script se vendo falhar ──────────────────────────────────
   {
     id: 'C.01',

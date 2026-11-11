@@ -78,6 +78,9 @@ const MATRIX: Row[] = [
   { route: 'GET /api/health', access: 'public' },
   { route: 'GET /api/health/providers', access: 'public' },
   { route: 'GET /api/health/auth', access: 'health-probe' },
+  // P7 (11/11/2026): as horas de instância não são sensíveis, e o Heartbeat
+  // roda sem segredo.
+  { route: 'GET /api/health/hours', access: 'public' },
 
   { route: 'GET /api/news', access: 'public' },
   { route: 'GET /api/news/facets', access: 'public' },

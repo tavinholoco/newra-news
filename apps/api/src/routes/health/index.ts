@@ -2,10 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { authPlugin } from '../../plugins/auth';
 import { checkAllProviders } from '../../services/health.service';
+import { getUptimeReading } from '../../services/uptime.service';
 import { assertJobSecret } from '../../utils/job-secret';
 import { errorResponseSchema } from '../../utils/schemas';
 import {
   healthAuthResponseSchema,
+  healthHoursResponseSchema,
   healthResponseSchema,
   providersHealthResponseSchema,
 } from './schemas';
@@ -25,6 +27,26 @@ export async function healthRoutes(app: FastifyInstance) {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
     }),
+  );
+
+  /**
+   * **As horas desta API, para o Heartbeat** — P7 do plano de ação de
+   * 11/11/2026. As horas subiram de ~5 para 22–24 por dia em 02/11 e ninguém
+   * soube por nove dias: o número morava só na `/admin`. Pública porque não é
+   * sensível e porque o batimento roda sem segredo; com teto de 10 por minuto
+   * porque vai ao banco. Só leitura — e só é pedida com a API já acordada.
+   */
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/hours',
+    {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      schema: {
+        response: {
+          200: healthHoursResponseSchema,
+        },
+      },
+    },
+    async () => ({ data: await getUptimeReading() }),
   );
 
   app.withTypeProvider<ZodTypeProvider>().get(

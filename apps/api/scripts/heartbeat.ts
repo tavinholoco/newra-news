@@ -34,7 +34,14 @@ import { appendFileSync } from 'node:fs';
  *    comprometida uma sessão de admin. O defeito que eles pegariam — a API
  *    recusar a assinatura da Vercel, todo leitor logado em 401 — chega aqui
  *    sem segredo nenhum: é lido do cache da Vercel, e não acorda a API;
- * 6. **o próprio batimento continua agendado** — o GitHub desliga workflow
+ * 6. **as horas da API cabem no plano** (P7 do plano de ação de 11/11/2026) —
+ *    as horas subiram de ~5 para 22–24 por dia em 02/11, com robôs
+ *    regenerando `/news/[id]`, e ninguém soube por nove dias: o número morava
+ *    só na `/admin`. Reprova se ontem passou de {@link HOURS_YESTERDAY_LIMIT} h
+ *    ou se o mês, no ritmo de ontem, passa de {@link HOURS_MONTH_LIMIT} h
+ *    (limiares do dono). A leitura é `GET /api/health/hours`, pública, e só é
+ *    pedida com a API já acordada;
+ * 7. **o próprio batimento continua agendado** — o GitHub desliga workflow
  *    agendado de repositório público depois de 60 dias sem atividade, e o
  *    batimento não conta como atividade. O aviso sai aos 45.
  *
@@ -77,6 +84,21 @@ export const API_RETRY_PAUSE_MS = 15_000;
  */
 export const ACTIVITY_WARN_DAYS = 45;
 
+/**
+ * As horas de **ontem** acima disto reprovam — decisão do dono em 11/11/2026, a
+ * mesma linha dos 10 h que a série da `/admin` (13.9) desenha. Um dia normal,
+ * com a API dormindo entre os runs, fica em 0,5–7 h; acima de 10 é robô ou
+ * algo mantendo a instância acordada.
+ */
+export const HOURS_YESTERDAY_LIMIT = 10;
+
+/**
+ * A projeção do mês acima disto reprova — decisão do dono em 11/11/2026. As 750
+ * h do plano free são do **workspace**, que o `NetsheetEngine` divide; 450 para
+ * esta API deixa ~300 para o outro serviço.
+ */
+export const HOURS_MONTH_LIMIT = 450;
+
 /** Folga para dizer que a sonda acordou a API: o processo nasceu durante a espera. */
 const WOKE_SLACK_MS = 15_000;
 
@@ -100,11 +122,21 @@ export interface Observation {
   latest: Probe | null;
   /** A rota `/api/health/auth` do **site** — o resultado da sonda do cron. */
   authProbe: Probe | null;
+  /** `GET /api/health/hours` da API — `null` quando a API não respondeu. */
+  hours: Probe | null;
   /** O `pushed_at` do repositório, ou `null` fora do GitHub Actions. */
   repoPushedAt: string | null;
 }
 
-export type CheckId = 'site' | 'api' | 'briefing' | 'home' | 'login' | 'activity' | 'rehearsal';
+export type CheckId =
+  | 'site'
+  | 'api'
+  | 'briefing'
+  | 'home'
+  | 'login'
+  | 'hours'
+  | 'activity'
+  | 'rehearsal';
 
 export interface EvaluateOptions {
   /**
@@ -176,6 +208,45 @@ function authProbeBody(probe: Probe | null): AuthProbeBody | null {
     checkedAt: parsed.checkedAt,
   };
 }
+
+export interface HoursReading {
+  yesterday: { date: string; seconds: number };
+  month: { start: string; seconds: number };
+}
+
+/** O corpo de `GET /api/health/hours`, ou `null` se não é a leitura. */
+function hoursReading(probe: Probe | null): HoursReading | null {
+  if (probe?.status !== 200) return null;
+  const parsed = parseJson(probe.body) as { data?: Partial<HoursReading> } | null;
+  const data = parsed?.data;
+  if (
+    typeof data?.yesterday?.seconds !== 'number' ||
+    typeof data.yesterday.date !== 'string' ||
+    typeof data.month?.seconds !== 'number' ||
+    typeof data.month.start !== 'string'
+  ) {
+    return null;
+  }
+  return { yesterday: data.yesterday, month: data.month };
+}
+
+/**
+ * **O mês no ritmo de ontem**: o que já foi gasto, mais as horas que faltam no
+ * mês ao ritmo do último dia inteiro. E não a média do mês até aqui (a conta do
+ * arco da `/admin`): a média carrega os dias ruins já passados, e depois de
+ * corrigida a causa ela leva semanas para descer — com os números de novembro
+ * de 2026, o alarme continuaria vermelho por ~10 dias sobre um problema
+ * resolvido, e e-mail diário sobre o que já foi consertado ensina a ignorar o
+ * e-mail. O que já foi gasto não volta; o que importa é onde o mês termina se
+ * nada mudar.
+ */
+export function projectMonthHours(reading: HoursReading, now: Date): number {
+  const nextMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+  const remainingHours = Math.max(0, (nextMonth - now.getTime()) / 3_600_000);
+  return reading.month.seconds / 3600 + (reading.yesterday.seconds / 3600 / 24) * remainingHours;
+}
+
+const hoursText = (hours: number) => `${hours.toFixed(1).replace('.', ',')} h`;
 
 function latestDate(probe: Probe): string | null {
   const parsed = parseJson(probe.body) as { data?: { date?: unknown } } | null;
@@ -314,7 +385,46 @@ export function evaluate(o: Observation, options: EvaluateOptions = {}): Verdict
     }
   }
 
-  // 6. O próprio agendamento.
+  // 6. As horas da API — só com ela de pé (a leitura vem dela).
+  if (state !== 'up' || o.hours === null) {
+    checks.push({ id: 'hours', state: 'skipped', summary: 'sem a API, não dá para perguntar' });
+  } else {
+    const reading = hoursReading(o.hours);
+    if (reading === null) {
+      checks.push({
+        id: 'hours',
+        state: 'fail',
+        summary: `/api/health/hours ${describeProbe(o.hours)} — não é a leitura das horas`,
+        action:
+          'A rota das horas não respondeu com a leitura. Se a API acabou de ser promovida, confira que o deploy do Render subiu; se não, o log do Render diz por quê.',
+      });
+    } else {
+      const yesterday = reading.yesterday.seconds / 3600;
+      const month = reading.month.seconds / 3600;
+      const projected = projectMonthHours(reading, o.now);
+      const over: string[] = [];
+      if (yesterday > HOURS_YESTERDAY_LIMIT) {
+        over.push(`ontem (${reading.yesterday.date}) ${hoursText(yesterday)}, acima de ${HOURS_YESTERDAY_LIMIT} h`);
+      }
+      if (projected > HOURS_MONTH_LIMIT) {
+        over.push(`o mês termina em ~${Math.round(projected)} h no ritmo de ontem, acima de ${HOURS_MONTH_LIMIT} h`);
+      }
+      const facts = `ontem ${hoursText(yesterday)}; mês ${hoursText(month)}, ~${Math.round(projected)} h no ritmo de ontem`;
+      checks.push(
+        over.length === 0
+          ? { id: 'hours', state: 'ok', summary: facts }
+          : {
+              id: 'hours',
+              state: 'fail',
+              summary: over.join('; '),
+              action:
+                'Algo mantém a API acordada. O suspeito de novembro de 2026 foi robô regenerando `/news/[id]` (cada regeneração da ISR chama a API): `vercel logs requests --scope tavinholocos-projects --project newra-news-web --since 12h --json` diz quem, e o `robots.txt` é o remédio. As 750 h são do workspace, divididas com o `NetsheetEngine`: Render → Billing diz quanto sobra.',
+            },
+      );
+    }
+  }
+
+  // 7. O próprio agendamento.
   const pushedAt = o.repoPushedAt === null ? Number.NaN : new Date(o.repoPushedAt).getTime();
   if (!Number.isFinite(pushedAt)) {
     // Fora do GitHub Actions, ou a leitura do `pushed_at` falhou: um alarme
@@ -334,7 +444,7 @@ export function evaluate(o: Observation, options: EvaluateOptions = {}): Verdict
     );
   }
 
-  // 7. O ensaio — por último, depois de as seis serem respondidas de verdade.
+  // 8. O ensaio — por último, depois de as sete serem respondidas de verdade.
   if (options.rehearsal) {
     checks.push({
       id: 'rehearsal',
@@ -432,10 +542,13 @@ export async function observe(opts: ObserveOptions): Promise<Observation> {
     ? await get(opts.fetch, `${opts.apiUrl}/api/articles/latest`, PAGE_TIMEOUT_MS)
     : null;
 
+  // As horas vêm da API, e só com ela já acordada — a pergunta não acorda nada.
+  const hours = up ? await get(opts.fetch, `${opts.apiUrl}/api/health/hours`, PAGE_TIMEOUT_MS) : null;
+
   // Do **site**, guardada pela ISR: lê o que o cron perguntou, não pergunta.
   const authProbe = await get(opts.fetch, `${opts.siteUrl}/api/health/auth`, PAGE_TIMEOUT_MS);
 
-  return { now: opts.now(), homes, api, latest, authProbe, repoPushedAt: opts.repoPushedAt };
+  return { now: opts.now(), homes, api, latest, authProbe, hours, repoPushedAt: opts.repoPushedAt };
 }
 
 export interface MainDeps {

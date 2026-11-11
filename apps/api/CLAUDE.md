@@ -25,6 +25,13 @@
   no lugar dos fluxos com login do Smoke, que ficam desligados por decisão
   (o `NEXTAUTH_SECRET` de produção no CI daria sessão de admin a qualquer
   dependência comprometida)
+- GET /api/health/hours — **as horas desta API, para o Heartbeat** (P7 do plano
+  de ação de 11/11/2026): ontem (o último dia inteiro) e o mês até agora, em
+  segundos do `DailyUptime`. **Pública** (as horas não são sensíveis, e o
+  batimento roda sem segredo), 10/min. A conta é do batimento: reprova se ontem
+  passou de 10 h ou se o mês, **no ritmo de ontem**, passa de 450 h (limiares
+  do dono). As horas subiram de ~5 para 22–24 por dia em 02/11 e ninguém soube
+  por nove dias — o número morava só na `/admin`
 - GET /api/news — listar notícias (paginado; filtros: categoria, busca, dia
   exato, período `from`/`to`, fonte; `sort` = `recent` | `oldest`)
 - GET /api/news/facets — contagem por categoria e por fonte do recorte atual,
