@@ -67,6 +67,9 @@ const WITHOUT_SHARED_TYPE: Record<string, string> = {
   // 13.7: a rota do web que a chama lê só o status (200 = o par de JWT fecha);
   // o corpo é a confirmação, e nada o desenha.
   healthAuthResponseSchema: 'sonda do par de JWT Vercel→API; o web lê só o status',
+  // P7 do plano de ação de 11/11/2026: quem lê é o Heartbeat, que roda com o
+  // Node sozinho e não importa nada do projeto — nem `packages/types`.
+  healthHoursResponseSchema: 'leitura do Heartbeat (scripts/heartbeat.ts), sem import do projeto',
   weeklyMetricsResponseSchema: 'rota sem tela; o mesmo schema é coberto dentro do dashboard',
   monthlyMetricsResponseSchema: 'rota sem tela, sem tipo compartilhado equivalente',
 };

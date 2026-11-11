@@ -271,3 +271,41 @@ export async function getMonthUptimeSeconds(now: Date = new Date()): Promise<num
 
   return result._sum.seconds ?? 0;
 }
+
+/** A leitura pública das horas desta API: o dia de ontem inteiro e o mês até agora. */
+export interface UptimeReading {
+  /** O dia UTC de ontem — o último dia **inteiro**; hoje é parcial por definição. */
+  yesterday: { date: string; seconds: number };
+  /** O mês de calendário UTC de `now`, hoje incluído. */
+  month: { start: string; seconds: number };
+  checkedAt: string;
+}
+
+/**
+ * **As horas para quem está de fora** — P7 do plano de ação de 11/11/2026.
+ *
+ * As horas da API subiram de ~5 para 22–24 por dia a partir de 02/11 (robôs
+ * regenerando `/news/[id]`), e **ninguém soube por nove dias**: o gráfico do
+ * 13.9 mora na `/admin`, que ninguém abre todo dia, e o `/api/metrics/http` é
+ * só de admin — o Heartbeat, que manda e-mail, não alcançava o número. Esta é a
+ * leitura que ele faz, por `GET /api/health/hours`, pública: as horas de
+ * instância não são dado sensível, e uma rota com sessão pediria segredo no CI.
+ *
+ * Fatos crus, como o 13b decidiu para o arco da `/admin`: a conta (o limiar e a
+ * projeção) é de quem lê. Duas consultas pela chave única e por agregado —
+ * nenhuma varre a tabela.
+ */
+export async function getUptimeReading(now: Date = new Date()): Promise<UptimeReading> {
+  const yesterday = new Date(startOfUtcDay(now).getTime() - DAY_MS);
+  const [row, monthSeconds] = await Promise.all([
+    prisma.dailyUptime.findUnique({ where: { date: yesterday }, select: { seconds: true } }),
+    getMonthUptimeSeconds(now),
+  ]);
+
+  return {
+    // Sem linha é zero: a API dormiu o dia inteiro, e nenhum tique escreveu.
+    yesterday: { date: yesterday.toISOString().slice(0, 10), seconds: row?.seconds ?? 0 },
+    month: { start: startOfUtcMonth(now).toISOString().slice(0, 10), seconds: monthSeconds },
+    checkedAt: now.toISOString(),
+  };
+}

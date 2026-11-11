@@ -4,9 +4,12 @@ import path from 'node:path';
 import {
   ACTIVITY_WARN_DAYS,
   API_RETRY_PAUSE_MS,
+  HOURS_MONTH_LIMIT,
+  HOURS_YESTERDAY_LIMIT,
   evaluate,
   main,
   observe,
+  projectMonthHours,
   renderSummary,
   type Observation,
   type Probe,
@@ -45,6 +48,22 @@ const authWith = (ok: boolean, day: string, status: number | null = ok ? 200 : 4
     }),
   );
 
+/** O que `GET /api/health/hours` devolve (P7): ontem e o mês, em segundos. */
+const hoursWith = (yesterdayHours: number, monthHours: number) =>
+  probe(
+    200,
+    JSON.stringify({
+      data: {
+        yesterday: { date: '2026-10-07', seconds: Math.round(yesterdayHours * 3600) },
+        month: { start: '2026-10-01', seconds: Math.round(monthHours * 3600) },
+        checkedAt: NOW.toISOString(),
+      },
+    }),
+  );
+
+/** Um dia normal de outubro: ~4 h ontem, ~30 h no mês. */
+const HOURS_OK = hoursWith(4, 30);
+
 function healthy(overrides: Partial<Observation> = {}): Observation {
   return {
     now: NOW,
@@ -52,6 +71,7 @@ function healthy(overrides: Partial<Observation> = {}): Observation {
     api: [probe(200, JSON.stringify({ status: 'ok', uptime: 3600 }), 280)],
     latest: probe(200, JSON.stringify({ data: { date: `${TODAY}T00:00:00.000Z` } })),
     authProbe: authWith(true, TODAY),
+    hours: HOURS_OK,
     repoPushedAt: '2026-10-07T19:07:46Z',
     ...overrides,
   };
@@ -71,8 +91,81 @@ describe('o veredito', () => {
       ['briefing', 'ok'],
       ['home', 'ok'],
       ['login', 'ok'],
+      ['hours', 'ok'],
       ['activity', 'ok'],
     ]);
+  });
+
+  /**
+   * **As horas da API** — P7 do plano de ação de 11/11/2026. As horas
+   * subiram de ~5 para 22–24 por dia em 02/11 e ninguém soube por nove dias.
+   * Limiares do dono: ontem acima de 10 h, ou o mês acima de 450 h no ritmo
+   * de ontem.
+   */
+  it('the owner thresholds: 10 h yesterday, 450 h in the month', () => {
+    expect(HOURS_YESTERDAY_LIMIT).toBe(10);
+    expect(HOURS_MONTH_LIMIT).toBe(450);
+  });
+
+  it('fails when yesterday went past 10 h — the robots of November 2026', () => {
+    const hours = evaluate(healthy({ hours: hoursWith(23.9, 120) })).checks.find((c) => c.id === 'hours');
+
+    expect(hours?.state).toBe('fail');
+    expect(hours?.summary).toMatch(/ontem \(2026-10-07\) 23,9 h, acima de 10 h/);
+    expect(hours?.action).toMatch(/robots\.txt/);
+  });
+
+  it('fails when the month, at yesterday pace, ends past 450 h — even with a day under 10 h', () => {
+    // 08/10 12:41 UTC: faltam ~563 h no mês; 9 h/dia somam ~211 h a 260 já gastas.
+    const hours = evaluate(healthy({ hours: hoursWith(9, 260) })).checks.find((c) => c.id === 'hours');
+
+    expect(hours?.state).toBe('fail');
+    expect(hours?.summary).not.toMatch(/acima de 10 h/);
+    expect(hours?.summary).toMatch(/o mês termina em ~471 h no ritmo de ontem, acima de 450 h/);
+  });
+
+  it('passes, with the numbers, on a normal day', () => {
+    const hours = evaluate(healthy()).checks.find((c) => c.id === 'hours');
+
+    expect(hours?.state).toBe('ok');
+    expect(hours?.summary).toBe('ontem 4,0 h; mês 30,0 h, ~124 h no ritmo de ontem');
+  });
+
+  it('projects at yesterday pace, so a fixed cause stops the e-mail the next day', () => {
+    // 13/11 com o mês já em 294 h (os robôs) e ontem em 3 h (o robots.txt no
+    // ar): a média do mês projetaria ~678 h e o alarme seguiria vermelho por
+    // dez dias; no ritmo de ontem o mês termina em ~346 h.
+    const now = new Date('2026-11-13T17:00:00.000Z');
+    const reading = {
+      yesterday: { date: '2026-11-12', seconds: 3 * 3600 },
+      month: { start: '2026-11-01', seconds: 294 * 3600 },
+    };
+
+    expect(Math.round(projectMonthHours(reading, now))).toBe(346);
+    expect(evaluate(healthy({ now, hours: hoursWith(3, 294) })).checks.find((c) => c.id === 'hours')?.state).toBe(
+      'ok',
+    );
+  });
+
+  it('fails when the hours route does not answer with the reading', () => {
+    const hours = evaluate(healthy({ hours: probe(404, '{"error":"Not found"}') })).checks.find(
+      (c) => c.id === 'hours',
+    );
+
+    expect(hours?.state).toBe('fail');
+    expect(hours?.summary).toMatch(/não é a leitura/);
+  });
+
+  it('does not ask about the hours without the API — one cause, one line', () => {
+    const hours = evaluate(
+      healthy({
+        api: [probe(503, 'Service Suspended', 300, { 'x-render-routing': 'suspend' })],
+        latest: null,
+        hours: null,
+      }),
+    ).checks.find((c) => c.id === 'hours');
+
+    expect(hours?.state).toBe('skipped');
   });
 
   /**
@@ -313,13 +406,15 @@ describe('a observação, com o fetch de mentira', () => {
     new Response(body, { status: 200, headers });
 
   const PROBE = JSON.stringify({ ok: true, reason: 'accepted', status: 200, checkedAt: `${TODAY}T11:03:00.000Z` });
+  const HOURS = '{"data":{"yesterday":{"date":"2026-10-07","seconds":14400},"month":{"start":"2026-10-01","seconds":108000},"checkedAt":"2026-10-08T12:41:00.000Z"}}';
 
-  it('asks both Homes, the health, the latest briefing and the login probe — and only GETs', async () => {
+  it('asks both Homes, the health, the latest briefing, the hours and the login probe — and only GETs', async () => {
     const { fetchFn, calls } = respond({
       [`${SITE}/pt-BR`]: [ok(`/pt-BR/article/${TODAY}`)],
       [`${SITE}/en`]: [ok(`/en/article/${TODAY}`)],
       [`${API}/api/health`]: [ok('{"status":"ok","uptime":10}')],
       [`${API}/api/articles/latest`]: [ok(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`)],
+      [`${API}/api/health/hours`]: [ok(HOURS)],
       [`${SITE}/api/health/auth`]: [ok(PROBE)],
     });
 
@@ -338,6 +433,7 @@ describe('a observação, com o fetch de mentira', () => {
       [
         `${API}/api/articles/latest`,
         `${API}/api/health`,
+        `${API}/api/health/hours`,
         `${SITE}/api/health/auth`,
         `${SITE}/en`,
         `${SITE}/pt-BR`,
@@ -356,6 +452,7 @@ describe('a observação, com o fetch de mentira', () => {
       [`${SITE}/en`]: [ok(`/en/article/${TODAY}`)],
       [`${API}/api/health`]: [new Error('The operation was aborted due to timeout'), ok('{"uptime":3}')],
       [`${API}/api/articles/latest`]: [ok(`{"data":{"date":"${TODAY}T00:00:00.000Z"}}`)],
+      [`${API}/api/health/hours`]: [ok(HOURS)],
       [`${SITE}/api/health/auth`]: [ok(PROBE)],
     });
 
@@ -394,7 +491,9 @@ describe('a observação, com o fetch de mentira', () => {
     });
 
     expect(calls).not.toContain(`${API}/api/articles/latest`);
+    expect(calls).not.toContain(`${API}/api/health/hours`);
     expect(o.latest).toBeNull();
+    expect(o.hours).toBeNull();
     expect(evaluate(o).checks.find((c) => c.id === 'api')?.summary).toMatch(/suspen/i);
   });
 });
@@ -439,6 +538,7 @@ describe('a saída do processo', () => {
           JSON.stringify({ ok: true, reason: 'accepted', status: 200, checkedAt: `${TODAY}T11:03:00.000Z` }),
         );
       }
+      if (url.endsWith('/api/health/hours')) return new Response('{"data":{"yesterday":{"date":"2026-10-07","seconds":14400},"month":{"start":"2026-10-01","seconds":108000},"checkedAt":"2026-10-08T12:41:00.000Z"}}');
       const locale = url.endsWith('/en') ? 'en' : 'pt-BR';
       return new Response(`/${locale}/article/${TODAY}`);
     }) as typeof fetch;
@@ -474,6 +574,7 @@ describe('a saída do processo', () => {
             JSON.stringify({ ok: true, reason: 'accepted', status: 200, checkedAt: `${TODAY}T11:03:00.000Z` }),
           );
         }
+        if (url.endsWith('/api/health/hours')) return new Response('{"data":{"yesterday":{"date":"2026-10-07","seconds":14400},"month":{"start":"2026-10-01","seconds":108000},"checkedAt":"2026-10-08T12:41:00.000Z"}}');
         const locale = url.endsWith('/en') ? 'en' : 'pt-BR';
         return new Response(`/${locale}/article/${TODAY}`);
       }) as typeof fetch,

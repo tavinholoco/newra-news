@@ -878,6 +878,32 @@ recebe 401 em qualquer outra rota. Não toca o banco.
 **Resposta 401:** sem token, token de outro escopo, ou assinado com outro
 segredo — que é o defeito que a sonda existe para ver.
 
+### GET /api/health/hours
+
+**As horas desta API no Render, para o Heartbeat** (P7 do plano de ação de
+11/11/2026). As horas subiram de ~5 para 22–24 por dia em 02/11 — robôs
+regenerando `/news/[id]` — e ninguém soube por nove dias: o número morava só na
+`/admin`. O batimento diário lê esta rota e reprova (o e-mail) se **ontem**
+passou de 10 h ou se o mês, no ritmo de ontem, termina acima de 450 h.
+
+**Auth:** nenhuma — as horas de instância não são dado sensível, e o batimento
+roda sem segredo. **Rate limit:** 10 req/min. Vai ao banco (duas consultas, pela
+chave única do `DailyUptime` e pela soma do mês); o batimento só a pede com a
+API já acordada.
+
+**Resposta 200:** fatos crus — a conta (limiar e projeção) é de quem lê. Os dias
+são UTC; `yesterday` é o último dia **inteiro** (sem linha, zero: a API dormiu o
+dia todo), e `month` soma o mês de calendário até agora, hoje incluído.
+```json
+{
+  "data": {
+    "yesterday": { "date": "2026-11-10", "seconds": 86040 },
+    "month": { "start": "2026-11-01", "seconds": 808560 },
+    "checkedAt": "2026-11-11T17:02:11.000Z"
+  }
+}
+```
+
 ---
 
 ### GET /api/health/providers

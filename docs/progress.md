@@ -9585,6 +9585,52 @@ lockfile. Decidido pelo dono, num PR separado.
   em 202 (o lote do navegador nunca passa de ~16 KB), e um corpo de 100 KB
   responde 413.
 
+### 110. O alarme que faltou: as horas da API no Heartbeat, por e-mail ✅ 2026-11-11
+
+**Por que agora:** P7 do plano de ação de 11/11
+(`docs/pipeline-action-plan-2026-11.md`). As horas da API subiram de ~5 para
+**22–24 por dia a partir de 02/11** (robôs regenerando `/news/[id]`, item 105)
+e **ninguém soube por 9 dias**. O gráfico existe na `/admin` (13.9), mas
+ninguém o abre todo dia, e o `/api/metrics/http` é só de admin — o Heartbeat,
+que manda e-mail, não alcançava o número.
+
+**Decidido pelo dono em 11/11:** reprova se **ontem passou de 10 h** (a mesma
+linha dos 10 h da série da `/admin`) ou se **o mês passa de 450 h** (deixa
+~300 das 750 do workspace para o `NetsheetEngine`).
+
+- **`GET /api/health/hours`** (pública, 10/min): ontem — o último dia
+  **inteiro** — e o mês até agora, em segundos crus do `DailyUptime`
+  (`getUptimeReading`, duas consultas: a chave única de ontem e a soma do
+  mês). Pública porque as horas de instância não são sensíveis e porque o
+  batimento roda sem segredo; fatos crus, como o 13b decidiu para o arco.
+- **O Heartbeat ganhou a pergunta `hours`**, pedida só com a API já
+  acordada (não acorda nada), pulada quando ela não respondeu (uma causa, uma
+  linha). O resumo diz os números todo dia (`ontem 4,0 h; mês 30,0 h, ~124 h
+  no ritmo de ontem`), e a ação da falha diz onde olhar (o log de CDN, o
+  `robots.txt`, o Billing).
+- **A projeção é "no ritmo de ontem"**, e não a média do mês: o que já foi
+  gasto, mais as horas que faltam ao ritmo do último dia inteiro. **Esta é a
+  parte do desenho que é minha e o dono confere no PR:** com os números de
+  novembro, a média do mês (a conta do arco da `/admin`) manteria o alarme
+  vermelho por ~10 dias depois de o `robots.txt` resolver — em 13/11, ~678 h
+  pela média contra ~346 h no ritmo de ontem —, e e-mail diário sobre o que já
+  foi consertado ensina a ignorar o e-mail. O "ontem > 10 h" pega o ritmo; a
+  projeção pega o mês que já gastou demais.
+- Guardas: a matriz de autorização (pública), a `docs/api.md`, o contrato de
+  tipos (exceção: quem lê é o batimento, que não importa nada do projeto), a
+  rota, a leitura (ontem pela chave, o dia sem linha como zero, a virada do
+  mês), e no batimento os dois limiares, o dia normal, a projeção de 13/11, a
+  rota sem leitura e a pergunta pulada sem API. Mutação **A1.145**.
+
+**O que esperar:** o primeiro batimento depois da promoção **deve reprovar** se
+os robôs ainda estiverem na véspera (ontem acima de 10 h) — é o alarme
+funcionando. Com o item 105 no ar, o "ontem" cai abaixo de 10 h no dia
+seguinte, e a projeção no ritmo de ontem fica abaixo de 450 h junto.
+
+**Como saber que funcionou:** a linha `hours` no resumo do job do Heartbeat
+todo dia, com os números; vermelho nos dias acima dos limiares e verde nos
+outros.
+
 ## Fase 1 — Setup e Infraestrutura ✅ Concluída em 2026-03-13
 
 ### Checklist do PRD (seção 17)

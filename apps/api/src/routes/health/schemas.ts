@@ -8,6 +8,19 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+/**
+ * As horas desta API no Render — P7 do plano de ação de 11/11/2026. Quem lê é
+ * o Heartbeat (`scripts/heartbeat.ts`), que não importa nada do projeto; os
+ * dias são UTC (`YYYY-MM-DD`), e os segundos, a soma do `DailyUptime`.
+ */
+export const healthHoursResponseSchema = z.object({
+  data: z.object({
+    yesterday: z.object({ date: z.string(), seconds: z.number().int().nonnegative() }),
+    month: z.object({ start: z.string(), seconds: z.number().int().nonnegative() }),
+    checkedAt: z.string().datetime(),
+  }),
+});
+
 export const providerStatusSchema = z.enum(['ok', 'invalid', 'not_configured']);
 
 /**
